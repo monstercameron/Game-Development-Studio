@@ -1,0 +1,12 @@
+target-version = "py310"
+line-length = 100
+indent-width = 4
+extend-exclude = [".forge-runtime", ".venv-dev", "models", "projects", "engines", "test/fixtures"]
+
+[lint]
+select = ["E4", "E7", "E9", "F", "B", "I"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

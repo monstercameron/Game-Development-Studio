@@ -8,6 +8,13 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test test/*.test.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "lint:python": "\".\\.venv-dev\\Scripts\\python.exe\" -m ruff check runtime test",
+    "format:python:check": "\".\\.venv-dev\\Scripts\\python.exe\" -m ruff format --check runtime test",
+    "format:python": "\".\\.venv-dev\\Scripts\\python.exe\" -m ruff format runtime test",
     "mcp": "node runtime/mcp.js",
     "start": "node server.js"
   },
@@ -27,5 +34,12 @@
     "typescript": "^5.7.3",
     "vite": "^6.1.0",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10"
   }
 }

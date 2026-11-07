@@ -9,6 +9,9 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .venv/
+.venv-dev/
+.ruff_cache/
+.eslintcache
 .env
 .env.*
 !.env.example

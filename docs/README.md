@@ -7,5 +7,6 @@
 - [Windows ARM64 runtime and rebuild notes](WINDOWS_ARM64.md): source checkouts, local patches, toolchain, platform changes, and verification limits.
 - [Runtime map](../runtime/README.md): service, worker, queue, and engine adapter responsibilities.
 - [Test guide](../test/README.md): isolated tests and real GPU checks.
+- [Linting and formatting](CODE_QUALITY.md): developer tool installation, checks, and formatting commands.
 
 The model and runtime state can change independently of the documentation. Check service status and Diagnostics before starting work or removing model files.
