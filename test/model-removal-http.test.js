@@ -88,6 +88,7 @@ test(
     );
     env.FORGE_RUNTIME_DIR = path.join(root, '.forge-runtime');
     env.FORGE_PROJECTS_DIR = path.join(root, 'projects');
+    env.FORGE_DISABLE_TRAY = '1';
     child = fork(path.join(root, 'server.js'), ['--port', String(port)], {
       cwd: root,
       env,

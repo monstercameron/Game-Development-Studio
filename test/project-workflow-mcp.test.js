@@ -50,6 +50,22 @@ test('MCP creates a project and updates asset metadata through the real project 
   const project = JSON.parse(created.content[0].text).project;
   assert.equal(project.name, 'Agent project');
   assert.equal(project.folder, path.join(root, 'Agent project'));
+  const saved = await client.callTool({
+    name: 'forge_save_text_asset',
+    arguments: { projectId: project.id, kind: 'transcript', content: 'A saved transcript.' },
+  });
+  assert.notEqual(saved.isError, true);
+  const textPath = JSON.parse(saved.content[0].text).path;
+  const text = await client.callTool({
+    name: 'forge_read_text_asset',
+    arguments: { projectId: project.id, path: textPath },
+  });
+  assert.equal(text.content[0].text, 'A saved transcript.');
+  const escaped = await client.callTool({
+    name: 'forge_read_text_asset',
+    arguments: { projectId: project.id, path: '../outside.txt' },
+  });
+  assert.equal(escaped.isError, true);
   await fs.writeFile(path.join(project.folder, 'images', 'sample.png'), 'test asset');
 
   const input = { projectId: project.id, path: 'images/sample.png', rating: 5, kept: true };
@@ -58,9 +74,32 @@ test('MCP creates a project and updates asset metadata through the real project 
     true,
   );
   let listed = await client.callTool({ name: 'forge_projects', arguments: {} });
-  let asset = JSON.parse(listed.content[0].text).projects[0].assets[0];
+  let asset = JSON.parse(listed.content[0].text).projects[0].assets.find(
+    (item) => item.id === input.path,
+  );
   assert.equal(asset.rating, 5);
   assert.equal(asset.kept, true);
+  const png =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/aZkAAAAASUVORK5CYII=';
+  const thumbnail = await fetch(
+    `${origin}/api/projects/${project.id}/thumbnail?path=${encodeURIComponent(input.path)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'project', Origin: origin },
+      body: JSON.stringify({
+        image: `data:image/png;base64,${png}`,
+        modified: asset.modified,
+        size: asset.size,
+      }),
+    },
+  );
+  assert.equal(thumbnail.status, 201);
+  const preview = await client.callTool({
+    name: 'forge_view_thumbnail',
+    arguments: { projectId: project.id, path: input.path },
+  });
+  assert.equal(preview.content[0].type, 'image');
+  assert.equal(preview.content[0].data, png);
 
   assert.notEqual(
     (
@@ -72,7 +111,9 @@ test('MCP creates a project and updates asset metadata through the real project 
     true,
   );
   listed = await client.callTool({ name: 'forge_projects', arguments: {} });
-  asset = JSON.parse(listed.content[0].text).projects[0].assets[0];
+  asset = JSON.parse(listed.content[0].text).projects[0].assets.find(
+    (item) => item.id === input.path,
+  );
   assert.equal(asset.rating, null);
   assert.equal(asset.kept, true);
   assert.equal(

@@ -1,8 +1,53 @@
 # Model sources and restoration
 
+The canonical local model directory is `Game Development Studio/models`. Qwen Image,
+YuE2, Stable Audio, MiniMax H3, Mammoth, HY-World, the Qwen chat GGUF, and the
+WorldGen Hugging Face cache live there. Existing standalone applications use
+compatibility junctions at their previous model directories; deleting or moving
+the Studio model folders also affects those applications. Authentication files
+remain in their original Hugging Face home. Shared models are protected from
+Studio's model-removal controls until all consumers can be safely coordinated.
+
+Some identical checkpoints use NTFS hard links inside `models`: replacing a file
+is safe, but modifying its contents in place changes every linked name. The
+one-time migration and cleanup journals are in the Codex workspace's `outputs`
+directory. Installed runtimes, native extensions and standalone source remain in
+their existing locations.
+
+### Companion application changes in this installation
+
+Several companion applications live outside this repository. A fresh clone does
+not contain their source, Python environments, native executables, compatibility
+junctions or local patches. Restore and verify those applications separately.
+The observed Windows installation has these model-path changes:
+
+- Qwen Image Studio's `app.py` accepts `QWEN_MODEL`; Forge sets it to
+  `models/Qwen-Image-2.1`.
+- Snapdargon-DJ's `vkyue/webapp/server.py` resolves YuE2 and its VAE from
+  `FORGE_MODELS_ROOT` when set, otherwise from its original `models` directory.
+- Stable Audio Lab's `download_model.py` uses `FORGE_STABLE_AUDIO_HUB` when
+  set. Forge sets that value and `HF_HUB_CACHE` to `models/Stable-Audio-3/hub`.
+  Its `HF_HOME` and credentials remain separate.
+- H3 Studio's `server.js` accepts `FORGE_H3_MODEL_ROOT` for its diffusion and
+  encoder files and `FORGE_H3_VAE_ROOT` for its video and audio VAEs. Its
+  guarded startup also relies on the original startup and submission patterns.
+- Mammoth Studio's `server.py` accepts `FORGE_MAMMOTH_MODELS` for the tokenizer
+  and quantized model. HY-World's segmentation helper accepts
+  `FORGE_HYWORLD_SKYSEG`; Forge selects the WorldMirror weights separately via
+  `FORGE_HYWORLD_WEIGHTS`.
+- ComfyUI's `extra_model_paths.yaml` points its H3 VAE and model paths to
+  `models/MiniMax-H3/sol-engine`, and its LoRA and approximate-VAE paths to
+  `models/ComfyUI`.
+
+Where these patches are absent, the original applications may instead need
+carefully configured directory junctions to the corresponding central model
+folders. Do not create a junction over an existing directory or move a live
+model. These notes document the observed integration; they are not an automated
+or verified fresh-machine installer for the companion apps.
+
 ## World generators
 
-Forge's World studio uses the installed desktop projects directly; their weights are not part of Forge's managed model inventory and are not deleted by Forge. WorldGen is based on [ZiYang-xie/WorldGen](https://github.com/ZiYang-xie/WorldGen), its [WorldGen model](https://huggingface.co/LeoXie/WorldGen), [DA-2 depth model](https://huggingface.co/haodongli/DA-2), and the appropriate FLUX model for text or image generation. See `Desktop/WorldGen/WINDOWS-ARM-README.md` and `download_models.py` for the native Windows environment and manual download steps. FLUX models may require accepting their terms and a Hugging Face token. Forge uses the existing cache in offline mode and does not trigger downloads.
+Forge's World studio uses the installed desktop projects directly; their weights are inventoried in Forge's centralized model directory and are protected from Studio removal. WorldGen is based on [ZiYang-xie/WorldGen](https://github.com/ZiYang-xie/WorldGen), its [WorldGen model](https://huggingface.co/LeoXie/WorldGen), [DA-2 depth model](https://huggingface.co/haodongli/DA-2), and the appropriate FLUX model for text or image generation. See `Desktop/WorldGen/WINDOWS-ARM-README.md` and `download_models.py` for the native Windows environment and manual download steps. FLUX models may require accepting their terms and a Hugging Face token. Forge uses the existing cache in offline mode and does not trigger downloads.
 
 For lower-memory FLUX inference, the installed setup additionally uses `models/worldgen/flux1-dev-Q5_0.gguf` from [city96/FLUX.1-dev-gguf](https://huggingface.co/city96/FLUX.1-dev-gguf) and `models/worldgen/flux1-fill-dev-Q5_0.gguf` from [second-state/FLUX.1-Fill-dev-GGUF](https://huggingface.co/second-state/FLUX.1-Fill-dev-GGUF). They are downloaded separately from the supporting FLUX components and panorama LoRAs; their upstream FLUX.1 dev license is non-commercial. With a working Hugging Face CLI, run `hf download city96/FLUX.1-dev-gguf flux1-dev-Q5_0.gguf --local-dir models/worldgen` and `hf download second-state/FLUX.1-Fill-dev-GGUF flux1-fill-dev-Q5_0.gguf --local-dir models/worldgen` from the studio root. These model files are excluded from Git; they are not currently represented as individually removable items in Forge's model catalog. If absent, the adapter uses its full-precision fallback, which may have substantially higher Windows commit-memory demand.
 
@@ -91,12 +136,12 @@ The speech runtime is NVIDIA's [NeMo-Speech.cpp v0.3.0 Windows ARM64 CUDA releas
 
 Forge does not currently move or restore these model files. Their own launchers and download scripts are the source of truth, and model files may live outside Forge's `models/`.
 
-| Engine           | Source and actual local relationship                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Qwen Image 2.1   | [Qwen/Qwen-Image-2.1](https://huggingface.co/Qwen/Qwen-Image-2.1); `C:\Users\mreca\Desktop\Qwen Image Studio\download_model.py` uses `snapshot_download` into that application's `models/Qwen-Image-2.1`. The script follows the repo's current revision, so it is not a pinned restore.                                                                                                                                                                                                                                              |
-| YuE2 music       | [m-a-p/YuE2-3B](https://huggingface.co/m-a-p/YuE2-3B); see `C:\Users\mreca\Desktop\Snapdargon-DJ\docs\NVIDIA-SETUP.md` for the CUDA pipeline and its model/cache paths.                                                                                                                                                                                                                                                                                                                                                               |
-| Stable Audio 3   | [stabilityai/stable-audio-3-medium](https://huggingface.co/stabilityai/stable-audio-3-medium) requires approved access. `C:\Users\mreca\Desktop\Stable Audio Lab\download_model.py` downloads the gated snapshot into that app's `models/hub` cache; its revision is resolved when run.                                                                                                                                                                                                                                               |
-| MiniMax H3 video | The running H3 app uses local Q4_K_M diffusion and Qwen3-VL GGUFs in `C:\Users\mreca\Desktop\H3 Studio\models`. Matching filenames are published by [leejet/MiniMax-H3-GGUF](https://huggingface.co/leejet/MiniMax-H3-GGUF), but the exact source of the installed copies has not been established from local metadata. Its `server.js` currently reads both VAE files from `C:\Users\mreca\Desktop\Sol-Engine\windows-arm64\models\vae`, despite the H3 README claiming all files are local to H3 Studio. Preserve both directories. |
-| Mammoth-1        | [magnitudedev/mammoth-1-GGUF](https://huggingface.co/magnitudedev/mammoth-1-GGUF); the companion app's `download_model.py` specifies `mammoth-1-Q4_K_M.gguf`, 16,547,406,624 bytes, SHA-256 `e453b42c2160e60e9d71b8f6554f8a8fc9ecb9c91cb1c639eec87d63e4bc2e68`, under `C:\Users\mreca\Desktop\Mammoth Studio\models\mammoth-q4km`.                                                                                                                                                                                                    |
+| Engine           | Source and actual local relationship                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Qwen Image 2.1   | [Qwen/Qwen-Image-2.1](https://huggingface.co/Qwen/Qwen-Image-2.1); `C:\Users\mreca\Desktop\Qwen Image Studio\download_model.py` uses `snapshot_download` into that application's `models/Qwen-Image-2.1`. The script follows the repo's current revision, so it is not a pinned restore.                                                                                                                                                                                                                                    |
+| YuE2 music       | [m-a-p/YuE2-3B](https://huggingface.co/m-a-p/YuE2-3B); see `C:\Users\mreca\Desktop\Snapdargon-DJ\docs\NVIDIA-SETUP.md` for the CUDA pipeline and its model/cache paths.                                                                                                                                                                                                                                                                                                                                                     |
+| Stable Audio 3   | [stabilityai/stable-audio-3-medium](https://huggingface.co/stabilityai/stable-audio-3-medium) requires approved access. `C:\Users\mreca\Desktop\Stable Audio Lab\download_model.py` downloads the gated snapshot into that app's `models/hub` cache; its revision is resolved when run.                                                                                                                                                                                                                                     |
+| MiniMax H3 video | The running H3 app uses local Q4_K_M diffusion and Qwen3-VL GGUFs in `C:\Users\mreca\Desktop\H3 Studio\models`. Matching filenames are published by [leejet/MiniMax-H3-GGUF](https://huggingface.co/leejet/MiniMax-H3-GGUF), but the exact source of the installed copies has not been established from local metadata. Forge configures diffusion and encoder files under `models/MiniMax-H3/h3-studio` and VAEs under `models/MiniMax-H3/sol-engine/vae`. Standalone compatibility junctions preserve the original paths. |
+| Mammoth-1        | [magnitudedev/mammoth-1-GGUF](https://huggingface.co/magnitudedev/mammoth-1-GGUF); the companion app's `download_model.py` specifies `mammoth-1-Q4_K_M.gguf`, 16,547,406,624 bytes, SHA-256 `e453b42c2160e60e9d71b8f6554f8a8fc9ecb9c91cb1c639eec87d63e4bc2e68`, under `models\Mammoth-1\mammoth-q4km`.                                                                                                                                                                                                                      |
 
 See [Windows ARM64 notes](WINDOWS_ARM64.md) for the code sources, CUDA toolchain, local patches, and validation commands.

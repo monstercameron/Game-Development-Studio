@@ -31,6 +31,20 @@ export function useRuntimeNotifications() {
         if (stopped) {
           return;
         }
+        let tray = { active: false };
+        try {
+          const trayResponse = await fetch('/api/tray/status', {
+            signal: AbortSignal.timeout(2000),
+          });
+          if (trayResponse.ok) {
+            tray = await trayResponse.json();
+          }
+        } catch {
+          // Browser notifications remain available when the tray is unreachable.
+        }
+        if (stopped) {
+          return;
+        }
         if (previous) {
           const completed = jobs.filter(
             (job) =>
@@ -39,6 +53,9 @@ export function useRuntimeNotifications() {
               previous.get(job.id) !== 'completed',
           );
           for (const job of completed) {
+            if (tray.active && tray.render) {
+              continue;
+            }
             announceCompletion({
               type: 'render',
               id: job.id,
@@ -50,7 +67,8 @@ export function useRuntimeNotifications() {
           if (
             completed.length &&
             [...previous.values()].some((status) => active.has(status)) &&
-            !jobs.some((job) => active.has(job.status))
+            !jobs.some((job) => active.has(job.status)) &&
+            !(tray.active && tray.queue)
           ) {
             announceCompletion({ type: 'queue', id: completed.at(-1).id });
           }

@@ -2217,8 +2217,8 @@ function StudioSettings({ onClose }) {
               <Radio size={18} />
             </div>
             <div>
-              <strong>Desktop notifications</strong>
-              <p>Get a notification when your creations are ready.</p>
+              <strong>Browser notifications</strong>
+              <p>Get browser alerts when your creations are ready.</p>
             </div>
           </div>
           <div className="settings-status">
@@ -2260,8 +2260,9 @@ function StudioSettings({ onClose }) {
             <span>When the render queue completes</span>
           </label>
           <p className="settings-hint">
-            Keep the studio open for notifications. Only real render jobs trigger notifications;
-            browser drafts do not.
+            Keep this page open for browser alerts. On Windows, the Forge tray icon has separate
+            notification controls that work while the page is closed. Forge avoids duplicate browser
+            alerts while tray alerts are active. Browser drafts do not trigger alerts.
           </p>
         </div>
         <CredentialSettings />

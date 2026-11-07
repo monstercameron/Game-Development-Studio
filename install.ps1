@@ -106,20 +106,20 @@ if ($CheckOnly) {
     $desktop = Join-Path $env:USERPROFILE 'Desktop'
     $checks = @{
         'worldgen'=@((Join-Path $desktop 'WorldGen\.venv\Scripts\python.exe'),(Join-Path $root 'models\worldgen\flux1-dev-Q5_0.gguf'),(Join-Path $root 'models\worldgen\flux1-fill-dev-Q5_0.gguf'))
-        'hy-world'=@((Join-Path $desktop 'HY-World-2.0\.venv\Scripts\python.exe'),(Join-Path $desktop 'HY-World-2.0\compat-port\weights\HY-WorldMirror-2.0\model.safetensors'))
-        'images'=@((Join-Path $desktop 'Qwen Image Studio\.venv\Scripts\python.exe'),(Join-Path $desktop 'Qwen Image Studio\models\Qwen-Image-2.1\.download-complete'))
+        'hy-world'=@((Join-Path $desktop 'HY-World-2.0\.venv\Scripts\python.exe'),(Join-Path $root 'models\HY-World-2.0\weights\HY-WorldMirror-2.0\model.safetensors'))
+        'images'=@((Join-Path $desktop 'Qwen Image Studio\.venv\Scripts\python.exe'),(Join-Path $root 'models\Qwen-Image-2.1\.download-complete'))
         '3d-trellis'=@((Join-Path $root '.forge-runtime\trellis2-venv\Scripts\python.exe'),(Join-Path $root 'models\TRELLIS.2-4B\pipeline.json'),(Join-Path $root 'models\dinov3-vitl16-pretrain-lvd1689m\model.safetensors'))
         '3d-hunyuan'=@((Join-Path $root '.forge-runtime\hunyuan3d-venv\Scripts\python.exe'),(Join-Path $root 'models\Hunyuan3D-2.1\hunyuan3d-dit-v2-1\model.fp16.ckpt'))
         'motion-hy'=@((Join-Path $root '.forge-runtime\hunyuan3d-venv\Scripts\python.exe'),(Join-Path $root 'models\HY-Motion\HY-Motion-1.0\latest.ckpt'))
         'motion-bricks'=@((Join-Path $root '.forge-runtime\hunyuan3d-venv\Scripts\python.exe'),(Join-Path $root 'models\MotionBricks\checkpoints'))
-        'video'=@((Join-Path $desktop 'H3 Studio\engine\node.exe'),(Join-Path $desktop 'H3 Studio\models'),(Join-Path $desktop 'Sol-Engine\windows-arm64\models\vae'))
-        'music'=@((Join-Path $desktop 'Snapdargon-DJ\.runtime\python.exe'),(Join-Path $desktop 'Snapdargon-DJ\models\YuE2-3B'),(Join-Path $desktop 'Snapdargon-DJ\models\YuE2-Vae'))
-        'sfx'=@((Join-Path $desktop 'Snapdargon-DJ\.runtime\python.exe'),(Join-Path $desktop 'Stable Audio Lab\bootstrap.py'),(Join-Path $desktop 'Stable Audio Lab\models\hub'))
+        'video'=@((Join-Path $desktop 'H3 Studio\engine\node.exe'),(Join-Path $root 'models\MiniMax-H3\h3-studio'),(Join-Path $root 'models\MiniMax-H3\sol-engine\vae'))
+        'music'=@((Join-Path $desktop 'Snapdargon-DJ\.runtime\python.exe'),(Join-Path $root 'models\YuE2-3B'),(Join-Path $root 'models\YuE2-Vae'))
+        'sfx'=@((Join-Path $desktop 'Snapdargon-DJ\.runtime\python.exe'),(Join-Path $desktop 'Stable Audio Lab\bootstrap.py'),(Join-Path $root 'models\Stable-Audio-3\hub'))
         'tts'=@((Join-Path $root '.forge-runtime\tts-python-embed\python.exe'),(Join-Path $root 'models\Qwen3-TTS-12Hz-1.7B-CustomVoice\model.safetensors'))
         'asr'=@((Join-Path $root '.forge-runtime\nemo-speech-0.3.0\bin\nemo-speech.exe'),(Join-Path $root 'models\nemotron-speech-streaming-en-0.6b\nemotron-speech-streaming-en-0.6b.q8_0.gguf'))
         'segmentation'=@((Join-Path $root '.forge-runtime\sam3-python-embed\python.exe'),(Join-Path $root 'models\sam3.1\sam3.1_multiplex.pt'))
-        'game'=@((Join-Path $desktop 'ComfyUI_windows_portable\python_embeded\python.exe'),(Join-Path $desktop 'Mammoth Studio\models\mammoth-q4km\mammoth-1-Q4_K_M.gguf'))
-        'chat'=@((Join-Path $root 'engines\llama-cuda\bin\llama-server.exe'),(Join-Path $desktop 'LMStudio\lmstudio-community\Qwen3.8-27B-GGUF\Qwen3.8-27B-Q4_K_M.gguf'))
+        'game'=@((Join-Path $desktop 'ComfyUI_windows_portable\python_embeded\python.exe'),(Join-Path $root 'models\Mammoth-1\mammoth-q4km\mammoth-1-Q4_K_M.gguf'))
+        'chat'=@((Join-Path $root 'engines\llama-cuda\bin\llama-server.exe'),(Join-Path $root 'models\Qwen3.8-27B-GGUF\Qwen3.8-27B-Q4_K_M.gguf'))
     }
     Write-Host "`nSelected model prerequisite paths:"
     foreach ($model in $manifest.models) {

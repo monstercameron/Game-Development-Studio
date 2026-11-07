@@ -130,7 +130,7 @@ export function createGameLoader({
           status: 409,
           body: {
             code: 'model_missing',
-            message: 'Verified Mammoth model files were not found in Mammoth Studio.',
+            message: 'Verified Mammoth model files were not found in the Studio model folder.',
           },
         };
       }

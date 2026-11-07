@@ -6,12 +6,24 @@ const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 export const defaultModelsRoot = path.join(appRoot, 'models');
 // The catalog is deliberately fixed: callers cannot supply filesystem paths.
 export const managedModels = Object.freeze([
+  // Shared with standalone applications; removal requires coordinated ownership.
+  { id: 'images', folder: 'Qwen-Image-2.1', removable: false },
+  { id: 'music', folder: 'YuE2-3B', removable: false },
+  { id: 'music-vae', folder: 'YuE2-Vae', removable: false },
+  { id: 'sfx', folder: 'Stable-Audio-3', removable: false },
+  { id: 'video', folder: 'MiniMax-H3', removable: false },
+  { id: 'game', folder: 'Mammoth-1', removable: false },
+  { id: 'hy-world', folder: 'HY-World-2.0', removable: false },
+  { id: 'worldgen', folder: 'worldgen', removable: false },
+  { id: 'chat', folder: 'Qwen3.8-27B-GGUF', removable: false },
+  { id: 'world-hf-cache', folder: 'hf-cache', removable: false },
+  { id: 'comfy-models', folder: 'ComfyUI', removable: false },
   { id: '3d-trellis', folder: 'TRELLIS.2-4B', removable: false },
   { id: 'trellis-decoder', folder: 'TRELLIS-image-large', removable: false },
   { id: 'trellis-encoder', folder: 'dinov3-vitl16-pretrain-lvd1689m', removable: false },
   { id: '3d-hunyuan', folder: 'Hunyuan3D-2.1' },
   { id: 'motion-hy', folder: 'HY-Motion' },
-  { id: 'motion-bricks', folder: 'MotionBricks' },
+  { id: 'motion-bricks', folder: 'MotionBricks', removable: false },
   { id: 'tts', folder: 'Qwen3-TTS-12Hz-1.7B-CustomVoice' },
   { id: 'asr', folder: 'nemotron-speech-streaming-en-0.6b' },
   { id: 'segmentation', folder: 'sam3.1' },

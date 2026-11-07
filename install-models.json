@@ -13,7 +13,7 @@
         "https://huggingface.co/city96/FLUX.1-dev-gguf",
         "https://huggingface.co/second-state/FLUX.1-Fill-dev-GGUF"
       ],
-      "destination": "models/worldgen (Q5 files); Desktop/WorldGen and Hugging Face cache (supporting models)",
+      "destination": "models/worldgen (Q5 files); models/hf-cache/hub (supporting models); Desktop/WorldGen (code and environment)",
       "notes": "Stages the two Q5 transformers only. The separate WorldGen Windows environment, FLUX components, LoRAs and DA-2 remain necessary. FLUX.1 dev uses non-commercial terms.",
       "downloads": [
         {
@@ -41,7 +41,7 @@
         "https://github.com/Tencent-Hunyuan/HY-World-2.0",
         "https://huggingface.co/tencent/HY-World-2.0"
       ],
-      "destination": "Desktop/HY-World-2.0/compat-port/weights/HY-WorldMirror-2.0",
+      "destination": "models/HY-World-2.0/weights/HY-WorldMirror-2.0",
       "notes": "Stages WorldMirror weights only; the separate Windows compat-port and Python environment are required.",
       "downloads": [
         {
@@ -61,7 +61,7 @@
         "https://huggingface.co/Qwen/Qwen-Image-2.1",
         "https://github.com/QwenLM/Qwen-Image"
       ],
-      "destination": "Desktop/Qwen Image Studio/models/Qwen-Image-2.1",
+      "destination": "models/Qwen-Image-2.1",
       "notes": "Stages the upstream snapshot; the separate Qwen Image Studio environment and its completion marker are required. Its downloader is documented in MODEL_SOURCES.md.",
       "downloads": [
         {
@@ -210,7 +210,7 @@
         "https://huggingface.co/MiniMaxAI/MiniMax-H3",
         "https://huggingface.co/leejet/MiniMax-H3-GGUF"
       ],
-      "destination": "Desktop/H3 Studio/models and Desktop/Sol-Engine/windows-arm64/models/vae",
+      "destination": "models/MiniMax-H3/h3-studio and models/MiniMax-H3/sol-engine/vae",
       "notes": "Stages the matching Q4 diffusion and encoder files, but not the separate VAEs. Restore H3 Studio and its VAE files separately. Installed file provenance has not been independently verified.",
       "downloads": [
         {
@@ -229,7 +229,7 @@
         "https://huggingface.co/m-a-p/YuE2-3B",
         "https://huggingface.co/m-a-p/YuE2-Vae"
       ],
-      "destination": "Desktop/Snapdargon-DJ/models/YuE2-3B and YuE2-Vae",
+      "destination": "models/YuE2-3B and models/YuE2-Vae",
       "notes": "Stages the model and VAE snapshots. The separate Snapdargon-DJ CUDA environment is required; review model license terms.",
       "downloads": [
         {
@@ -251,7 +251,7 @@
         "https://huggingface.co/stabilityai/stable-audio-3-medium",
         "https://github.com/Stability-AI/stable-audio-tools"
       ],
-      "destination": "Desktop/Stable Audio Lab/models/hub",
+      "destination": "models/Stable-Audio-3/hub",
       "notes": "Stages the gated model snapshot. The existing Stable Audio Lab downloader creates its expected Hub cache and verifies files; the external app and access approval are required.",
       "downloads": [
         {
@@ -327,7 +327,7 @@
       "id": "game",
       "name": "Mammoth-1",
       "sources": ["https://huggingface.co/magnitudedev/mammoth-1-GGUF"],
-      "destination": "Desktop/Mammoth Studio/models/mammoth-q4km",
+      "destination": "models/Mammoth-1/mammoth-q4km",
       "notes": "Stages Q4_K_M weights. The separate Mammoth Studio environment is required.",
       "downloads": [
         {
@@ -347,7 +347,7 @@
         "https://huggingface.co/lmstudio-community/Qwen3.8-27B-GGUF",
         "https://github.com/ggml-org/llama.cpp/releases/tag/b12180"
       ],
-      "destination": "Desktop/LMStudio/lmstudio-community/Qwen3.8-27B-GGUF",
+      "destination": "models/Qwen3.8-27B-GGUF",
       "notes": "Stages the Q4_K_M model. Forge uses the separately installed native Windows ARM64 CUDA llama.cpp server, not LM Studio for inference.",
       "downloads": [
         {

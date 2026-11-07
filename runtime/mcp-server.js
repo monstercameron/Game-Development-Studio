@@ -1,6 +1,7 @@
 // Shared tool definitions for the local HTTP and stdio MCP transports.
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import { registerExtendedTools } from './mcp-studio-tools.js';
 
 export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http://127.0.0.1:5173') {
   const base = new URL(origin);
@@ -41,14 +42,15 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
       };
     }
   }
-  async function write(path, body, timeout = 10000) {
+  async function write(path, body, timeout = 10000, requestKind) {
     try {
       const response = await fetch(new URL(path, base), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Forge-Request':
-            path === '/api/projects' || path.startsWith('/api/projects/') ? 'project' : 'runtime',
+            requestKind ||
+            (path === '/api/projects' || path.startsWith('/api/projects/') ? 'project' : 'runtime'),
           Origin: base.origin,
         },
         body: JSON.stringify(body),
@@ -65,6 +67,7 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
     }
   }
   const readonly = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
+  registerExtendedTools(server, { base, read, write, readonly });
   server.registerTool(
     'forge_models',
     {

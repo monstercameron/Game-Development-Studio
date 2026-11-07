@@ -170,11 +170,9 @@ def main():
         os.chdir(repo)
         from hyworld2.worldrecon.pipeline import WorldMirrorPipeline
 
-        weights = root / "weights"
+        weights = Path(os.environ.get("FORGE_HYWORLD_WEIGHTS", str(root / "weights")))
         if not (weights / "HY-WorldMirror-2.0" / "model.safetensors").is_file():
-            raise RuntimeError(
-                "HY-WorldMirror model weights are missing from HY-World-2.0/compat-port/weights."
-            )
+            raise RuntimeError(f"HY-WorldMirror model weights are missing from {weights}.")
         inputs = work / "views"
         inputs.mkdir(exist_ok=True)
         for index, image in enumerate(images):

@@ -14,6 +14,7 @@ import { createMcpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import { EngineBroker } from './engine-broker.js';
 import { attachAsrStreamProxy } from './asr-stream-proxy.js';
+import { trayStatusService } from './tray-status.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -46,6 +47,7 @@ const host = { middlewares: app, httpServer, config: { logger } };
 const engineBroker = process.env.FORGE_ENGINE_BROKER === '1' ? new EngineBroker() : null;
 for (const service of [
   powerService(),
+  trayStatusService(),
   diagnosticsService(),
   projectsService(),
   chatService(),

@@ -31,13 +31,7 @@ export const engineDefinitions = [
     command: path.join(root, 'engines', 'llama-cuda', 'bin', 'llama-server.exe'),
     args: [
       '--model',
-      path.join(
-        desktop,
-        'LMStudio',
-        'lmstudio-community',
-        'Qwen3.8-27B-GGUF',
-        'Qwen3.8-27B-Q4_K_M.gguf',
-      ),
+      path.join(root, 'models', 'Qwen3.8-27B-GGUF', 'Qwen3.8-27B-Q4_K_M.gguf'),
       '--alias',
       'qwen3.8-27b',
       '--host',
@@ -76,6 +70,7 @@ export const engineDefinitions = [
       '--engine-dir',
       images,
     ],
+    env: { QWEN_MODEL: path.join(root, 'models', 'Qwen-Image-2.1') },
     quiesce: 'qwen-v1',
   },
   {
@@ -87,7 +82,12 @@ export const engineDefinitions = [
     cwd: music,
     command: path.join(music, '.runtime', 'python.exe'),
     args: ['-u', '-m', 'vkyue.webapp', '--port', '8765'],
-    env: { YUE2_BACKEND: 'cuda', YUE2_PRELOAD: '0', PYTHONUTF8: '1' },
+    env: {
+      YUE2_BACKEND: 'cuda',
+      YUE2_PRELOAD: '0',
+      PYTHONUTF8: '1',
+      FORGE_MODELS_ROOT: defaultModelsRoot,
+    },
   },
   {
     id: 'sfx',
@@ -98,6 +98,10 @@ export const engineDefinitions = [
     cwd: sfx,
     command: path.join(music, '.runtime', 'python.exe'),
     args: ['-u', path.join(sfx, 'bootstrap.py')],
+    env: {
+      HF_HUB_CACHE: path.join(defaultModelsRoot, 'Stable-Audio-3', 'hub'),
+      FORGE_STABLE_AUDIO_HUB: path.join(defaultModelsRoot, 'Stable-Audio-3', 'hub'),
+    },
   },
   {
     id: 'video',
@@ -119,6 +123,10 @@ export const engineDefinitions = [
       '--engine-dir',
       video,
     ],
+    env: {
+      FORGE_H3_MODEL_ROOT: path.join(defaultModelsRoot, 'MiniMax-H3', 'h3-studio'),
+      FORGE_H3_VAE_ROOT: path.join(defaultModelsRoot, 'MiniMax-H3', 'sol-engine'),
+    },
   },
   {
     id: 'world',
@@ -129,6 +137,12 @@ export const engineDefinitions = [
     cwd: root,
     command: path.join(desktop, 'HY-World-2.0', '.venv', 'Scripts', 'python.exe'),
     args: ['-u', path.join(root, 'runtime', 'world_worker.py'), '--port', '8288'],
+    env: {
+      HF_HUB_CACHE: path.join(defaultModelsRoot, 'hf-cache', 'hub'),
+      HUGGINGFACE_HUB_CACHE: path.join(defaultModelsRoot, 'hf-cache', 'hub'),
+      FORGE_HYWORLD_WEIGHTS: path.join(defaultModelsRoot, 'HY-World-2.0', 'weights'),
+      FORGE_HYWORLD_SKYSEG: path.join(defaultModelsRoot, 'HY-World-2.0', 'skyseg.onnx'),
+    },
     onDemand: true,
     noRestart: true,
   },
@@ -148,6 +162,7 @@ export const engineDefinitions = [
       '--engine-dir',
       game,
     ],
+    env: { FORGE_MAMMOTH_MODELS: path.join(defaultModelsRoot, 'Mammoth-1') },
     quiesce: 'mammoth-v1',
     onDemand: true,
   },

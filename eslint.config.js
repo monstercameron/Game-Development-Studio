@@ -30,7 +30,12 @@ export default [
     },
   },
   {
-    files: ['*.{js,cjs,mjs}', 'runtime/**/*.{js,cjs,mjs}', 'test/**/*.{js,jsx,cjs,mjs}'],
+    files: [
+      '*.{js,cjs,mjs}',
+      'runtime/**/*.{js,cjs,mjs}',
+      'desktop/**/*.{js,cjs,mjs}',
+      'test/**/*.{js,jsx,cjs,mjs}',
+    ],
     languageOptions: { globals: globals.node },
   },
   {

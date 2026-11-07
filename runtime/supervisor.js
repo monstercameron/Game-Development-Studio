@@ -101,7 +101,11 @@ export class RuntimeSupervisor {
       return;
     }
     const reason = code === null && signal === null ? 'spawn_failed' : 'process_exit';
-    this.log(this.stopped ? 'INFO' : 'ERROR', `Supervisor event=worker_stopped reason=${reason}`);
+    const pid = Number.isSafeInteger(child.pid) ? child.pid : 'unknown';
+    this.log(
+      this.stopped ? 'INFO' : 'ERROR',
+      `Supervisor event=worker_stopped pid=${pid} reason=${reason}`,
+    );
     this.child = null;
     this.ready = false;
     for (const pending of this.pending.values()) {
@@ -136,7 +140,8 @@ export class RuntimeSupervisor {
     child.on('message', (message) => {
       if (message?.type === 'ready') {
         this.ready = true;
-        this.log('INFO', 'Supervisor event=worker_ready');
+        const pid = Number.isSafeInteger(child.pid) ? child.pid : 'unknown';
+        this.log('INFO', `Supervisor event=worker_ready pid=${pid}`);
         return;
       }
       if (message?.type === 'engine_request') {

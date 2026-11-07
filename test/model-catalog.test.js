@@ -27,7 +27,7 @@ test('catalog separates definitions, service state, storage and supporting check
   assert.equal(new Set(result.models.map((m) => m.id)).size, result.models.length);
   assert.equal(result.models.find((m) => m.id === 'tts').storage.bytes, 10);
   assert.equal(result.models.find((m) => m.id === 'tts').service.modelLoaded, false);
-  assert.equal(result.models.find((m) => m.id === 'images').storage.managed, false);
+  assert.equal(result.models.find((m) => m.id === 'images').storage.managed, true);
   assert.equal(result.models.find((m) => m.id === 'images').storage.installed, null);
   assert.equal(result.models.find((m) => m.id === 'trellis-encoder').role, 'dependency');
   assert.equal(result.models.find((m) => m.id === 'chat').service, null);

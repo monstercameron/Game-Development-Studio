@@ -47,8 +47,8 @@ test('runtime worker output and restart events remain available after a crash', 
   assert.notEqual(next, pid);
   const contents = await waitFor(async () => {
     const text = await fs.readFile(path.join(directory, 'runtime-worker.log'), 'utf8');
-    return text.includes(`Runtime worker ${pid} stopped`) &&
-      text.includes(`Runtime worker ${next} is ready`)
+    return text.includes(`event=worker_stopped pid=${pid}`) &&
+      text.includes(`event=worker_ready pid=${next}`)
       ? text
       : null;
   });

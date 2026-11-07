@@ -1,0 +1,94 @@
+import { spawn } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// A tray crash must not affect the web host or model workers. Restart the
+// lightweight helper with bounded backoff while the studio supervisor is alive.
+export function startWindowsTray({
+  port,
+  ownerPid,
+  log,
+  launch = spawn,
+  env = process.env,
+  scheduleTimer = setTimeout,
+  cancelTimer = clearTimeout,
+}) {
+  let stopped = false;
+  let child = null;
+  let timer = null;
+  let failures = 0;
+  const executable = path.join(
+    env.SystemRoot || 'C:\\Windows',
+    'System32',
+    'WindowsPowerShell',
+    'v1.0',
+    'powershell.exe',
+  );
+  const args = [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    fileURLToPath(new URL('./windows-tray.ps1', import.meta.url)),
+    '-Port',
+    String(port),
+    '-OwnerPid',
+    String(ownerPid),
+  ];
+  function schedule() {
+    if (stopped || timer) {
+      return;
+    }
+    failures++;
+    const delay = Math.min(5000 * 2 ** Math.min(failures - 1, 4), 60000);
+    log(`Supervisor event=tray_restart_scheduled delay_ms=${delay}`);
+    timer = scheduleTimer(() => {
+      timer = null;
+      start();
+    }, delay);
+    timer.unref();
+  }
+  function start() {
+    if (stopped || child) {
+      return;
+    }
+    let processHandle;
+    try {
+      processHandle = launch(executable, args, { windowsHide: true, stdio: 'ignore', env });
+    } catch {
+      log('Supervisor event=tray_start_failed');
+      schedule();
+      return;
+    }
+    child = processHandle;
+    let settled = false;
+    const started = Date.now();
+    function ended() {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (child === processHandle) {
+        child = null;
+      }
+      if (Date.now() - started > 30000) {
+        failures = 0;
+      }
+      if (!stopped) {
+        log('Supervisor event=tray_stopped');
+        schedule();
+      }
+    }
+    processHandle.once('error', ended);
+    processHandle.once('exit', ended);
+    processHandle.unref();
+  }
+  start();
+  return {
+    stop() {
+      stopped = true;
+      cancelTimer(timer);
+      timer = null;
+    },
+  };
+}

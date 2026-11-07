@@ -5,6 +5,7 @@ import { HostSupervisor } from './runtime/host-supervisor.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startWindowsTray } from './runtime/tray-supervisor.js';
 
 const args = process.argv.slice(2);
 if (args.length && (args.length !== 2 || args[0] !== '--port')) {
@@ -47,6 +48,16 @@ const supervisor = new HostSupervisor({
   onStopped: () => process.exit(0),
   onFatal: () => process.exit(1),
 });
-process.on('SIGINT', () => supervisor.stop());
-process.on('SIGTERM', () => supervisor.stop());
+// The tray has its own Windows message loop and exits when this supervisor exits.
+// A tray failure must never stop the web host or model workers.
+const tray =
+  process.platform === 'win32' && process.env.FORGE_DISABLE_TRAY !== '1'
+    ? startWindowsTray({ port, ownerPid: process.pid, log })
+    : null;
+function stop() {
+  tray?.stop();
+  supervisor.stop();
+}
+process.on('SIGINT', stop);
+process.on('SIGTERM', stop);
 supervisor.start();

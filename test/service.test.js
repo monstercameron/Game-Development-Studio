@@ -64,6 +64,7 @@ test(
     const env = {
       ...process.env,
       FORGE_RUNTIME_DIR: path.join(temp, 'runtime'),
+      FORGE_DISABLE_TRAY: '1',
       FORGE_PROJECTS_DIR: path.join(temp, 'projects'),
       FORGE_ENGINE_CONFIG: JSON.stringify(config),
       FORGE_SFX_URL: `http://127.0.0.1:${enginePort}`,
@@ -237,13 +238,13 @@ test(
       const response = await fetch(`${base}/api/logs?source=runtime-worker`);
       const result = await response.json();
       const lines = result.sources?.[0]?.lines || [];
-      return lines.some((line) => line.includes(`Runtime worker ${runtime.pid} stopped`)) &&
-        lines.some((line) => line.includes(`Runtime worker ${newRuntime.pid} is ready`))
+      return lines.some((line) => line.includes(`event=worker_stopped pid=${runtime.pid}`)) &&
+        lines.some((line) => line.includes(`event=worker_ready pid=${newRuntime.pid}`))
         ? lines
         : null;
     });
     assert.ok(
-      runtimeLogs.some((line) => line.includes(`Runtime worker ${newRuntime.pid} is ready`)),
+      runtimeLogs.some((line) => line.includes(`event=worker_ready pid=${newRuntime.pid}`)),
     );
     const afterRuntimeRestart = await (await fetch(`${base}/api/runtime/services`)).json();
     assert.equal(afterRuntimeRestart.services.find((item) => item.id === 'sfx').managed, true);
@@ -273,7 +274,7 @@ test(
     });
     assert.ok(
       JSON.parse(mcpLogs.content[0].text).sources[0].lines.some((line) =>
-        line.includes(`Runtime worker ${runtime.pid} stopped`),
+        line.includes(`event=worker_stopped pid=${runtime.pid}`),
       ),
     );
     assert.doesNotMatch(mcpLogs.content[0].text, new RegExp(fakeSecret));
@@ -394,7 +395,7 @@ test(
     const retainedLogs = await (await fetch(`${base}/api/logs?source=runtime-worker`)).json();
     assert.ok(
       retainedLogs.sources[0].lines.some((line) =>
-        line.includes(`Runtime worker ${runtime.pid} stopped`),
+        line.includes(`event=worker_stopped pid=${runtime.pid}`),
       ),
     );
     const retained = await waitFor(async () => {
@@ -441,6 +442,6 @@ test(
     enginePid = null;
     const projects = await (await fetch(`${base}/api/projects`)).json();
     assert.ok(projects.projects.some((item) => item.id === project.id));
-    assert.match(output, /restarting/i);
+    assert.match(output, /event=host_restart_scheduled/);
   },
 );
