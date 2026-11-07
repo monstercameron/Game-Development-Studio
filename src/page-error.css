@@ -1,3 +1,15 @@
+.page-error {
+  max-width: 940px;
+  border-inline-start: 3px solid var(--forge-danger);
+  padding-inline-start: var(--forge-space-5);
+}
+.page-error h1 {
+  max-width: 22ch;
+  overflow-wrap: anywhere;
+}
+.page-error .lead {
+  max-width: 70ch;
+}
 .page-error-actions {
   display: flex;
   flex-wrap: wrap;
@@ -10,6 +22,30 @@
   padding-inline: var(--forge-space-4);
 }
 .page-error .game-result {
+  max-width: 78ch;
+  max-height: 220px;
+  margin-block: var(--forge-space-4);
+  border-color: var(--forge-danger-border);
+  background: var(--forge-danger-surface);
+  color: var(--forge-text);
   font-size: var(--forge-font-support);
   line-height: 1.55;
+}
+.page-error-status {
+  min-height: 1.5em;
+  margin-block: var(--forge-space-3) 0;
+  color: var(--forge-success-text);
+}
+.page-error-status:empty {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .page-error {
+    padding-inline-start: var(--forge-space-3);
+  }
+
+  .page-error-actions .outline-button {
+    flex: 1 1 150px;
+  }
 }

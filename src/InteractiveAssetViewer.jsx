@@ -2,6 +2,7 @@ import { useRouteToggle } from './useNav';
 import React, { Suspense, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Maximize2, X } from 'lucide-react';
+import { topModal } from './modal-layer';
 import './interactive-asset-viewer.css';
 
 const ModelPreview = React.lazy(() => import('./ModelPreview'));
@@ -46,6 +47,9 @@ function InspectionDialog({ url, name, onClose, trigger, playing, onPlayingChang
     document.body.style.overflow = 'hidden';
     close.current?.focus();
     const handle = (event) => {
+      if (topModal() !== dialog.current) {
+        return;
+      }
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -63,7 +67,12 @@ function InspectionDialog({ url, name, onClose, trigger, playing, onPlayingChang
         ...dialog.current.querySelectorAll(
           'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])',
         ),
-      ].filter((element) => element.getClientRects().length);
+      ].filter(
+        (element) =>
+          !element.matches(':disabled,[hidden],[inert]') &&
+          element.getClientRects().length > 0 &&
+          !element.closest('[hidden],[inert],[aria-hidden="true"]'),
+      );
       if (!controls.length) {
         event.preventDefault();
         return;

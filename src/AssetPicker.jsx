@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AudioLines, Check, File, FolderOpen, Search, X } from 'lucide-react';
+import { AudioLines, Check, File, FolderOpen, LoaderCircle, Search, X } from 'lucide-react';
 import { compatibleAssets, readLibraryFiles } from './asset-picker.js';
 import useDialogFocus from './useDialogFocus';
 import './asset-picker.css';
@@ -39,6 +39,10 @@ export default function AssetPicker({
   const matches = useMemo(
     () => compatibleAssets(source?.assets, extensions, query),
     [source, extensions, query],
+  );
+  const hasCompatibleAssets = useMemo(
+    () => compatibleAssets(source?.assets, extensions).length > 0,
+    [source, extensions],
   );
   const chosen = selected
     .map((id) => source?.assets.find((asset) => asset.id === id))
@@ -156,7 +160,7 @@ export default function AssetPicker({
           <label>
             Search
             <div className="asset-picker-search">
-              <Search size={16} />
+              <Search size={16} aria-hidden="true" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -168,24 +172,29 @@ export default function AssetPicker({
         </div>
         <div className="asset-picker-info">
           <span>
-            {extensions.map((value) => value.toUpperCase()).join(' / ')} · {sizeLabel(maxBytes)} per
-            file{Number.isFinite(totalBytes) ? ` · ${sizeLabel(totalBytes)} total` : ''}
+            Supported: {extensions.map((value) => value.toUpperCase()).join(' / ')}.{' '}
+            {sizeLabel(maxBytes)} per file
+            {Number.isFinite(totalBytes) ? ` · ${sizeLabel(totalBytes)} total` : ''}
           </span>
-          <span>
+          <span role="status" aria-live="polite" aria-atomic="true">
             {matches.length} {matches.length === 1 ? 'file' : 'files'}
           </span>
         </div>
         <div className="asset-picker-results">
           {matches.length === 0 ? (
             <div className="asset-picker-empty">
-              <FolderOpen size={25} />
-              <strong>No compatible files found</strong>
+              <FolderOpen size={25} aria-hidden="true" />
+              <strong>
+                {source && hasCompatibleAssets ? 'No matching files' : 'No compatible files'}
+              </strong>
               <span>
                 {!source
                   ? 'Create a project and add a compatible file first.'
                   : !source.assets?.length
                     ? 'Add a compatible file to this project or choose another project.'
-                    : 'Change or clear your search, or choose another project.'}
+                    : hasCompatibleAssets
+                      ? 'Change or clear your search, or choose another project.'
+                      : 'Add a supported file to this project or choose another project.'}
               </span>
             </div>
           ) : (
@@ -196,6 +205,8 @@ export default function AssetPicker({
                   tooLarge = overFileLimit || overTotalLimit,
                   active = selected.includes(asset.id),
                   visual = ['Images', 'Masks'].includes(asset.category),
+                  folder = asset.id.includes('/') ? asset.id.split('/').slice(0, -1).join('/') : '',
+                  metadataId = `asset-picker-meta-${encodeURIComponent(asset.id)}`,
                   limitMessage = overFileLimit
                     ? `File is larger than the ${sizeLabel(maxBytes)} per-file limit.`
                     : `File is larger than the ${sizeLabel(totalBytes)} total selection limit.`;
@@ -205,9 +216,11 @@ export default function AssetPicker({
                     key={asset.id}
                     className={'asset-picker-item ' + (active ? 'selected' : '')}
                     aria-pressed={active}
+                    aria-label={`${active ? 'Deselect' : 'Select'} ${asset.name}`}
+                    aria-describedby={metadataId}
                     disabled={busy || tooLarge}
                     onClick={() => toggle(asset)}
-                    title={tooLarge ? limitMessage : asset.id}
+                    title={tooLarge ? limitMessage : undefined}
                   >
                     <span className="asset-picker-thumb">
                       {visual ? (
@@ -220,11 +233,16 @@ export default function AssetPicker({
                       <span className="asset-picker-format">
                         {asset.name.split('.').pop().toUpperCase()}
                       </span>
-                      <span className="asset-picker-check">{active && <Check size={15} />}</span>
+                      <span className="asset-picker-check" aria-hidden="true">
+                        {active && <Check size={15} />}
+                      </span>
                     </span>
                     <span className="asset-picker-name">{asset.name}</span>
-                    <small>
-                      {tooLarge ? 'Over size limit' : sizeLabel(asset.size)} · {asset.id}
+                    <small id={metadataId} className="asset-picker-meta">
+                      {tooLarge ? limitMessage : sizeLabel(asset.size)}
+                      <span className="asset-picker-folder">
+                        {folder ? `Folder: ${folder}` : 'Project root'}
+                      </span>
                     </small>
                   </button>
                 );
@@ -234,16 +252,27 @@ export default function AssetPicker({
         </div>
         <footer className="asset-picker-footer">
           <div>
-            <strong>{selected.length} selected</strong>
+            <strong aria-live="polite" aria-atomic="true">
+              {selected.length} {selected.length === 1 ? 'file' : 'files'} selected
+            </strong>
             <span>{maxFiles > 1 ? `Up to ${maxFiles} files` : 'Choose one file'}</span>
           </div>
           <button className="ghost-button" disabled={busy} onClick={onClose}>
             Cancel
           </button>
-          <button className="primary" disabled={busy || !chosen.length} onClick={useAssets}>
-            {busy ? 'Loading…' : selected.length === 1 ? 'Use file' : 'Use files'}
+          <button
+            className="primary"
+            disabled={busy || !chosen.length}
+            aria-busy={busy}
+            onClick={useAssets}
+          >
+            {busy && <LoaderCircle className="asset-picker-spinner" size={16} aria-hidden="true" />}
+            {busy ? 'Reading files…' : selected.length === 1 ? 'Use file' : 'Use files'}
           </button>
         </footer>
+        <span className="asset-picker-sr-status" role="status" aria-live="polite">
+          {busy ? 'Reading selected files.' : ''}
+        </span>
         {error && (
           <p className="asset-picker-error" role="alert">
             {error}

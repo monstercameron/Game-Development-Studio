@@ -3,6 +3,17 @@ import React from 'react';
 /** Keep a failed workspace from taking the navigation and the rest of Forge down. */
 export default class PageErrorBoundary extends React.Component {
   state = { error: null, copyStatus: '' };
+  headingRef = React.createRef();
+
+  componentDidCatch() {
+    this.headingRef.current?.focus();
+  }
+
+  componentDidUpdate(_previousProps, previousState) {
+    if (this.state.error && this.state.error !== previousState.error) {
+      this.headingRef.current?.focus();
+    }
+  }
 
   static getDerivedStateFromError(error) {
     // JavaScript allows throwing null, undefined, and primitive values. Normalize them so
@@ -21,13 +32,24 @@ export default class PageErrorBoundary extends React.Component {
     return { error: new Error(detail) };
   }
 
-  async copyError() {
-    const detail = this.state.error?.stack || this.state.error?.message || String(this.state.error);
+  getErrorDetails() {
     try {
-      await navigator.clipboard.writeText(detail);
-      this.setState({ copyStatus: 'Error copied.' });
+      return this.state.error?.stack || this.state.error?.message || 'Unknown page error.';
     } catch {
-      this.setState({ copyStatus: 'Select the details below to copy them.' });
+      return 'Error details could not be read.';
+    }
+  }
+
+  async copyError() {
+    const detail = this.getErrorDetails();
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard access is unavailable.');
+      }
+      await navigator.clipboard.writeText(detail);
+      this.setState({ copyStatus: 'Error details copied.' });
+    } catch {
+      this.setState({ copyStatus: 'Copy is unavailable. Select the details below.' });
     }
   }
 
@@ -35,19 +57,23 @@ export default class PageErrorBoundary extends React.Component {
     if (!this.state.error) {
       return this.props.children;
     }
-    const detail = this.state.error?.stack || this.state.error?.message || String(this.state.error);
+    const detail = this.getErrorDetails();
     const chunkFailed =
       /dynamically imported module|loading (?:css |chunk)|failed to fetch dynamically/i.test(
         detail,
       );
     return (
       <section className="page page-error" role="alert">
-        <h1>Could not open {this.props.name || 'this workspace'}</h1>
+        <h1 ref={this.headingRef} tabIndex={-1}>
+          Could not open {this.props.name || 'this workspace'}
+        </h1>
         <p className="lead">
-          The rest of the studio is still available. Copy these details if you need help fixing the
-          problem.
+          The rest of the studio is still available. Copy the error details to help diagnose this
+          page.
         </p>
-        <pre className="game-result">{detail}</pre>
+        <pre className="game-result" tabIndex={0} aria-label="Error details">
+          {detail}
+        </pre>
         <div className="page-error-actions">
           <button className="outline-button" type="button" onClick={() => this.copyError()}>
             Copy error
@@ -70,7 +96,9 @@ export default class PageErrorBoundary extends React.Component {
             </button>
           )}
         </div>
-        {this.state.copyStatus && <p role="status">{this.state.copyStatus}</p>}
+        <p className="page-error-status" role="status" aria-live="polite" aria-atomic="true">
+          {this.state.copyStatus}
+        </p>
       </section>
     );
   }

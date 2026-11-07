@@ -66,6 +66,7 @@ test('gallery preview arrows navigate with buttons and keyboard outside editable
       const ArrowDownToLine = iconStub;
       const AudioLines = iconStub;
       const Box = iconStub;
+      const ChevronDown = iconStub;
       const ChevronLeft = iconStub;
       const ChevronRight = iconStub;
       const Clapperboard = iconStub;
@@ -99,18 +100,20 @@ test('gallery preview arrows navigate with buttons and keyboard outside editable
       root.render(
         React.createElement(AssetPreview, {
           asset: {
-            id: 'sample-one',
-            title: 'A sample note',
-            file: 'sample.txt',
-            category: 'Text',
-            sample: true,
-            description: 'Sample description',
+            id: 'Potion.png',
+            title: 'Potion.png',
+            file: '/api/projects/project-one/assets/Potion.png',
+            category: 'Images',
+            sample: false,
+            size: 2048,
+            modified: '2026-11-07T12:00:00Z',
+            modelRating: 4,
           },
           position: 1,
           total: 3,
           onClose: () => {},
           onStep: (step) => steps.push(step),
-          project: null,
+          project: { id: 'project-one', folder: 'C:\\Forge\\Project', name: 'Example project' },
           onMutate: async () => ({}),
           onConverted: () => {},
         }),
@@ -121,6 +124,25 @@ test('gallery preview arrows navigate with buttons and keyboard outside editable
     const nextButton = container.querySelector('button[aria-label="Next asset"]');
     assert.ok(previousButton, 'the modal should expose its previous button');
     assert.ok(nextButton, 'the modal should expose its next button');
+
+    const dialog = container.querySelector('[role="dialog"]');
+    assert.equal(dialog.querySelector('h2')?.textContent, 'Potion.png');
+    assert.ok(dialog.querySelector('a[download]'), 'download stays available in the dialog');
+    assert.ok(dialog.querySelector('.gallery-path code'), 'the file location stays visible');
+    assert.ok(
+      dialog.querySelector('button[aria-label="Copy file location"]'),
+      'the file location has an accessible copy action',
+    );
+    assert.ok(dialog.querySelector('[role="group"][aria-label="Asset rating"]'));
+    assert.ok(dialog.querySelector('button[aria-label="Rate 4 out of 5"]'));
+    const renameButton = [...dialog.querySelectorAll('button')].find((button) =>
+      button.textContent.includes('Rename'),
+    );
+    const deleteButton = [...dialog.querySelectorAll('button')].find((button) =>
+      button.textContent.includes('Delete'),
+    );
+    assert.ok(renameButton && !renameButton.disabled, 'rename is available for project assets');
+    assert.ok(deleteButton && !deleteButton.disabled, 'delete is available for project assets');
 
     await act(async () => previousButton.click());
     await act(async () => nextButton.click());
@@ -141,7 +163,6 @@ test('gallery preview arrows navigate with buttons and keyboard outside editable
       '[role="slider"]',
       '[role="textbox"]',
     ];
-    const dialog = container.querySelector('[role="dialog"]');
     for (const selector of editableSelectors) {
       const element = document.createElement(selector.startsWith('[') ? 'div' : selector);
       if (selector.startsWith('[')) {

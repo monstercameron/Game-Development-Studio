@@ -54,6 +54,12 @@
   min-height: 44px;
   font-size: var(--forge-font-support);
 }
+.model-remove-modal .model-remove-status {
+  margin: var(--forge-space-2-5) 0 0;
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+  line-height: 1.5;
+}
 .model-remove-modal :is(button, input, select):focus-visible {
   outline: 2px solid var(--forge-focus);
   outline-offset: 3px;

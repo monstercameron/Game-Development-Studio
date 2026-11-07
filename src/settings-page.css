@@ -1,17 +1,33 @@
 .settings-modal[aria-label='Studio settings'] {
-  --settings-border: #654457;
-  --settings-symbol-border: #63465a;
-  --settings-symbol-surface: #392235;
-  --settings-symbol-text: #f1c5b5;
-  --settings-status-text: #e6d4dc;
+  --settings-border: var(--forge-border);
+  --settings-symbol-border: var(--forge-border);
+  --settings-symbol-surface: var(--forge-surface-deep);
+  --settings-symbol-text: var(--forge-text-strong);
+  --settings-status-text: var(--forge-text-strong);
 }
 /* Studio settings only. Memory and model access dialogs retain their own treatment. */
 .settings-modal[aria-label='Studio settings'] {
-  width: min(680px, 100%);
-  max-height: min(88dvh, 900px);
+  width: min(720px, 100%);
+  max-height: min(88dvh, 980px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--forge-scrollbar-thumb) var(--forge-scrollbar-track);
+  scrollbar-width: var(--forge-scrollbar-width);
+  scroll-padding-block: var(--forge-space-4);
   padding: clamp(var(--forge-space-value-26), 2.4vw, var(--forge-space-value-34));
   border-color: var(--settings-border);
   background: var(--forge-raised);
+}
+.settings-modal[aria-label='Studio settings']::-webkit-scrollbar {
+  width: var(--forge-scrollbar-size);
+  background: var(--forge-scrollbar-track);
+}
+.settings-modal[aria-label='Studio settings']::-webkit-scrollbar-thumb {
+  border: var(--forge-scrollbar-thumb-border) solid transparent;
+  border-radius: var(--forge-radius-pill);
+  background: var(--forge-scrollbar-thumb);
+  background-clip: padding-box;
 }
 .settings-modal[aria-label='Studio settings'] .settings-head h2 {
   font:
@@ -29,9 +45,11 @@
   line-height: 1.55;
 }
 .settings-modal[aria-label='Studio settings'] .settings-section {
-  border-color: var(--forge-border);
-  padding-top: var(--forge-space-value-22);
-  margin-top: var(--forge-space-value-22);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-md);
+  padding: var(--forge-space-4);
+  margin-top: var(--forge-space-4);
+  background: var(--forge-surface);
 }
 .settings-modal[aria-label='Studio settings'] .settings-title {
   align-items: center;
@@ -55,6 +73,12 @@
 }
 .settings-modal[aria-label='Studio settings'] .settings-status {
   color: var(--settings-status-text);
+  width: fit-content;
+  max-width: calc(100% - 55px);
+  padding: var(--forge-space-1) var(--forge-space-2-5);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-surface-deep);
 }
 .settings-modal[aria-label='Studio settings'] .settings-hint {
   color: var(--forge-subtle);
@@ -62,10 +86,33 @@
 .settings-modal[aria-label='Studio settings'] .switch {
   width: 46px;
   height: 26px;
+  border: 1px solid var(--forge-control-border);
+  background: var(--forge-surface-deep);
+  box-shadow: inset 0 0 0 1px var(--forge-border-quiet);
+  cursor: pointer;
 }
 .settings-modal[aria-label='Studio settings'] .switch span {
   width: 20px;
   height: 20px;
+  background: var(--forge-text-strong);
+}
+.settings-modal[aria-label='Studio settings'] .switch[aria-checked='true'] {
+  border-color: var(--forge-orange);
+  background: var(--forge-orange);
+}
+.settings-modal[aria-label='Studio settings'] .switch[aria-checked='false'] span {
+  background: var(--forge-muted);
+}
+.settings-modal[aria-label='Studio settings'] .switch[aria-checked='true'] span {
+  background: var(--forge-switch-thumb-on);
+}
+.settings-modal[aria-label='Studio settings'] .switch:disabled {
+  cursor: wait;
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-modal[aria-label='Studio settings'] .switch span {
+    transition: none;
+  }
 }
 .settings-modal[aria-label='Studio settings'] .switch.on span {
   transform: translateX(20px);
@@ -91,6 +138,14 @@
     min-height: 44px;
     font-size: var(--forge-font-support);
   }
+  .settings-modal[aria-label='Studio settings'] .setting-check {
+    min-height: 42px;
+    margin-top: var(--forge-space-2-5);
+    padding: var(--forge-space-2) var(--forge-space-2-5);
+    border: 1px solid var(--forge-border);
+    border-radius: var(--forge-radius-sm);
+    background: var(--forge-surface-deep);
+  }
 }
 @media (max-width: 600px) {
   .settings-modal[aria-label='Studio settings'] {
@@ -101,5 +156,8 @@
   .settings-modal[aria-label='Studio settings'] .settings-hint,
   .settings-modal[aria-label='Studio settings'] .settings-error {
     margin-left: 0;
+  }
+  .settings-modal[aria-label='Studio settings'] .settings-status {
+    max-width: 100%;
   }
 }

@@ -1,6 +1,6 @@
 import { saveProjectText } from './save-project-text';
 import { useEffect, useState } from 'react';
-import { Copy, Gamepad2, Save } from 'lucide-react';
+import { Copy, Gamepad2, LoaderCircle, Save } from 'lucide-react';
 import { gameDecisionRequest, presentGameDecision } from './game-decision-input.js';
 import MemoryDialog from './MemoryDialog.jsx';
 import { formatDuration } from './queue-timing.js';
@@ -30,6 +30,8 @@ export default function GameDecision({ draft, project, onSaved }) {
     [busy, setBusy] = useState(false),
     [copied, setCopied] = useState(false);
   const [timings, setTimings] = useState(readTimings);
+  const [service, setService] = useState(null);
+  const [statusError, setStatusError] = useState('');
   const [saving, setSaving] = useState(false),
     [savedPath, setSavedPath] = useState('');
   useEffect(() => setSavedPath(''), [project?.id]);
@@ -37,6 +39,38 @@ export default function GameDecision({ draft, project, onSaved }) {
     [notice, setNotice] = useState(''),
     [conflict, setConflict] = useState(null),
     [memoryError, setMemoryError] = useState('');
+  useEffect(() => {
+    let active = true;
+    let request;
+    const refresh = async () => {
+      request?.abort();
+      request = new AbortController();
+      try {
+        const response = await fetch('/api/runtime/services', { signal: request.signal });
+        if (!response.ok) {
+          throw Error('Could not check Mammoth status.');
+        }
+        const data = await response.json();
+        const gameService = data.services?.find((item) => item.id === 'game') || null;
+        if (active) {
+          setService(gameService);
+          setStatusError(gameService ? '' : 'Mammoth is not listed in the runtime status.');
+        }
+      } catch (reason) {
+        if (active && reason.name !== 'AbortError') {
+          setService(null);
+          setStatusError(reason.message || 'Could not check Mammoth status.');
+        }
+      }
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 4000);
+    return () => {
+      active = false;
+      request?.abort();
+      window.clearInterval(interval);
+    };
+  }, []);
   async function load() {
     setLoading(true);
     setMemoryError('');
@@ -103,6 +137,7 @@ export default function GameDecision({ draft, project, onSaved }) {
         throw Error(data.error || 'Could not stop Mammoth.');
       }
       setNotice(data.message);
+      setService(null);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -173,6 +208,27 @@ export default function GameDecision({ draft, project, onSaved }) {
     .map((item) => item.seconds)
     .sort((a, b) => a - b);
   const decisionEstimate = similar.length ? similar[Math.floor((similar.length - 1) / 2)] : null;
+  const isReady =
+    service?.status === 'reachable' && service.modelLoaded === true && service.state !== 'error';
+  const serviceState = statusError
+    ? 'Could not check Mammoth status.'
+    : service?.status === 'unavailable'
+      ? 'Mammoth is stopped.'
+      : service?.status === 'not_configured'
+        ? 'Mammoth is not configured.'
+        : service?.status === 'unverified'
+          ? 'Mammoth status could not be verified.'
+          : service?.status !== 'reachable'
+            ? 'Checking Mammoth status…'
+            : service.state === 'error'
+              ? 'Mammoth reported a model error.'
+              : service.modelLoaded === true
+                ? 'Model loaded and ready.'
+                : service.modelLoaded === false
+                  ? service.state === 'loading'
+                    ? 'Model is loading…'
+                    : 'Service running · model not loaded.'
+                  : 'Service reachable · model status unknown.';
   async function saveDecision() {
     setSaving(true);
     setError('');
@@ -207,11 +263,34 @@ export default function GameDecision({ draft, project, onSaved }) {
         </div>
         <Gamepad2 size={18} />
       </div>
+      <div
+        className={`game-service-state${isReady ? ' is-ready' : ''}`}
+        role="status"
+        aria-live="polite"
+      >
+        <span className="game-service-indicator" aria-hidden="true" />
+        <div>
+          <strong>{serviceState}</strong>
+          <span>
+            {statusError ||
+              (service?.managed === false
+                ? service.state === 'error'
+                  ? 'Check the Mammoth application for the load failure. Forge cannot manage this service.'
+                  : 'Started outside Forge. Forge will leave this service running when you stop it.'
+                : service?.managed
+                  ? service.state === 'error'
+                    ? 'Stop the managed service, then start Mammoth again to retry the load.'
+                    : 'Managed by Forge. Stop only unloads the managed Mammoth service.'
+                  : 'Start or load Mammoth before running a decision.')}
+          </span>
+        </div>
+      </div>
       <p className="helper">
         {draft.options?.[0] === 'Yes / No'
           ? 'Enter a question above. Mammoth returns a probability for yes.'
           : 'Enter a question, then at least two choices or score levels on separate lines.'}{' '}
-        Start Mammoth and load its model before running a decision.
+        Load Mammoth before running. If its observed status is stale, Forge still tries the
+        decision.
       </p>
       <div className="queue-timing-summary">
         <strong>
@@ -228,12 +307,28 @@ export default function GameDecision({ draft, project, onSaved }) {
       </div>
       <div className="game-decision-actions">
         <button className="outline-button" onClick={load} disabled={loading}>
-          {loading ? 'Working…' : 'Start / load Mammoth'}
+          {loading && <LoaderCircle className="game-spinner" size={16} aria-hidden="true" />}
+          {loading ? 'Starting or loading…' : 'Start / load Mammoth'}
         </button>
-        <button className="outline-button" onClick={stop} disabled={loading}>
+        <button
+          className="outline-button game-stop-button"
+          onClick={stop}
+          disabled={loading || busy || !service?.managed}
+          title={
+            !service?.managed
+              ? 'Only a Forge-managed Mammoth service can be stopped here'
+              : 'Stop the Forge-managed service'
+          }
+        >
           Stop managed Mammoth
         </button>
-        <button className="outline-button" onClick={run} disabled={busy}>
+        <button
+          className="game-run-button"
+          onClick={run}
+          disabled={busy || loading || service?.state === 'loading'}
+          title={service?.state === 'loading' ? 'Wait for Mammoth to finish loading' : undefined}
+        >
+          {busy && <LoaderCircle className="game-spinner" size={17} aria-hidden="true" />}
           {busy ? 'Waiting for Mammoth…' : 'Run decision'}
         </button>
       </div>

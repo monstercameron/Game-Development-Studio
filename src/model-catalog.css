@@ -376,7 +376,7 @@
   background: transparent;
   color: var(--catalog-filter-pills-ink, #ddc5cf);
   border: 1px solid var(--catalog-filter-pills-edge, #66465a);
-  border-radius: 8px;
+  border-radius: var(--forge-radius-sm);
   font-size: var(--forge-font-size-12);
   font-weight: 700;
 }
@@ -1089,5 +1089,83 @@
   }
   .catalog-card-top {
     gap: var(--forge-space-value-15);
+  }
+}
+
+/* Keep discovery controls visually attached to the inventory they change. */
+.catalog-intro {
+  align-items: center;
+  margin-bottom: var(--forge-space-4, var(--forge-space-4));
+}
+.catalog-result-count {
+  padding: var(--forge-space-2, var(--forge-space-2)) var(--forge-space-3, var(--forge-space-3));
+  border: 1px solid var(--catalog-line);
+  border-radius: var(--forge-radius-sm);
+  color: var(--catalog-copy);
+  background: var(--catalog-memory-panel-surface);
+  font-weight: 700;
+}
+.catalog-filter-panel {
+  padding: var(--forge-space-4-5) var(--forge-space-5);
+  border: 1px solid var(--catalog-line);
+  border-radius: var(--forge-radius-md);
+  background: var(--catalog-memory-panel-surface);
+}
+.catalog-filter-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--forge-space-2-5);
+  margin-bottom: var(--forge-space-3, var(--forge-space-3));
+}
+.catalog-filter-heading strong {
+  font-size: var(--forge-font-lead);
+}
+.catalog-filter-heading span,
+.catalog-status-filter-label {
+  color: var(--catalog-copy);
+  font-size: var(--forge-font-support);
+}
+.catalog-status-filters {
+  display: flex;
+  align-items: baseline;
+  gap: var(--forge-space-3, var(--forge-space-3));
+  margin-top: var(--forge-space-3, var(--forge-space-3));
+  padding-top: var(--forge-space-3, var(--forge-space-3));
+  border-top: 1px solid var(--catalog-line);
+}
+.catalog-status-filter-label {
+  flex: none;
+  font-weight: 700;
+}
+.catalog-filter-panel .catalog-filter-pills {
+  min-width: 0;
+  margin: 0;
+}
+.catalog-filter-pills button[data-zero-count='true']:not([aria-pressed='true']) {
+  color: var(--forge-muted);
+  border-color: var(--forge-border);
+  background: transparent;
+}
+.catalog-filter-pills button[data-zero-count='true']:not([aria-pressed='true']) span {
+  color: var(--forge-muted);
+}
+.catalog-filter-pills button[aria-pressed='true'] {
+  box-shadow: inset 0 -2px 0 var(--catalog-filter-pills-active-edge);
+}
+.catalog-model-icon {
+  background: var(--catalog-model-icon-violet-surface);
+  color: var(--catalog-model-icon-violet-ink);
+}
+@media (max-width: 760px) {
+  .catalog-filter-panel {
+    padding: var(--forge-space-4);
+  }
+  .catalog-status-filters {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--forge-space-2, var(--forge-space-2));
+  }
+  .catalog-filter-panel .catalog-filter-pills {
+    width: 100%;
   }
 }

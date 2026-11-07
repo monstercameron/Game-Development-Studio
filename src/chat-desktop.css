@@ -497,10 +497,14 @@
     font-size: var(--forge-font-support);
   }
   .chat-welcome {
-    max-width: 760px;
+    width: min(100%, 864px);
+    max-width: none;
     margin: auto;
-    padding: var(--forge-space-6);
+    padding: clamp(var(--forge-space-3), 2.5vh, var(--forge-space-6)) 0;
     text-align: left;
+  }
+  .chat-messages:has(.chat-welcome) {
+    display: flex;
   }
   .chat-welcome-mark {
     display: grid;
@@ -530,15 +534,15 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--forge-space-2);
-    margin-top: var(--forge-space-5);
+    margin-top: var(--forge-space-4);
   }
   .chat-suggestions button {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    gap: var(--forge-space-4);
-    min-height: 96px;
-    padding: var(--forge-space-4);
+    gap: var(--forge-space-2);
+    min-height: 76px;
+    padding: var(--forge-space-3);
     border: 1px solid var(--forge-border);
     border-radius: var(--forge-radius-md);
     background: var(--forge-surface);
@@ -653,7 +657,11 @@
     background: var(--forge-orange-hover);
   }
   .chat-send:disabled {
-    opacity: 0.5;
+    border: 1px solid var(--forge-control-border);
+    background: var(--forge-control-bg);
+    color: var(--forge-muted);
+    opacity: 1;
+    box-shadow: none;
   }
   .chat-footnote {
     display: flex;

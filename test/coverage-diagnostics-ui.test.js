@@ -21,6 +21,7 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
     window: globalThis.window,
     document: globalThis.document,
     navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'),
+    clipboard: Object.getOwnPropertyDescriptor(dom.window.navigator, 'clipboard'),
     EventSource: globalThis.EventSource,
     fetch: globalThis.fetch,
     setInterval: globalThis.setInterval,
@@ -29,6 +30,8 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
   };
   let stream;
   let root;
+  let copiedText = '';
+  let metadataAvailable = true;
 
   try {
     globalThis.window = dom.window;
@@ -37,9 +40,13 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
       configurable: true,
       value: dom.window.navigator,
     });
+    Object.defineProperty(dom.window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async (text) => (copiedText = text) },
+    });
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     globalThis.fetch = async () => ({
-      ok: true,
+      ok: metadataAvailable,
       json: async () => ({
         server: {
           url: 'http://127.0.0.1:5173',
@@ -51,7 +58,14 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
           startedAt: '2026-01-01T00:00:00Z',
         },
         logEndpoints: { snapshot: '/api/logs', stream: '/api/logs/stream' },
-        services: [],
+        services: [
+          {
+            id: 'images',
+            name: 'Qwen Image Studio',
+            url: 'http://127.0.0.1:8189',
+            reachable: true,
+          },
+        ],
       }),
     });
     globalThis.setInterval = () => 1;
@@ -62,7 +76,9 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
         stream = this;
       }
 
-      addEventListener() {}
+      addEventListener(type, handler) {
+        this[`on${type}`] = handler;
+      }
 
       close() {}
     };
@@ -85,16 +101,92 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
     const container = document.getElementById('root');
     root = createRoot(container);
     await act(async () => {
-      root.render(React.createElement(MemoryRouter, null, React.createElement(Diagnostics)));
+      root.render(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/diagnostics?source=missing-engine'] },
+          React.createElement(Diagnostics),
+        ),
+      );
     });
 
     assert.ok(stream, 'component should open the log stream');
+    const pauseButton = container.querySelector('button.stream-toggle');
+    assert.equal(pauseButton.textContent.trim(), 'Pause stream');
+    assert.equal(pauseButton.getAttribute('aria-pressed'), 'false');
+    await act(async () => {
+      stream.onlogs({
+        data: JSON.stringify({
+          sources: [
+            {
+              id: 'studio',
+              label: 'Forge Studio',
+              available: true,
+              lines: ['2026-01-01T00:00:00Z INFO Original line'],
+            },
+            {
+              id: 'images',
+              label: 'Images · log not configured',
+              file: null,
+              available: false,
+              unavailable: 'Qwen Image Studio does not currently write a dedicated log file.',
+              lines: [],
+            },
+            {
+              id: 'music',
+              label: 'Music · studio',
+              file: 'C:\\long\\agent\\server.log',
+              available: true,
+              modified: '2026-01-01T00:01:00.000Z',
+              lines: ['2026-01-01 00:00:30 source timestamp'],
+            },
+          ],
+        }),
+      });
+    });
+    assert.match(container.textContent, /Log source “missing-engine” is not available/);
+    assert.doesNotMatch(container.textContent, /Waiting for logs/);
+    await act(async () => {
+      container.querySelector('.log-empty-state button').click();
+    });
+    assert.match(container.textContent, /Original line/);
+    assert.match(container.textContent, /Log source unavailable/);
+    assert.match(container.textContent, /Qwen Image Studio does not currently write/);
+    assert.match(container.textContent, /File modified on server/);
+    assert.match(container.textContent, /original timestamps/);
+    assert.doesNotMatch(container.textContent, /Images · log not configured.*Offline/i);
+
+    await act(async () => {
+      container.querySelector('button.stream-toggle').click();
+    });
+    assert.equal(
+      container.querySelector('button.stream-toggle').textContent.trim(),
+      'Resume stream',
+    );
+    assert.equal(
+      container.querySelector('button.stream-toggle').getAttribute('aria-pressed'),
+      'true',
+    );
+    await act(async () => {
+      container.querySelectorAll('.link-button')[1].click();
+    });
+    assert.match(copiedText, /Original line/);
+    assert.match(copiedText, /source timestamp/);
+    assert.doesNotMatch(copiedText, /Filter log lines/);
+
+    await act(async () => {
+      container.querySelector('button.stream-toggle').click();
+    });
+    assert.equal(
+      container.querySelector('button.stream-toggle').textContent.trim(),
+      'Pause stream',
+    );
     await act(async () => {
       stream.onerror(new dom.window.MessageEvent('error', { data: 'log file unavailable' }));
     });
     assert.equal(
       container.querySelector('[aria-live="polite"]')?.textContent.trim(),
-      'Log read failed',
+      'Log read failed: log file unavailable',
     );
 
     await act(async () => {
@@ -104,6 +196,12 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
       container.querySelector('[aria-live="polite"]')?.textContent.trim(),
       'Reconnecting',
     );
+    metadataAvailable = false;
+    await act(async () => {
+      container.querySelector('.metadata-panel .icon-btn').click();
+    });
+    assert.match(container.textContent, /Refresh server details/);
+    assert.equal(container.querySelectorAll('.service-row').length, 0);
   } finally {
     if (root) {
       await act(async () => root.unmount());
@@ -123,6 +221,9 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
       Object.defineProperty(globalThis, 'navigator', originalGlobals.navigator);
     } else {
       delete globalThis.navigator;
+    }
+    if (originalGlobals.clipboard) {
+      Object.defineProperty(dom.window.navigator, 'clipboard', originalGlobals.clipboard);
     }
     for (const key of ['EventSource', 'fetch', 'setInterval', 'clearInterval']) {
       if (originalGlobals[key] === undefined) {

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { BVHLoader } from 'three/addons/loaders/BVHLoader.js';
 import './model-preview.css';
+import './motion-preview.css';
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -18,8 +19,16 @@ export default function MotionPreview({
     controlsRef = useRef(null),
     cameraRef = useRef(null),
     drawRef = useRef(null),
-    playingRef = useRef(playing);
+    playingRef = useRef(playing),
+    reducedMotionRef = useRef(false),
+    userStartedMotionRef = useRef(false),
+    onPlayingChangeRef = useRef(onPlayingChange);
   const [status, setStatus] = useState('loading');
+  onPlayingChangeRef.current = onPlayingChange;
+  useEffect(() => {
+    playingRef.current = playing;
+    drawRef.current?.();
+  }, [playing]);
   useEffect(() => {
     if (!host.current) {
       return;
@@ -37,6 +46,12 @@ export default function MotionPreview({
       body,
       frame = 0,
       lastTime = 0;
+    const motionPreference = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    reducedMotionRef.current = !!motionPreference?.matches;
+    if (reducedMotionRef.current && playingRef.current) {
+      playingRef.current = false;
+      onPlayingChangeRef.current(false);
+    }
     setStatus('loading');
     function draw() {
       if (!active || frame) {
@@ -49,7 +64,12 @@ export default function MotionPreview({
       if (!active || !renderer || !scene) {
         return;
       }
-      const animate = visible && !document.hidden && playingRef.current && mixer;
+      const animate =
+        visible &&
+        !document.hidden &&
+        playingRef.current &&
+        (!reducedMotionRef.current || userStartedMotionRef.current) &&
+        mixer;
       if (animate && lastTime) {
         mixer.update(Math.min((now - lastTime) / 1000, 0.1));
       }
@@ -75,6 +95,16 @@ export default function MotionPreview({
       draw();
     }
     function visibility() {
+      lastTime = 0;
+      draw();
+    }
+    function motionPreferenceChanged(event) {
+      reducedMotionRef.current = event.matches;
+      if (event.matches && playingRef.current) {
+        playingRef.current = false;
+        userStartedMotionRef.current = false;
+        onPlayingChangeRef.current(false);
+      }
       lastTime = 0;
       draw();
     }
@@ -107,6 +137,7 @@ export default function MotionPreview({
         });
         intersectionObserver.observe(element);
         document.addEventListener('visibilitychange', visibility);
+        motionPreference?.addEventListener?.('change', motionPreferenceChanged);
         const response = await fetch(url, { signal: controller.signal, redirect: 'error' });
         if (!response.ok) {
           throw Error('Could not read this motion file.');
@@ -233,6 +264,7 @@ export default function MotionPreview({
       resizeObserver?.disconnect();
       intersectionObserver?.disconnect();
       document.removeEventListener('visibilitychange', visibility);
+      motionPreference?.removeEventListener?.('change', motionPreferenceChanged);
       if (timeRef && mixer) {
         timeRef.current = mixer.time;
       }
@@ -247,13 +279,10 @@ export default function MotionPreview({
       drawRef.current = null;
     };
   }, [url, timeRef]);
-  useEffect(() => {
-    playingRef.current = playing;
-    drawRef.current?.();
-  }, [playing]);
   function toggle() {
     playingRef.current = !playingRef.current;
-    onPlayingChange(playingRef.current);
+    userStartedMotionRef.current = playingRef.current;
+    onPlayingChangeRef.current(playingRef.current);
     drawRef.current?.();
   }
   function rotate(direction) {
@@ -290,7 +319,7 @@ export default function MotionPreview({
         ref={host}
         className="model-preview-canvas"
         role="img"
-        aria-label={`Animated skeleton preview of ${name}. Drag to rotate, scroll to zoom.`}
+        aria-label={`Animated skeleton preview of ${name}. Drag to rotate, scroll or pinch to zoom.`}
       />
       {status !== 'ready' && (
         <div className="model-preview-overlay" role="status">
@@ -299,8 +328,8 @@ export default function MotionPreview({
       )}
       {status === 'ready' && (
         <>
-          <div className="model-preview-hint">Skeleton preview · drag to rotate</div>
-          <div className="model-preview-tools" aria-label="Motion preview controls">
+          <div className="model-preview-hint">Drag to rotate · scroll or pinch to zoom</div>
+          <div className="model-preview-tools" role="group" aria-label="Motion preview controls">
             <button
               type="button"
               aria-label={playing ? 'Pause motion' : 'Play motion'}
@@ -309,6 +338,9 @@ export default function MotionPreview({
             >
               {playing ? <Pause size={16} /> : <Play size={16} />}
             </button>
+            <span className="motion-preview-state" aria-live="polite">
+              {playing ? 'Playing' : 'Paused'}
+            </span>
             <button
               type="button"
               aria-label="Rotate left"
@@ -331,7 +363,12 @@ export default function MotionPreview({
             <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => zoom(1.25)}>
               <ZoomOut size={16} />
             </button>
-            <button type="button" onClick={() => controlsRef.current?.reset()}>
+            <button
+              type="button"
+              aria-label="Reset motion view"
+              title="Reset motion view"
+              onClick={() => controlsRef.current?.reset()}
+            >
               Reset
             </button>
           </div>

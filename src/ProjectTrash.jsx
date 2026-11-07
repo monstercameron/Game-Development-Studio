@@ -10,13 +10,17 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
   const [items, setItems] = useState([]),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
+    [actionError, setActionError] = useState(''),
     [loading, setLoading] = useState(false),
     [loadError, setLoadError] = useState(''),
     [warnings, setWarnings] = useState([]),
     [pendingCleanupIds, setPendingCleanupIds] = useState([]),
     [focusAfterRemoval, setFocusAfterRemoval] = useState(null);
   const contentRef = useRef(null),
-    headingRef = useRef(null);
+    headingRef = useRef(null),
+    confirmTriggerRef = useRef(null),
+    cancelConfirmRef = useRef(null),
+    wasConfirmRef = useRef(false);
   useEffect(() => {
     setItems([]);
     setMessage('');
@@ -70,9 +74,27 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
     target?.focus();
     setFocusAfterRemoval(null);
   }, [items, focusAfterRemoval, busy]);
+  useLayoutEffect(() => {
+    if (confirm) {
+      wasConfirmRef.current = true;
+      cancelConfirmRef.current?.focus();
+      return;
+    }
+    if (wasConfirmRef.current) {
+      wasConfirmRef.current = false;
+      if (focusAfterRemoval === null) {
+        confirmTriggerRef.current?.focus();
+      }
+    }
+  }, [confirm, focusAfterRemoval]);
+  function cancelConfirmation() {
+    setConfirm(false);
+    confirmTriggerRef.current?.focus();
+  }
   async function act(action, body) {
     setBusy(true);
     setMessage('');
+    setActionError('');
     try {
       const response = await fetch(`/api/projects/${projectId}/assets/${action}`, {
         method: 'POST',
@@ -111,7 +133,7 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
       );
       await onChanged();
     } catch (error) {
-      setMessage(error.message);
+      setActionError(error.message);
     } finally {
       setBusy(false);
     }
@@ -164,7 +186,12 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
                   </li>
                 ))}
               </ul>
-              <button className="danger-solid" disabled={busy} onClick={() => setConfirm(true)}>
+              <button
+                ref={confirmTriggerRef}
+                className="danger-solid"
+                disabled={busy}
+                onClick={() => setConfirm(true)}
+              >
                 Clear trash…
               </button>
             </>
@@ -181,14 +208,33 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
               </p>
             ))}
           {confirm && !loading && !loadError && (
-            <div className="iteration-confirm" role="alert">
-              <strong>Permanently delete all {items.length} trashed files?</strong>
-              <p>
+            <div
+              className="iteration-confirm"
+              role="dialog"
+              aria-modal="false"
+              aria-labelledby="project-trash-confirm-title"
+              aria-describedby="project-trash-confirm-description"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && !busy) {
+                  event.preventDefault();
+                  cancelConfirmation();
+                }
+              }}
+            >
+              <strong id="project-trash-confirm-title" tabIndex={-1}>
+                Permanently delete all {items.length} trashed files?
+              </strong>
+              <p id="project-trash-confirm-description">
                 This removes the files from disk and cannot be undone. Restore any files you want to
                 keep first.
               </p>
               <div>
-                <button className="ghost-button" disabled={busy} onClick={() => setConfirm(false)}>
+                <button
+                  ref={cancelConfirmRef}
+                  className="ghost-button"
+                  disabled={busy}
+                  onClick={cancelConfirmation}
+                >
                   Cancel
                 </button>
                 <button
@@ -202,6 +248,7 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
             </div>
           )}
           {message && <p role="status">{message}</p>}
+          {actionError && <p role="alert">{actionError}</p>}
         </div>
       )}
     </section>

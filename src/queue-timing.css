@@ -98,7 +98,32 @@
 }
 .queue-manage .queue-clear {
   border-color: var(--forge-danger);
-  color: var(--forge-focus);
+  color: var(--forge-danger);
+  background: var(--forge-queue-warning-surface);
+  font-weight: 700;
+}
+.queue-manage .queue-clear:hover:not(:disabled) {
+  border-color: var(--forge-danger);
+  color: var(--forge-danger);
+  background: var(--forge-queue-error-hover);
+}
+.runtime-queue .queue-scope-note {
+  margin-block: var(--forge-space-3) var(--forge-space-1-5);
+  padding-inline-start: var(--forge-space-3);
+  border-inline-start: 3px solid var(--forge-danger);
+  color: var(--forge-text);
+}
+.runtime-queue .queue-control-reason {
+  margin-block: 0 var(--forge-space-3-5);
+  font-size: var(--forge-font-caption);
+}
+.runtime-queue .runtime-job-review-note {
+  max-width: 22rem;
+  color: var(--forge-muted);
+  line-height: 1.4;
+}
+.runtime-queue > p[role='status'] {
+  color: var(--forge-success, var(--forge-text));
 }
 .queue-manage-note {
   font-size: var(--forge-font-caption);
@@ -435,7 +460,8 @@
   }
   .queue-manage .queue-clear {
     border-color: var(--forge-danger);
-    color: var(--forge-focus);
+    color: var(--forge-danger);
+    background: var(--forge-queue-warning-surface);
   }
   .queue-confirm {
     width: min(520px, calc(100vw - 48px));

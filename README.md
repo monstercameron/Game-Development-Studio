@@ -7,6 +7,10 @@ into a React interface backed by a durable render queue. Keep each game's
 assets together, inspect local engine health, and connect agents through HTTP
 and MCP.
 
+![Forge overview showing demo projects and recent assets](docs/images/studio-overview.png)
+
+_The Forge overview with demo projects and sample artwork._
+
 Forge is an early-stage integration project. The app and queue can start without
 model weights, but rendering requires separately installed models, native
 engines and, for some adapters, companion applications. A fresh clone is **not**
@@ -85,6 +89,16 @@ platform details and alternate ports.
 - **Chat and game logic:** chat with the local Qwen server or a configured
   compatible provider, request structured output, and use the Mammoth decision
   bridge for supported game-logic requests.
+
+### A closer look
+
+![The asset library showing the bundled sample collection](docs/images/asset-library.png)
+
+_Search, filter and preview assets in the library; the screenshot shows the bundled sample collection._
+
+![The image studio showing generation controls and a recent sample asset](docs/images/image-studio.png)
+
+_Create images with project context, reference inputs and recent creations alongside the controls._
 
 ## Models and engines
 

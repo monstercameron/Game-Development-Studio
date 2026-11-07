@@ -1,0 +1,62 @@
+.hunyuan-controls {
+  margin-top: var(--forge-space-3, 12px);
+}
+
+.hunyuan-controls__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--forge-space-4, 16px);
+}
+
+.hunyuan-controls__field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--forge-space-2, 8px);
+}
+
+.hunyuan-controls__field .field-label {
+  margin: 0;
+}
+
+.hunyuan-controls__field select,
+.hunyuan-controls__field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  padding: var(--forge-space-2-5, 10px) var(--forge-space-3, 12px);
+  border: 1px solid var(--forge-control-border, #684b5b);
+  border-radius: var(--forge-radius-control, 8px);
+  background: var(--forge-control-bg, #190710);
+  color: var(--forge-text-strong, #f5edf1);
+  font: inherit;
+}
+
+.hunyuan-controls__field :is(select, input):focus-visible {
+  outline: 2px solid var(--forge-focus, #ffad8d);
+  outline-offset: 3px;
+}
+
+.hunyuan-controls__field :is(select, input)[aria-invalid='true'] {
+  border-color: var(--forge-danger, #ff8a8a);
+}
+
+.hunyuan-controls__hint,
+.hunyuan-controls__error {
+  font-size: var(--forge-font-support, 0.875rem);
+  line-height: 1.5;
+}
+
+.hunyuan-controls__hint {
+  color: var(--forge-muted, #d4c0ca);
+}
+
+.hunyuan-controls__error {
+  color: var(--forge-danger, #ffaaaa);
+}
+
+@media (max-width: 600px) {
+  .hunyuan-controls__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

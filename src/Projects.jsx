@@ -1,5 +1,6 @@
 import AssetThumbnail, { isVisualAsset } from './AssetThumbnail';
 import './project-gallery-refinement.css';
+import './projects-ux.css';
 import { useState } from 'react';
 import useDialogFocus from './useDialogFocus';
 import {
@@ -30,6 +31,10 @@ function projectAssetIcon(category, size = 13) {
 }
 
 export function RecentProjects({ projects, loading, onNew, onOpen, onViewAll }) {
+  const visibleProjectCount = Math.min(projects.length, 6);
+  const projectLayout =
+    visibleProjectCount === 1 ? 'single' : visibleProjectCount === 2 ? 'pair' : 'collection';
+
   return (
     <section className="recent-projects">
       <div className="section-title">
@@ -66,7 +71,10 @@ export function RecentProjects({ projects, loading, onNew, onOpen, onViewAll }) 
           </button>
         </div>
       ) : (
-        <div className="project-grid">
+        <div
+          className={'project-grid project-grid--' + projectLayout}
+          data-project-count={visibleProjectCount}
+        >
           {projects.slice(0, 6).map((project, index) => (
             <button className="project-card" key={project.id} onClick={() => onOpen(project)}>
               <div className={'project-cover project-cover-' + (index % 3)}>

@@ -107,7 +107,14 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     globalThis.WebSocket = FakeSocket;
     globalThis.AudioWorkletNode = class {
-      port = { postMessage() {}, onmessage: null };
+      port = {
+        onmessage: null,
+        postMessage: (message) => {
+          if (message === 'flush') {
+            this.port.onmessage?.({ data: { type: 'flushed' } });
+          }
+        },
+      };
 
       connect() {}
 
@@ -171,6 +178,12 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
       );
     });
 
+    const controls = container.querySelector('[role="group"][aria-label="Transcription controls"]');
+    assert.ok(controls);
+    assert.equal(container.querySelector('details.speech-estimate')?.open, false);
+    assert.equal(controls.querySelector('[role="status"]'), null);
+    assert.equal(container.querySelector('.speech-status')?.textContent, 'Microphone off');
+
     const startButton = [...container.querySelectorAll('button')].find((button) =>
       button.textContent.includes('Start microphone'),
     );
@@ -182,6 +195,7 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
       FakeSocket.instance.message({ type: 'session.updated' });
     });
     await waitFor(() => container.querySelector('.speech-status')?.textContent === 'Listening');
+    assert.equal(container.querySelector('.speech-output[aria-live]'), null);
 
     await act(async () => {
       FakeSocket.instance.message({
@@ -203,6 +217,38 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
       /Transcript is too long/,
     );
     assert.equal(container.querySelector('.speech-output > span')?.textContent.length, 100000);
+
+    const retryButton = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent.includes('Start microphone'),
+    );
+    const previousSocket = FakeSocket.instance;
+    await act(async () => {
+      retryButton.click();
+      await waitFor(() => FakeSocket.instance !== previousSocket);
+      FakeSocket.instance.message({ type: 'session.created' });
+      FakeSocket.instance.message({ type: 'session.updated' });
+    });
+    await waitFor(() => container.querySelector('.speech-status')?.textContent === 'Listening');
+    await act(async () => {
+      FakeSocket.instance.message({
+        type: 'conversation.item.input_audio_transcription.delta',
+        delta: 'partial words',
+      });
+    });
+    assert.equal(container.querySelector('.speech-partial')?.textContent, 'partial words');
+    assert.equal(container.querySelector('.speech-status')?.textContent, 'Listening');
+    await act(async () => {
+      [...container.querySelectorAll('button')]
+        .find((button) => button.textContent.includes('Stop & finish'))
+        .click();
+      FakeSocket.instance.message({
+        type: 'conversation.item.input_audio_transcription.completed',
+        transcript: 'final words',
+      });
+    });
+    await waitFor(
+      () => container.querySelector('.speech-status')?.textContent === 'Transcription complete.',
+    );
   } finally {
     if (root) {
       await act(async () => root.unmount());

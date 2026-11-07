@@ -12,6 +12,12 @@ import './speech-transcriber.css';
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const timingKey = 'forge-asr-file-timing-v1';
+const phaseLabels = {
+  recording: 'Listening',
+  transcribing: 'Transcribing file',
+  finishing: 'Finishing',
+  starting: 'Preparing',
+};
 function readFileRates() {
   try {
     const value = JSON.parse(localStorage.getItem(timingKey) || '[]');
@@ -39,6 +45,7 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
     [transcript, setTranscript] = useState(''),
     [partial, setPartial] = useState(''),
     [error, setError] = useState(''),
+    [completionNotice, setCompletionNotice] = useState(''),
     [copied, setCopied] = useState(false),
     [conflict, setConflict] = useState(null),
     [working, setWorking] = useState(false);
@@ -110,6 +117,7 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
     }
     pendingFile.current = inputFile;
     setError('');
+    setCompletionNotice('');
     setPartial('');
     setCopied(false);
     setSavedPath('');
@@ -282,6 +290,7 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
           }
           cleanup(run);
           setPhase('idle');
+          setCompletionNotice('Transcription complete.');
         }
         return;
       }
@@ -364,6 +373,7 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
         }
         cleanup(run);
         setPhase('idle');
+        setCompletionNotice('Transcription complete.');
       })
       .catch(() => {
         // The stream error handler already reports failures through fail().
@@ -427,27 +437,30 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
           <span className="mini-label">NEMOTRON ASR · ENGLISH</span>
           <h2>Live speech to text</h2>
         </div>
-        <Mic size={19} />
+        <Mic size={19} aria-hidden="true" />
       </div>
       <p className="helper">
         Speak live or choose an audio file. Audio stays on this computer; recording starts only
         after you allow microphone access.
       </p>
-      <div className="queue-timing-summary">
-        <strong>
-          Audio-file estimate:{' '}
-          {fileRate === null
-            ? 'Not enough history'
-            : `~${formatDuration(fileRate * 60)} per minute of audio`}
-        </strong>
-        <span>
-          {fileRate === null
-            ? 'Transcribe a file to build an estimate.'
-            : `Based on ${fileRates.length} previous ${fileRates.length === 1 ? 'file' : 'files'}; model loading and audio decoding are extra.`}{' '}
-          Live microphone timing depends on how long you speak.
-        </span>
-      </div>
-      <div className="speech-actions">
+      <details className="speech-estimate">
+        <summary>Audio-file timing details</summary>
+        <div className="speech-estimate-copy">
+          <strong>
+            Audio-file estimate:{' '}
+            {fileRate === null
+              ? 'Not enough history'
+              : `~${formatDuration(fileRate * 60)} per minute of audio`}
+          </strong>
+          <span>
+            {fileRate === null
+              ? 'Transcribe a file to build an estimate.'
+              : `Based on ${fileRates.length} previous ${fileRates.length === 1 ? 'file' : 'files'}; model loading and audio decoding are extra.`}{' '}
+            Live microphone timing depends on how long you speak.
+          </span>
+        </div>
+      </details>
+      <div className="speech-actions" role="group" aria-label="Transcription controls">
         {phase === 'recording' ? (
           <button className="outline-button" onClick={stop}>
             <Square size={15} /> Stop & finish
@@ -496,18 +509,10 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
             Cancel
           </button>
         )}
-        <span className={'speech-status ' + phase} role="status">
-          {phase === 'recording'
-            ? 'Listening'
-            : phase === 'transcribing'
-              ? 'Transcribing file'
-              : phase === 'finishing'
-                ? 'Finishing'
-                : phase === 'starting'
-                  ? 'Preparing'
-                  : 'Microphone off'}
-        </span>
       </div>
+      <p className={'speech-status ' + phase} role="status" aria-live="polite">
+        {phase === 'idle' ? completionNotice || 'Microphone off' : phaseLabels[phase]}
+      </p>
       {libraryAudio && (
         <div className="speech-actions">
           <span>{libraryAudio.name}</span>
@@ -531,7 +536,7 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
       <p className="helper">
         Audio files can be up to two minutes and 25 MiB. Supported formats depend on your browser.
       </p>
-      <div className="speech-output" aria-live="polite">
+      <div className="speech-output">
         <span>{transcript}</span>
         {partial && (
           <span className="speech-partial">

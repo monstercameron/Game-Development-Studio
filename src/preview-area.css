@@ -1,7 +1,7 @@
 .iteration-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--forge-space-4);
+  gap: var(--forge-space-3);
   min-width: 0;
   padding: var(--forge-space-value-22);
 }
@@ -37,9 +37,10 @@
 
 .iteration-media {
   display: flex;
-  min-height: 220px;
-  height: clamp(260px, 27vw, 430px);
-  max-height: 52vh;
+  width: 100%;
+  min-height: 180px;
+  max-height: 42vh;
+  aspect-ratio: var(--iteration-aspect, 1.6);
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -269,11 +270,7 @@
 @media (min-width: 1450px) {
   .iteration-panel {
     padding: var(--forge-space-value-26);
-    gap: var(--forge-space-value-18);
-  }
-  .iteration-media {
-    height: clamp(360px, 30vw, 520px);
-    max-height: 56vh;
+    gap: var(--forge-space-3-5);
   }
   .iteration-recent button {
     flex-basis: 76px;
@@ -283,8 +280,8 @@
 
 @media (max-width: 480px) {
   .iteration-media {
-    height: 240px;
-    min-height: 180px;
+    min-height: 160px;
+    max-height: 38vh;
   }
   .iteration-actions button {
     flex: 1 1 auto;

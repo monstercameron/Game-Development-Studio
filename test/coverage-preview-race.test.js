@@ -150,6 +150,22 @@ test('a stale jobs poll cannot replace results from a newer overlapping poll', a
     timersAreFaked = true;
     const container = dom.window.document.getElementById('root');
     root = createRoot(container);
+    await act(async () => {
+      root.render(
+        React.createElement(PreviewArea, {
+          section: 'game',
+          project: { id: 'project-a', assets: [] },
+          onRefresh: async () => {},
+          onOpenLibrary: () => {},
+        }),
+      );
+    });
+    assert.ok(
+      container.textContent.includes('No saved decisions yet'),
+      'an empty project renders its empty state without reading dimensions from a missing asset',
+    );
+    assert.equal(container.querySelector('.iteration-media'), null);
+
     const asset = {
       id: 'text/decision-current.json',
       category: 'Text',

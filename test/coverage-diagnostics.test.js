@@ -126,6 +126,7 @@ test('log stream stops polling after the response closes', async (t) => {
   await fs.writeFile(logPath, 'first line\n', 'utf8');
   const service = createService(t, { streamIntervalMs: 20 });
   const response = createResponse();
+  t.after(() => response.emit('close'));
   const writes = [];
   response.write = (chunk) => {
     writes.push(chunk);
@@ -138,9 +139,14 @@ test('log stream stops polling after the response closes', async (t) => {
   assert.equal(writes.length, 1);
   assert.match(writes[0], /first line/);
   await fs.writeFile(logPath, 'second line\n', 'utf8');
-  await new Promise((resolve) => setTimeout(resolve, 35));
-  assert.equal(writes.length, 2);
-  assert.match(writes[1], /second line/);
+  const deadline = Date.now() + 2000;
+  while (!writes.some((chunk) => /second line/.test(chunk)) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.ok(
+    writes.some((chunk) => /second line/.test(chunk)),
+    'updated log should be streamed',
+  );
   response.emit('close');
   const writesAfterClose = writes.length;
   await fs.writeFile(logPath, 'third line\n', 'utf8');

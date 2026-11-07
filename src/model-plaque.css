@@ -71,6 +71,20 @@
   border-radius: var(--forge-radius-md);
   background: var(--forge-surface);
 }
+.editor-title button.model-plaque {
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.editor-title button.model-plaque:hover {
+  border-color: var(--forge-border-strong, var(--forge-focus));
+  background: var(--forge-raised);
+}
+.editor-title button.model-plaque:focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 3px;
+}
 .model-plaque .model-plaque-icon {
   border-color: var(--forge-border);
   border-radius: var(--forge-radius-sm);
@@ -79,21 +93,24 @@
 }
 .model-plaque .model-plaque-copy small {
   color: var(--forge-muted);
-  font-size: var(--forge-font-support);
+  font-size: var(--forge-font-caption);
   line-height: 1.35;
-  letter-spacing: 0.035em;
+  letter-spacing: 0;
+  text-transform: none;
 }
 .model-plaque .model-plaque-copy strong {
   color: var(--forge-text);
-  font-size: var(--forge-font-size-17);
+  font-size: var(--forge-font-lead);
+  line-height: 1.25;
   overflow-wrap: anywhere;
 }
 .model-plaque .model-plaque-memory {
   color: var(--forge-muted);
-  font-size: var(--forge-font-support);
+  font-size: var(--forge-font-caption);
+  line-height: 1.45;
 }
 .model-plaque .model-plaque-memory svg {
-  color: var(--forge-orange-hover);
+  color: var(--forge-muted);
 }
 .model-plaque .model-plaque-icon svg {
   display: block;
@@ -102,7 +119,7 @@
   font-size: var(--forge-font-support);
 }
 @media (min-width: 701px) and (max-width: 1100px) {
-  .model-plaque .integration-badge {
+  .model-plaque:not(.is-actionable) .integration-badge {
     display: none;
   }
 }
@@ -124,7 +141,7 @@
   }
 }
 @media (max-width: 370px) {
-  .model-plaque .integration-badge {
+  .model-plaque:not(.is-actionable) .integration-badge {
     display: none;
   }
 }

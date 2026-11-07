@@ -1,0 +1,64 @@
+.motion-preview .model-preview-canvas {
+  bottom: 96px;
+}
+
+.motion-preview .model-preview-hint {
+  right: auto;
+  max-width: calc(100% - 32px);
+  padding: 7px 10px;
+  border: 1px solid rgb(255 240 233 / 18%);
+  border-radius: 6px;
+  background: rgb(28 16 25 / 76%);
+  color: #fff1ec;
+}
+
+.motion-preview .model-preview-overlay {
+  z-index: 1;
+  background: rgb(20 12 18 / 46%);
+  backdrop-filter: blur(3px);
+}
+
+.motion-preview .model-preview-tools {
+  z-index: 2;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  padding: 7px;
+  border: 1px solid rgb(255 240 233 / 16%);
+  border-radius: 9px;
+  background: rgb(32 19 29 / 94%);
+  box-shadow: 0 8px 26px rgb(0 0 0 / 24%);
+}
+
+.motion-preview .model-preview-tools button {
+  flex: 0 0 auto;
+}
+
+.motion-preview .motion-preview-state {
+  min-width: 48px;
+  color: #fff1ec;
+  font-size: var(--forge-font-support);
+  text-align: center;
+}
+
+.motion-preview .model-preview-tools button:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 620px) {
+  .motion-preview .model-preview-canvas {
+    bottom: 112px;
+  }
+
+  .motion-preview .model-preview-tools {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    gap: 5px;
+    padding: 6px;
+  }
+}

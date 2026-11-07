@@ -1,94 +1,107 @@
 .speech-transcriber {
   display: grid;
   gap: var(--forge-space-3-5);
+  min-width: 0;
 }
 .speech-transcriber .panel-heading {
   margin-bottom: 0;
+}
+.speech-transcriber > .helper {
+  max-width: 62ch;
+  margin: 0;
+  line-height: 1.5;
+}
+.speech-estimate {
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+  line-height: 1.45;
+}
+.speech-estimate summary {
+  width: fit-content;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--forge-border);
+  text-underline-offset: 3px;
+}
+.speech-estimate summary:focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 3px;
+  border-radius: var(--forge-radius-sm);
+}
+.speech-estimate-copy {
+  display: grid;
+  gap: var(--forge-space-1);
+  margin-top: var(--forge-space-2);
+  padding-inline-start: var(--forge-space-3);
+  border-inline-start: 2px solid var(--forge-border);
+}
+.speech-estimate-copy strong {
+  color: var(--forge-text);
+  font-weight: 600;
 }
 .speech-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--forge-space-2-5);
+  min-width: 0;
 }
 .speech-actions > :is(button, label) {
   min-height: 42px;
+  max-width: 100%;
 }
 .speech-actions svg {
   flex: none;
   vertical-align: middle;
 }
 .speech-status {
+  display: flex;
+  align-items: center;
+  gap: var(--forge-space-2);
+  min-height: 1.4em;
+  margin: calc(-1 * var(--forge-space-2)) 0 0;
   color: var(--forge-muted);
   font-size: var(--forge-font-support);
   line-height: 1.4;
 }
-.speech-status.recording {
-  color: var(--forge-success);
-}
-.speech-output {
-  min-height: 92px;
-  max-height: 220px;
-  overflow: auto;
-  padding: var(--forge-space-3-5);
-  border: 1px solid rgba(184, 213, 205, 0.2);
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.18);
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.speech-partial {
-  opacity: 0.7;
-}
-.speech-placeholder {
-  opacity: 0.65;
-}
-.speech-file {
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-  position: relative;
-}
-.speech-file input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  overflow: hidden;
-}
-.speech-file:focus-within {
-  outline: 2px solid var(--forge-focus);
-  outline-offset: 2px;
-}
-.speech-file.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.speech-transcriber {
-  gap: var(--forge-space-4);
-}
-.speech-status {
-  color: var(--forge-muted);
-  font-size: var(--forge-font-support);
-}
-.speech-status.recording {
-  color: var(--forge-success);
+.speech-status.recording::before {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--forge-success);
+  content: '';
+  flex: none;
 }
 .speech-output {
   min-height: 104px;
+  max-height: 220px;
+  overflow: auto;
   padding: var(--forge-space-4);
-  border-color: var(--forge-border);
+  border: 1px solid var(--forge-border);
   border-radius: var(--forge-radius-md);
   background: var(--forge-surface-inset);
   color: var(--forge-text);
   font-size: var(--forge-font-body);
   line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .speech-partial,
 .speech-placeholder {
   color: var(--forge-muted);
-  opacity: 1;
+}
+.speech-file {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.speech-file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
 }
 .speech-file:focus-within {
   outline: 2px solid var(--forge-focus);
@@ -100,9 +113,7 @@
 }
 .speech-file.disabled {
   color: var(--forge-muted);
-}
-.speech-output {
-  overflow-wrap: anywhere;
+  cursor: not-allowed;
 }
 @media (min-width: 851px) {
   .speech-transcriber {
@@ -113,7 +124,10 @@
   .speech-actions {
     align-items: stretch;
   }
-  .speech-actions > * {
+  .speech-actions > :is(button, label) {
     flex: 1 1 auto;
+  }
+  .speech-status {
+    margin-top: calc(-1 * var(--forge-space-1));
   }
 }

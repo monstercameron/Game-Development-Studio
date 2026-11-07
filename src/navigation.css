@@ -37,33 +37,33 @@
   min-height: 40px;
 }
 .sidebar .workspace {
-  min-height: 54px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--forge-space-1-5);
+  min-height: 0;
 }
-.sidebar .workspace > div:nth-child(2) {
+.sidebar .workspace-label {
   min-width: 0;
-  flex: 1 1 auto;
-}
-.sidebar .workspace > div:nth-child(2) > strong {
-  white-space: nowrap;
+  color: var(--forge-text-secondary);
+  font-size: var(--forge-font-caption);
+  font-weight: 700;
   line-height: 1.25;
 }
 .sidebar .workspace select {
   display: block;
   width: 100%;
   min-width: 0;
-  height: 34px;
-  margin-top: var(--forge-space-value-5);
-  padding: var(--forge-space-1) var(--forge-space-5) var(--forge-space-1) var(--forge-space-value-7);
-  font-size: var(--forge-font-size-12);
+  height: 38px;
+  margin: 0;
+  padding: var(--forge-space-1) var(--forge-space-2-5);
+  font-size: var(--forge-font-caption);
   line-height: 1.25;
-}
-.sidebar .workspace > svg {
-  display: none;
+  text-overflow: ellipsis;
 }
 .sidebar .nav-item {
   position: relative;
-  min-height: 42px;
-  margin: var(--forge-space-value-3) 0;
+  min-height: 40px;
+  margin: var(--forge-space-value-1) 0;
   transition:
     color var(--forge-duration-fast) var(--forge-ease-standard),
     background-color var(--forge-duration-fast) var(--forge-ease-standard);
@@ -88,6 +88,14 @@
 .nav-queue-status {
   margin-left: auto;
   flex: none;
+  gap: var(--forge-space-1);
+  font-size: var(--forge-font-caption);
+}
+.sidebar .nav-item > span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .nav-queue-status i,
 .page-queue-status i {
@@ -134,8 +142,8 @@
 /* Keep the studio shell aligned as the working canvas grows with the display. */
 @media (min-width: 851px) {
   .sidebar {
-    width: 248px;
-    flex-basis: 248px;
+    width: clamp(264px, 18vw, 296px);
+    flex-basis: clamp(264px, 18vw, 296px);
     padding: var(--forge-space-6) var(--forge-space-value-19) var(--forge-space-value-18);
   }
   .sidebar .brand {
@@ -151,13 +159,14 @@
   .sidebar .workspace select {
     height: 40px;
     font-size: var(--forge-font-support);
-    padding: var(--forge-space-value-5) var(--forge-space-value-26) var(--forge-space-value-5)
-      var(--forge-space-value-9);
+  }
+  .sidebar .workspace-label {
+    font-size: var(--forge-font-support);
   }
   .sidebar .nav-item {
-    min-height: 44px;
+    min-height: 40px;
     padding-inline: var(--forge-space-3);
-    gap: var(--forge-space-value-13);
+    gap: var(--forge-space-2-5);
     font-size: var(--forge-font-body);
   }
   .sidebar .nav-heading {
@@ -256,16 +265,21 @@
     margin-bottom: var(--forge-space-value-22);
   }
   .sidebar .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     min-height: 0;
     padding: var(--forge-space-2-5);
-    gap: var(--forge-space-value-9);
+    gap: var(--forge-space-1-5);
   }
   .sidebar .workspace select {
     height: 36px;
     font-size: var(--forge-font-caption);
   }
+  .sidebar .workspace-label {
+    font-size: var(--forge-font-caption);
+  }
   .sidebar .nav-item {
-    min-height: 46px;
+    min-height: 42px;
     border-radius: 7px;
   }
   .sidebar .nav-item.active:before {

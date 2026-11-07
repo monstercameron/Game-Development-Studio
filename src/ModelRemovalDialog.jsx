@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { LoaderCircle, Power, ShieldCheck, Trash2, X } from 'lucide-react';
 import useDialogFocus from './useDialogFocus';
 import './model-removal-dialog.css';
@@ -32,8 +32,10 @@ export default function ModelRemovalDialog({
   onClose,
   onRefresh,
 }) {
-  const [busy, setBusy] = useState(false),
+  const titleId = useId();
+  const [busyAction, setBusyAction] = useState(''),
     [error, setError] = useState('');
+  const busy = Boolean(busyAction);
   const inProgress = ['prepared', 'deleting'].includes(removal?.state);
   const failed = removal?.state === 'failed';
   const managed = !!storage;
@@ -61,7 +63,7 @@ export default function ModelRemovalDialog({
     return () => clearInterval(timer);
   }, [inProgress, onRefresh]);
   async function remove() {
-    setBusy(true);
+    setBusyAction('remove');
     setError('');
     try {
       await post(`/api/runtime/models/${id}/remove`, {
@@ -72,11 +74,11 @@ export default function ModelRemovalDialog({
     } catch (reason) {
       setError(reason.message);
     } finally {
-      setBusy(false);
+      setBusyAction('');
     }
   }
   async function stop() {
-    setBusy(true);
+    setBusyAction('stop');
     setError('');
     try {
       await post(`/api/runtime/models/${id}/offload`);
@@ -84,7 +86,7 @@ export default function ModelRemovalDialog({
     } catch (reason) {
       setError(reason.message);
     } finally {
-      setBusy(false);
+      setBusyAction('');
     }
   }
   return (
@@ -101,18 +103,22 @@ export default function ModelRemovalDialog({
         className="settings-modal model-remove-modal"
         role="dialog"
         aria-modal="true"
-        aria-label={`Remove ${model.name}`}
+        aria-labelledby={titleId}
+        aria-busy={busy || inProgress}
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="settings-head">
           <div>
             <span className="mini-label">MODEL STORAGE</span>
-            <h2>Remove model files</h2>
-            <p>Free storage used by this model.</p>
+            <h2 id={titleId}>Remove model files</h2>
+            <p>
+              Remove this model’s managed files. Disk space recovered may be less than the measured
+              size when files are also used elsewhere, such as through hard links.
+            </p>
           </div>
           <button className="icon-btn" aria-label="Close" disabled={busy} onClick={onClose}>
-            <X size={20} />
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
         <div className="model-remove-summary">
@@ -135,21 +141,25 @@ export default function ModelRemovalDialog({
           </div>
         </dl>
         <div className="model-preview-explanation">
-          <ShieldCheck size={18} />
+          <ShieldCheck size={18} aria-hidden="true" />
           <p>
             {!managed
               ? 'This model is stored in another application or has not been installed. Manage those files in their original location.'
               : storage.removable === false
                 ? 'Removal in Forge is not yet available for this preview model. Its supporting decoder and image encoder are stored separately.'
                 : inProgress
-                  ? 'Removing the staged model files. You can close this dialog while cleanup continues.'
-                  : failed
-                    ? 'The previous removal did not finish. Retry cleanup after resolving the error.'
+                  ? 'Removing the model files. You can close this dialog while cleanup continues.'
+                  : inventoryState === 'scanning'
+                    ? 'Checking model storage. Removal will be available when the scan finishes.'
                     : storage.installed === false
                       ? 'This model folder is not currently installed.'
-                      : !stopped
-                        ? 'The model service must be stopped before its files can be removed.'
-                        : 'This permanently deletes the model files. It does not delete project assets. You will need to reinstall the model to use it again.'}
+                      : storage.installed !== true && !failed
+                        ? 'The installation state could not be confirmed. Refresh model storage before removing files.'
+                        : !stopped
+                          ? 'Stop the model service before removing its files.'
+                          : failed
+                            ? 'The previous removal did not finish. Retry cleanup after resolving the error.'
+                            : 'This permanently deletes the model files. It does not delete project assets. You will need to reinstall the model to use it again.'}
           </p>
         </div>
         {(error || removal?.error) && (
@@ -163,18 +173,34 @@ export default function ModelRemovalDialog({
           </button>
           {managed && !stopped && !inProgress && service?.canUnload && (
             <button className="icon-outline" disabled={busy} onClick={stop}>
-              <Power size={14} /> Stop service
+              <Power size={14} aria-hidden="true" />{' '}
+              {busyAction === 'stop' ? 'Stopping service…' : 'Stop service'}
             </button>
           )}
           <button className="danger-solid" disabled={busy || !canRemove} onClick={remove}>
-            {busy || inProgress ? (
-              <LoaderCircle size={15} className="motion-spinner" />
+            {busyAction === 'remove' || inProgress ? (
+              <LoaderCircle size={15} className="motion-spinner" aria-hidden="true" />
             ) : (
-              <Trash2 size={15} />
+              <Trash2 size={15} aria-hidden="true" />
             )}{' '}
-            {inProgress ? 'Removing…' : failed ? 'Retry removal' : 'Permanently delete model'}
+            {busyAction === 'remove'
+              ? 'Starting removal…'
+              : inProgress
+                ? 'Removing…'
+                : failed
+                  ? 'Retry removal'
+                  : 'Permanently delete model'}
           </button>
         </div>
+        {(busy || inProgress) && (
+          <p className="model-remove-status" role="status" aria-live="polite" aria-atomic="true">
+            {busyAction === 'remove'
+              ? 'Starting model removal.'
+              : busyAction === 'stop'
+                ? 'Stopping the model service.'
+                : 'Removing model files. Cleanup continues in the background.'}
+          </p>
+        )}
       </section>
     </div>
   );

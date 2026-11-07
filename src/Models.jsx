@@ -855,65 +855,84 @@ export default function Models({ onNavigate = () => {} }) {
             needed.
           </p>
         </div>
-        <span>
+        <span className="catalog-result-count" aria-live="polite" aria-atomic="true">
           {filtered.length} of {models.length} models
         </span>
       </div>
-      <div className="catalog-filters">
-        <div className="catalog-search-field">
-          <label htmlFor="catalog-search-input">Search</label>
-          <div className="catalog-search">
-            <Search size={18} />
-            <input
-              id="catalog-search-input"
-              aria-label="Search models"
-              placeholder="Search by model or use…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {search && (
-              <button aria-label="Clear model search" onClick={() => setSearch('')}>
-                <X size={16} />
+      <section className="catalog-filter-panel" aria-label="Find models">
+        <div className="catalog-filter-heading">
+          <strong>Find a model</strong>
+          <span>Search by name, category, or use</span>
+        </div>
+        <div className="catalog-filters">
+          <div className="catalog-search-field">
+            <label htmlFor="catalog-search-input">Search</label>
+            <div className="catalog-search">
+              <Search size={18} />
+              <input
+                id="catalog-search-input"
+                aria-label="Search models"
+                placeholder="Search by model or use…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button aria-label="Clear model search" onClick={() => setSearch('')}>
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="catalog-category-field">
+            <label htmlFor="catalog-category">Category</label>
+            <select
+              id="catalog-category"
+              aria-label="Filter model category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {categories.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            className="catalog-refresh"
+            aria-label="Refresh model services"
+            title="Refresh model services"
+            onClick={refreshStorage}
+          >
+            <RefreshCw size={17} />
+          </button>
+        </div>
+        <div className="catalog-status-filters">
+          <span className="catalog-status-filter-label">Availability</span>
+          <div className="catalog-filter-pills" role="group" aria-label="Filter models by status">
+            {[
+              ['all', 'All', models.length],
+              ['connected', 'Services online', serviceStates.length ? onlineCount : '—'],
+              ['loaded', 'Loaded', serviceStates.length ? loadedCount : '—'],
+              [
+                'installed',
+                'In models folder',
+                modelStorage?.entries?.length ? installedCount : '—',
+              ],
+              ['attention', 'Needs attention', serviceStates.length ? attentionCount : '—'],
+            ].map(([id, label, count]) => (
+              <button
+                key={id}
+                aria-label={`${label}, ${count} models`}
+                aria-pressed={statusFilter === id}
+                data-zero-count={count === 0}
+                onClick={() => setStatusFilter(id)}
+              >
+                {label}
+                <span>{count}</span>
               </button>
-            )}
+            ))}
           </div>
         </div>
-        <div className="catalog-category-field">
-          <label htmlFor="catalog-category">Category</label>
-          <select
-            id="catalog-category"
-            aria-label="Filter model category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            {categories.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </div>
-        <button
-          className="catalog-refresh"
-          aria-label="Refresh model services"
-          title="Refresh model services"
-          onClick={refreshStorage}
-        >
-          <RefreshCw size={17} />
-        </button>
-      </div>
-      <div className="catalog-filter-pills" role="group" aria-label="Filter models by status">
-        {[
-          ['all', 'All', models.length],
-          ['connected', 'Services online', serviceStates.length ? onlineCount : '—'],
-          ['loaded', 'Loaded', serviceStates.length ? loadedCount : '—'],
-          ['installed', 'In models folder', modelStorage?.entries?.length ? installedCount : '—'],
-          ['attention', 'Needs attention', serviceStates.length ? attentionCount : '—'],
-        ].map(([id, label, count]) => (
-          <button key={id} aria-pressed={statusFilter === id} onClick={() => setStatusFilter(id)}>
-            {label}
-            <span>{count}</span>
-          </button>
-        ))}
-      </div>
+      </section>
       <section className="catalog-grid" aria-label="Model library">
         {filtered.length ? (
           filtered.map((model) => {
@@ -940,7 +959,7 @@ export default function Models({ onNavigate = () => {} }) {
             return (
               <article className="catalog-card" key={model.name}>
                 <div className="catalog-card-top">
-                  <div className={'catalog-model-icon ' + model.tone}>
+                  <div className="catalog-model-icon">
                     <model.icon size={21} />
                   </div>
                   <div className="catalog-model-heading">

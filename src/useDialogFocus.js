@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { topModal } from './modal-layer';
+import { topModal } from './modal-layer.js';
 
 const FOCUSABLE = [
   'a[href]',

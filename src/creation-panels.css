@@ -44,7 +44,9 @@
 
 .form-panel .field-label {
   margin: var(--forge-space-5) 0 var(--forge-space-value-9);
+  color: var(--forge-text-strong, var(--forge-text));
   font-size: var(--forge-font-support);
+  font-weight: 600;
   line-height: 1.4;
 }
 
@@ -117,10 +119,18 @@
 .form-panel select {
   border-color: var(--forge-control-border);
   background: var(--forge-control-bg);
+  color: var(--forge-text-strong, var(--forge-text));
   transition:
     border-color 140ms ease,
     box-shadow 140ms ease,
     background-color 140ms ease;
+}
+
+/* Examples should read as guidance while entered values stay unmistakable. */
+.form-panel :is(input:not([type='file']), textarea)::placeholder {
+  color: var(--forge-muted, #d4c0ca);
+  font-style: italic;
+  opacity: 1;
 }
 
 .form-panel textarea:focus,
@@ -314,9 +324,25 @@
 }
 
 .form-panel .form-bottom {
-  margin-top: var(--forge-space-value-22);
+  margin-top: 0;
+  margin-bottom: var(--forge-space-4);
   padding-top: var(--forge-space-4-5);
   border-color: var(--forge-border);
+}
+
+@media (min-width: 851px) {
+  .form-panel .form-bottom {
+    position: sticky;
+    top: var(--forge-space-3);
+    z-index: 5;
+    padding: var(--forge-space-3) 0;
+    background: var(--studio-panel, var(--forge-raised, #2b1021));
+    box-shadow: var(--forge-shadow-card);
+  }
+
+  .form-panel :is(input, select, textarea, button, summary) {
+    scroll-margin-top: 96px;
+  }
 }
 
 .form-panel .form-bottom > div {

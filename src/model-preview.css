@@ -1,6 +1,6 @@
 .model-preview {
-  --model-preview-background-tone-1: var(--model-preview-background-tone-1, #452a3d);
-  --model-preview-background-tone-2: var(--model-preview-background-tone-2, #281324);
+  --model-preview-background-tone-1: #452a3d;
+  --model-preview-background-tone-2: #281324;
   --model-preview-tools-surface: #301b2bef;
   position: relative;
   width: 100%;
@@ -9,8 +9,8 @@
   overflow: hidden;
   background: radial-gradient(
     ellipse at 50% 43%,
-    var(--model-preview-background-tone-1, #452a3d) 0%,
-    var(--model-preview-background-tone-2, #281324) 54%,
+    var(--model-preview-background-tone-1) 0%,
+    var(--model-preview-background-tone-2) 54%,
     var(--forge-bg) 100%
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Box, RotateCcw, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -48,6 +48,7 @@ export default function ModelPreview({ url, name }) {
     cameraRef = useRef(null),
     renderRef = useRef(null);
   const [status, setStatus] = useState('loading');
+  const hintId = useId();
   const supported = /\.(glb|gltf|fbx|ply)$/i.test(name || '');
   useEffect(() => {
     if (!supported || !host.current) {
@@ -241,19 +242,21 @@ export default function ModelPreview({ url, name }) {
         ref={host}
         className="model-preview-canvas"
         role="img"
-        aria-label={`3D preview of ${name}. Drag to rotate, scroll to zoom.`}
+        aria-label={`3D preview of ${name}`}
+        aria-describedby={hintId}
       />
       {status !== 'ready' && (
-        <div className="model-preview-overlay" role="status">
+        <div className="model-preview-overlay" role={status === 'loading' ? 'status' : 'alert'}>
           {status === 'loading' ? 'Loading 3D preview…' : status}
         </div>
       )}
       {status === 'ready' && (
         <>
-          <div className="model-preview-hint">
-            {/\.ply$/i.test(name) ? 'PLY point preview · ' : ''}Drag to rotate · scroll to zoom
+          <div id={hintId} className="model-preview-hint">
+            {/\.ply$/i.test(name) ? 'PLY point preview. ' : ''}
+            Drag to rotate; scroll or pinch to zoom. Use the controls for keyboard operation.
           </div>
-          <div className="model-preview-tools" aria-label="3D preview controls">
+          <div className="model-preview-tools" role="group" aria-label="3D preview controls">
             <button
               type="button"
               aria-label="Rotate left"
@@ -276,8 +279,13 @@ export default function ModelPreview({ url, name }) {
             <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => zoom(1.25)}>
               <ZoomOut size={16} />
             </button>
-            <button type="button" onClick={() => controlsRef.current?.reset()}>
-              Reset
+            <button
+              type="button"
+              aria-label="Reset 3D preview"
+              title="Reset 3D preview"
+              onClick={() => controlsRef.current?.reset()}
+            >
+              Reset view
             </button>
           </div>
         </>

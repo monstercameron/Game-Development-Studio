@@ -22,6 +22,7 @@ export function canConvert(asset) {
 }
 export default function AssetConverter({ asset, project, onSaved, onClose }) {
   const audio = asset.category === 'Audio';
+  const sourceName = asset.id.split('/').at(-1);
   const [format, setFormat] = useState(audio ? 'ogg' : 'png'),
     [quality, setQuality] = useState(90),
     [background, setBackground] = useState('#ffffff'),
@@ -56,6 +57,7 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
       if (
         !data ||
         typeof data.name !== 'string' ||
+        typeof data.path !== 'string' ||
         typeof data.backend !== 'string' ||
         typeof data.url !== 'string'
       ) {
@@ -70,7 +72,7 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
     }
   }
   return (
-    <form className="asset-converter" onSubmit={submit} aria-label="Convert asset">
+    <form className="asset-converter" onSubmit={submit} aria-label="Convert asset" aria-busy={busy}>
       <div className="converter-heading">
         <div>
           <FileOutput size={18} />
@@ -86,11 +88,21 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
           <X size={17} />
         </button>
       </div>
-      <p>Saved alongside the original in this project.</p>
+      <div className="converter-locations" aria-label="Conversion files">
+        <p>
+          <span>Original</span>
+          <strong title={sourceName}>{sourceName}</strong>
+        </p>
+        <p>
+          <span>Copy location</span>
+          <strong>Same project folder</strong>
+        </p>
+      </div>
       <label>
         Output format
         <select
           value={format}
+          disabled={busy}
           onChange={(e) => {
             setFormat(e.target.value);
             setResult(null);
@@ -111,6 +123,7 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
             min="1"
             max="100"
             value={quality}
+            disabled={busy}
             onChange={(e) => setQuality(Number(e.target.value))}
           />
         </label>
@@ -118,12 +131,17 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
       {!audio && ['jpeg', 'bmp'].includes(format) && (
         <label className="converter-background">
           Transparency background{' '}
-          <input type="color" value={background} onChange={(e) => setBackground(e.target.value)} />
+          <input
+            type="color"
+            value={background}
+            disabled={busy}
+            onChange={(e) => setBackground(e.target.value)}
+          />
         </label>
       )}
       <p className="converter-note">
         {format === 'jpeg'
-          ? 'JPEG uses the NVIDIA GPU when available; otherwise it uses the CPU. Transparency is filled with the chosen color.'
+          ? 'JPEG can use NVIDIA nvJPEG when available. Forge reports the backend used after conversion. Transparency is filled with the chosen color.'
           : format === 'bmp'
             ? 'Transparency is filled with the chosen color.'
             : format === 'tga'
@@ -144,7 +162,9 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
         <div className="converter-result" role="status">
           <span>
             <strong>Saved {result.name}</strong>
-            <small>Encoded with {result.backend}</small>
+            <small>
+              Saved to {result.path}. Encoded with {result.backend}
+            </small>
           </span>
           <a href={result.url} download={result.name}>
             <ArrowDownToLine size={16} /> Download

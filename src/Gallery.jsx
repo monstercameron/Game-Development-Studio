@@ -1,5 +1,6 @@
 import TextAssetPreview from './TextAssetPreview';
 import './project-gallery-refinement.css';
+import './gallery-ux.css';
 import { useSearchParams } from 'react-router';
 import { updateSearch, useRouteToggle, routeDetails } from './useNav';
 import InteractiveAssetViewer from './InteractiveAssetViewer';
@@ -13,6 +14,7 @@ import {
   ArrowDownToLine,
   AudioLines,
   Box,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clapperboard,
@@ -654,10 +656,14 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
         </div>
       </section>
       <details className="gallery-queue" {...routeDetails(queueOpen, setQueueOpen)}>
-        <summary>
-          Render queue <span>View and manage renders across projects</span>
+        <summary aria-expanded={queueOpen} aria-controls="gallery-render-queue-content">
+          <span className="gallery-queue-title">Render queue</span>
+          <span className="gallery-queue-summary">Manage jobs across projects</span>
+          <ChevronDown className="gallery-queue-chevron" size={17} aria-hidden="true" />
         </summary>
-        <RuntimeQueue projects={projects} expanded />
+        <div id="gallery-render-queue-content" className="gallery-queue-content">
+          <RuntimeQueue projects={projects} expanded />
+        </div>
       </details>
       <div className="gallery-toolbar">
         <div className="gallery-search">
@@ -717,16 +723,18 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
             </button>
           ))}
         </div>
-        <span className="gallery-results">
+        <span className="gallery-results" role="status" aria-live="polite" aria-atomic="true">
           {filtered.length} {filtered.length === 1 ? 'asset' : 'assets'}
         </span>
       </div>
       {loading && !isSample ? (
-        <div className="gallery-empty">Loading project assets…</div>
+        <div className="gallery-empty" role="status" aria-live="polite">
+          Loading project assets…
+        </div>
       ) : filtered.length === 0 ? (
         <div className="gallery-empty">
           <div className="gallery-empty-icon">
-            <FolderOpen size={24} />
+            <FolderOpen size={24} aria-hidden="true" />
           </div>
           <h2>{items.length ? 'No matching assets' : 'No assets in this collection yet.'}</h2>
           <p>

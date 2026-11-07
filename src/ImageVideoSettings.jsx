@@ -21,92 +21,183 @@ export default function ImageVideoSettings({ section, draft, update }) {
   const image = section === 'images';
   const [width, height] = dimensions[draft.options?.[0]] || [1024, 576];
   const steps = imageSteps[draft.options?.[1]] || 30;
+  const numberError = (value, min, max, integer = true, multiple = 1) => {
+    if (value === undefined || value === null || value === '') {
+      return '';
+    }
+    const number = Number(value);
+    if (
+      !Number.isFinite(number) ||
+      number < min ||
+      number > max ||
+      (integer && !Number.isSafeInteger(number)) ||
+      (multiple > 1 && number % multiple !== 0)
+    ) {
+      return (
+        `Enter ${integer ? 'a whole number' : 'a number'} from ${min} to ${max}` +
+        (multiple > 1 ? ` in multiples of ${multiple}.` : '.')
+      );
+    }
+    return '';
+  };
+  const widthError = numberError(draft.imageWidth, 32, 2048, true, 32);
+  const heightError = numberError(draft.imageHeight, 32, 2048, true, 32);
+  const stepsError = numberError(draft.imageSteps, 1, 100);
+  const guidanceError = draft.imageNegativePrompt?.trim()
+    ? numberError(draft.imageGuidance, 1.1, 10, false)
+    : '';
+  const heading = image ? 'Fine-tune image' : 'Video quality';
+  const contentId = `image-video-settings-${section}`;
   return (
     <details className="image-video-settings" {...routeDetails(tuneOpen, setTuneOpen)}>
-      <summary>{image ? 'Fine-tune image' : 'Video quality'}</summary>
+      <summary aria-expanded={tuneOpen} aria-controls={contentId}>
+        <span className="image-video-settings-heading">{heading}</span>
+        <span className="image-video-settings-hint">
+          {tuneOpen ? 'Hide optional controls' : 'Show optional controls'}
+        </span>
+      </summary>
       {image ? (
-        <div className="image-video-settings-body">
-          <p>Leave a field blank to use the selected aspect ratio or quality.</p>
+        <div className="image-video-settings-body" id={contentId}>
+          <p className="image-video-settings-intro">
+            Optional overrides for the selected aspect ratio and quality. Leave a value blank to
+            keep its preset.
+          </p>
           <div className="image-video-settings-grid">
-            <label>
+            <label htmlFor="image-width">
               <span className="field-label">Width in pixels</span>
               <input
+                id="image-width"
                 type="number"
                 inputMode="numeric"
                 min="32"
                 max="2048"
                 step="32"
                 placeholder={String(width)}
+                aria-describedby={`image-width-help${widthError ? ' image-width-error' : ''}`}
+                aria-invalid={widthError ? 'true' : undefined}
                 value={draft.imageWidth ?? ''}
                 onChange={(e) => update({ imageWidth: e.target.value })}
               />
+              <small id="image-width-help">
+                32–2048 px, in multiples of 32. Blank uses {width} px.
+              </small>
+              {widthError && (
+                <small id="image-width-error" className="image-video-settings-error" role="alert">
+                  {widthError}
+                </small>
+              )}
             </label>
-            <label>
+            <label htmlFor="image-height">
               <span className="field-label">Height in pixels</span>
               <input
+                id="image-height"
                 type="number"
                 inputMode="numeric"
                 min="32"
                 max="2048"
                 step="32"
                 placeholder={String(height)}
+                aria-describedby={`image-height-help${heightError ? ' image-height-error' : ''}`}
+                aria-invalid={heightError ? 'true' : undefined}
                 value={draft.imageHeight ?? ''}
                 onChange={(e) => update({ imageHeight: e.target.value })}
               />
+              <small id="image-height-help">
+                32–2048 px, in multiples of 32. Blank uses {height} px.
+              </small>
+              {heightError && (
+                <small id="image-height-error" className="image-video-settings-error" role="alert">
+                  {heightError}
+                </small>
+              )}
             </label>
-            <label>
+            <label htmlFor="image-steps">
               <span className="field-label">Sampling steps</span>
               <input
+                id="image-steps"
                 type="number"
                 inputMode="numeric"
                 min="1"
                 max="100"
                 step="1"
                 placeholder={String(steps)}
+                aria-describedby={`image-steps-help${stepsError ? ' image-steps-error' : ''}`}
+                aria-invalid={stepsError ? 'true' : undefined}
                 value={draft.imageSteps ?? ''}
                 onChange={(e) => update({ imageSteps: e.target.value })}
               />
+              <small id="image-steps-help">
+                1–100 steps. More steps can add refinement and take longer; blank uses {steps}.
+              </small>
+              {stepsError && (
+                <small id="image-steps-error" className="image-video-settings-error" role="alert">
+                  {stepsError}
+                </small>
+              )}
             </label>
           </div>
-          <p>Dimensions must be multiples of 32. More steps usually take longer.</p>
-          <label>
+          <label className="image-video-settings-wide" htmlFor="image-negative-prompt">
             <span className="field-label">
-              Negative prompt <span>OPTIONAL</span>
+              Negative prompt <span className="image-video-optional">Optional</span>
             </span>
             <textarea
+              id="image-negative-prompt"
               className="short-text"
               maxLength={4000}
+              aria-describedby="image-negative-prompt-help"
               value={draft.imageNegativePrompt ?? ''}
               onChange={(e) => update({ imageNegativePrompt: e.target.value })}
               placeholder="Describe what to avoid"
             />
+            <small id="image-negative-prompt-help">
+              Describe details to avoid. Its guidance control appears below when you enter text;
+              blank guidance uses 2.
+            </small>
           </label>
           {draft.imageNegativePrompt?.trim() && (
             <>
-              <label>
+              <label className="image-video-settings-wide" htmlFor="image-guidance">
                 <span className="field-label">Negative prompt guidance</span>
                 <input
+                  id="image-guidance"
                   type="number"
                   min="1.1"
                   max="10"
                   step="0.1"
                   placeholder="2"
+                  aria-describedby={`image-guidance-help${guidanceError ? ' image-guidance-error' : ''}`}
+                  aria-invalid={guidanceError ? 'true' : undefined}
                   value={draft.imageGuidance ?? ''}
                   onChange={(e) => update({ imageGuidance: e.target.value })}
                 />
+                <small id="image-guidance-help">
+                  1.1–10; blank uses 2. Higher values strengthen avoidance and can take longer. Qwen
+                  normally runs without guidance.
+                </small>
+                {guidanceError && (
+                  <small
+                    id="image-guidance-error"
+                    className="image-video-settings-error"
+                    role="alert"
+                  >
+                    {guidanceError}
+                  </small>
+                )}
               </label>
-              <p>
-                Guidance above 1 activates the negative prompt and increases render time. Qwen
-                normally runs without guidance.
-              </p>
             </>
           )}
         </div>
       ) : (
-        <div className="image-video-settings-body">
-          <label>
+        <div className="image-video-settings-body" id={contentId}>
+          <p className="image-video-settings-intro">
+            Optional override for video detail. More steps can improve detail and increase render
+            time.
+          </p>
+          <label className="image-video-settings-video-field" htmlFor="video-steps">
             <span className="field-label">Sampling steps</span>
             <select
+              id="video-steps"
+              aria-describedby="video-steps-help"
               value={draft.videoSteps || 12}
               onChange={(e) => update({ videoSteps: Number(e.target.value) })}
             >
@@ -115,10 +206,13 @@ export default function ImageVideoSettings({ section, draft, update }) {
               <option value={20}>20 · detailed</option>
               <option value={30}>30 · highest</option>
             </select>
+            <small id="video-steps-help">
+              Default: 12 steps. Higher settings usually take longer.
+            </small>
           </label>
-          <p>
-            More steps take longer. H3 renders at {videoSizes[draft.options?.[0]] || '608 × 352'}{' '}
-            pixels and 24 frames per second. Its current service does not expose a seed.
+          <p className="image-video-settings-facts">
+            H3 renders at {videoSizes[draft.options?.[0]] || '608 × 352'} pixels and 24 frames per
+            second. The current renderer does not expose a seed.
           </p>
         </div>
       )}

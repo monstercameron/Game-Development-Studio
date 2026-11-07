@@ -51,3 +51,22 @@ secrets.json
 .env
 .env.*
 !.env.example
+
+# Temporary UI test fixtures created under test/ during browser tests.
+/test/.asset-picker-ui-*/
+/test/.audio-ui-*/
+/test/.credential-ui-*/
+/test/.diagnostics-ui-*/
+/test/.error-boundary-*/
+/test/.field-help-*/
+/test/.gallery-ui-*/
+/test/.hunyuan-controls-*/
+/test/.image-video-ui-*/
+/test/.inspection-ui-*/
+/test/.model-preview-ui-*/
+/test/.model-remove-ui-*/
+/test/.recent-projects-*/
+/test/.speech-ui-*/
+/test/.trash-ui-*/
+/test/.vite-jsx-*/
+/test/.world-studio-ui-*/

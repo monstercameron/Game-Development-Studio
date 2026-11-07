@@ -1,8 +1,166 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CircleHelp } from 'lucide-react';
 import { topModal } from '../modal-layer';
 import './field-help.css';
+
+const HELP_TRIGGER_SIZE = 24;
+const HELP_TRIGGER_GAP = 6;
+
+function overlaps(first, second) {
+  return (
+    first.left < second.right &&
+    first.right > second.left &&
+    first.top < second.bottom &&
+    first.bottom > second.top
+  );
+}
+
+/** Place a help trigger in nearby free space without covering text or artwork. */
+export function placeHelpTrigger(anchor, viewport, occupied, size = HELP_TRIGGER_SIZE) {
+  const margin = 3;
+  const originLeft = viewport.left || 0;
+  const originTop = viewport.top || 0;
+  const clampLeft = (left) =>
+    Math.max(originLeft + margin, Math.min(originLeft + viewport.width - size - margin, left));
+  const clampTop = (top) =>
+    Math.max(originTop + margin, Math.min(originTop + viewport.height - size - margin, top));
+  const centerY = anchor.top + anchor.height / 2 - size / 2;
+  const centerX = anchor.left + anchor.width / 2 - size / 2;
+  const preferred = [
+    [anchor.right + HELP_TRIGGER_GAP, centerY],
+    [anchor.left - size - HELP_TRIGGER_GAP, centerY],
+    [centerX, anchor.top - size - HELP_TRIGGER_GAP],
+    [centerX, anchor.bottom + HELP_TRIGGER_GAP],
+    [anchor.right + HELP_TRIGGER_GAP, anchor.top],
+    [anchor.left - size - HELP_TRIGGER_GAP, anchor.bottom - size],
+  ];
+  const candidates = preferred.map(([left, top]) => ({
+    left: clampLeft(left),
+    top: clampTop(top),
+  }));
+  for (let distance = 20; distance <= 144; distance += 16) {
+    for (const [horizontal, vertical] of [
+      [1, 0],
+      [-1, 0],
+      [0, -1],
+      [0, 1],
+      [1, -1],
+      [1, 1],
+      [-1, -1],
+      [-1, 1],
+    ]) {
+      candidates.push({
+        left: clampLeft(centerX + horizontal * distance),
+        top: clampTop(centerY + vertical * distance),
+      });
+    }
+  }
+
+  // When a label sits in a dense row, search the viewport edge gutters for a
+  // clear slot instead of clamping the icon back over the label or a preview.
+  const step = 32;
+  for (
+    let left = originLeft + margin;
+    left <= originLeft + viewport.width - size - margin;
+    left += step
+  ) {
+    candidates.push({ left, top: originTop + margin });
+    candidates.push({
+      left,
+      top: clampTop(originTop + viewport.height - size - margin),
+    });
+  }
+  for (
+    let top = originTop + margin + step;
+    top < originTop + viewport.height - size - margin;
+    top += step
+  ) {
+    candidates.push({ left: originLeft + margin, top });
+    candidates.push({
+      left: clampLeft(originLeft + viewport.width - size - margin),
+      top,
+    });
+  }
+
+  const safe = candidates.find((candidate) => {
+    const rect = {
+      ...candidate,
+      right: candidate.left + size,
+      bottom: candidate.top + size,
+    };
+    return !occupied.some((obstacle) => overlaps(rect, obstacle));
+  });
+  if (safe) {
+    return safe;
+  }
+  const withoutArtwork = candidates.find((candidate) => {
+    const rect = {
+      ...candidate,
+      right: candidate.left + size,
+      bottom: candidate.top + size,
+    };
+    return !occupied.some((obstacle) => obstacle.isArtwork && overlaps(rect, obstacle));
+  });
+  return withoutArtwork || candidates[0] || { left: originLeft + margin, top: originTop + margin };
+}
+
+function occupiedRects(scope, cachedNodes) {
+  const rects = [];
+  const addRect = (element, isArtwork = false) => {
+    if (!isVisible(element)) {
+      return;
+    }
+    const rect = element.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      rects.push(isArtwork ? { ...rect, isArtwork: true } : rect);
+    }
+  };
+  if (cachedNodes) {
+    for (const range of cachedNodes.text) {
+      if (!range.startContainer.isConnected || !range.startContainer.nodeValue.trim()) {
+        continue;
+      }
+      for (const rect of range.getClientRects()) {
+        if (rect.width > 0 && rect.height > 0) {
+          rects.push(rect);
+        }
+      }
+    }
+    cachedNodes.artwork.forEach((element) => addRect(element, true));
+    cachedNodes.controls.forEach(addRect);
+    return rects;
+  }
+  const text = [];
+  const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      return node.nodeValue.trim() &&
+        !node.parentElement?.closest(
+          'input,select,textarea,button,svg,script,style,.field-help-layer',
+        )
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_REJECT;
+    },
+  });
+  let node;
+  while ((node = walker.nextNode())) {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    text.push(range);
+    for (const rect of range.getClientRects()) {
+      if (rect.width > 0 && rect.height > 0) {
+        rects.push(rect);
+      }
+    }
+  }
+  const artwork = [...scope.querySelectorAll('img,canvas,video,[role="img"]')];
+  const controls = [
+    ...scope.querySelectorAll('input,select,textarea,button,[role="switch"],[role="slider"]'),
+  ];
+  artwork.forEach((element) => addRect(element, true));
+  controls.forEach(addRect);
+  return { rects, nodes: { text, artwork, controls } };
+}
 
 const clean = (value) =>
   String(value || '')
@@ -55,11 +213,15 @@ function anchorRect(label) {
 export default function FieldHelp({ section, tooltips }) {
   const [targets, setTargets] = useState([]),
     [open, setOpen] = useState('');
+  const targetsRef = useRef(targets);
+  targetsRef.current = targets;
   const [portalTarget, setPortalTarget] = useState(() =>
     typeof document === 'undefined' ? null : document.body,
   );
   useEffect(() => {
     let frame = 0;
+    let needsDiscovery = true;
+    let cachedNodes = null;
     const root = document.querySelector('.app-shell');
     if (!root) {
       return;
@@ -67,6 +229,8 @@ export default function FieldHelp({ section, tooltips }) {
     const described = new Map();
     const refresh = () => {
       frame = 0;
+      const discover = needsDiscovery;
+      needsDiscovery = false;
       const dialog = topModal();
       const scope = dialog || root;
       // Help buttons belong inside the active modal so its keyboard focus trap
@@ -78,9 +242,118 @@ export default function FieldHelp({ section, tooltips }) {
       const tips = tooltips[section] || {},
         common = tooltips.common || {},
         found = [],
+        occupancy = occupiedRects(scope, discover ? null : cachedNodes),
+        occupied = discover ? occupancy.rects : occupancy,
         ratingGroups = new Set(),
         layoutGroups = new Set();
+      if (discover) {
+        cachedNodes = occupancy.nodes;
+      }
+      if (!discover) {
+        const updated = targetsRef.current.map((target) => {
+          if (!target.anchorElement?.isConnected) {
+            return target;
+          }
+          const anchor = target.anchorElement.getBoundingClientRect();
+          const scopeRect = scope.getBoundingClientRect();
+          let position = placeHelpTrigger(
+            anchor,
+            {
+              left: Math.max(0, scopeRect.left),
+              top: Math.max(0, scopeRect.top),
+              width: Math.max(
+                0,
+                Math.min(window.innerWidth, scopeRect.right) - Math.max(0, scopeRect.left),
+              ),
+              height: Math.max(
+                0,
+                Math.min(window.innerHeight, scopeRect.bottom) - Math.max(0, scopeRect.top),
+              ),
+            },
+            occupied,
+          );
+          const triggerRect = {
+            left: position.left,
+            top: position.top,
+            right: position.left + HELP_TRIGGER_SIZE,
+            bottom: position.top + HELP_TRIGGER_SIZE,
+          };
+          if (occupied.some((obstacle) => obstacle.isArtwork && overlaps(triggerRect, obstacle))) {
+            position = placeHelpTrigger(
+              anchor,
+              { width: window.innerWidth, height: window.innerHeight },
+              occupied,
+            );
+          }
+          const rect = {
+            left: position.left,
+            top: position.top,
+            right: position.left + HELP_TRIGGER_SIZE,
+            bottom: position.top + HELP_TRIGGER_SIZE,
+          };
+          occupied.push(rect);
+          return { ...target, ...position };
+        });
+        setTargets((current) =>
+          current.every(
+            (target, index) =>
+              target.left === updated[index]?.left && target.top === updated[index]?.top,
+          )
+            ? current
+            : updated,
+        );
+        return;
+      }
       let number = 0;
+      const addTarget = (name, text, anchor, anchorElement) => {
+        const scopeRect = scope.getBoundingClientRect();
+        const bounds = {
+          left: Math.max(0, scopeRect.left),
+          top: Math.max(0, scopeRect.top),
+          width: Math.max(
+            0,
+            Math.min(window.innerWidth, scopeRect.right) - Math.max(0, scopeRect.left),
+          ),
+          height: Math.max(
+            0,
+            Math.min(window.innerHeight, scopeRect.bottom) - Math.max(0, scopeRect.top),
+          ),
+        };
+        let position = placeHelpTrigger(anchor, bounds, occupied);
+        const overlapsArtwork = (candidate) => {
+          const rect = {
+            left: candidate.left,
+            top: candidate.top,
+            right: candidate.left + HELP_TRIGGER_SIZE,
+            bottom: candidate.top + HELP_TRIGGER_SIZE,
+          };
+          return occupied.some((obstacle) => obstacle.isArtwork && overlaps(rect, obstacle));
+        };
+        if (overlapsArtwork(position)) {
+          // Full-bleed previews can leave no clear slot inside a dialog. Keep
+          // the trigger in the dialog's DOM for its focus trap, but allow its
+          // fixed visual position to use the dimmed viewport gutter.
+          position = placeHelpTrigger(
+            anchor,
+            { width: window.innerWidth, height: window.innerHeight },
+            occupied,
+          );
+        }
+        const rect = {
+          left: position.left,
+          top: position.top,
+          right: position.left + HELP_TRIGGER_SIZE,
+          bottom: position.top + HELP_TRIGGER_SIZE,
+        };
+        occupied.push(rect);
+        found.push({
+          key: `${section}-${number++}-${name}`,
+          name,
+          text,
+          anchorElement,
+          ...position,
+        });
+      };
       for (const control of scope.querySelectorAll(
         'input:not([type="hidden"]),select,textarea,button[aria-pressed],button[role="switch"],[role="slider"]',
       )) {
@@ -143,19 +416,7 @@ export default function FieldHelp({ section, tooltips }) {
               rect.right >= 0 &&
               rect.left <= window.innerWidth
             ) {
-              const left = Math.max(3, Math.min(window.innerWidth - 23, rect.right + 5)),
-                top = Math.max(
-                  3,
-                  Math.min(window.innerHeight - 23, rect.top + (rect.height - 18) / 2),
-                );
-              found.push({
-                key: `${section}-${number++}-Asset rating`,
-                name: 'Asset rating',
-                text: groupText,
-                left,
-                top,
-                controlRect: rating.getBoundingClientRect(),
-              });
+              addTarget('Asset rating', groupText, rect, anchor);
             }
           }
           continue;
@@ -176,19 +437,7 @@ export default function FieldHelp({ section, tooltips }) {
               rect.right >= 0 &&
               rect.left <= window.innerWidth
             ) {
-              const left = Math.max(3, Math.min(window.innerWidth - 23, rect.right + 5)),
-                top = Math.max(
-                  3,
-                  Math.min(window.innerHeight - 23, rect.top + (rect.height - 18) / 2),
-                );
-              found.push({
-                key: `${section}-${number++}-Display layout`,
-                name: 'Display layout',
-                text: groupText,
-                left,
-                top,
-                controlRect: layout.getBoundingClientRect(),
-              });
+              addTarget('Display layout', groupText, rect, anchor);
             }
           }
           continue;
@@ -218,25 +467,33 @@ export default function FieldHelp({ section, tooltips }) {
         // message field instead of floating over the composer's outside edge.
         const chatMessage =
           window.innerWidth >= 851 && name === 'Message' && control.closest('.chat-composer');
-        const left = Math.max(
-          3,
-          Math.min(
-            window.innerWidth - 23,
-            chatMessage ? rect.right - 26 : label || namedAnchor ? rect.right + 5 : rect.left - 22,
-          ),
+        addTarget(
+          name,
+          text,
+          chatMessage ? controlRect : rect,
+          chatMessage ? control : label || namedAnchor || control,
         );
-        const top = Math.max(
-          3,
-          Math.min(
-            window.innerHeight - 23,
-            chatMessage ? rect.top + 2 : rect.top + (rect.height - 18) / 2,
-          ),
-        );
-        found.push({ key: `${section}-${number++}-${name}`, name, text, left, top, controlRect });
       }
-      setTargets(found);
+      setTargets((current) => {
+        if (
+          current.length === found.length &&
+          current.every(
+            (target, index) =>
+              target.key === found[index].key &&
+              target.left === found[index].left &&
+              target.top === found[index].top &&
+              target.name === found[index].name &&
+              target.text === found[index].text &&
+              target.anchorElement === found[index].anchorElement,
+          )
+        ) {
+          return current;
+        }
+        return found;
+      });
     };
-    const schedule = () => {
+    const schedule = (discover = false) => {
+      needsDiscovery ||= discover;
       if (!frame) {
         frame = requestAnimationFrame(refresh);
       }
@@ -265,7 +522,7 @@ export default function FieldHelp({ section, tooltips }) {
         return true;
       });
       if (relevant) {
-        schedule();
+        schedule(true);
       }
     });
     observer.observe(root, {
@@ -275,13 +532,19 @@ export default function FieldHelp({ section, tooltips }) {
       attributes: true,
       attributeFilter: ['open', 'hidden', 'inert', 'class', 'style'],
     });
-    window.addEventListener('resize', schedule);
-    window.addEventListener('scroll', schedule, true);
-    schedule();
+    const onScroll = () => schedule(false);
+    const onResize = () => schedule(true);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, true);
+    window.visualViewport?.addEventListener('resize', onResize);
+    window.visualViewport?.addEventListener('scroll', onScroll);
+    schedule(true);
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', schedule);
-      window.removeEventListener('scroll', schedule, true);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onScroll, true);
+      window.visualViewport?.removeEventListener('resize', onResize);
+      window.visualViewport?.removeEventListener('scroll', onScroll);
       cancelAnimationFrame(frame);
       for (const [control, text] of described) {
         if (control.getAttribute('aria-description') === text) {
@@ -350,10 +613,8 @@ export default function FieldHelp({ section, tooltips }) {
               id="forge-field-help"
               role="tooltip"
               style={{
-                left: Math.max(8, Math.min(t.left, window.innerWidth - 300)),
-                top: t.top + 110 < window.innerHeight ? t.top + 23 : undefined,
-                bottom:
-                  t.top + 110 >= window.innerHeight ? window.innerHeight - t.top + 5 : undefined,
+                left: Math.max(8, Math.min(t.left, window.innerWidth - 320)),
+                top: Math.max(8, Math.min(t.top + 23, window.innerHeight - 8)),
               }}
             >
               {t.text}

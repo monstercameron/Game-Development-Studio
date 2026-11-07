@@ -1,0 +1,206 @@
+.motionbricks-controls {
+  display: grid;
+  gap: var(--forge-space-4);
+  min-width: 0;
+  margin-top: var(--forge-space-3);
+}
+
+.motionbricks-controls .motionbricks-source {
+  min-width: 0;
+}
+
+.motionbricks-controls .motionbricks-source .reference-heading {
+  margin-top: 0;
+}
+
+.motionbricks-controls .motionbricks-source-guidance {
+  margin: 0 0 var(--forge-space-3);
+}
+
+.motionbricks-controls .motionbricks-source-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: var(--forge-space-2-5);
+}
+
+.motionbricks-controls .motionbricks-upload {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 72px;
+  padding: var(--forge-space-3);
+}
+
+.motionbricks-controls .motionbricks-upload-copy {
+  display: block;
+  min-width: 0;
+}
+
+.motionbricks-controls .motionbricks-upload .upload-action {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.motionbricks-controls .motionbricks-source-actions .asset-library-button {
+  align-self: stretch;
+  min-height: 44px;
+  margin: 0;
+  padding-inline: var(--forge-space-3);
+  white-space: nowrap;
+}
+
+.motionbricks-controls .motionbricks-selected-source {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--forge-space-3);
+  min-width: 0;
+  margin-top: var(--forge-space-2-5);
+  padding: var(--forge-space-2-5) var(--forge-space-3);
+  border-left: 3px solid var(--forge-focus);
+  background: var(--forge-selection-surface);
+}
+
+.motionbricks-controls .motionbricks-selected-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--forge-space-1-5) var(--forge-space-3);
+  min-width: 0;
+  color: var(--forge-text-strong, var(--forge-text));
+  font-size: var(--forge-font-support);
+}
+
+.motionbricks-controls .motionbricks-selected-label,
+.motionbricks-controls .motionbricks-file-size {
+  color: var(--forge-muted);
+  font-size: var(--forge-font-caption);
+}
+
+.motionbricks-controls .motionbricks-selected-copy strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.motionbricks-controls .motionbricks-remove-source {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  min-height: 36px;
+  border: 1px solid var(--forge-control-border);
+  border-radius: var(--forge-radius-sm);
+  background: transparent;
+  color: var(--forge-text);
+  cursor: pointer;
+}
+
+.motionbricks-controls .motionbricks-remove-source:hover {
+  border-color: var(--forge-focus);
+  background: var(--forge-selection-hover);
+}
+
+.motionbricks-controls .motionbricks-remove-source:focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 2px;
+}
+
+.motionbricks-controls .motionbricks-limit-note {
+  margin: var(--forge-space-2-5) 0 0;
+}
+
+.motionbricks-controls .motionbricks-group {
+  min-width: 0;
+  margin: 0;
+  padding: var(--forge-space-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--forge-border);
+}
+
+.motionbricks-controls .motionbricks-group legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--forge-space-2);
+  padding: 0;
+  color: var(--forge-text-strong, var(--forge-text));
+  font-size: var(--forge-font-support);
+  font-weight: 650;
+}
+
+.motionbricks-controls .motionbricks-parameter-grid {
+  display: grid;
+  clear: both;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--forge-space-3-5);
+}
+
+.motionbricks-controls .motionbricks-parameter-grid > label {
+  display: block;
+  min-width: 0;
+}
+
+.motionbricks-controls .motionbricks-parameter-grid .field-label {
+  margin: 0 0 var(--forge-space-1-5);
+  color: var(--forge-muted);
+  font-size: var(--forge-font-caption);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.motionbricks-controls .motionbricks-parameter-grid input {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--forge-space-2-5) var(--forge-space-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.motionbricks-controls .motionbricks-parameter-grid input[aria-invalid='true'] {
+  border-color: var(--forge-danger, #ff8f8f);
+}
+
+.motionbricks-controls .motionbricks-group-help {
+  margin: var(--forge-space-2-5) 0 0;
+}
+
+.motionbricks-controls .motionbricks-error {
+  display: block;
+  margin: var(--forge-space-1-5) 0 0;
+  color: var(--forge-danger, #ffb0a8);
+  font-size: var(--forge-font-caption);
+  line-height: 1.45;
+}
+
+@media (max-width: 650px) {
+  .motionbricks-controls .motionbricks-source-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .motionbricks-controls .motionbricks-source-actions .asset-library-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .motionbricks-controls .motionbricks-parameter-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--forge-space-2-5);
+  }
+
+  .motionbricks-controls .motionbricks-selected-copy {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--forge-space-1) var(--forge-space-2);
+  }
+
+  .motionbricks-controls .motionbricks-selected-label {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motionbricks-controls .motionbricks-remove-source {
+    transition: none;
+  }
+}

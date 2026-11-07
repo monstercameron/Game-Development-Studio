@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { LoaderCircle, Power, RefreshCw, X } from 'lucide-react';
 import useDialogFocus from './useDialogFocus';
 import './memory-dialog.css';
@@ -22,6 +22,9 @@ export default function MemoryDialog({
     [notice, setNotice] = useState(''),
     [closed, setClosed] = useState([]),
     [forceTarget, setForceTarget] = useState(null);
+  const forceTrigger = useRef(null),
+    returnToForceTrigger = useRef(false),
+    forceHeading = useRef(null);
   const busy = working || !!action;
   const dialog = useDialogFocus({
     onClose: () => {
@@ -36,6 +39,14 @@ export default function MemoryDialog({
   const free = system ? conflict.freeBytes / 1024 ** 3 : conflict.device?.freeMiB / 1024;
   const required = system ? conflict.requiredBytes / 1024 ** 3 : conflict.requiredMiB / 1024;
   const shortfall = system ? conflict.shortfallBytes / 1024 ** 3 : conflict.shortfallMiB / 1024;
+  useLayoutEffect(() => {
+    if (forceTarget) {
+      forceHeading.current?.focus();
+    } else if (returnToForceTrigger.current) {
+      returnToForceTrigger.current = false;
+      forceTrigger.current?.focus();
+    }
+  }, [forceTarget]);
   useEffect(() => {
     setClosed([]);
     setNotice('');
@@ -59,7 +70,9 @@ export default function MemoryDialog({
         throw Error(result.error || result.message || 'Could not close the service.');
       }
       setClosed((items) => [...items, model.id]);
-      setNotice(`${model.name} closed. Check memory again when you are ready.`);
+      setNotice(
+        `${model.name} service stopped. Check memory again when you are ready; available memory may take a moment to update.`,
+      );
     } catch (e) {
       setActionError(e.message);
     } finally {
@@ -99,25 +112,26 @@ export default function MemoryDialog({
             <X size={20} />
           </button>
         </div>
-        <div className="memory-numbers">
+        <div className="memory-numbers" aria-label="Memory availability">
           <div>
-            <span>FREE NOW</span>
+            <span>Available now</span>
             <strong>{gib(conflict.freeBytes === null && system ? null : free)}</strong>
           </div>
           <div>
-            <span>NEEDED</span>
+            <span>Required</span>
             <strong>{gib(required)}</strong>
           </div>
           <div>
-            <span>SHORT BY</span>
+            <span>Additional memory needed</span>
             <strong>{gib(conflict.shortfallBytes === null && system ? null : shortfall)}</strong>
           </div>
         </div>
         {conflict.estimate && <p className="helper">{conflict.estimate}</p>}
         <h3>Models and services</h3>
         <p className="helper">
-          Close a service if it is idle, or force close it if it is stuck. Force close interrupts
-          active work. Model files stay on disk.
+          Stop an idle service to release its loaded model. Force close stops it immediately and
+          interrupts active work. Model files stay on disk; memory availability can take a moment to
+          update.
         </p>
         {conflict.candidates?.length ? (
           <div className="memory-candidates">
@@ -137,7 +151,10 @@ export default function MemoryDialog({
                             : model.modelLoaded === null || model.modelLoaded === undefined
                               ? 'Model state unknown'
                               : 'Model loaded'}
-                    {!model.managed && model.url ? ` · ${model.url}` : ''}
+                    {!model.managed && model.url ? ` · External service at ${model.url}` : ''}
+                    {model.id === 'chat' && !closed.includes(model.id)
+                      ? ' · Idle state cannot be verified, so safe stop is unavailable'
+                      : ''}
                   </small>
                 </div>
                 <div className="memory-candidate-actions">
@@ -145,20 +162,20 @@ export default function MemoryDialog({
                     className="outline-button"
                     disabled={busy || closed.includes(model.id) || model.id === 'chat'}
                     onClick={() => closeService(model, false)}
-                    title={
-                      model.id === 'chat'
-                        ? 'This server does not report whether it is idle.'
-                        : 'Closes the service after checking it is idle.'
-                    }
+                    aria-label={`Stop ${model.name} if idle`}
                   >
                     <Power size={15} /> Close if idle
                   </button>
                   <button
                     className="ghost-button"
                     disabled={busy || closed.includes(model.id)}
-                    onClick={() => setForceTarget(model)}
+                    onClick={(event) => {
+                      forceTrigger.current = event.currentTarget;
+                      returnToForceTrigger.current = false;
+                      setForceTarget(model);
+                    }}
                   >
-                    Force close
+                    Force close {model.name}
                   </button>
                 </div>
               </div>
@@ -171,11 +188,25 @@ export default function MemoryDialog({
           </p>
         )}
         {forceTarget && (
-          <div className="memory-force-confirm" role="alert">
-            <strong>Force close {forceTarget.name}?</strong>
-            <p>Active work in this service will be interrupted.</p>
+          <div
+            className="memory-force-confirm"
+            role="group"
+            aria-labelledby="memory-force-title"
+            aria-describedby="memory-force-description"
+          >
+            <h3 id="memory-force-title" ref={forceHeading} tabIndex={-1}>
+              Force close {forceTarget.name}?
+            </h3>
+            <p id="memory-force-description">Active work in this service will be interrupted.</p>
             <div className="memory-candidate-actions">
-              <button className="ghost-button" disabled={busy} onClick={() => setForceTarget(null)}>
+              <button
+                className="ghost-button"
+                disabled={busy}
+                onClick={() => {
+                  returnToForceTrigger.current = true;
+                  setForceTarget(null);
+                }}
+              >
                 Go back
               </button>
               <button
@@ -183,7 +214,9 @@ export default function MemoryDialog({
                 disabled={busy}
                 onClick={() => {
                   const model = forceTarget;
+                  returnToForceTrigger.current = false;
                   setForceTarget(null);
+                  dialog.current?.focus();
                   closeService(model, true);
                 }}
               >
@@ -193,7 +226,7 @@ export default function MemoryDialog({
           </div>
         )}
         {notice && (
-          <p className="helper" role="status">
+          <p className="helper" role="status" aria-live="polite">
             {notice}
           </p>
         )}

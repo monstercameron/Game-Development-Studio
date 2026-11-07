@@ -1,8 +1,107 @@
+.game-decision-panel .game-service-state {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--forge-space-3, 12px);
+  margin: var(--forge-space-3, 12px) 0;
+  padding: var(--forge-space-3, 12px) var(--forge-space-4, 16px);
+  border: 1px solid var(--forge-border, #4b4651);
+  border-left: 3px solid var(--forge-queue-warning-border, #b77a5f);
+  border-radius: var(--forge-radius-sm, 6px);
+  background: var(--forge-surface-raised, #25232a);
+}
+
+.game-decision-panel .game-service-state.is-ready {
+  border-left-color: var(--forge-success, #70c49a);
+}
+
+.game-decision-panel .game-service-state > div {
+  display: grid;
+  gap: 3px;
+}
+
+.game-decision-panel .game-service-state strong {
+  color: var(--forge-text, #f2eff5);
+}
+
+.game-decision-panel .game-service-state span:last-child {
+  color: var(--forge-muted, #d4c0ca);
+  font-size: var(--forge-font-support, 0.875rem);
+}
+
+.game-decision-panel .game-service-indicator {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--forge-queue-warning-border, #b77a5f);
+}
+
+.game-decision-panel .game-service-state.is-ready .game-service-indicator {
+  background: var(--forge-success, #70c49a);
+}
+
 .game-decision-panel .game-decision-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--forge-space-2, var(--forge-space-2));
   margin-top: var(--forge-space-3, var(--forge-space-3));
+}
+
+.game-decision-panel .game-decision-actions .game-run-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 0 var(--forge-space-5, 20px);
+  border: 1px solid var(--forge-orange, #e95420);
+  border-radius: var(--forge-radius-sm, 6px);
+  background: var(--forge-orange, #e95420);
+  color: var(--forge-text-on-orange, #17040f);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.game-decision-panel .game-decision-actions .game-run-button:hover:not(:disabled) {
+  background: var(--forge-orange-hover, #f16b3d);
+  border-color: var(--forge-orange-hover, #f16b3d);
+}
+
+.game-decision-panel .game-decision-actions .game-run-button:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.game-decision-panel .game-decision-actions .game-run-button:focus-visible,
+.game-decision-panel .game-decision-actions .game-stop-button:focus-visible {
+  outline: 2px solid var(--forge-focus, #ffad8d);
+  outline-offset: 3px;
+}
+
+.game-decision-panel .game-decision-actions .game-stop-button {
+  color: var(--forge-danger, #e19a9a);
+  border-color: var(--forge-danger-border, #805454);
+}
+
+.game-decision-panel .game-decision-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.game-decision-panel .game-spinner {
+  animation: game-decision-spin 900ms linear infinite;
+}
+
+@keyframes game-decision-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .game-decision-panel .game-decision-actions .outline-button {
@@ -30,6 +129,19 @@
   .game-decision-panel .game-result {
     font-size: var(--forge-font-support);
     line-height: 1.55;
+  }
+  .game-decision-panel .game-decision-actions .game-run-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-decision-panel .game-spinner {
+    animation: none;
+  }
+
+  .game-decision-panel .game-decision-actions .game-run-button {
+    transition: none;
   }
 }
 

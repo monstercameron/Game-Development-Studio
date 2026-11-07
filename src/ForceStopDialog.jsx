@@ -9,7 +9,7 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
         onClose();
       }
     },
-    initialFocus: '.settings-head button',
+    initialFocus: '.force-stop-cancel',
   });
   return (
     <div
@@ -26,6 +26,8 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
         role="dialog"
         aria-modal="true"
         aria-labelledby="force-stop-title"
+        aria-describedby={result ? 'force-stop-result' : 'force-stop-summary force-stop-warning'}
+        aria-busy={working}
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
@@ -46,7 +48,7 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
         </div>
         {result ? (
           <>
-            <p>
+            <p id="force-stop-result">
               Forge stopped the verified process tree. GPU and system memory may take a moment to
               update.
             </p>
@@ -68,8 +70,11 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
           </>
         ) : (
           <>
-            <p>Use this if the service is stuck and a normal stop does not work.</p>
-            <div className="force-stop-warning">
+            <p id="force-stop-summary">
+              Try <strong>Stop service</strong> first. Use force stop only if the normal stop does
+              not work.
+            </p>
+            <div className="force-stop-warning" id="force-stop-warning">
               <CircleAlert size={18} />
               <span>
                 <strong>Active work may be lost.</strong> Forge will stop this service and its
@@ -84,8 +89,18 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
           </>
         )}
         {error && (
-          <p className="settings-error" role="alert">
-            {error} Check the queue and Diagnostics before retrying.
+          <div className="force-stop-error" role="alert">
+            <strong>Forge did not confirm that the service stopped.</strong>
+            <p>
+              The process may still be running. Check service status, the render queue, and
+              Diagnostics before trying again.
+            </p>
+            <p>{error}</p>
+          </div>
+        )}
+        {working && (
+          <p className="force-stop-progress" role="status" aria-live="polite">
+            Forge is checking the service and verifying the stop. Keep this dialog open.
           </p>
         )}
         <div className="project-dialog-actions">
@@ -95,7 +110,12 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
             </button>
           ) : (
             <>
-              <button type="button" className="ghost-button" disabled={working} onClick={onClose}>
+              <button
+                type="button"
+                className="ghost-button force-stop-cancel"
+                disabled={working}
+                onClick={onClose}
+              >
                 Cancel
               </button>
               <button
@@ -109,7 +129,7 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
                 ) : (
                   <OctagonX size={16} />
                 )}{' '}
-                {working ? 'Stopping…' : 'Force stop service'}
+                {working ? `Stopping ${name}…` : `Force stop ${name}`}
               </button>
             </>
           )}

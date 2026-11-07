@@ -76,14 +76,31 @@
   font-weight: 700;
 }
 .world-form :is(select, textarea, input[type='number']) {
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  color: var(--forge-text);
-  background: var(--forge-surface-deep);
+  max-width: 100%;
+  color: var(--forge-text-strong, var(--forge-text));
+  background: var(--forge-control-bg);
   border: 1px solid var(--forge-control-border);
   border-radius: var(--forge-radius-md);
   padding: var(--forge-space-3);
   font: inherit;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+.world-form :is(input, textarea)::placeholder {
+  color: var(--forge-muted, #d4c0ca);
+  font-style: italic;
+  opacity: 1;
+}
+.world-form :is(select, textarea, input[type='number']):focus {
+  border-color: var(--forge-focus);
+  background: var(--forge-surface);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--studio-ember, var(--forge-orange, #e95420)) 24%, transparent);
 }
 .world-form textarea {
   min-height: 140px;
@@ -93,6 +110,15 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--forge-space-3);
+}
+.world-settings > label {
+  min-width: 0;
+}
+.world-settings .world-seed-field {
+  display: grid;
+  gap: var(--forge-space-2);
+  min-width: 0;
+  font-weight: 700;
 }
 .world-input {
   padding: var(--forge-space-4);
@@ -121,6 +147,14 @@
   display: grid;
   gap: var(--forge-space-2);
   margin-top: var(--forge-space-4);
+}
+.world-reference-empty {
+  margin: var(--forge-space-3) 0 0;
+  padding: var(--forge-space-3);
+  border-inline-start: 3px solid var(--forge-focus);
+  color: var(--forge-muted);
+  background: var(--forge-surface-deep);
+  line-height: 1.45;
 }
 .world-reference {
   display: flex;
@@ -159,22 +193,39 @@
 }
 .world-seed {
   display: flex;
+  width: 100%;
+  min-width: 0;
   gap: var(--forge-space-2);
 }
+.world-seed input {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .world-seed button {
-  flex: none;
+  flex: 0 0 auto;
+  width: auto;
 }
 .world-settings .helper {
   font-weight: 400;
   line-height: 1.4;
 }
+.world-action {
+  position: sticky;
+  top: var(--forge-space-3);
+  z-index: 2;
+  display: grid;
+  gap: var(--forge-space-2);
+  padding: var(--forge-space-3);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-md);
+  background: var(--forge-raised);
+}
 .world-submit {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--forge-space-4);
-  border-top: 1px solid var(--forge-border);
-  padding-top: var(--forge-space-4);
 }
 .world-submit > div {
   display: grid;
@@ -183,6 +234,13 @@
 .world-notice {
   color: var(--forge-text);
   margin: 0;
+  line-height: 1.4;
+}
+.world-notice.error {
+  color: var(--forge-danger);
+}
+.world-notice.success {
+  color: var(--forge-success, var(--forge-text));
 }
 @media (max-width: 1200px) {
   .world-layout {

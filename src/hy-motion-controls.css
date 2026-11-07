@@ -1,0 +1,74 @@
+.hy-motion-controls {
+  margin-top: var(--forge-space-3-5);
+}
+
+.hy-motion-controls h3 {
+  margin: 0 0 var(--forge-space-2);
+  color: var(--forge-text-strong);
+  font-size: var(--forge-font-support);
+  font-weight: 650;
+}
+
+.hy-motion-controls-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--forge-space-3-5);
+}
+
+.hy-motion-control {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.hy-motion-control .field-label {
+  margin: 0 0 var(--forge-space-2);
+}
+
+.hy-motion-control input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  padding: var(--forge-space-2-5) var(--forge-space-3);
+}
+
+.hy-motion-control small {
+  display: block;
+  margin-top: var(--forge-space-1-5);
+  color: var(--forge-muted);
+  font-size: var(--forge-font-caption);
+  line-height: 1.45;
+}
+
+.hy-motion-control input[aria-invalid='true'] {
+  border-color: var(--forge-danger-border);
+}
+
+.hy-motion-control input[aria-invalid='true']:focus-visible {
+  outline-color: var(--forge-danger);
+}
+
+.hy-motion-control .hy-motion-control-error {
+  color: var(--forge-danger);
+}
+
+.hy-motion-controls-note {
+  max-width: 72ch;
+  margin: var(--forge-space-3) 0 0;
+  color: var(--forge-muted);
+  font-size: var(--forge-font-caption);
+  line-height: 1.55;
+}
+
+@media (max-width: 720px) {
+  .hy-motion-controls-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 460px) {
+  .hy-motion-controls-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

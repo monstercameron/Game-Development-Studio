@@ -6,7 +6,7 @@ import {
   estimateChatMemory,
 } from '../runtime/chat-memory.js';
 import { saveProjectText } from './save-project-text';
-import { chatStorageKey } from './chat-project';
+import { chatStorageKey, normalizeSavedChats } from './chat-project';
 import { checkJsonSyntax, isStructuredJsonFormat } from './chat-output';
 import { createResponseMetrics } from './chat-metrics';
 import ChatMarkdown from './ChatMarkdown';
@@ -53,6 +53,15 @@ const makeChat = () => ({
   createdAt: Date.now(),
 });
 const headers = { 'Content-Type': 'application/json', 'X-Forge-Request': 'chat' };
+async function readRuntimeResponse(response) {
+  try {
+    return await response.json();
+  } catch {
+    throw Error(
+      `The studio returned an unreadable response (${response.status}). Try again or check Diagnostics.`,
+    );
+  }
+}
 async function call(route, body, signal) {
   const r = await fetch('/api/chat/' + route, {
     method: 'POST',
@@ -72,7 +81,7 @@ async function call(route, body, signal) {
 function readSaved(key) {
   try {
     const x = JSON.parse(localStorage.getItem(key));
-    return Array.isArray(x) && x.length ? x : [makeChat()];
+    return Array.isArray(x) && x.length ? normalizeSavedChats(x) : [makeChat()];
   } catch {
     return [makeChat()];
   }
@@ -246,10 +255,26 @@ export default function Chat({ project }) {
     }
   }, [chat?.messages]);
   useEffect(() => {
-    call('status', {})
-      .then((r) => r.json())
-      .then(setMemory)
-      .catch(() => {});
+    let active = true;
+    async function refreshMemory() {
+      try {
+        const response = await call('status', {});
+        const status = await response.json();
+        if (active) {
+          setMemory(status);
+        }
+      } catch {
+        if (active) {
+          setMemory(null);
+        }
+      }
+    }
+    refreshMemory();
+    const timer = setInterval(refreshMemory, 15000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
   }, []);
   useEffect(() => {
     try {
@@ -287,7 +312,9 @@ export default function Chat({ project }) {
   }, []);
   const contextEstimate = estimateChatMemory(contextSize);
   const actualContext =
-    chatRuntime?.managed && Number.isSafeInteger(chatRuntime.contextSize)
+    chatRuntime?.managed &&
+    chatRuntime?.status === 'reachable' &&
+    Number.isSafeInteger(chatRuntime.contextSize)
       ? chatRuntime.contextSize
       : null;
   const contextLimit = actualContext ?? (chatRuntime?.status === 'reachable' ? null : contextSize);
@@ -336,7 +363,7 @@ export default function Chat({ project }) {
       : localQwen
         ? modelOnline
           ? 'Studio server online'
-          : chatRuntime?.managed
+          : chatRuntime?.status === 'starting'
             ? 'Starting'
             : 'Starts on send'
         : 'Compatible endpoint · not checked';
@@ -359,7 +386,7 @@ export default function Chat({ project }) {
       body: JSON.stringify({ speculative, contextSize }),
       signal,
     });
-    const data = await r.json();
+    const data = await readRuntimeResponse(r);
     if (['insufficient_host_memory', 'insufficient_gpu_memory'].includes(data.code)) {
       setMemoryConflict(data);
       setStatus('Waiting for memory to start Qwen.');
@@ -445,7 +472,7 @@ export default function Chat({ project }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: '{}',
       });
-      const data = await r.json();
+      const data = await readRuntimeResponse(r);
       if (!r.ok) {
         throw Error(data.error || data.message || 'Could not stop the service.');
       }
@@ -482,11 +509,13 @@ export default function Chat({ project }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: JSON.stringify({ confirmation: 'force-stop-engine' }),
       });
-      const data = await r.json();
+      const data = await readRuntimeResponse(r);
       if (!r.ok) {
         throw Error(data.error || 'Could not stop Qwen.');
       }
-      setStatus('Qwen server stopped.');
+      setChatRuntime((current) => ({ ...current, status: 'stopped' }));
+      setMemory(null);
+      setStatus('');
     } catch (e) {
       setError(e.message);
     }
@@ -799,6 +828,7 @@ export default function Chat({ project }) {
               onClick={() => setSettings(true)}
               aria-expanded={settings}
               aria-controls="chat-configuration"
+              title="Change model or connection settings"
               aria-label={`Model and connection settings: ${model || 'choose a model'}, ${modelStatus}`}
             >
               <span className="chat-model-icon">
@@ -835,7 +865,14 @@ export default function Chat({ project }) {
                     'Build a character backstory',
                     'Create item data as JSON',
                   ].map((t) => (
-                    <button type="button" key={t} onClick={() => setPrompt(t)}>
+                    <button
+                      type="button"
+                      key={t}
+                      onClick={() => {
+                        setPrompt(t);
+                        composerRef.current?.focus();
+                      }}
+                    >
                       {t}
                       <span>↗</span>
                     </button>
@@ -870,7 +907,10 @@ export default function Chat({ project }) {
                     m.role === 'assistant' &&
                     !busy &&
                     chat.messages[i - 1]?.role === 'user' &&
-                    (m.streamStatus === 'failed' || m.streamStatus === 'stopped' || !m.content);
+                    (m.streamStatus === 'failed' ||
+                      m.streamStatus === 'stopped' ||
+                      m.streamStatus === 'interrupted' ||
+                      !m.content);
                   return (
                     <article className={'chat-message ' + m.role} key={i}>
                       <div className="chat-message-avatar">
@@ -919,6 +959,12 @@ export default function Chat({ project }) {
                             {syntaxLabel}
                           </p>
                         )}
+                        {m.role === 'assistant' && m.streamStatus === 'interrupted' && (
+                          <p className="chat-structured-status">
+                            Response interrupted when this conversation was closed. Reuse the prompt
+                            to try again.
+                          </p>
+                        )}
                         <div className="chat-message-content">
                           {markdownReady ? (
                             <ChatMarkdown content={m.content} />
@@ -949,7 +995,9 @@ export default function Chat({ project }) {
                               composerRef.current?.focus();
                             }}
                           >
-                            {m.streamStatus === 'failed' || m.streamStatus === 'stopped'
+                            {m.streamStatus === 'failed' ||
+                            m.streamStatus === 'stopped' ||
+                            m.streamStatus === 'interrupted'
                               ? 'Reuse prompt'
                               : 'Use previous message'}
                           </button>
@@ -1076,6 +1124,13 @@ export default function Chat({ project }) {
                     className="chat-send"
                     disabled={!prompt.trim() || !model}
                     aria-label="Send message"
+                    title={
+                      !prompt.trim()
+                        ? 'Enter a message to send'
+                        : !model
+                          ? 'Choose a model to send'
+                          : 'Send message'
+                    }
                   >
                     <ArrowUp size={18} />
                     <span>Send</span>
@@ -1084,8 +1139,12 @@ export default function Chat({ project }) {
               </div>
             </form>
             <div className="chat-footnote">
-              <span role="status">{status || 'Enter to send · Shift + Enter for a new line'}</span>
-              {memory && provider === 'compatible' && (
+              <span role="status" aria-live="polite" aria-atomic="true">
+                {busy
+                  ? 'Generating response. Press Stop to cancel.'
+                  : status || 'Enter to send · Shift + Enter for a new line'}
+              </span>
+              {memory && provider === 'compatible' && modelOnline && (
                 <span>{memory.freeMemoryGiB} GiB system memory free</span>
               )}
             </div>
@@ -1261,9 +1320,7 @@ export default function Chat({ project }) {
                   </button>
                 </div>
               </label>
-              <p className="chat-help">
-                {status || 'Refresh to discover models or enter a model ID.'}
-              </p>
+              <p className="chat-help">Refresh to discover models or enter a model ID.</p>
               <details className="chat-advanced" {...routeDetails(advancedOpen, setAdvancedOpen)}>
                 <summary>
                   Advanced settings <ChevronDown size={16} />

@@ -57,6 +57,22 @@
 .force-stop-dialog .helper {
   color: var(--forge-muted);
 }
+.force-stop-error {
+  padding: var(--forge-space-3-5);
+  border: 1px solid var(--forge-danger-border);
+  border-radius: 9px;
+  background: var(--forge-danger-surface);
+  color: var(--forge-text-strong);
+  line-height: 1.5;
+}
+.force-stop-error p {
+  margin: var(--forge-space-2) 0 0;
+}
+.force-stop-progress {
+  padding: var(--forge-space-2-5) var(--forge-space-3);
+  border-inline-start: 3px solid var(--forge-focus);
+  background: var(--forge-surface-raised);
+}
 .force-stop-confirm {
   display: inline-flex;
   align-items: center;

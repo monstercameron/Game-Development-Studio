@@ -1,0 +1,102 @@
+.trellis-controls {
+  display: grid;
+  gap: var(--forge-space-3);
+  margin-top: var(--forge-space-3);
+}
+
+.trellis-controls__status {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+  gap: var(--forge-space-2);
+  padding: var(--forge-space-3);
+  border: 1px solid var(--forge-queue-warning-border);
+  border-radius: var(--forge-radius-md);
+  background: var(--forge-queue-warning-surface);
+}
+
+.trellis-controls__badge {
+  padding: 2px var(--forge-space-2);
+  border: 1px solid var(--forge-queue-warning-border);
+  border-radius: var(--forge-radius-sm);
+  color: var(--forge-text-strong);
+  font-size: var(--forge-font-caption);
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.trellis-controls__status p,
+.trellis-controls__reference-help,
+.trellis-controls__help,
+.trellis-controls__error {
+  margin: 0;
+  font-size: var(--forge-font-support);
+  line-height: 1.5;
+}
+
+.trellis-controls__status p {
+  color: var(--forge-text-strong);
+}
+
+.trellis-controls__reference-help,
+.trellis-controls__help {
+  color: var(--forge-muted);
+}
+
+.trellis-controls__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--forge-space-3-5);
+}
+
+.trellis-controls__field,
+.trellis-controls__field label {
+  display: grid;
+  min-width: 0;
+  gap: var(--forge-space-2);
+}
+
+.trellis-controls__field .field-label {
+  margin: 0;
+}
+
+.trellis-controls__field select,
+.trellis-controls__field input {
+  width: 100%;
+  min-height: var(--forge-control-height);
+  padding: var(--forge-space-2) var(--forge-space-3);
+  border: 1px solid var(--forge-control-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-control-bg);
+  color: var(--forge-text-strong);
+}
+
+.trellis-controls__field :is(select, input):focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 2px;
+}
+
+.trellis-controls__field input[aria-invalid='true'] {
+  border-color: var(--forge-danger);
+}
+
+.trellis-controls__error {
+  color: var(--forge-danger);
+}
+
+@media (max-width: 560px) {
+  .trellis-controls__status {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trellis-controls__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trellis-controls__field :is(select, input) {
+    transition: none;
+  }
+}

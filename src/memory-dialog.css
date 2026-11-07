@@ -56,6 +56,16 @@
   border-radius: var(--forge-radius-md, 10px);
   background: var(--forge-raised, #2b1021);
 }
+.memory-dialog .memory-force-confirm h3 {
+  margin: 0;
+  font-size: var(--forge-font-body);
+  line-height: 1.4;
+}
+.memory-dialog .memory-force-confirm h3:focus {
+  outline: 2px solid var(--forge-focus, #ffad8d);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
 .memory-dialog .memory-force-confirm p {
   margin: var(--forge-space-2) 0 var(--forge-space-3);
   color: var(--forge-muted, #d4c0ca);

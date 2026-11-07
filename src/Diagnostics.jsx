@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router';
 import { updateSearch } from './useNav';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  AlertCircle,
   Check,
   Copy,
   FileText,
@@ -38,7 +39,10 @@ export default function Diagnostics() {
       setMetadata(await res.json());
       setMetadataError('');
     } catch {
-      setMetadataError('Could not reach the diagnostics service. Restart the studio.');
+      setMetadata(null);
+      setMetadataError(
+        'Could not reach the diagnostics service. Refresh server details; if the problem continues, restart the studio.',
+      );
     }
   }
   useEffect(() => {
@@ -62,8 +66,19 @@ export default function Diagnostics() {
         setConnection('Invalid log response');
       }
     });
-    stream.onerror = (event) =>
-      setConnection(typeof event.data === 'string' ? 'Log read failed' : 'Reconnecting');
+    stream.onerror = (event) => {
+      if (typeof event.data !== 'string') {
+        setConnection('Reconnecting');
+        return;
+      }
+      let detail = 'Unable to read logs.';
+      try {
+        detail = JSON.parse(event.data).error || detail;
+      } catch {
+        detail = event.data || detail;
+      }
+      setConnection(`Log read failed: ${detail}`);
+    };
     return () => stream.close();
   }, [paused]);
   useEffect(() => {
@@ -82,12 +97,16 @@ export default function Diagnostics() {
         })),
     [sources, selected, query, errorsOnly],
   );
-  const text = visible
-    .map(
-      (source) =>
-        `[${source.label}]${source.file ? `\n${source.file}` : ''}\n${source.available ? source.lines.join('\n') || '(No matching log lines)' : source.unavailable || 'Unavailable'}`,
-    )
-    .join('\n\n');
+  const hasUnknownSource =
+    sources.length > 0 && selected !== 'all' && !sources.some((source) => source.id === selected);
+  function formatLogSources(logSources, { filtered = false } = {}) {
+    return logSources
+      .map((source) => {
+        const lines = filtered ? filterLogLines(source.lines, { errorsOnly, query }) : source.lines;
+        return `[${source.label}]${source.file ? `\n${source.file}` : ''}\n${source.available ? lines.join('\n') || '(No matching log lines)' : source.unavailable || 'Unavailable'}`;
+      })
+      .join('\n\n');
+  }
   async function copy(value, label) {
     try {
       await navigator.clipboard.writeText(value);
@@ -221,7 +240,10 @@ export default function Diagnostics() {
           <div className="log-controls">
             <label>
               <span className="sr-only log-control-label">Log source</span>
-              <select value={selected} onChange={(e) => setSelected(e.target.value)}>
+              <select
+                value={hasUnknownSource ? 'all' : selected}
+                onChange={(e) => setSelected(e.target.value)}
+              >
                 <option value="all">All sources</option>
                 {sources.map((source) => (
                   <option value={source.id} key={source.id}>
@@ -241,12 +263,12 @@ export default function Diagnostics() {
               />
             </label>
             <button
-              className="icon-outline"
-              aria-label={paused ? 'Resume log stream' : 'Pause log stream'}
-              title={paused ? 'Resume' : 'Pause'}
+              className="stream-toggle"
+              aria-pressed={paused}
               onClick={() => setPaused(!paused)}
             >
               {paused ? <Play size={15} /> : <Pause size={15} />}
+              {paused ? 'Resume stream' : 'Pause stream'}
             </button>
           </div>
           <div className="log-options">
@@ -258,9 +280,27 @@ export default function Diagnostics() {
               />{' '}
               Errors only
             </label>
-            <button className="link-button" onClick={() => copy(text, 'Logs')}>
-              <Copy size={14} /> Copy visible logs
-            </button>
+            <div className="log-copy-actions">
+              <button
+                className="link-button"
+                onClick={() => copy(formatLogSources(visible, { filtered: true }), 'Visible logs')}
+              >
+                <Copy size={14} /> Copy filtered lines
+              </button>
+              <button
+                className="link-button"
+                onClick={() =>
+                  copy(
+                    formatLogSources(
+                      sources.filter((source) => selected === 'all' || source.id === selected),
+                    ),
+                    'Unfiltered logs',
+                  )
+                }
+              >
+                <Copy size={14} /> Copy unfiltered logs
+              </button>
+            </div>
           </div>
           <div
             className="log-window"
@@ -269,7 +309,15 @@ export default function Diagnostics() {
             aria-live="off"
             tabIndex={0}
           >
-            {visible.length === 0 ? (
+            {hasUnknownSource ? (
+              <div className="log-placeholder log-empty-state">
+                <AlertCircle size={20} aria-hidden="true" />
+                <p>Log source “{selected}” is not available.</p>
+                <button className="link-button" onClick={() => setSelected('all')}>
+                  Show all log sources
+                </button>
+              </div>
+            ) : visible.length === 0 ? (
               <div className="log-placeholder">
                 <Terminal size={20} /> Waiting for logs…
               </div>
@@ -279,9 +327,17 @@ export default function Diagnostics() {
                   <div className="log-source">
                     <FileText size={13} />
                     <strong>{source.label}</strong>
-                    <span>{source.available ? 'AVAILABLE' : 'UNAVAILABLE'}</span>
+                    <span className={source.available ? 'source-available' : 'source-unavailable'}>
+                      {source.available ? 'Log available' : 'Log unavailable'}
+                    </span>
                   </div>
                   {source.file && <div className="log-path">{source.file}</div>}
+                  {source.modified && (
+                    <p className="log-modified">
+                      File modified on server{' '}
+                      <time dateTime={source.modified}>{source.modified}</time>
+                    </p>
+                  )}
                   {source.available ? (
                     source.lines.length ? (
                       source.lines.map((line, i) => (
@@ -300,7 +356,7 @@ export default function Diagnostics() {
                       <p className="log-muted">No matching log lines.</p>
                     )
                   ) : (
-                    <p className="log-muted">{source.unavailable}</p>
+                    <p className="log-unavailable">Log source unavailable: {source.unavailable}</p>
                   )}
                 </div>
               ))
@@ -308,8 +364,9 @@ export default function Diagnostics() {
           </div>
           <div className="log-bottom">
             <span>
-              Recent lines refresh every 2 seconds. Known credential patterns are redacted; review
-              logs before sharing.
+              Log lines retain their original timestamps; file modified times are server-reported
+              metadata. Recent lines refresh every 2 seconds. Known credential patterns are
+              redacted; review logs before sharing.
             </span>
             {copyMessage && (
               <strong role="status">

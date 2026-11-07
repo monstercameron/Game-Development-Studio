@@ -49,6 +49,27 @@
   font-size: var(--forge-font-support);
   line-height: 1.5;
 }
+.converter-locations {
+  display: grid;
+  gap: var(--forge-space-2, 8px);
+  padding-block: var(--forge-space-2, 8px);
+  border-block: 1px solid var(--forge-border-quiet, #3b1d30);
+}
+.asset-converter .converter-locations p {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 0.7fr) minmax(0, 1.3fr);
+  gap: var(--forge-space-3, 12px);
+  align-items: baseline;
+  min-width: 0;
+}
+.converter-locations p span {
+  color: var(--forge-subtle, #c2aaba);
+}
+.converter-locations p strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
 .asset-converter label {
   display: grid;
   gap: var(--forge-space-value-7);

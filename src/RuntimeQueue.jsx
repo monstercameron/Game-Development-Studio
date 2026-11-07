@@ -20,7 +20,9 @@ export async function post(path, body = {}) {
   });
   const result = await response.json();
   if (!response.ok) {
-    throw Error(result.error || 'Request failed.');
+    const error = Error(result.error || 'Request failed.');
+    error.status = response.status;
+    throw error;
   }
   return result;
 }
@@ -40,8 +42,8 @@ function ClearQueueDialog({ error, confirmation, setConfirmation, busy, onClose,
       >
         <h2 id="queue-confirm-title">Clear waiting renders?</h2>
         <p>
-          This cancels all eligible waiting renders across all projects. Running and uncertain jobs
-          continue and completed assets are kept.
+          This cancels eligible waiting renders in every project. Running and uncertain jobs
+          continue; completed assets stay.
         </p>
         {error && (
           <p className="settings-error" role="alert">
@@ -299,11 +301,13 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
     if (
       kind === 'resolve' &&
       !window.confirm(
-        `Check ${engine}'s queue and history first. Confirm that this job is no longer running before resolving it here. Continue?`,
+        `Check ${engine}'s queue and history${job.remoteId ? ` for job ${job.remoteId}` : ''} first. Confirm that it is no longer running. Forge will mark this render cancelled and may unblock the queue. Continue?`,
       )
     ) {
       return;
     }
+    setError('');
+    setNotice('');
     setBusy(job.id);
     try {
       await post(
@@ -311,6 +315,11 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
         kind === 'resolve' ? { confirmRemoteNotRunning: true } : {},
       );
       await refresh();
+      setNotice(
+        kind === 'resolve'
+          ? 'Interrupted render marked cancelled.'
+          : `Render ${kind === 'retry' ? 'retried' : 'cancelled'}.`,
+      );
     } catch (e) {
       setError(e.message);
     } finally {
@@ -368,7 +377,11 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
           <RefreshCw size={17} />
         </button>
       </div>
-      <QueueTimingSummary />
+      {(jobs.length > 0 || queueError) && <QueueTimingSummary />}
+      <p className="queue-manage-note queue-scope-note">
+        Clear cancels waiting renders in every project; running and uncertain jobs continue. Hiding
+        rows only changes this view.
+      </p>
       <div className="queue-manage">
         <button
           className="icon-outline"
@@ -394,10 +407,17 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
           Clear waiting renders…
         </button>
       </div>
-      <p className="queue-manage-note">
-        Hidden rows continue running. Clearing cancels waiting renders across all projects; active
-        and uncertain jobs remain.
-      </p>
+      {(!jobs.length || hiddenCount === jobs.length || !waiting) && (
+        <p className="queue-manage-note queue-control-reason">
+          {!jobs.length
+            ? 'There are no rows to hide or waiting renders to cancel.'
+            : hiddenCount === jobs.length && !waiting
+              ? 'All current rows are hidden; there are no waiting renders to cancel.'
+              : hiddenCount === jobs.length
+                ? 'All current rows are already hidden.'
+                : 'There are no waiting renders to cancel.'}
+        </p>
+      )}
       {notice && (
         <p className="queue-manage-note" role="status">
           {notice}
@@ -414,7 +434,9 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
           <span>
             {hiddenCount
               ? 'Current rows are hidden in this browser. Renders continue in the background.'
-              : 'No render jobs yet. Add a render to get started.'}
+              : queueError
+                ? 'The render queue could not be loaded. Refresh to try again.'
+                : 'No render jobs yet. Add a render to get started.'}
           </span>
         </div>
       ) : (
@@ -516,14 +538,20 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
                   </button>
                 )}
                 {job.status === 'interrupted' && (
-                  <button
-                    disabled={busy === job.id}
-                    className="icon-outline"
-                    onClick={() => action(job, 'resolve')}
-                  >
-                    <CircleAlert size={14} />
-                    Review status…
-                  </button>
+                  <>
+                    <small className="runtime-job-review-note">
+                      Check the engine’s queue and history first. Forge cannot verify whether this
+                      interrupted render is still running.
+                    </small>
+                    <button
+                      disabled={busy === job.id}
+                      className="icon-outline"
+                      onClick={() => action(job, 'resolve')}
+                    >
+                      <CircleAlert size={14} />
+                      Mark cancelled after checking…
+                    </button>
+                  </>
                 )}
               </div>
             </article>

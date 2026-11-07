@@ -56,17 +56,16 @@
   inset: 0;
   display: grid;
   place-items: center;
-  padding: clamp(var(--forge-space-4-5), 4vh, var(--forge-space-value-48))
-    clamp(var(--forge-space-value-22), 5vw, var(--forge-space-value-72));
+  padding: clamp(12px, 2.5vh, 32px) clamp(16px, 2.5vw, 48px);
   background: rgb(9 3 8 / 88%);
   backdrop-filter: blur(10px);
 }
 .inspection-dialog {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  width: min(1500px, 100%);
-  height: min(900px, 100%);
-  min-height: 420px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--forge-border);
   border-radius: var(--forge-radius-lg);
@@ -130,20 +129,11 @@
 }
 
 @media (min-width: 1600px) {
-  .inspection-dialog {
-    width: min(1760px, 100%);
-  }
   .inspection-header {
     padding: var(--forge-space-5, var(--forge-space-5)) var(--forge-space-6, var(--forge-space-6));
   }
   .inspection-footer {
     padding: var(--forge-space-4, var(--forge-space-4)) var(--forge-space-6, var(--forge-space-6));
-  }
-}
-@media (min-width: 2200px) {
-  .inspection-dialog {
-    width: min(2100px, 100%);
-    height: min(1100px, 100%);
   }
 }
 @media (max-height: 600px) {
@@ -158,5 +148,33 @@
   }
   .inspection-footer {
     padding-block: var(--forge-space-value-9);
+  }
+}
+
+@media (max-width: 620px) {
+  .inspection-backdrop {
+    padding: 8px;
+  }
+  .inspection-header {
+    gap: var(--forge-space-3, var(--forge-space-3));
+    padding: var(--forge-space-3, var(--forge-space-3)) var(--forge-space-3-5);
+  }
+  .inspection-close {
+    gap: 0;
+    padding-inline: var(--forge-space-3);
+  }
+  .inspection-close span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .inspection-header h2 {
+    max-width: 55vw;
+  }
+  .inspection-footer {
+    padding: var(--forge-space-2-5, var(--forge-space-2)) var(--forge-space-3-5);
   }
 }

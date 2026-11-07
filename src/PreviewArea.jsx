@@ -74,6 +74,7 @@ export default function PreviewArea({
     });
   const [confirmDelete, setConfirmDelete] = useRouteToggle('trashPreview');
   const [refining, setRefining] = useRouteToggle('refine');
+  const [loadedMediaAspect, setLoadedMediaAspect] = useState(null);
   const [jobs, setJobs] = useState([]),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false),
@@ -114,6 +115,18 @@ export default function PreviewArea({
   useEffect(() => {
     setMessage('');
   }, [asset?.id]);
+  const mediaAspect =
+    loadedMediaAspect && asset && loadedMediaAspect.assetId === asset.id
+      ? loadedMediaAspect.aspect
+      : 1.6;
+  function recordMediaAspect(width, height) {
+    if (width > 0 && height > 0) {
+      setLoadedMediaAspect({
+        assetId: asset.id,
+        aspect: Math.min(2.4, Math.max(0.65, width / height)),
+      });
+    }
+  }
   const jobPrompt = job
     ? job.request[job.type === 'music' ? 'style' : job.type === 'voices' ? 'text' : 'prompt'] || ''
     : '';
@@ -251,7 +264,15 @@ export default function PreviewArea({
         </div>
       ) : (
         <>
-          <div className="iteration-media">
+          <div
+            className="iteration-media"
+            style={{ '--iteration-aspect': mediaAspect }}
+            onLoadCapture={(event) => {
+              if (event.target.tagName === 'IMG') {
+                recordMediaAspect(event.target.naturalWidth, event.target.naturalHeight);
+              }
+            }}
+          >
             {asset.category === 'Images' || asset.category === 'Masks' ? (
               asset.name.toLowerCase().endsWith('.tga') ? (
                 <AssetThumbnail asset={asset} project={project} />
@@ -259,7 +280,16 @@ export default function PreviewArea({
                 <img src={asset.url} alt={asset.name} />
               )
             ) : asset.category === 'Video' ? (
-              <video key={asset.url} src={asset.url} controls preload="metadata" />
+              <video
+                key={asset.url}
+                src={asset.url}
+                controls
+                preload="metadata"
+                onLoadedMetadata={(event) => {
+                  const video = event.currentTarget;
+                  recordMediaAspect(video.videoWidth, video.videoHeight);
+                }}
+              />
             ) : asset.category === 'Audio' ? (
               <div className="iteration-audio">
                 <AudioLines size={32} />

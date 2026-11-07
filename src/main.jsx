@@ -1059,26 +1059,22 @@ function App() {
           </button>
         </div>
         <div className="workspace">
-          <div className="workspace-icon">
-            <Box size={18} />
-          </div>
-          <div>
-            <strong>Current project</strong>
-            <select
-              aria-label="Current project"
-              title={activeProject?.name || 'Select a project'}
-              value={activeProject?.id || ''}
-              onChange={(e) => setSelectedProjectId(e.target.value || null)}
-            >
-              <option value="">Select a project</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <ChevronDown size={14} />
+          <label className="workspace-label" htmlFor="sidebar-project-select">
+            Current project
+          </label>
+          <select
+            id="sidebar-project-select"
+            title={activeProject?.name || 'Select a project'}
+            value={activeProject?.id || ''}
+            onChange={(e) => setSelectedProjectId(e.target.value || null)}
+          >
+            <option value="">Select a project</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="nav-heading">WORKSPACE</div>
         <nav aria-label="Workspace navigation">
@@ -1098,7 +1094,7 @@ function App() {
                 {status && (
                   <span className={`nav-queue-status ${status.state}`} aria-hidden="true">
                     <i />
-                    {status.short}
+                    {status.state === 'free' ? 'No jobs' : status.short}
                   </span>
                 )}
                 {id === 'overview' && <span className="nav-dot" />}
@@ -1436,6 +1432,7 @@ function App() {
                 }
                 supportsRender={supportsRender}
                 isGame={section === 'game'}
+                hasModelSelector={['3d', 'motion'].includes(section)}
               />
             </div>
             <div className="creation-context">
@@ -1479,6 +1476,80 @@ function App() {
                       <current.icon size={18} />
                     </div>
                   </div>
+                  {section !== 'game' && (
+                    <div className="form-bottom">
+                      <div>
+                        <span className="estimate-label">
+                          <Clock3 size={14} /> ESTIMATED RENDER TIME
+                        </span>
+                        {renderEstimate?.available ? (
+                          <strong>
+                            {renderEstimate.confidence === 'rough' ? 'Roughly' : 'About'}{' '}
+                            {formatDuration(renderEstimate.typicalSeconds)}{' '}
+                            <span>
+                              · {renderEstimate.sampleCount}{' '}
+                              {renderEstimate.confidence === 'rough' ? 'nearby' : 'matching'}{' '}
+                              {renderEstimate.sampleCount === 1 ? 'render' : 'renders'}
+                            </span>
+                          </strong>
+                        ) : (
+                          <strong>
+                            {supportsRender
+                              ? estimateError
+                                ? 'Estimate unavailable'
+                                : renderEstimate
+                                  ? 'Not enough history'
+                                  : 'Checking…'
+                              : 'Not available'}{' '}
+                            <span>{supportsRender ? estimateError || '' : 'for preview'}</span>
+                          </strong>
+                        )}
+                      </div>
+                      <button
+                        className="primary create-action"
+                        onClick={
+                          supportsRender
+                            ? section === 'music'
+                              ? renderMusic
+                              : section === 'sfx'
+                                ? renderSound
+                                : section === 'video'
+                                  ? renderVideo
+                                  : section === 'voices'
+                                    ? renderVoice
+                                    : section === '3d'
+                                      ? renderShape
+                                      : section === 'segmentation'
+                                        ? renderSegmentation
+                                        : section === 'motion'
+                                          ? renderMotion
+                                          : renderImage
+                            : addJob
+                        }
+                        disabled={supportsRender && submittingMusic}
+                      >
+                        <Plus size={16} />{' '}
+                        {submittingMusic
+                          ? 'Queuing…'
+                          : supportsRender
+                            ? 'Add to render queue'
+                            : 'Save draft'}{' '}
+                        <ArrowRight size={15} />
+                      </button>
+                    </div>
+                  )}
+                  {section !== 'game' && supportsRender && (
+                    <CreationQueueTiming estimate={renderEstimate} estimateError={estimateError} />
+                  )}{' '}
+                  {section !== 'game' && renderEstimate?.available && (
+                    <p className="helper">
+                      {renderEstimate.confidence === 'rough'
+                        ? 'Roughly scaled from similar settings; actual times vary.'
+                        : renderEstimate.confidence === 'limited'
+                          ? 'Based on limited history; actual times vary.'
+                          : 'Based on previous renders; actual times vary.'}
+                    </p>
+                  )}
                   {section === '3d' && (
                     <>
                       <label htmlFor="model3d" className="field-label">
@@ -1787,87 +1858,6 @@ function App() {
                         </p>
                       </div>
                     )}
-                  <div className="form-bottom">
-                    <div>
-                      <span className="estimate-label">
-                        <Clock3 size={14} />{' '}
-                        {section === 'game' ? 'DECISION TIME' : 'ESTIMATED RENDER TIME'}
-                      </span>
-                      {renderEstimate?.available ? (
-                        <strong>
-                          {renderEstimate.confidence === 'rough' ? 'Roughly' : 'About'}{' '}
-                          {formatDuration(renderEstimate.typicalSeconds)}{' '}
-                          <span>
-                            · {renderEstimate.sampleCount}{' '}
-                            {renderEstimate.confidence === 'rough' ? 'nearby' : 'matching'}{' '}
-                            {renderEstimate.sampleCount === 1 ? 'render' : 'renders'}
-                          </span>
-                        </strong>
-                      ) : (
-                        <strong>
-                          {supportsRender
-                            ? estimateError
-                              ? 'Estimate unavailable'
-                              : renderEstimate
-                                ? 'Not enough history'
-                                : 'Checking…'
-                            : section === 'game'
-                              ? 'See test panel'
-                              : 'Not available'}{' '}
-                          <span>
-                            {supportsRender
-                              ? estimateError || ''
-                              : section === 'game'
-                                ? 'for the decision estimate'
-                                : 'for preview'}
-                          </span>
-                        </strong>
-                      )}
-                    </div>
-                    <button
-                      className="primary create-action"
-                      onClick={
-                        supportsRender
-                          ? section === 'music'
-                            ? renderMusic
-                            : section === 'sfx'
-                              ? renderSound
-                              : section === 'video'
-                                ? renderVideo
-                                : section === 'voices'
-                                  ? renderVoice
-                                  : section === '3d'
-                                    ? renderShape
-                                    : section === 'segmentation'
-                                      ? renderSegmentation
-                                      : section === 'motion'
-                                        ? renderMotion
-                                        : renderImage
-                          : addJob
-                      }
-                      disabled={supportsRender && submittingMusic}
-                    >
-                      <Plus size={16} />{' '}
-                      {submittingMusic
-                        ? 'Queuing…'
-                        : supportsRender
-                          ? 'Add to render queue'
-                          : 'Save draft'}{' '}
-                      <ArrowRight size={15} />
-                    </button>
-                  </div>
-                  {supportsRender && (
-                    <CreationQueueTiming estimate={renderEstimate} estimateError={estimateError} />
-                  )}{' '}
-                  {renderEstimate?.available && (
-                    <p className="helper">
-                      {renderEstimate.confidence === 'rough'
-                        ? 'Roughly scaled from similar settings; actual times vary.'
-                        : renderEstimate.confidence === 'limited'
-                          ? 'Based on limited history; actual times vary.'
-                          : 'Based on previous renders; actual times vary.'}
-                    </p>
-                  )}
                   <div className="creation-action-note">
                     <span>
                       {supportsRender
@@ -1879,6 +1869,11 @@ function App() {
                     {supportsRender && (
                       <button className="text-action" onClick={addJob}>
                         Save as a draft instead
+                      </button>
+                    )}
+                    {section === 'game' && (
+                      <button className="text-action" onClick={addJob}>
+                        Save setup draft
                       </button>
                     )}
                   </div>

@@ -70,6 +70,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
     [files, setFiles] = useState([]),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
+    [messageKind, setMessageKind] = useState('error'),
     [estimate, setEstimate] = useState(null),
     [estimateError, setEstimateError] = useState(false),
     [version, setVersion] = useState(0);
@@ -84,6 +85,15 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
           : 1600,
     actualOutput = model === 'hy-world' ? 'splat' : output;
   const selectModel = (value) => {
+    if (value === model) {
+      return;
+    }
+    if (
+      files.length &&
+      !window.confirm('Changing generators removes the selected images. Continue?')
+    ) {
+      return;
+    }
     updateSearch(setParams, {
       model: value === 'worldgen' ? null : value,
       mode: null,
@@ -98,6 +108,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
     const multi = actualMode === 'image' && model === 'hy-world';
     const next = multi ? [...files, ...added].slice(0, 8) : added.slice(0, 1);
     setFiles(next);
+    setMessageKind('error');
     setMessage(
       multi && files.length + added.length > 8 ? 'A maximum of eight views can be selected.' : '',
     );
@@ -148,8 +159,12 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
       clearTimeout(timer);
     };
   }, [projectId, buildRequest, actualMode, files.length, version]);
+  useEffect(() => {
+    setMessage('');
+  }, [projectId, model, mode, prompt, output, size, seed, steps]);
   async function enqueue(event) {
     event.preventDefault();
+    setMessageKind('error');
     if (!project) {
       setMessage('Choose or create a project first.');
       return;
@@ -182,6 +197,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
     }
     setBusy(true);
     setMessage('');
+    let submittingJob = false;
     try {
       const ids = [];
       for (const file of actualMode === 'text' ? [] : files) {
@@ -199,6 +215,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
         }
         ids.push(data.reference.id);
       }
+      submittingJob = true;
       await post('/api/runtime/jobs', {
         type: 'world',
         projectId: project.id,
@@ -206,8 +223,14 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
       });
       setVersion((v) => v + 1);
       setMessage('World added to the render queue.');
+      setMessageKind('success');
     } catch (error) {
-      setMessage(error.message);
+      setMessage(
+        submittingJob && error.status === undefined
+          ? 'The connection ended before Forge could confirm the queue result. Check the render queue before submitting again.'
+          : error.message,
+      );
+      setMessageKind('error');
     } finally {
       setBusy(false);
     }
@@ -247,7 +270,10 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
             <div className="panel-heading">
               <div>
                 <h2>Choose a generator</h2>
-                <p className="helper">Both use the installed CUDA engines.</p>
+                <p className="helper">
+                  Both use local CUDA runtimes when their required models and engine dependencies
+                  are available.
+                </p>
               </div>
             </div>
             <div className="world-models">
@@ -277,12 +303,42 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
               </button>
             </div>
             <form className="world-form" onSubmit={enqueue}>
+              <div className="world-action">
+                <div className="world-submit">
+                  <div>
+                    <span className="estimate-label">
+                      <Clock3 size={15} /> Estimated render time
+                    </span>
+                    <strong>{estimateLabel}</strong>
+                  </div>
+                  <button className="primary" disabled={busy} type="submit">
+                    <Plus size={16} />
+                    {busy ? 'Queuing…' : 'Add world to queue'}
+                  </button>
+                </div>
+                {message && (
+                  <p
+                    className={`world-notice ${messageKind}`}
+                    role={messageKind === 'success' ? 'status' : 'alert'}
+                  >
+                    {message}
+                  </p>
+                )}
+              </div>
               {model === 'worldgen' && (
                 <label>
                   Starting point
                   <select
                     value={mode}
                     onChange={(e) => {
+                      if (
+                        files.length &&
+                        !window.confirm(
+                          'Changing the starting point removes the selected images. Continue?',
+                        )
+                      ) {
+                        return;
+                      }
                       updateSearch(setParams, {
                         mode: e.target.value === 'text' ? null : e.target.value,
                         picker: null,
@@ -345,12 +401,22 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                           index={index}
                           key={`${file.name}-${file.lastModified}-${index}`}
                           panorama={actualMode === 'panorama'}
-                          onRemove={() =>
-                            setFiles((current) => current.filter((_, i) => i !== index))
-                          }
+                          onRemove={() => {
+                            setFiles((current) => current.filter((_, i) => i !== index));
+                            setMessage('');
+                          }}
                         />
                       ))}
                     </div>
+                  )}
+                  {!files.length && (
+                    <p className="world-reference-empty">
+                      {actualMode === 'panorama'
+                        ? 'No panorama selected yet.'
+                        : model === 'hy-world'
+                          ? 'No views selected yet. Add at least one image of the scene.'
+                          : 'No reference image selected yet.'}
+                    </p>
                   )}
                 </div>
               )}
@@ -410,14 +476,18 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                     />
                     <span className="helper">More steps can improve detail but take longer.</span>
                   </label>
-                  <label>
-                    Seed
+                  <div className="world-seed-field" role="group" aria-labelledby="world-seed-label">
+                    <label id="world-seed-label" htmlFor="world-seed">
+                      Seed
+                    </label>
                     <div className="world-seed">
                       <input
+                        id="world-seed"
                         type="number"
                         min="0"
                         max="2147483647"
                         step="1"
+                        aria-describedby="world-seed-help"
                         value={seed}
                         onChange={(e) => setSeed(e.target.value)}
                       />
@@ -435,8 +505,10 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                         <Dices size={18} />
                       </button>
                     </div>
-                    <span className="helper">Reuse a seed to repeat the same settings.</span>
-                  </label>
+                    <span className="helper" id="world-seed-help">
+                      Reuse a seed to repeat the same settings.
+                    </span>
+                  </div>
                 </div>
               )}
               <p className="helper">
@@ -455,24 +527,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                     : ''}
                 </p>
               )}
-              <div className="world-submit">
-                <div>
-                  <span className="estimate-label">
-                    <Clock3 size={15} /> Estimated render time
-                  </span>
-                  <strong>{estimateLabel}</strong>
-                </div>
-                <button className="primary" disabled={busy} type="submit">
-                  <Plus size={16} />
-                  {busy ? 'Queuing…' : 'Add world to queue'}
-                </button>
-              </div>
               <CreationQueueTiming estimate={estimate} />
-              {message && (
-                <p className="world-notice" role="status">
-                  {message}
-                </p>
-              )}
             </form>
           </section>
         </div>
