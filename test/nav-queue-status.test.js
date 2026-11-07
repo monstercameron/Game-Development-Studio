@@ -8,6 +8,8 @@ test('page indicators count global work, including hidden jobs and model variant
  assert.equal(pageQueueStatus('3d',jobs).short,'1 queued');
  assert.equal(pageQueueStatus('motion',jobs).state,'attention');
  assert.equal(pageQueueStatus('sfx',jobs).state,'free');
+ assert.equal(pageQueueStatus('sfx',jobs).short,'No jobs');
+ assert.match(pageQueueStatus('sfx',jobs).detail,/does not indicate whether the model is loaded or the GPU is available/);
  assert.equal(pageQueueStatus('chat',jobs),null);
 });
 

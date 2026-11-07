@@ -18,6 +18,8 @@ Forge keeps projects, asset creation, and local engine status in one studio. Ima
 
 [Quick start](#quick-start) · [What works today](#what-works-today) · [Using the studio](#using-the-studio) · [Models and services](#models-and-services) · [Diagnostics](#diagnostics-and-logs) · [Troubleshooting](#troubleshooting) · [Roadmap](#roadmap)
 
+For installation, model source links, staged downloads, and Windows engine prerequisites, see the [installation guide](docs/INSTALLATION.md). Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -CheckOnly` to inspect prerequisites or `-ListModels` to list model sources without downloading anything.
+
 For maintainers: [agent setup](docs/AGENT_SETUP.md), [model sources and download steps](docs/MODEL_SOURCES.md), [Windows ARM64 runtime and rebuild notes](docs/WINDOWS_ARM64.md), [runtime map](runtime/README.md), and [test guide](test/README.md).
 
 ## Quick start

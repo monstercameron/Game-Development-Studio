@@ -1,0 +1,85 @@
+# Install Forge on Windows
+
+Forge has two layers: the **web app** and the **local model engines**. The installer sets up the web app and can download selected model files. Several engines still depend on separate Windows applications, native CUDA packages or Python environments, so downloading a checkpoint alone does not make every model ready. The current native integration targets Windows ARM64 and NVIDIA GPU inference; it does not require WSL.
+
+## Before you start
+
+1. Install [Node.js](https://nodejs.org/) 24 or newer with npm, an NVIDIA driver compatible with your GPU, and Git if you plan to use source checkouts. Check free **Windows system/commit memory**, GPU memory and disk space; model files and working memory can each take many gigabytes.
+2. Clone or copy the Forge source to a permanent folder. The repository does not include model weights, native runtimes, credentials, generated projects or the separate Desktop applications.
+3. Open PowerShell in the Forge folder. Inspect first:
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -CheckOnly
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -ListModels
+   powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Plan -Models worldgen,hy-world
+   ```
+
+   `-CheckOnly` reports selected prerequisites and files without changing them; it does not prove that a model is ready. `-Plan` prints the selected sources and intended downloads without downloading or writing files. `-ListModels` lists all studio model IDs, sources and expected locations.
+
+## Install and launch the web app
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start-server.ps1
+```
+
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The installer uses `npm ci` when `node_modules` is missing, then builds the app. It preserves an existing `node_modules` and build by default. Use `-Rebuild` to refresh an existing build, or `-ReinstallDependencies` to explicitly replace `node_modules` with the versions in `package-lock.json`. Building while the studio is serving files can briefly interrupt open pages; the installer does not stop or restart a running server. Stop it later with `stop-server.ps1`, using the same `-Port` used to start it.
+
+`npm ci` and `npm run build` can also be run directly. `pnpm install --frozen-lockfile` and `pnpm run build` are supported alternatives. The application can start with no model files; model panels will need their respective engines installed before they can render.
+
+## Download selected model files
+
+Install the official [Hugging Face CLI](https://huggingface.co/docs/huggingface_hub/guides/cli) in a Python environment. If a model is gated, request access on its model page and authenticate with `hf auth login` using the approved account. The installer also accepts `-HfCli 'C:\path\to\hf.exe'` when the CLI is not on `PATH`. Do not put tokens in the command or a repository file. Review each model's license and access terms before downloading.
+
+Choose only the models you need; even a single selection may download many gigabytes:
+
+```powershell
+# Preview the exact sources first.
+.\install.ps1 -SkipApp -Plan -Models asr,tts
+
+# List the complete download plan; all model downloads can be very large.
+.\install.ps1 -SkipApp -Plan -Models all
+
+# Download to a new, separate staging folder. No existing model is changed.
+.\install.ps1 -SkipApp -Models asr,tts
+
+# Download every listed selection to staging (requires substantial disk space).
+.\install.ps1 -SkipApp -Models all
+
+# Or install supported Forge-managed model folders after staging and checks.
+.\install.ps1 -SkipApp -Models asr,tts -Activate
+```
+
+Without `-Activate`, the script prints the new staging path under `models/forge-install-staging/`; use `-StagingDirectory` to choose a new path elsewhere. It refuses to use an existing staging directory. Model files remain in staging after a failure for inspection; Hugging Face may reuse its cache on a new attempt. The installer pins revisions where recorded and checks the published SHA-256 of selected representative files where available. A representative hash is not a complete verification of a multi-file model. Verify remaining files against the pinned source metadata before manual installation.
+
+`-Activate` is available for **worldgen, 3d-hunyuan, motion-hy, motion-bricks, tts, asr, and segmentation**. It copies each staged folder into a temporary folder inside `models/`, then renames it into place. It refuses an existing target instead of merging or replacing it. This requires extra free disk space for the staged and activated copies. If a copy is interrupted, a `.forge-install-*` folder may remain for inspection. Activation installs **model files only**; it does not install the Python environment, companion app, native runtime, or any checkpoints not listed in that selection. Other models are staged or installed using their companion-app instructions below.
+
+If a destination already exists, keep it intact. Compare its files and hashes with [Model sources and restoration](MODEL_SOURCES.md), make a backup, and use the specific recovery instructions there rather than using the installer to replace a live model. Do not replace model files while their engine is active.
+
+## Models, sources, and additional setup
+
+Each row corresponds to an ID accepted by `-Models`. The **stages** column describes what this installer downloads; it does not imply that the separate engine is installed or that inference has been verified on a new machine. The installer manifest records pinned source revisions; for snapshots that were not pinned in the original installation, these are revisions selected when the installer was created rather than proof of the installed files' provenance. More recorded revisions and representative hashes are listed in [Model sources and restoration](MODEL_SOURCES.md).
+
+| ID / studio model | Primary sources | Installer and engine setup |
+| --- | --- | --- |
+| `worldgen` — WorldGen | [WorldGen code](https://github.com/ZiYang-xie/WorldGen), [panorama LoRAs](https://huggingface.co/LeoXie/WorldGen), [DA-2](https://huggingface.co/haodongli/DA-2), [FLUX text](https://huggingface.co/black-forest-labs/FLUX.1-dev), [FLUX fill](https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev), [text Q5](https://huggingface.co/city96/FLUX.1-dev-gguf), [fill Q5](https://huggingface.co/second-state/FLUX.1-Fill-dev-GGUF) | Stages the two Q5 transformers for `models/worldgen`. Restore the separate `Desktop/WorldGen/.venv`, WorldGen code, DA-2, LoRAs and cached FLUX components using its `WINDOWS-ARM-README.md` and `download_models.py`. FLUX.1 dev has non-commercial terms. |
+| `hy-world` — HY-World 2.0 | [Source](https://github.com/Tencent-Hunyuan/HY-World-2.0), [WorldMirror weights](https://huggingface.co/tencent/HY-World-2.0) | Stages WorldMirror. Install the separate `Desktop/HY-World-2.0/.venv` and `compat-port`, then place its `HY-WorldMirror-2.0` directory under `compat-port/weights`. The existing port's `download_weights.py --recon-only` can restore those weights. |
+| `images` — Qwen Image 2.1 | [Model](https://huggingface.co/Qwen/Qwen-Image-2.1), [source](https://github.com/QwenLM/Qwen-Image) | Stages the model snapshot. The separate `Desktop/Qwen Image Studio` environment and its `.download-complete` marker are required; its `download_model.py` installs the snapshot in its expected layout. |
+| `3d-trellis` — TRELLIS.2 | [Source](https://github.com/microsoft/TRELLIS.2), [model](https://huggingface.co/microsoft/TRELLIS.2-4B), [decoder](https://huggingface.co/microsoft/TRELLIS-image-large), [DINOv3 encoder](https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m) | Stages the gated encoder first, followed by the pinned image-to-3D model and decoder. Request DINOv3 access and prepare the experimental [Windows CUDA environment](WINDOWS_ARM64.md). The dedicated downloaders in [MODEL_SOURCES.md](MODEL_SOURCES.md) verify every file. A complete render remains unverified. |
+| `3d-hunyuan` — Hunyuan3D 2.1 shape | [Source](https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1), [model](https://huggingface.co/tencent/Hunyuan3D-2.1) | Stages the shape and VAE files for `models/Hunyuan3D-2.1`; prepare `.forge-runtime/hunyuan3d-venv` and the native dependencies described in the Windows guide. The connected path produces an untextured shape. |
+| `motion-hy` — HY-Motion 1.0 | [Source](https://github.com/Tencent-Hunyuan/HY-Motion-1.0), [model](https://huggingface.co/tencent/HY-Motion-1.0), [CLIP](https://huggingface.co/openai/clip-vit-large-patch14), [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B) | Stages the checkpoint and both text encoders under `models/HY-Motion`. Prepare the Windows motion packages and shared CUDA environment. |
+| `motion-bricks` — NVIDIA MotionBricks | [Source](https://github.com/NVlabs/motionbricks), [weights](https://huggingface.co/nvidia/MotionBricks) | Stages the SOMA checkpoint tree under `models/MotionBricks/checkpoints`. Set up the CUDA packages. This is a SOMA motion-transition path, not automatic character rigging. |
+| `video` — MiniMax H3 | [Official model](https://huggingface.co/MiniMaxAI/MiniMax-H3), [GGUF conversion](https://huggingface.co/leejet/MiniMax-H3-GGUF) | Stages the matching Q4 diffusion and encoder files. Restore `Desktop/H3 Studio` and the separately located `Desktop/Sol-Engine/windows-arm64/models/vae` files. Exact provenance of every installed file has not been established. |
+| `music` — YuE2 | [Source](https://github.com/multimodal-art-projection/YuE), [YuE2-3B](https://huggingface.co/m-a-p/YuE2-3B), [YuE2-Vae](https://huggingface.co/m-a-p/YuE2-Vae) | Stages both snapshots. Restore `Desktop/Snapdargon-DJ` and its NVIDIA CUDA runtime; see its `docs/NVIDIA-SETUP.md` and model license. |
+| `sfx` — Stable Audio 3 Medium | [Model](https://huggingface.co/stabilityai/stable-audio-3-medium), [source](https://github.com/Stability-AI/stable-audio-tools) | Stages the gated snapshot. Restore `Desktop/Stable Audio Lab`, obtain model access, and use its downloader to construct and verify the expected Hub cache. |
+| `tts` — Qwen3-TTS | [Source](https://github.com/QwenLM/Qwen3-TTS), [CustomVoice model](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice) | Stages the preset-voice model and speech tokenizer for `models/Qwen3-TTS-12Hz-1.7B-CustomVoice`. Prepare the separate `.forge-runtime/tts-python-embed` environment and its CUDA dependencies. |
+| `asr` — Nemotron streaming ASR | [Model](https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b), [NeMo-Speech.cpp runtime](https://github.com/NVIDIA/NeMo-Speech.cpp/releases/tag/v0.3.0) | Stages the Q8 GGUF for `models/nemotron-speech-streaming-en-0.6b`. Separately install the verified Windows ARM64 CUDA runtime into `.forge-runtime/nemo-speech-0.3.0` and prepare the guard's Python environment. |
+| `segmentation` — SAM 3.1 | [Source](https://github.com/facebookresearch/sam3), [SAM 3.1](https://huggingface.co/facebook/sam3.1), [SAM 3](https://huggingface.co/facebook/sam3) | Stages the gated SAM 3.1 multiplex checkpoint for `models/sam3.1`. Approved access and `.forge-runtime/sam3-python-embed` are required. The separate SAM 3 checkpoint is optional and has its own access requirements. |
+| `game` — Mammoth-1 | [Q4 model](https://huggingface.co/magnitudedev/mammoth-1-GGUF) | Stages the Q4_K_M file. Restore `Desktop/Mammoth Studio` and the Python environment configured in `runtime/engines.js`; its downloader verifies the model hash. |
+| `chat` — Qwen3.8-27B | [Q4 GGUF](https://huggingface.co/lmstudio-community/Qwen3.8-27B-GGUF), [llama.cpp CUDA release](https://github.com/ggml-org/llama.cpp/releases/tag/b12180) | Stages Q4_K_M weights. Place them at the path in `runtime/engines.js` and install the verified native Windows ARM64 CUDA llama.cpp runtime into `engines/llama-cuda/bin`. LM Studio is a file location, not the inference server. |
+
+## Verify and troubleshoot
+
+Start the studio, select a project, and open **Models & services** and **Diagnostics**. A reachable service or present file does not prove a model is loaded or that its GPU path works. Run one small render for each installed workflow and inspect the generated asset. Start with an idle queue; do not stop unrelated running processes. The [test guide](../test/README.md) separates mock, component and real GPU checks. Model logs may contain prompts and local paths; review them before sharing.
+
+If `hf` reports an access error, confirm account approval and authentication without pasting the token. If a model load exhausts Windows commit memory, use the studio's model-offload controls and check system memory as well as GPU memory. If a native library or companion application is missing, consult [Windows ARM64 runtime and rebuild notes](WINDOWS_ARM64.md); the model download cannot replace that environment. The [agent setup guide](AGENT_SETUP.md) maps service boundaries and safe recovery.

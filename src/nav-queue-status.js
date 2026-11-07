@@ -12,7 +12,7 @@ export function pageQueueStatus(page,jobs,{loading=false,error=''}={}){
  const counts={running:0,waiting:0,attention:0};
  for(const job of related){if(attention.has(job.status))counts.attention++;else if(running.has(job.status))counts.running++;else if(waiting.has(job.status))counts.waiting++}
  const total=counts.running+counts.waiting+counts.attention;
- if(!total)return {state:'free',short:'Free',detail:'No active or waiting renders for this page across projects. GPU availability may vary.'};
+ if(!total)return {state:'free',short:'No jobs',detail:'No active or waiting renders for this page across projects. This does not indicate whether the model is loaded or the GPU is available.'};
  const detail=[counts.running&&`${counts.running} running`,counts.waiting&&`${counts.waiting} waiting`,counts.attention&&`${counts.attention} needing attention`].filter(Boolean).join(', ')+' across projects.';
  if(counts.attention)return {state:'attention',short:'Review',detail};
  if(counts.running)return {state:'running',short:counts.waiting?`Running +${counts.waiting}`:'Running',detail};

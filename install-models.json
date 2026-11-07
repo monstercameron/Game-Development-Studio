@@ -1,0 +1,414 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "worldgen",
+      "name": "WorldGen",
+      "sources": [
+        "https://github.com/ZiYang-xie/WorldGen",
+        "https://huggingface.co/LeoXie/WorldGen",
+        "https://huggingface.co/haodongli/DA-2",
+        "https://huggingface.co/black-forest-labs/FLUX.1-dev",
+        "https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev",
+        "https://huggingface.co/city96/FLUX.1-dev-gguf",
+        "https://huggingface.co/second-state/FLUX.1-Fill-dev-GGUF"
+      ],
+      "destination": "models/worldgen (Q5 files); Desktop/WorldGen and Hugging Face cache (supporting models)",
+      "notes": "Stages the two Q5 transformers only. The separate WorldGen Windows environment, FLUX components, LoRAs and DA-2 remain necessary. FLUX.1 dev uses non-commercial terms.",
+      "downloads": [
+        {
+          "repo": "city96/FLUX.1-dev-gguf",
+          "revision": "3c60ac659f4b1f2ab3ca8bd4488272069b36a148",
+          "destination": "worldgen",
+          "files": [
+            "flux1-dev-Q5_0.gguf"
+          ],
+          "sha256File": "flux1-dev-Q5_0.gguf",
+          "sha256": "9712851188b107594f695d8069d2d9326cbc355441d1035dc390fda530555c3c"
+        },
+        {
+          "repo": "second-state/FLUX.1-Fill-dev-GGUF",
+          "revision": "f4370bf5aedfa33a5776cdf1b92cc492b48cdcff",
+          "destination": "worldgen",
+          "files": [
+            "flux1-fill-dev-Q5_0.gguf"
+          ],
+          "sha256File": "flux1-fill-dev-Q5_0.gguf",
+          "sha256": "a472135796c2eeb42419339b78c8be7649961383c7f804ecee090919d1a00184"
+        }
+      ]
+    },
+    {
+      "id": "hy-world",
+      "name": "HY-World 2.0 WorldMirror",
+      "sources": [
+        "https://github.com/Tencent-Hunyuan/HY-World-2.0",
+        "https://huggingface.co/tencent/HY-World-2.0"
+      ],
+      "destination": "Desktop/HY-World-2.0/compat-port/weights/HY-WorldMirror-2.0",
+      "notes": "Stages WorldMirror weights only; the separate Windows compat-port and Python environment are required.",
+      "downloads": [
+        {
+          "repo": "tencent/HY-World-2.0",
+          "revision": "d78a16c91c7a56488894a1c8de4f5c7cc28aa8b0",
+          "destination": "hy-world",
+          "include": [
+            "HY-WorldMirror-2.0/*"
+          ],
+          "sha256File": "HY-WorldMirror-2.0/model.safetensors",
+          "sha256": "9fff06539d3d9e85338d7de1ffb5afffb7739fa5bf4d62b4b7c319b5ecdde54f"
+        }
+      ]
+    },
+    {
+      "id": "images",
+      "name": "Qwen Image 2.1",
+      "sources": [
+        "https://huggingface.co/Qwen/Qwen-Image-2.1",
+        "https://github.com/QwenLM/Qwen-Image"
+      ],
+      "destination": "Desktop/Qwen Image Studio/models/Qwen-Image-2.1",
+      "notes": "Stages the upstream snapshot; the separate Qwen Image Studio environment and its completion marker are required. Its downloader is documented in MODEL_SOURCES.md.",
+      "downloads": [
+        {
+          "repo": "Qwen/Qwen-Image-2.1",
+          "revision": "d26bb61231c349cf6b7896fa83353113880e1ba3",
+          "destination": "qwen-image"
+        }
+      ]
+    },
+    {
+      "id": "3d-trellis",
+      "name": "TRELLIS.2",
+      "sources": [
+        "https://github.com/microsoft/TRELLIS.2",
+        "https://huggingface.co/microsoft/TRELLIS.2-4B",
+        "https://huggingface.co/microsoft/TRELLIS-image-large",
+        "https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m"
+      ],
+      "destination": "models/TRELLIS.2-4B, models/TRELLIS-image-large, models/dinov3-vitl16-pretrain-lvd1689m",
+      "notes": "Stages the pinned image-to-3D checkpoints, decoder and gated DINOv3 encoder. DINOv3 approval and the native CUDA environment are required; full generation remains experimental. For verification of every file, use the dedicated downloaders in MODEL_SOURCES.md.",
+      "downloads": [
+        {
+          "repo": "facebook/dinov3-vitl16-pretrain-lvd1689m",
+          "revision": "ea8dc2863c51be0a264bab82070e3e8836b02d51",
+          "destination": "dinov3-vitl16-pretrain-lvd1689m",
+          "files": [
+            "config.json",
+            "model.safetensors",
+            "preprocessor_config.json"
+          ],
+          "sha256File": "model.safetensors",
+          "sha256": "dcb2e45127cccbf1601e5f42fef165eea275c8e5213197e8dcf3f48822718179"
+        },
+        {
+          "repo": "microsoft/TRELLIS.2-4B",
+          "revision": "af44b45f2e35a493886929c6d786e563ec68364d",
+          "destination": "TRELLIS.2-4B",
+          "files": [
+            "pipeline.json",
+            "ckpts/shape_dec_next_dc_f16c32_fp16.json",
+            "ckpts/shape_dec_next_dc_f16c32_fp16.safetensors",
+            "ckpts/slat_flow_img2shape_dit_1_3B_1024_bf16.json",
+            "ckpts/slat_flow_img2shape_dit_1_3B_1024_bf16.safetensors",
+            "ckpts/slat_flow_img2shape_dit_1_3B_512_bf16.json",
+            "ckpts/slat_flow_img2shape_dit_1_3B_512_bf16.safetensors",
+            "ckpts/slat_flow_imgshape2tex_dit_1_3B_1024_bf16.json",
+            "ckpts/slat_flow_imgshape2tex_dit_1_3B_1024_bf16.safetensors",
+            "ckpts/slat_flow_imgshape2tex_dit_1_3B_512_bf16.json",
+            "ckpts/slat_flow_imgshape2tex_dit_1_3B_512_bf16.safetensors",
+            "ckpts/ss_flow_img_dit_1_3B_64_bf16.json",
+            "ckpts/ss_flow_img_dit_1_3B_64_bf16.safetensors",
+            "ckpts/tex_dec_next_dc_f16c32_fp16.json",
+            "ckpts/tex_dec_next_dc_f16c32_fp16.safetensors"
+          ]
+        },
+        {
+          "repo": "microsoft/TRELLIS-image-large",
+          "revision": "25e0d31ffbebe4b5a97464dd851910efc3002d96",
+          "destination": "TRELLIS-image-large",
+          "files": [
+            "ckpts/ss_dec_conv3d_16l8_fp16.json",
+            "ckpts/ss_dec_conv3d_16l8_fp16.safetensors"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "3d-hunyuan",
+      "name": "Hunyuan3D 2.1 shape",
+      "sources": [
+        "https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1",
+        "https://huggingface.co/tencent/Hunyuan3D-2.1"
+      ],
+      "destination": "models/Hunyuan3D-2.1",
+      "notes": "Stages shape and VAE files; the Windows CUDA environment is separate.",
+      "downloads": [
+        {
+          "repo": "tencent/Hunyuan3D-2.1",
+          "revision": "0b94677654c57bb9a6b6845cd7b704ccf551d327",
+          "destination": "Hunyuan3D-2.1",
+          "files": [
+            "hunyuan3d-dit-v2-1/config.yaml",
+            "hunyuan3d-dit-v2-1/model.fp16.ckpt",
+            "hunyuan3d-vae-v2-1/config.yaml",
+            "hunyuan3d-vae-v2-1/model.fp16.ckpt",
+            "LICENSE",
+            "Notice.txt"
+          ],
+          "sha256File": "hunyuan3d-dit-v2-1/model.fp16.ckpt",
+          "sha256": "6b519fc7242f78e9b5f47ea4d55668fe3d944a2d27332f4ca68d29a6ff603f5e"
+        }
+      ]
+    },
+    {
+      "id": "motion-hy",
+      "name": "HY-Motion 1.0",
+      "sources": [
+        "https://github.com/Tencent-Hunyuan/HY-Motion-1.0",
+        "https://huggingface.co/tencent/HY-Motion-1.0",
+        "https://huggingface.co/openai/clip-vit-large-patch14",
+        "https://huggingface.co/Qwen/Qwen3-8B"
+      ],
+      "destination": "models/HY-Motion",
+      "notes": "Stages the motion checkpoint and both text encoders; native Windows CUDA packages are separate.",
+      "downloads": [
+        {
+          "repo": "tencent/HY-Motion-1.0",
+          "revision": "620dd559f8d964aac2f82f1204fe6a35ad8ad14d",
+          "destination": "HY-Motion",
+          "include": [
+            "HY-Motion-1.0/*",
+            "LICENSE.txt",
+            "README.md"
+          ],
+          "sha256File": "HY-Motion-1.0/latest.ckpt",
+          "sha256": "4fa91c6085f30c49bccda150b28d6c8d0887dc07e6d5d4ec0055482732635f10"
+        },
+        {
+          "repo": "openai/clip-vit-large-patch14",
+          "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41",
+          "destination": "HY-Motion/clip-vit-large-patch14",
+          "include": [
+            "*.json",
+            "*.txt",
+            "*.safetensors",
+            "README.md"
+          ]
+        },
+        {
+          "repo": "Qwen/Qwen3-8B",
+          "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+          "destination": "HY-Motion/Qwen3-8B",
+          "include": [
+            "*.json",
+            "*.txt",
+            "*.safetensors",
+            "LICENSE",
+            "README.md"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "motion-bricks",
+      "name": "NVIDIA MotionBricks SOMA",
+      "sources": [
+        "https://github.com/NVlabs/motionbricks",
+        "https://huggingface.co/nvidia/MotionBricks"
+      ],
+      "destination": "models/MotionBricks/checkpoints",
+      "notes": "Stages the SOMA checkpoint tree and statistics; this does not install ONNX models or automatic rigging.",
+      "downloads": [
+        {
+          "repo": "nvidia/MotionBricks",
+          "revision": "3cb362d9b95aa40462abcb4d8cfae9ffb6d97410",
+          "destination": "MotionBricks/checkpoints",
+          "include": [
+            "soma/*"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "video",
+      "name": "MiniMax H3 Ref2VA",
+      "sources": [
+        "https://huggingface.co/MiniMaxAI/MiniMax-H3",
+        "https://huggingface.co/leejet/MiniMax-H3-GGUF"
+      ],
+      "destination": "Desktop/H3 Studio/models and Desktop/Sol-Engine/windows-arm64/models/vae",
+      "notes": "Stages the matching Q4 diffusion and encoder files, but not the separate VAEs. Restore H3 Studio and its VAE files separately. Installed file provenance has not been independently verified.",
+      "downloads": [
+        {
+          "repo": "leejet/MiniMax-H3-GGUF",
+          "revision": "d9c4c6312b4728a68a15a35626d84775a6523783",
+          "destination": "h3-gguf",
+          "files": [
+            "minimax_h3_ref2va_pruned-Q4_K_M.gguf",
+            "qwen3vl_32b_minimax_h3-Q4_K_M.gguf"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "music",
+      "name": "YuE2 music",
+      "sources": [
+        "https://github.com/multimodal-art-projection/YuE",
+        "https://huggingface.co/m-a-p/YuE2-3B",
+        "https://huggingface.co/m-a-p/YuE2-Vae"
+      ],
+      "destination": "Desktop/Snapdargon-DJ/models/YuE2-3B and YuE2-Vae",
+      "notes": "Stages the model and VAE snapshots. The separate Snapdargon-DJ CUDA environment is required; review model license terms.",
+      "downloads": [
+        {
+          "repo": "m-a-p/YuE2-3B",
+          "revision": "8f24312f187763b9854adeec87e437e2b03bbff1",
+          "destination": "YuE2-3B"
+        },
+        {
+          "repo": "m-a-p/YuE2-Vae",
+          "revision": "152733a19ad43aa67e367f9b5503ef8075bb5126",
+          "destination": "YuE2-Vae"
+        }
+      ]
+    },
+    {
+      "id": "sfx",
+      "name": "Stable Audio 3 Medium",
+      "sources": [
+        "https://huggingface.co/stabilityai/stable-audio-3-medium",
+        "https://github.com/Stability-AI/stable-audio-tools"
+      ],
+      "destination": "Desktop/Stable Audio Lab/models/hub",
+      "notes": "Stages the gated model snapshot. The existing Stable Audio Lab downloader creates its expected Hub cache and verifies files; the external app and access approval are required.",
+      "downloads": [
+        {
+          "repo": "stabilityai/stable-audio-3-medium",
+          "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
+          "destination": "stable-audio-3-medium",
+          "include": [
+            "*.json",
+            "*.safetensors",
+            "*.model",
+            "*.md",
+            "NOTICE"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tts",
+      "name": "Qwen3-TTS CustomVoice",
+      "sources": [
+        "https://github.com/QwenLM/Qwen3-TTS",
+        "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+      ],
+      "destination": "models/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+      "notes": "Stages preset-voice model and speech tokenizer; the Windows speech runtime is separate.",
+      "downloads": [
+        {
+          "repo": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+          "revision": "0c0e3051f131929182e2c023b9537f8b1c68adfe",
+          "destination": "Qwen3-TTS-12Hz-1.7B-CustomVoice",
+          "include": [
+            "*.json",
+            "*.txt",
+            "*.safetensors",
+            "speech_tokenizer/*",
+            "README.md"
+          ],
+          "sha256File": "model.safetensors",
+          "sha256": "38b1d5971bdbd982b561cccec982669a53b0537c3cf5e9bd4778ed07bb2f5137"
+        }
+      ]
+    },
+    {
+      "id": "asr",
+      "name": "NVIDIA Nemotron streaming ASR",
+      "sources": [
+        "https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b",
+        "https://github.com/NVIDIA/NeMo-Speech.cpp/releases/tag/v0.3.0"
+      ],
+      "destination": "models/nemotron-speech-streaming-en-0.6b",
+      "notes": "Stages the Q8 GGUF. Install and verify the separate NeMo-Speech.cpp Windows ARM64 CUDA runtime as documented in MODEL_SOURCES.md.",
+      "downloads": [
+        {
+          "repo": "nvidia/nemotron-speech-streaming-en-0.6b",
+          "revision": "ebe59e5a817142986528bbbee5dba8db7b38ed50",
+          "destination": "nemotron-speech-streaming-en-0.6b",
+          "files": [
+            "nemotron-speech-streaming-en-0.6b.q8_0.gguf"
+          ],
+          "sha256File": "nemotron-speech-streaming-en-0.6b.q8_0.gguf",
+          "sha256": "d9a01898d2a611c8764e23a1c2f45e70bbd5a425dc4de93692ac951dd603812d"
+        }
+      ]
+    },
+    {
+      "id": "segmentation",
+      "name": "Meta SAM 3.1",
+      "sources": [
+        "https://github.com/facebookresearch/sam3",
+        "https://huggingface.co/facebook/sam3.1",
+        "https://huggingface.co/facebook/sam3"
+      ],
+      "destination": "models/sam3.1 (optional separate SAM 3 checkpoint: models/sam3)",
+      "notes": "Stages the gated SAM 3.1 multiplex checkpoint; approval and the separate Windows CUDA Python environment are required.",
+      "downloads": [
+        {
+          "repo": "facebook/sam3.1",
+          "revision": "daa63191845a41281374e725f4c9e51c7a824460",
+          "destination": "sam3.1",
+          "files": [
+            "sam3.1_multiplex.pt"
+          ],
+          "sha256File": "sam3.1_multiplex.pt",
+          "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6"
+        }
+      ]
+    },
+    {
+      "id": "game",
+      "name": "Mammoth-1",
+      "sources": [
+        "https://huggingface.co/magnitudedev/mammoth-1-GGUF"
+      ],
+      "destination": "Desktop/Mammoth Studio/models/mammoth-q4km",
+      "notes": "Stages Q4_K_M weights. The separate Mammoth Studio environment is required.",
+      "downloads": [
+        {
+          "repo": "magnitudedev/mammoth-1-GGUF",
+          "revision": "c2b9023c674bf456347b793e845f6fabd39720ad",
+          "destination": "mammoth-q4km",
+          "files": [
+            "mammoth-1-Q4_K_M.gguf"
+          ],
+          "sha256File": "mammoth-1-Q4_K_M.gguf",
+          "sha256": "e453b42c2160e60e9d71b8f6554f8a8fc9ecb9c91cb1c639eec87d63e4bc2e68"
+        }
+      ]
+    },
+    {
+      "id": "chat",
+      "name": "Qwen3.8-27B GGUF",
+      "sources": [
+        "https://huggingface.co/lmstudio-community/Qwen3.8-27B-GGUF",
+        "https://github.com/ggml-org/llama.cpp/releases/tag/b12180"
+      ],
+      "destination": "Desktop/LMStudio/lmstudio-community/Qwen3.8-27B-GGUF",
+      "notes": "Stages the Q4_K_M model. Forge uses the separately installed native Windows ARM64 CUDA llama.cpp server, not LM Studio for inference.",
+      "downloads": [
+        {
+          "repo": "lmstudio-community/Qwen3.8-27B-GGUF",
+          "revision": "5a7da681f60570ab5b439a587e912d2e5eddb582",
+          "destination": "Qwen3.8-27B-GGUF",
+          "files": [
+            "Qwen3.8-27B-Q4_K_M.gguf"
+          ]
+        }
+      ]
+    }
+  ]
+}

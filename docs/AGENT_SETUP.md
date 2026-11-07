@@ -10,6 +10,8 @@ Use the existing server when possible. Inspect active jobs and owned services be
 
 ## 2. Install and run the application
 
+For the Windows installer, model download options, source links, and remaining per-engine setup, start with the [installation guide](INSTALLATION.md). `install.ps1 -CheckOnly` inspects selected prerequisites without changing the installation; `-ListModels` lists the model sources.
+
 Node.js 24 and a package manager are required. The observed development environment used Node 24.22.1 and pnpm 11.25.0. From the project root on Windows:
 
 ```powershell
