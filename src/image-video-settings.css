@@ -1,12 +1,73 @@
-.image-video-settings{margin:var(--forge-space-4, var(--forge-space-4)) 0;border:1px solid var(--forge-border,#553348);border-radius:var(--forge-radius-md,9px);background:var(--forge-surface,#210a19);color:var(--forge-text,#f6eeef)}
-.image-video-settings summary{min-height: var(--forge-control-height-large);cursor:pointer;padding:var(--forge-space-3, var(--forge-space-3)) var(--forge-space-4, var(--forge-space-4));font-size: var(--forge-font-support);font-weight:650;color:var(--forge-text,#f6eeef)}
-.image-video-settings summary:hover{color:var(--forge-text-strong,#fff4f0);background:color-mix(in srgb,var(--forge-raised,#2b1021) 70%,transparent)}
-.image-video-settings summary:focus-visible{outline:2px solid var(--forge-focus,#ffd0b7);outline-offset:3px;border-radius:var(--forge-radius-sm,6px)}
-.image-video-settings-body{display:grid;gap:var(--forge-space-3-5);padding:var(--forge-space-1) var(--forge-space-4) var(--forge-space-4)}
-.image-video-settings-body p{margin:0;color:var(--forge-muted,#d4c0ca);font-size: var(--forge-font-support);line-height:1.5}
-.image-video-settings-body label{display:grid;gap:var(--forge-space-value-7);min-width:0;color:var(--forge-text,#f6eeef);font-size: var(--forge-font-support)}
-.image-video-settings-body input,.image-video-settings-body select,.image-video-settings-body textarea{width:100%;min-width:0}
-.image-video-settings-body input,.image-video-settings-body select{min-height: var(--forge-control-height);padding:var(--forge-space-2-5) var(--forge-space-3, var(--forge-space-3));font-size:var(--forge-font-lead)}
-.image-video-settings-body textarea{min-height:84px;padding:var(--forge-space-2-5) var(--forge-space-3, var(--forge-space-3));font-size:var(--forge-font-lead);line-height:1.5}
-.image-video-settings-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--forge-space-3-5)}
-@media(max-width:600px){.image-video-settings-grid{grid-template-columns:1fr 1fr}.image-video-settings-grid label:last-child{grid-column:1/-1}}
+.image-video-settings {
+  margin: var(--forge-space-4, var(--forge-space-4)) 0;
+  border: 1px solid var(--forge-border, #553348);
+  border-radius: var(--forge-radius-md, 9px);
+  background: var(--forge-surface, #210a19);
+  color: var(--forge-text, #f6eeef);
+}
+.image-video-settings summary {
+  min-height: var(--forge-control-height-large);
+  cursor: pointer;
+  padding: var(--forge-space-3, var(--forge-space-3)) var(--forge-space-4, var(--forge-space-4));
+  font-size: var(--forge-font-support);
+  font-weight: 650;
+  color: var(--forge-text, #f6eeef);
+}
+.image-video-settings summary:hover {
+  color: var(--forge-text-strong, #fff4f0);
+  background: color-mix(in srgb, var(--forge-raised, #2b1021) 70%, transparent);
+}
+.image-video-settings summary:focus-visible {
+  outline: 2px solid var(--forge-focus, #ffd0b7);
+  outline-offset: 3px;
+  border-radius: var(--forge-radius-sm, 6px);
+}
+.image-video-settings-body {
+  display: grid;
+  gap: var(--forge-space-3-5);
+  padding: var(--forge-space-1) var(--forge-space-4) var(--forge-space-4);
+}
+.image-video-settings-body p {
+  margin: 0;
+  color: var(--forge-muted, #d4c0ca);
+  font-size: var(--forge-font-support);
+  line-height: 1.5;
+}
+.image-video-settings-body label {
+  display: grid;
+  gap: var(--forge-space-value-7);
+  min-width: 0;
+  color: var(--forge-text, #f6eeef);
+  font-size: var(--forge-font-support);
+}
+.image-video-settings-body input,
+.image-video-settings-body select,
+.image-video-settings-body textarea {
+  width: 100%;
+  min-width: 0;
+}
+.image-video-settings-body input,
+.image-video-settings-body select {
+  min-height: var(--forge-control-height);
+  padding: var(--forge-space-2-5) var(--forge-space-3, var(--forge-space-3));
+  font-size: var(--forge-font-lead);
+}
+.image-video-settings-body textarea {
+  min-height: 84px;
+  padding: var(--forge-space-2-5) var(--forge-space-3, var(--forge-space-3));
+  font-size: var(--forge-font-lead);
+  line-height: 1.5;
+}
+.image-video-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--forge-space-3-5);
+}
+@media (max-width: 600px) {
+  .image-video-settings-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .image-video-settings-grid label:last-child {
+    grid-column: 1/-1;
+  }
+}

@@ -8,7 +8,7 @@
 }
 
 .editor-layout {
-  grid-template-columns: minmax(0, 1.7fr) minmax(290px, .8fr);
+  grid-template-columns: minmax(0, 1.7fr) minmax(290px, 0.8fr);
   align-items: start;
   gap: clamp(var(--forge-space-4), 2vw, var(--forge-space-5));
 }
@@ -30,10 +30,10 @@
 
 .form-panel > .panel-heading h2 {
   margin: 0;
-  font-family: "Segoe UI Variable", "Segoe UI", sans-serif;
+  font-family: 'Segoe UI Variable', 'Segoe UI', sans-serif;
   font-size: var(--forge-font-size-18);
   font-weight: 650;
-  letter-spacing: -.015em;
+  letter-spacing: -0.015em;
 }
 
 .form-panel .subtle-icon {
@@ -59,17 +59,32 @@
   color: var(--studio-soft, var(--forge-muted, #d4c0ca));
   font-size: var(--forge-font-support);
   font-weight: 550;
-  letter-spacing: .025em;
+  letter-spacing: 0.025em;
   vertical-align: 1px;
 }
 
 /* Desktop creation controls keep support copy readable, including nested tools. */
-.form-panel :is(.helper, .prompt-foot, .estimate-label, .creation-action-note,
-  .upload-box small, .upload-action, .ref-list > span, .audio-settings summary,
-  .image-video-settings summary, .advanced, .audio-setting small,
-  .image-video-settings-body p, .options .field-label,
-  .form-bottom > div > strong span, .asset-library-button, .text-action,
-  .primary, .outline-button) {
+.form-panel
+  :is(
+    .helper,
+    .prompt-foot,
+    .estimate-label,
+    .creation-action-note,
+    .upload-box small,
+    .upload-action,
+    .ref-list > span,
+    .audio-settings summary,
+    .image-video-settings summary,
+    .advanced,
+    .audio-setting small,
+    .image-video-settings-body p,
+    .options .field-label,
+    .form-bottom > div > strong span,
+    .asset-library-button,
+    .text-action,
+    .primary,
+    .outline-button
+  ) {
   font-size: var(--forge-font-support);
 }
 
@@ -77,34 +92,47 @@
   min-width: 0;
 }
 
-.form-panel :is(.helper, .prompt-foot, .creation-action-note, .upload-box strong,
-  .upload-box small, .options select, .options input, .audio-setting,
-  .image-video-settings-body label) {
+.form-panel
+  :is(
+    .helper,
+    .prompt-foot,
+    .creation-action-note,
+    .upload-box strong,
+    .upload-box small,
+    .options select,
+    .options input,
+    .audio-setting,
+    .image-video-settings-body label
+  ) {
   overflow-wrap: anywhere;
 }
 
-.form-panel :is(input:not([type="file"]), select, textarea) {
+.form-panel :is(input:not([type='file']), select, textarea) {
   box-sizing: border-box;
   max-width: 100%;
 }
 
 .form-panel textarea,
-.form-panel input:not([type="file"]),
+.form-panel input:not([type='file']),
 .form-panel select {
   border-color: var(--forge-control-border);
   background: var(--forge-control-bg);
-  transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
 }
 
 .form-panel textarea:focus,
-.form-panel input:not([type="file"]):focus,
+.form-panel input:not([type='file']):focus,
 .form-panel select:focus {
   border-color: var(--forge-focus);
   background: var(--forge-surface);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--studio-ember, var(--forge-orange, #e95420)) 24%, transparent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--studio-ember, var(--forge-orange, #e95420)) 24%, transparent);
 }
 
-.form-panel :is(textarea, input:not([type="file"]), select, button, summary, a):focus-visible {
+.form-panel :is(textarea, input:not([type='file']), select, button, summary, a):focus-visible {
   outline: 2px solid var(--forge-focus, #ffad8d);
   outline-offset: 3px;
 }
@@ -163,7 +191,9 @@
   padding: var(--forge-space-value-15) var(--forge-space-4);
   border-color: var(--forge-control-border);
   background: var(--studio-inset, var(--forge-control-bg, #190710));
-  transition: border-color 140ms ease, background-color 140ms ease;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
 }
 
 .form-panel .upload-box:hover,
@@ -172,7 +202,7 @@
   background: color-mix(in srgb, var(--studio-inset, #1d0d19) 86%, var(--studio-ember, #f06a3c));
 }
 
-.form-panel .upload-box input[type="file"] {
+.form-panel .upload-box input[type='file'] {
   display: block;
   position: absolute;
   inset: 0;
@@ -196,12 +226,16 @@
 
 .form-panel .upload-action {
   color: var(--forge-focus);
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
 }
 
-.form-panel .upload-box > div:not(.upload-icon) { min-width: 0; }
+.form-panel .upload-box > div:not(.upload-icon) {
+  min-width: 0;
+}
 .form-panel .upload-box strong,
-.form-panel .upload-box small { line-height: 1.45; }
+.form-panel .upload-box small {
+  line-height: 1.45;
+}
 
 .form-panel .asset-library-button {
   width: auto;
@@ -219,13 +253,36 @@
   color: var(--studio-ink, var(--forge-text, #f6eeef));
 }
 
-.form-panel .ref-list { gap: var(--forge-space-2, var(--forge-space-2)); margin-top: var(--forge-space-2-5); }
-.form-panel .ref-list > span { min-height: 34px; padding: var(--forge-space-1-5) var(--forge-space-value-9); background: var(--forge-selection-surface); }
-.form-panel .ref-list > span { min-width: 0; max-width: 100%; }
-.form-panel .ref-list > span > svg { flex: none; }
-.form-panel .ref-list > span { overflow-wrap: anywhere; }
-.form-panel .ref-list button { flex: none; width: 30px; min-height: 30px; margin: -4px -6px -4px var(--forge-space-0-5); border-radius: 5px; }
-.form-panel .ref-list button:hover { background: var(--forge-selection-hover); color: var(--studio-ink, #fff4f0); }
+.form-panel .ref-list {
+  gap: var(--forge-space-2, var(--forge-space-2));
+  margin-top: var(--forge-space-2-5);
+}
+.form-panel .ref-list > span {
+  min-height: 34px;
+  padding: var(--forge-space-1-5) var(--forge-space-value-9);
+  background: var(--forge-selection-surface);
+}
+.form-panel .ref-list > span {
+  min-width: 0;
+  max-width: 100%;
+}
+.form-panel .ref-list > span > svg {
+  flex: none;
+}
+.form-panel .ref-list > span {
+  overflow-wrap: anywhere;
+}
+.form-panel .ref-list button {
+  flex: none;
+  width: 30px;
+  min-height: 30px;
+  margin: -4px -6px -4px var(--forge-space-0-5);
+  border-radius: 5px;
+}
+.form-panel .ref-list button:hover {
+  background: var(--forge-selection-hover);
+  color: var(--studio-ink, #fff4f0);
+}
 
 .form-panel .audio-settings,
 .form-panel .image-video-settings {
@@ -243,7 +300,9 @@
 }
 
 .form-panel .audio-settings-grid,
-.form-panel .image-video-settings-body { padding-inline: var(--forge-space-4); }
+.form-panel .image-video-settings-body {
+  padding-inline: var(--forge-space-4);
+}
 
 .form-panel .advanced {
   min-height: 46px;
@@ -260,22 +319,50 @@
   border-color: var(--forge-border);
 }
 
-.form-panel .form-bottom > div { min-width: 0; }
-.form-panel .form-bottom > div > strong { overflow-wrap: anywhere; }
-.form-panel .create-action { transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease; }
-.form-panel .create-action:hover:not(:disabled) { transform: translateY(-1px); }
-.form-panel .creation-action-note { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--forge-space-2) var(--forge-space-value-18); }
-.form-panel .creation-action-note > span { max-width: 70ch; }
+.form-panel .form-bottom > div {
+  min-width: 0;
+}
+.form-panel .form-bottom > div > strong {
+  overflow-wrap: anywhere;
+}
+.form-panel .create-action {
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+.form-panel .create-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.form-panel .creation-action-note {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--forge-space-2) var(--forge-space-value-18);
+}
+.form-panel .creation-action-note > span {
+  max-width: 70ch;
+}
 
 .form-panel .estimate-label {
   color: var(--forge-focus);
-  letter-spacing: .045em;
+  letter-spacing: 0.045em;
 }
 
-.form-panel .form-bottom > div > strong { line-height: 1.45; }
-.form-panel .form-bottom .create-action { min-height: 48px; padding-inline: var(--forge-space-value-18); }
-.form-panel .creation-action-note { color: var(--forge-muted); }
-.form-panel .text-action { color: var(--forge-creation-accent); }
+.form-panel .form-bottom > div > strong {
+  line-height: 1.45;
+}
+.form-panel .form-bottom .create-action {
+  min-height: 48px;
+  padding-inline: var(--forge-space-value-18);
+}
+.form-panel .creation-action-note {
+  color: var(--forge-muted);
+}
+.form-panel .text-action {
+  color: var(--forge-creation-accent);
+}
 
 .form-panel :is(.audio-settings, .image-video-settings) :is(input, select, textarea) {
   min-height: 44px;
@@ -284,37 +371,91 @@
 }
 
 @media (max-width: 850px) {
-  .editor-layout { grid-template-columns: minmax(0, 1fr); gap: var(--forge-space-4); }
-  .editor-layout > .right-column { min-width: 0; }
-  .form-panel { padding: var(--forge-space-value-22); }
+  .editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--forge-space-4);
+  }
+  .editor-layout > .right-column {
+    min-width: 0;
+  }
+  .form-panel {
+    padding: var(--forge-space-value-22);
+  }
 }
 
 @media (max-width: 600px) {
-  .editor-page + .creation-context { margin-bottom: var(--forge-space-3-5); }
-  .form-panel { padding: var(--forge-space-value-18); }
-  .form-panel > .panel-heading { margin-bottom: var(--forge-space-value-18); padding-bottom: var(--forge-space-3-5); }
-  .form-panel textarea#prompt { min-height: 132px; }
-  .form-panel .prompt-foot { flex-direction: column; }
-  .form-panel .options { gap: var(--forge-space-2, var(--forge-space-2)); }
-  .form-panel .options select { min-height: 44px; padding-inline: var(--forge-space-value-9); }
-  .form-panel .upload-box { align-items: flex-start; gap: var(--forge-space-2-5); }
-  .form-panel .upload-action { align-self: center; font-size: var(--forge-font-size-11); letter-spacing: .02em; }
-  .form-panel .form-bottom { gap: var(--forge-space-3-5); }
-  .form-panel .form-bottom .create-action { width: 100%; }
-  .form-panel .options { grid-template-columns: minmax(0, 1fr); }
-  .form-panel .creation-action-note { align-items: flex-start; flex-direction: column; }
+  .editor-page + .creation-context {
+    margin-bottom: var(--forge-space-3-5);
+  }
+  .form-panel {
+    padding: var(--forge-space-value-18);
+  }
+  .form-panel > .panel-heading {
+    margin-bottom: var(--forge-space-value-18);
+    padding-bottom: var(--forge-space-3-5);
+  }
+  .form-panel textarea#prompt {
+    min-height: 132px;
+  }
+  .form-panel .prompt-foot {
+    flex-direction: column;
+  }
+  .form-panel .options {
+    gap: var(--forge-space-2, var(--forge-space-2));
+  }
+  .form-panel .options select {
+    min-height: 44px;
+    padding-inline: var(--forge-space-value-9);
+  }
+  .form-panel .upload-box {
+    align-items: flex-start;
+    gap: var(--forge-space-2-5);
+  }
+  .form-panel .upload-action {
+    align-self: center;
+    font-size: var(--forge-font-size-11);
+    letter-spacing: 0.02em;
+  }
+  .form-panel .form-bottom {
+    gap: var(--forge-space-3-5);
+  }
+  .form-panel .form-bottom .create-action {
+    width: 100%;
+  }
+  .form-panel .options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .form-panel .creation-action-note {
+    align-items: flex-start;
+    flex-direction: column;
+  }
   .form-panel .audio-settings-grid,
-  .form-panel .image-video-settings-body { padding-inline: var(--forge-space-3); }
+  .form-panel .image-video-settings-body {
+    padding-inline: var(--forge-space-3);
+  }
 }
 
 @media (max-width: 360px) {
-  .form-panel { padding: var(--forge-space-value-15); }
-  .form-panel .field-label > span { display: block; margin: var(--forge-space-1) 0 0; }
-  .form-panel .upload-box { flex-wrap: wrap; }
-  .form-panel .upload-action { margin-left: var(--forge-space-value-48); }
+  .form-panel {
+    padding: var(--forge-space-value-15);
+  }
+  .form-panel .field-label > span {
+    display: block;
+    margin: var(--forge-space-1) 0 0;
+  }
+  .form-panel .upload-box {
+    flex-wrap: wrap;
+  }
+  .form-panel .upload-action {
+    margin-left: var(--forge-space-value-48);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .form-panel :is(textarea, input, select, button, .upload-box) { transition: none; }
-  .form-panel .create-action:hover:not(:disabled) { transform: none; }
+  .form-panel :is(textarea, input, select, button, .upload-box) {
+    transition: none;
+  }
+  .form-panel .create-action:hover:not(:disabled) {
+    transform: none;
+  }
 }

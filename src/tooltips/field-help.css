@@ -1,8 +1,80 @@
-.field-help-layer{position:fixed;inset:0;pointer-events:none;z-index:120}.field-help-trigger{position:fixed;display:grid;place-items:center;width:19px;height:19px;padding:1px;border:0;border-radius:50%;background:#382333;color:#e3b3a9;pointer-events:auto;cursor:help}.field-help-trigger:hover,.field-help-trigger:focus-visible{background:#f3ad98;color:#301522;outline:2px solid #fbd8c7;outline-offset:2px}.field-help-popover{position:fixed;width:max-content;max-width:min(290px,calc(100vw - 16px));padding:10px 12px;border:1px solid #bd8d98;border-radius:9px;background:#482a3b;color:#fff1ec;box-shadow:0 8px 28px #0009;font-size:13px;line-height:1.45;pointer-events:none;z-index:1}
-.field-help-trigger { width:24px; height:24px; border:1px solid var(--forge-border); background:var(--forge-raised); color:var(--forge-muted); }
-.field-help-trigger:hover,.field-help-trigger:focus-visible { border-color:var(--forge-orange); background:var(--forge-orange); color:var(--forge-text-on-orange); outline:2px solid var(--forge-focus); }
-.field-help-popover { max-width:min(320px,calc(100vw - 24px)); padding:12px 14px; border-color:var(--forge-control-border); border-radius:var(--forge-radius-md); background:var(--forge-raised); color:var(--forge-text); box-shadow:var(--forge-shadow-overlay); font-size:14px; line-height:1.5; overflow-wrap:anywhere; }
-body:has(.chat-page) .field-help-trigger[aria-label="Help: Message"] { transform:translateX(-4px); }
+.field-help-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 120;
+}
+.field-help-trigger {
+  position: fixed;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  padding: 1px;
+  border: 0;
+  border-radius: 50%;
+  background: #382333;
+  color: #e3b3a9;
+  pointer-events: auto;
+  cursor: help;
+}
+.field-help-trigger:hover,
+.field-help-trigger:focus-visible {
+  background: #f3ad98;
+  color: #301522;
+  outline: 2px solid #fbd8c7;
+  outline-offset: 2px;
+}
+.field-help-popover {
+  position: fixed;
+  width: max-content;
+  max-width: min(290px, calc(100vw - 16px));
+  padding: 10px 12px;
+  border: 1px solid #bd8d98;
+  border-radius: 9px;
+  background: #482a3b;
+  color: #fff1ec;
+  box-shadow: 0 8px 28px #0009;
+  font-size: 13px;
+  line-height: 1.45;
+  pointer-events: none;
+  z-index: 1;
+}
+.field-help-trigger {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--forge-border);
+  background: var(--forge-raised);
+  color: var(--forge-muted);
+}
+.field-help-trigger:hover,
+.field-help-trigger:focus-visible {
+  border-color: var(--forge-orange);
+  background: var(--forge-orange);
+  color: var(--forge-text-on-orange);
+  outline: 2px solid var(--forge-focus);
+}
+.field-help-popover {
+  max-width: min(320px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border-color: var(--forge-control-border);
+  border-radius: var(--forge-radius-md);
+  background: var(--forge-raised);
+  color: var(--forge-text);
+  box-shadow: var(--forge-shadow-overlay);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+body:has(.chat-page) .field-help-trigger[aria-label='Help: Message'] {
+  transform: translateX(-4px);
+}
 /* The portal can live inside a scrollable dialog. Its zero-sized anchor keeps
    the fixed-position buttons from creating horizontal scrollbars there. */
-.field-help-layer { inset: auto; top: 0; left: 0; width: 0; height: 0; }
+.field-help-layer {
+  inset: auto;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+}

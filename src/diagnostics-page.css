@@ -1,54 +1,144 @@
-.diagnostics-page { --diag-server-address-border: #634255; --diag-search-control-border: #67465b; --diag-search-focus-border: #d5a28f; --diag-copy: #eadce2; --diag-log-options-accent: #e2a28b; --diag-log-window-text: #e3d5dd; --diag-log-error-text: #ffbeaa; --diag-is-focus: #ffe0cd;  }
+.diagnostics-page {
+  --diag-server-address-border: #634255;
+  --diag-search-control-border: #67465b;
+  --diag-search-focus-border: #d5a28f;
+  --diag-copy: #eadce2;
+  --diag-log-options-accent: #e2a28b;
+  --diag-log-window-text: #e3d5dd;
+  --diag-log-error-text: #ffbeaa;
+  --diag-is-focus: #ffe0cd;
+}
 /* Diagnostics page refinements: keep operational details calm, legible, and easy to scan. */
-.diagnostics-page > .lead { max-width: 62ch; line-height: 1.55; }
+.diagnostics-page > .lead {
+  max-width: 62ch;
+  line-height: 1.55;
+}
 .diagnostics-page .metadata-panel,
-.diagnostics-page .logs-panel { border-color: var(--forge-border); background: var(--forge-surface); }
-.diagnostics-page .panel-heading h2 { line-height: 1.2; }
-.diagnostics-page .server-address { border-color: var(--diag-server-address-border); background: var(--forge-raised); }
-.diagnostics-page .server-address small { color: var(--forge-muted); letter-spacing: .04em; }
-.diagnostics-page .server-address strong { font-size: var(--forge-font-support); }
-.diagnostics-page .metadata-list > div { padding: var(--forge-space-2-5) 0; border-color: var(--forge-border-quiet); }
+.diagnostics-page .logs-panel {
+  border-color: var(--forge-border);
+  background: var(--forge-surface);
+}
+.diagnostics-page .panel-heading h2 {
+  line-height: 1.2;
+}
+.diagnostics-page .server-address {
+  border-color: var(--diag-server-address-border);
+  background: var(--forge-raised);
+}
+.diagnostics-page .server-address small {
+  color: var(--forge-muted);
+  letter-spacing: 0.04em;
+}
+.diagnostics-page .server-address strong {
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .metadata-list > div {
+  padding: var(--forge-space-2-5) 0;
+  border-color: var(--forge-border-quiet);
+}
 .diagnostics-page .metadata-list dt,
 .diagnostics-page .service-heading > span:last-child,
-.diagnostics-page .service-state { color: var(--forge-muted); }
-.diagnostics-page .metadata-list dd { line-height: 1.5; }
-.diagnostics-page .service-heading { margin-top: var(--forge-space-5-5); border-color: var(--forge-border-quiet); }
-.diagnostics-page .service-row { align-items: flex-start; border-color: var(--forge-border-quiet); }
-.diagnostics-page .service-row div { min-width: 0; }
-.diagnostics-page .service-row div span { overflow-wrap: anywhere; line-height: 1.45; }
+.diagnostics-page .service-state {
+  color: var(--forge-muted);
+}
+.diagnostics-page .metadata-list dd {
+  line-height: 1.5;
+}
+.diagnostics-page .service-heading {
+  margin-top: var(--forge-space-5-5);
+  border-color: var(--forge-border-quiet);
+}
+.diagnostics-page .service-row {
+  align-items: flex-start;
+  border-color: var(--forge-border-quiet);
+}
+.diagnostics-page .service-row div {
+  min-width: 0;
+}
+.diagnostics-page .service-row div span {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
 .diagnostics-page .diagnostic-note,
-.diagnostics-page .log-bottom { color: var(--forge-muted); line-height: 1.55; }
+.diagnostics-page .log-bottom {
+  color: var(--forge-muted);
+  line-height: 1.55;
+}
 .diagnostics-page .log-controls select,
-.diagnostics-page .log-search { min-height: 42px; border-color: var(--diag-search-control-border); background: var(--forge-surface); }
-.diagnostics-page .log-search input { color: var(--forge-text-strong); }
-.diagnostics-page .log-search input::placeholder { color: var(--forge-subtle); opacity: 1; }
-.diagnostics-page .log-window { border-color: var(--forge-border); background: var(--forge-surface-inset); }
+.diagnostics-page .log-search {
+  min-height: 42px;
+  border-color: var(--diag-search-control-border);
+  background: var(--forge-surface);
+}
+.diagnostics-page .log-search input {
+  color: var(--forge-text-strong);
+}
+.diagnostics-page .log-search input::placeholder {
+  color: var(--forge-subtle);
+  opacity: 1;
+}
+.diagnostics-page .log-window {
+  border-color: var(--forge-border);
+  background: var(--forge-surface-inset);
+}
 .diagnostics-page .log-source span,
 .diagnostics-page .log-path,
 .diagnostics-page .log-muted,
-.diagnostics-page .log-placeholder { color: var(--forge-subtle); }
-.diagnostics-page .log-window pre { font-size: var(--forge-font-caption); line-height: 1.6; }
+.diagnostics-page .log-placeholder {
+  color: var(--forge-subtle);
+}
+.diagnostics-page .log-window pre {
+  font-size: var(--forge-font-caption);
+  line-height: 1.6;
+}
 .diagnostics-page button,
 .diagnostics-page select,
-.diagnostics-page input { font: inherit; }
-.diagnostics-page button { cursor: pointer; }
-.diagnostics-page button:disabled { cursor: not-allowed; }
+.diagnostics-page input {
+  font: inherit;
+}
+.diagnostics-page button {
+  cursor: pointer;
+}
+.diagnostics-page button:disabled {
+  cursor: not-allowed;
+}
 .diagnostics-page :is(button, select, input):focus-visible {
   outline: 2px solid var(--forge-focus);
   outline-offset: 3px;
 }
-.diagnostics-page .log-search:focus-within { border-color: var(--diag-search-focus-border); }
+.diagnostics-page .log-search:focus-within {
+  border-color: var(--diag-search-focus-border);
+}
 @media (max-width: 700px) {
-  .diagnostics-page .server-address { align-items: flex-start; }
-  .diagnostics-page .server-address strong { overflow-wrap: anywhere; }
-  .diagnostics-page .service-row { flex-direction: column; gap: var(--forge-space-1-5); }
-  .diagnostics-page .service-state { white-space: normal; }
-  .diagnostics-page .log-controls { gap: var(--forge-space-2-5); }
-  .diagnostics-page .log-controls > label:first-child { flex: 1 1 100%; }
-  .diagnostics-page .log-controls select { width: 100%; }
+  .diagnostics-page .server-address {
+    align-items: flex-start;
+  }
+  .diagnostics-page .server-address strong {
+    overflow-wrap: anywhere;
+  }
+  .diagnostics-page .service-row {
+    flex-direction: column;
+    gap: var(--forge-space-1-5);
+  }
+  .diagnostics-page .service-state {
+    white-space: normal;
+  }
+  .diagnostics-page .log-controls {
+    gap: var(--forge-space-2-5);
+  }
+  .diagnostics-page .log-controls > label:first-child {
+    flex: 1 1 100%;
+  }
+  .diagnostics-page .log-controls select {
+    width: 100%;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .diagnostics-page *, .diagnostics-page *::before, .diagnostics-page *::after { scroll-behavior: auto !important; }
+  .diagnostics-page *,
+  .diagnostics-page *::before,
+  .diagnostics-page *::after {
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Desktop operations view: make the two diagnostic jobs distinct, then size
@@ -56,8 +146,14 @@
 .diagnostics-page {
   max-width: 2700px;
 }
-.diagnostics-page > .lead { font-size: var(--forge-font-lead); color: var(--forge-muted); }
-.diagnostics-page .diagnostics-layout { gap: var(--forge-space-4-5); align-items: stretch; }
+.diagnostics-page > .lead {
+  font-size: var(--forge-font-lead);
+  color: var(--forge-muted);
+}
+.diagnostics-page .diagnostics-layout {
+  gap: var(--forge-space-4-5);
+  align-items: stretch;
+}
 .diagnostics-page .metadata-panel,
 .diagnostics-page .logs-panel {
   padding: var(--forge-space-value-26);
@@ -65,75 +161,260 @@
   border-radius: 13px;
   background: var(--forge-surface);
 }
-.diagnostics-page .panel-heading { gap: var(--forge-space-4-5); margin-bottom: var(--forge-space-value-18); }
-.diagnostics-page .panel-heading h2 { font-size: var(--forge-font-size-24); }
-.diagnostics-page .panel-heading p { font-size: var(--forge-font-body); line-height: 1.5; color: var(--forge-muted); }
+.diagnostics-page .panel-heading {
+  gap: var(--forge-space-4-5);
+  margin-bottom: var(--forge-space-value-18);
+}
+.diagnostics-page .panel-heading h2 {
+  font-size: var(--forge-font-size-24);
+}
+.diagnostics-page .panel-heading p {
+  font-size: var(--forge-font-body);
+  line-height: 1.5;
+  color: var(--forge-muted);
+}
 .diagnostics-page .panel-heading .mini-label,
 .diagnostics-page .service-heading > span,
-.diagnostics-page .server-address small { font-size: var(--forge-font-support); }
-.diagnostics-page .server-address { gap: var(--forge-space-value-15); padding: var(--forge-space-value-17); border-radius: 10px; }
-.diagnostics-page .server-address small { color: var(--forge-muted); letter-spacing: .03em; }
-.diagnostics-page .server-address strong { font-size: var(--forge-font-body); line-height: 1.5; overflow-wrap: anywhere; word-break: normal; }
-.diagnostics-page .server-ready { font-size: var(--forge-font-caption); }
-.diagnostics-page .metadata-list { margin: var(--forge-space-value-18) 0; }
-.diagnostics-page .metadata-list > div { padding: var(--forge-space-3) 0; border-color: var(--forge-border); }
-.diagnostics-page .metadata-list dt { margin-bottom: var(--forge-space-value-5); color: var(--forge-muted); font-size: var(--forge-font-support); }
-.diagnostics-page .metadata-list dd { color: var(--diag-copy); font-size: var(--forge-font-support); line-height: 1.55; }
-.diagnostics-page .outline-button { min-height: 44px; width: auto; padding: var(--forge-space-2-5) var(--forge-space-3-5); font-size: var(--forge-font-support); }
-.diagnostics-page .service-heading { margin-top: var(--forge-space-6); padding-bottom: var(--forge-space-2-5); }
-.diagnostics-page .service-row { gap: var(--forge-space-value-18); padding: var(--forge-space-3-5) 0; border-color: var(--forge-border); }
-.diagnostics-page .service-row strong { font-size: var(--forge-font-body); }
-.diagnostics-page .service-row div span { margin-top: var(--forge-space-value-5); color: var(--forge-muted); font-size: var(--forge-font-support); line-height: 1.5; }
-.diagnostics-page .service-state { flex: none; font-size: var(--forge-font-support); }
-.diagnostics-page .diagnostic-note { margin-top: var(--forge-space-3-5); color: var(--forge-muted); font-size: var(--forge-font-support); }
-.diagnostics-page .live-status { font-size: var(--forge-font-support); }
-.diagnostics-page .log-controls { gap: var(--forge-space-2-5); margin-top: var(--forge-space-value-22); }
+.diagnostics-page .server-address small {
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .server-address {
+  gap: var(--forge-space-value-15);
+  padding: var(--forge-space-value-17);
+  border-radius: 10px;
+}
+.diagnostics-page .server-address small {
+  color: var(--forge-muted);
+  letter-spacing: 0.03em;
+}
+.diagnostics-page .server-address strong {
+  font-size: var(--forge-font-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.diagnostics-page .server-ready {
+  font-size: var(--forge-font-caption);
+}
+.diagnostics-page .metadata-list {
+  margin: var(--forge-space-value-18) 0;
+}
+.diagnostics-page .metadata-list > div {
+  padding: var(--forge-space-3) 0;
+  border-color: var(--forge-border);
+}
+.diagnostics-page .metadata-list dt {
+  margin-bottom: var(--forge-space-value-5);
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .metadata-list dd {
+  color: var(--diag-copy);
+  font-size: var(--forge-font-support);
+  line-height: 1.55;
+}
+.diagnostics-page .outline-button {
+  min-height: 44px;
+  width: auto;
+  padding: var(--forge-space-2-5) var(--forge-space-3-5);
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .service-heading {
+  margin-top: var(--forge-space-6);
+  padding-bottom: var(--forge-space-2-5);
+}
+.diagnostics-page .service-row {
+  gap: var(--forge-space-value-18);
+  padding: var(--forge-space-3-5) 0;
+  border-color: var(--forge-border);
+}
+.diagnostics-page .service-row strong {
+  font-size: var(--forge-font-body);
+}
+.diagnostics-page .service-row div span {
+  margin-top: var(--forge-space-value-5);
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+  line-height: 1.5;
+}
+.diagnostics-page .service-state {
+  flex: none;
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .diagnostic-note {
+  margin-top: var(--forge-space-3-5);
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .live-status {
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .log-controls {
+  gap: var(--forge-space-2-5);
+  margin-top: var(--forge-space-value-22);
+}
 .diagnostics-page .log-controls select,
-.diagnostics-page .log-search { min-height: 46px; border-radius: 8px; font-size: var(--forge-font-support); }
-.diagnostics-page .log-search { gap: var(--forge-space-value-9); padding-inline: var(--forge-space-3); }
-.diagnostics-page .log-search input { min-height: 42px; font-size: var(--forge-font-support); }
-.diagnostics-page .log-controls .icon-outline { min-width: 46px; min-height: 46px; }
-.diagnostics-page .log-options { min-height: 42px; font-size: var(--forge-font-support); }
-.diagnostics-page .log-options label { display: inline-flex; align-items: center; gap: var(--forge-space-2); min-height: 42px; }
-.diagnostics-page .log-options input { width: 17px; height: 17px; accent-color: var(--diag-log-options-accent); }
-.diagnostics-page .link-button { min-height: 42px; font-size: var(--forge-font-support); }
-.diagnostics-page .log-window { height: min(680px, 66vh); padding: var(--forge-space-3-5) var(--forge-space-value-17); border-color: var(--forge-border); border-radius: var(--forge-radius-md); }
-.diagnostics-page .log-group { padding: var(--forge-space-value-13) 0; }
-.diagnostics-page .log-source { gap: var(--forge-space-2); }
-.diagnostics-page .log-source strong { font-size: var(--forge-font-support); }
-.diagnostics-page .log-source span { font-size: var(--forge-font-caption); }
+.diagnostics-page .log-search {
+  min-height: 46px;
+  border-radius: 8px;
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .log-search {
+  gap: var(--forge-space-value-9);
+  padding-inline: var(--forge-space-3);
+}
+.diagnostics-page .log-search input {
+  min-height: 42px;
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .log-controls .icon-outline {
+  min-width: 46px;
+  min-height: 46px;
+}
+.diagnostics-page .log-options {
+  min-height: 42px;
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .log-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--forge-space-2);
+  min-height: 42px;
+}
+.diagnostics-page .log-options input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--diag-log-options-accent);
+}
+.diagnostics-page .link-button {
+  min-height: 42px;
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .log-window {
+  height: min(680px, 66vh);
+  padding: var(--forge-space-3-5) var(--forge-space-value-17);
+  border-color: var(--forge-border);
+  border-radius: var(--forge-radius-md);
+}
+.diagnostics-page .log-group {
+  padding: var(--forge-space-value-13) 0;
+}
+.diagnostics-page .log-source {
+  gap: var(--forge-space-2);
+}
+.diagnostics-page .log-source strong {
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .log-source span {
+  font-size: var(--forge-font-caption);
+}
 .diagnostics-page .log-path,
 .diagnostics-page .log-muted,
-.diagnostics-page .log-placeholder { color: var(--forge-muted); font-size: var(--forge-font-support); line-height: 1.55; }
-.diagnostics-page .log-window pre { color: var(--diag-log-window-text); font-size: var(--forge-font-support); line-height: 1.65; }
-.diagnostics-page .log-window pre.log-error { color: var(--diag-log-error-text); }
-.diagnostics-page .log-bottom { gap: var(--forge-space-3-5); margin-top: var(--forge-space-3); color: var(--forge-muted); font-size: var(--forge-font-support); }
-.diagnostics-page .log-bottom strong { color: var(--forge-success-text); font-size: var(--forge-font-support); }
-.diagnostics-page :is(button, select, input):focus-visible { outline-color: var(--diag-is-focus); outline-offset: 3px; }
-.diagnostics-page button:disabled { cursor: not-allowed; opacity: .55; }
+.diagnostics-page .log-placeholder {
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+  line-height: 1.55;
+}
+.diagnostics-page .log-window pre {
+  color: var(--diag-log-window-text);
+  font-size: var(--forge-font-support);
+  line-height: 1.65;
+}
+.diagnostics-page .log-window pre.log-error {
+  color: var(--diag-log-error-text);
+}
+.diagnostics-page .log-bottom {
+  gap: var(--forge-space-3-5);
+  margin-top: var(--forge-space-3);
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page .log-bottom strong {
+  color: var(--forge-success-text);
+  font-size: var(--forge-font-support);
+}
+.diagnostics-page :is(button, select, input):focus-visible {
+  outline-color: var(--diag-is-focus);
+  outline-offset: 3px;
+}
+.diagnostics-page button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 @media (min-width: 851px) {
-  .diagnostics-page .log-controls { margin-top: 46px; }
-  .diagnostics-page .log-controls > label { position: relative; }
-  .diagnostics-page .log-controls > label:first-child { display: flex; align-items: stretch; }
-  .diagnostics-page .log-search { padding-block: 0; }
-  .diagnostics-page .log-search input { min-height: 44px; padding: 0; }
+  .diagnostics-page .log-controls {
+    margin-top: 46px;
+  }
+  .diagnostics-page .log-controls > label {
+    position: relative;
+  }
+  .diagnostics-page .log-controls > label:first-child {
+    display: flex;
+    align-items: stretch;
+  }
+  .diagnostics-page .log-search {
+    padding-block: 0;
+  }
+  .diagnostics-page .log-search input {
+    min-height: 44px;
+    padding: 0;
+  }
   .diagnostics-page .log-control-label {
-    position: absolute; top: -25px; left: 0; width: auto; height: auto;
-    margin: 0; overflow: visible; clip: auto; white-space: nowrap;
-    color: var(--forge-muted); font-size: var(--forge-font-support); line-height: 1.3;
+    position: absolute;
+    top: -25px;
+    left: 0;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: nowrap;
+    color: var(--forge-muted);
+    font-size: var(--forge-font-support);
+    line-height: 1.3;
   }
   .diagnostics-page .server-ready,
-  .diagnostics-page .log-source > span { font-size: var(--forge-font-support); }
-  .diagnostics-page .log-window pre { max-width: 100%; overflow-wrap: anywhere; tab-size: 2; }
-  .diagnostics-page .log-path { min-width: 0; overflow-wrap: anywhere; word-break: normal; }
-  .diagnostics-page .log-bottom { flex-wrap: wrap; gap: var(--forge-space-2) var(--forge-space-3-5); }
-  .diagnostics-page .log-bottom > span { min-width: 0; flex: 1 1 40ch; }
-  .diagnostics-page .log-bottom strong { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
-  .diagnostics-page :is(button, select, input, .log-window):focus-visible { outline: 3px solid var(--diag-is-focus); outline-offset: 3px; }
+  .diagnostics-page .log-source > span {
+    font-size: var(--forge-font-support);
+  }
+  .diagnostics-page .log-window pre {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    tab-size: 2;
+  }
+  .diagnostics-page .log-path {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+  .diagnostics-page .log-bottom {
+    flex-wrap: wrap;
+    gap: var(--forge-space-2) var(--forge-space-3-5);
+  }
+  .diagnostics-page .log-bottom > span {
+    min-width: 0;
+    flex: 1 1 40ch;
+  }
+  .diagnostics-page .log-bottom strong {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .diagnostics-page :is(button, select, input, .log-window):focus-visible {
+    outline: 3px solid var(--diag-is-focus);
+    outline-offset: 3px;
+  }
 }
 @media (min-width: 1600px) {
-  .diagnostics-page .diagnostics-layout { grid-template-columns: minmax(390px, .82fr) minmax(0, 1.65fr); gap: var(--forge-space-5); }
+  .diagnostics-page .diagnostics-layout {
+    grid-template-columns: minmax(390px, 0.82fr) minmax(0, 1.65fr);
+    gap: var(--forge-space-5);
+  }
   .diagnostics-page .metadata-panel,
-  .diagnostics-page .logs-panel { padding: var(--forge-space-value-30); }
-  .diagnostics-page .log-window { height: min(760px, 68vh); }
+  .diagnostics-page .logs-panel {
+    padding: var(--forge-space-value-30);
+  }
+  .diagnostics-page .log-window {
+    height: min(760px, 68vh);
+  }
 }

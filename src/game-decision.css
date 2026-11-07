@@ -15,13 +15,22 @@
 }
 
 @media (min-width: 851px) {
-  .game-decision-panel > .helper { font-size: var(--forge-font-support); line-height: 1.5; }
-  .game-decision-panel .game-decision-actions .outline-button { min-height: 44px; font-size: var(--forge-font-support); }
+  .game-decision-panel > .helper {
+    font-size: var(--forge-font-support);
+    line-height: 1.5;
+  }
+  .game-decision-panel .game-decision-actions .outline-button {
+    min-height: 44px;
+    font-size: var(--forge-font-support);
+  }
   .game-decision-panel .game-decision-actions button:focus-visible {
     outline-width: 3px;
     outline-color: var(--forge-focus, #ffd0b7);
   }
-  .game-decision-panel .game-result { font-size: var(--forge-font-support); line-height: 1.55; }
+  .game-decision-panel .game-result {
+    font-size: var(--forge-font-support);
+    line-height: 1.55;
+  }
 }
 
 @media (max-width: 600px) {

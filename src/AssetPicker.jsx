@@ -1,27 +1,255 @@
-import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {AudioLines, Check, File, FolderOpen, Search, X} from 'lucide-react';
-import {compatibleAssets, readLibraryFiles} from './asset-picker.js';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AudioLines, Check, File, FolderOpen, Search, X } from 'lucide-react';
+import { compatibleAssets, readLibraryFiles } from './asset-picker.js';
 import useDialogFocus from './useDialogFocus';
 import './asset-picker.css';
 
-const sizeLabel=bytes=>`${(bytes/1024/1024).toFixed(bytes>=1024*1024?1:2)} MiB`;
-export default function AssetPicker({projects,project,extensions,maxFiles=1,maxBytes=10*1024*1024,totalBytes=Infinity,title='Choose from asset library',description='Choose compatible files from the selected project.',onSelect,onClose}) {
- const [projectId,setProjectId]=useState(project?.id||projects[0]?.id||'');
- const [query,setQuery]=useState(''),[selected,setSelected]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const dialog=useDialogFocus({onClose:()=>{if(!busyRef.current)closeRef.current()},initialFocus:'.asset-picker-close'});const abort=useRef(null),closeRef=useRef(onClose),busyRef=useRef(false);closeRef.current=onClose;busyRef.current=busy;
- const source=projects.find(item=>item.id===projectId)||null;
- const matches=useMemo(()=>compatibleAssets(source?.assets,extensions,query),[source,extensions,query]);
- const chosen=selected.map(id=>source?.assets.find(asset=>asset.id===id)).filter(Boolean);
- const selectedBytes=chosen.reduce((sum,asset)=>sum+asset.size,0);
- useEffect(()=>{if(!projectId&&projects.length)setProjectId(project?.id||projects[0].id)},[projectId,projects,project?.id]);
- useEffect(()=>()=>abort.current?.abort(),[]);
- function toggle(asset){setError('');if(selected.includes(asset.id)){setSelected(items=>items.filter(id=>id!==asset.id));return}if(maxFiles===1){setSelected([asset.id]);return}if(selected.length>=maxFiles){setError(`You can select up to ${maxFiles} files in total. Remove a selection to choose another.`);return}if(selectedBytes+asset.size>totalBytes){setError('The selected files exceed the combined size limit. Remove a file or choose a smaller one.');return}setSelected(items=>[...items,asset.id])}
- async function useAssets(){if(!source||!chosen.length)return;setBusy(true);setError('');const controller=new AbortController();abort.current=controller;try{const files=await readLibraryFiles(source,chosen,{maxBytes,totalBytes,signal:controller.signal});if(!controller.signal.aborted)onSelect(files)}catch(reason){if(!controller.signal.aborted)setError(reason.message||'Could not read the selected files.')}finally{if(!controller.signal.aborted)setBusy(false)}}
- return <div className="modal-backdrop asset-picker-backdrop" onClick={()=>{if(!busy)onClose()}}><section ref={dialog} className="asset-picker" role="dialog" aria-modal="true" aria-labelledby="asset-picker-title" tabIndex={-1} onClick={event=>event.stopPropagation()}>
-  <header className="asset-picker-header"><div><h2 id="asset-picker-title">{title}</h2><p>{description}</p></div><button className="icon-btn asset-picker-close" aria-label="Close asset picker" disabled={busy} onClick={onClose}><X size={20}/></button></header>
-  <div className="asset-picker-controls"><label>Project<select value={projectId} disabled={busy} onChange={event=>{setProjectId(event.target.value);setSelected([]);setError('')}}>{!projects.length&&<option value="">No projects</option>}{projects.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label>Search<div className="asset-picker-search"><Search size={16}/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search names or folders" disabled={busy}/></div></label></div>
-  <div className="asset-picker-info"><span>{extensions.map(value=>value.toUpperCase()).join(' / ')} · {sizeLabel(maxBytes)} per file{Number.isFinite(totalBytes)?` · ${sizeLabel(totalBytes)} total`:''}</span><span>{matches.length} {matches.length===1?'file':'files'}</span></div>
-  <div className="asset-picker-results">{matches.length===0?<div className="asset-picker-empty"><FolderOpen size={25}/><strong>No compatible files found</strong><span>{!source?'Create a project and add a compatible file first.':!source.assets?.length?'Add a compatible file to this project or choose another project.':'Change or clear your search, or choose another project.'}</span></div>:<div className="asset-picker-grid">{matches.map(asset=>{const overFileLimit=asset.size>maxBytes,overTotalLimit=asset.size>totalBytes,tooLarge=overFileLimit||overTotalLimit,active=selected.includes(asset.id),visual=['Images','Masks'].includes(asset.category),limitMessage=overFileLimit?`File is larger than the ${sizeLabel(maxBytes)} per-file limit.`:`File is larger than the ${sizeLabel(totalBytes)} total selection limit.`;return <button type="button" key={asset.id} className={'asset-picker-item '+(active?'selected':'')} aria-pressed={active} disabled={busy||tooLarge} onClick={()=>toggle(asset)} title={tooLarge?limitMessage:asset.id}><span className="asset-picker-thumb">{visual?<img src={asset.url} alt="" loading="lazy"/>:asset.category==='Audio'?<AudioLines size={29}/>:<File size={29}/>}<span className="asset-picker-format">{asset.name.split('.').pop().toUpperCase()}</span><span className="asset-picker-check">{active&&<Check size={15}/>}</span></span><span className="asset-picker-name">{asset.name}</span><small>{tooLarge?'Over size limit':sizeLabel(asset.size)} · {asset.id}</small></button>})}</div>}</div>
-  <footer className="asset-picker-footer"><div><strong>{selected.length} selected</strong><span>{maxFiles>1?`Up to ${maxFiles} files`:'Choose one file'}</span></div><button className="ghost-button" disabled={busy} onClick={onClose}>Cancel</button><button className="primary" disabled={busy||!chosen.length} onClick={useAssets}>{busy?'Loading…':selected.length===1?'Use file':'Use files'}</button></footer>{error&&<p className="asset-picker-error" role="alert">{error}</p>}
- </section></div>;
+const sizeLabel = (bytes) => `${(bytes / 1024 / 1024).toFixed(bytes >= 1024 * 1024 ? 1 : 2)} MiB`;
+export default function AssetPicker({
+  projects,
+  project,
+  extensions,
+  maxFiles = 1,
+  maxBytes = 10 * 1024 * 1024,
+  totalBytes = Infinity,
+  title = 'Choose from asset library',
+  description = 'Choose compatible files from the selected project.',
+  onSelect,
+  onClose,
+}) {
+  const [projectId, setProjectId] = useState(project?.id || projects[0]?.id || '');
+  const [query, setQuery] = useState(''),
+    [selected, setSelected] = useState([]),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState('');
+  const dialog = useDialogFocus({
+    onClose: () => {
+      if (!busyRef.current) {
+        closeRef.current();
+      }
+    },
+    initialFocus: '.asset-picker-close',
+  });
+  const abort = useRef(null),
+    closeRef = useRef(onClose),
+    busyRef = useRef(false);
+  closeRef.current = onClose;
+  busyRef.current = busy;
+  const source = projects.find((item) => item.id === projectId) || null;
+  const matches = useMemo(
+    () => compatibleAssets(source?.assets, extensions, query),
+    [source, extensions, query],
+  );
+  const chosen = selected
+    .map((id) => source?.assets.find((asset) => asset.id === id))
+    .filter(Boolean);
+  const selectedBytes = chosen.reduce((sum, asset) => sum + asset.size, 0);
+  useEffect(() => {
+    if (!projectId && projects.length) {
+      setProjectId(project?.id || projects[0].id);
+    }
+  }, [projectId, projects, project?.id]);
+  useEffect(() => () => abort.current?.abort(), []);
+  function toggle(asset) {
+    setError('');
+    if (selected.includes(asset.id)) {
+      setSelected((items) => items.filter((id) => id !== asset.id));
+      return;
+    }
+    if (maxFiles === 1) {
+      setSelected([asset.id]);
+      return;
+    }
+    if (selected.length >= maxFiles) {
+      setError(
+        `You can select up to ${maxFiles} files in total. Remove a selection to choose another.`,
+      );
+      return;
+    }
+    if (selectedBytes + asset.size > totalBytes) {
+      setError(
+        'The selected files exceed the combined size limit. Remove a file or choose a smaller one.',
+      );
+      return;
+    }
+    setSelected((items) => [...items, asset.id]);
+  }
+  async function useAssets() {
+    if (!source || !chosen.length) {
+      return;
+    }
+    setBusy(true);
+    setError('');
+    const controller = new AbortController();
+    abort.current = controller;
+    try {
+      const files = await readLibraryFiles(source, chosen, {
+        maxBytes,
+        totalBytes,
+        signal: controller.signal,
+      });
+      if (!controller.signal.aborted) {
+        onSelect(files);
+      }
+    } catch (reason) {
+      if (!controller.signal.aborted) {
+        setError(reason.message || 'Could not read the selected files.');
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setBusy(false);
+      }
+    }
+  }
+  return (
+    <div
+      className="modal-backdrop asset-picker-backdrop"
+      onClick={() => {
+        if (!busy) {
+          onClose();
+        }
+      }}
+    >
+      <section
+        ref={dialog}
+        className="asset-picker"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="asset-picker-title"
+        tabIndex={-1}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="asset-picker-header">
+          <div>
+            <h2 id="asset-picker-title">{title}</h2>
+            <p>{description}</p>
+          </div>
+          <button
+            className="icon-btn asset-picker-close"
+            aria-label="Close asset picker"
+            disabled={busy}
+            onClick={onClose}
+          >
+            <X size={20} />
+          </button>
+        </header>
+        <div className="asset-picker-controls">
+          <label>
+            Project
+            <select
+              value={projectId}
+              disabled={busy}
+              onChange={(event) => {
+                setProjectId(event.target.value);
+                setSelected([]);
+                setError('');
+              }}
+            >
+              {!projects.length && <option value="">No projects</option>}
+              {projects.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Search
+            <div className="asset-picker-search">
+              <Search size={16} />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search names or folders"
+                disabled={busy}
+              />
+            </div>
+          </label>
+        </div>
+        <div className="asset-picker-info">
+          <span>
+            {extensions.map((value) => value.toUpperCase()).join(' / ')} · {sizeLabel(maxBytes)} per
+            file{Number.isFinite(totalBytes) ? ` · ${sizeLabel(totalBytes)} total` : ''}
+          </span>
+          <span>
+            {matches.length} {matches.length === 1 ? 'file' : 'files'}
+          </span>
+        </div>
+        <div className="asset-picker-results">
+          {matches.length === 0 ? (
+            <div className="asset-picker-empty">
+              <FolderOpen size={25} />
+              <strong>No compatible files found</strong>
+              <span>
+                {!source
+                  ? 'Create a project and add a compatible file first.'
+                  : !source.assets?.length
+                    ? 'Add a compatible file to this project or choose another project.'
+                    : 'Change or clear your search, or choose another project.'}
+              </span>
+            </div>
+          ) : (
+            <div className="asset-picker-grid">
+              {matches.map((asset) => {
+                const overFileLimit = asset.size > maxBytes,
+                  overTotalLimit = asset.size > totalBytes,
+                  tooLarge = overFileLimit || overTotalLimit,
+                  active = selected.includes(asset.id),
+                  visual = ['Images', 'Masks'].includes(asset.category),
+                  limitMessage = overFileLimit
+                    ? `File is larger than the ${sizeLabel(maxBytes)} per-file limit.`
+                    : `File is larger than the ${sizeLabel(totalBytes)} total selection limit.`;
+                return (
+                  <button
+                    type="button"
+                    key={asset.id}
+                    className={'asset-picker-item ' + (active ? 'selected' : '')}
+                    aria-pressed={active}
+                    disabled={busy || tooLarge}
+                    onClick={() => toggle(asset)}
+                    title={tooLarge ? limitMessage : asset.id}
+                  >
+                    <span className="asset-picker-thumb">
+                      {visual ? (
+                        <img src={asset.url} alt="" loading="lazy" />
+                      ) : asset.category === 'Audio' ? (
+                        <AudioLines size={29} />
+                      ) : (
+                        <File size={29} />
+                      )}
+                      <span className="asset-picker-format">
+                        {asset.name.split('.').pop().toUpperCase()}
+                      </span>
+                      <span className="asset-picker-check">{active && <Check size={15} />}</span>
+                    </span>
+                    <span className="asset-picker-name">{asset.name}</span>
+                    <small>
+                      {tooLarge ? 'Over size limit' : sizeLabel(asset.size)} · {asset.id}
+                    </small>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <footer className="asset-picker-footer">
+          <div>
+            <strong>{selected.length} selected</strong>
+            <span>{maxFiles > 1 ? `Up to ${maxFiles} files` : 'Choose one file'}</span>
+          </div>
+          <button className="ghost-button" disabled={busy} onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primary" disabled={busy || !chosen.length} onClick={useAssets}>
+            {busy ? 'Loading…' : selected.length === 1 ? 'Use file' : 'Use files'}
+          </button>
+        </footer>
+        {error && (
+          <p className="asset-picker-error" role="alert">
+            {error}
+          </p>
+        )}
+      </section>
+    </div>
+  );
 }

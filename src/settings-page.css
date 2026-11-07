@@ -1,4 +1,4 @@
-.settings-modal[aria-label="Studio settings"] {
+.settings-modal[aria-label='Studio settings'] {
   --settings-border: #654457;
   --settings-symbol-border: #63465a;
   --settings-symbol-surface: #392235;
@@ -6,62 +6,100 @@
   --settings-status-text: #e6d4dc;
 }
 /* Studio settings only. Memory and model access dialogs retain their own treatment. */
-.settings-modal[aria-label="Studio settings"] {
+.settings-modal[aria-label='Studio settings'] {
   width: min(680px, 100%);
   max-height: min(88dvh, 900px);
   padding: clamp(var(--forge-space-value-26), 2.4vw, var(--forge-space-value-34));
   border-color: var(--settings-border);
   background: var(--forge-raised);
 }
-.settings-modal[aria-label="Studio settings"] .settings-head h2 {
-  font: 600 27px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  letter-spacing: -.025em;
+.settings-modal[aria-label='Studio settings'] .settings-head h2 {
+  font:
+    600 27px/1.2 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  letter-spacing: -0.025em;
 }
-.settings-modal[aria-label="Studio settings"] .settings-head p,
-.settings-modal[aria-label="Studio settings"] .settings-title p {
+.settings-modal[aria-label='Studio settings'] .settings-head p,
+.settings-modal[aria-label='Studio settings'] .settings-title p {
   max-width: 58ch;
   color: var(--forge-muted);
   font-size: var(--forge-font-support);
   line-height: 1.55;
 }
-.settings-modal[aria-label="Studio settings"] .settings-section {
+.settings-modal[aria-label='Studio settings'] .settings-section {
   border-color: var(--forge-border);
   padding-top: var(--forge-space-value-22);
   margin-top: var(--forge-space-value-22);
 }
-.settings-modal[aria-label="Studio settings"] .settings-title { align-items: center; }
-.settings-modal[aria-label="Studio settings"] .settings-title strong { font-size: var(--forge-font-lead); }
-.settings-modal[aria-label="Studio settings"] .settings-symbol {
-  width: 42px; height: 42px; border: 1px solid var(--settings-symbol-border); background: var(--settings-symbol-surface); color: var(--settings-symbol-text);
+.settings-modal[aria-label='Studio settings'] .settings-title {
+  align-items: center;
 }
-.settings-modal[aria-label="Studio settings"] .settings-status,
-.settings-modal[aria-label="Studio settings"] .settings-hint,
-.settings-modal[aria-label="Studio settings"] .settings-error {
+.settings-modal[aria-label='Studio settings'] .settings-title strong {
+  font-size: var(--forge-font-lead);
+}
+.settings-modal[aria-label='Studio settings'] .settings-symbol {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--settings-symbol-border);
+  background: var(--settings-symbol-surface);
+  color: var(--settings-symbol-text);
+}
+.settings-modal[aria-label='Studio settings'] .settings-status,
+.settings-modal[aria-label='Studio settings'] .settings-hint,
+.settings-modal[aria-label='Studio settings'] .settings-error {
   margin-left: 55px;
   font-size: var(--forge-font-support);
   line-height: 1.55;
 }
-.settings-modal[aria-label="Studio settings"] .settings-status { color: var(--settings-status-text); }
-.settings-modal[aria-label="Studio settings"] .settings-hint { color: var(--forge-subtle); }
-.settings-modal[aria-label="Studio settings"] .switch { width: 46px; height: 26px; }
-.settings-modal[aria-label="Studio settings"] .switch span { width: 20px; height: 20px; }
-.settings-modal[aria-label="Studio settings"] .switch.on span { transform: translateX(20px); }
-.settings-modal[aria-label="Studio settings"] :is(button, input, a):focus-visible {
+.settings-modal[aria-label='Studio settings'] .settings-status {
+  color: var(--settings-status-text);
+}
+.settings-modal[aria-label='Studio settings'] .settings-hint {
+  color: var(--forge-subtle);
+}
+.settings-modal[aria-label='Studio settings'] .switch {
+  width: 46px;
+  height: 26px;
+}
+.settings-modal[aria-label='Studio settings'] .switch span {
+  width: 20px;
+  height: 20px;
+}
+.settings-modal[aria-label='Studio settings'] .switch.on span {
+  transform: translateX(20px);
+}
+.settings-modal[aria-label='Studio settings'] :is(button, input, a):focus-visible {
   outline: 2px solid var(--forge-focus);
   outline-offset: 3px;
 }
 @media (min-width: 851px) {
-  .settings-modal[aria-label="Studio settings"] :is(button, input, a):focus-visible {
-  outline: 3px solid var(--forge-focus);
-  outline-offset: 3px;
+  .settings-modal[aria-label='Studio settings'] :is(button, input, a):focus-visible {
+    outline: 3px solid var(--forge-focus);
+    outline-offset: 3px;
   }
-  .settings-modal[aria-label="Studio settings"] .setting-check { min-height: 42px; font-size: var(--forge-font-support); }
-  .settings-modal[aria-label="Studio settings"] .setting-check input { width: 18px; height: 18px; }
-  .settings-modal[aria-label="Studio settings"] .settings-enable { min-height: 44px; font-size: var(--forge-font-support); }
+  .settings-modal[aria-label='Studio settings'] .setting-check {
+    min-height: 42px;
+    font-size: var(--forge-font-support);
+  }
+  .settings-modal[aria-label='Studio settings'] .setting-check input {
+    width: 18px;
+    height: 18px;
+  }
+  .settings-modal[aria-label='Studio settings'] .settings-enable {
+    min-height: 44px;
+    font-size: var(--forge-font-support);
+  }
 }
 @media (max-width: 600px) {
-  .settings-modal[aria-label="Studio settings"] { width: 100%; padding: var(--forge-space-value-22) var(--forge-space-4-5); }
-  .settings-modal[aria-label="Studio settings"] .settings-status,
-  .settings-modal[aria-label="Studio settings"] .settings-hint,
-  .settings-modal[aria-label="Studio settings"] .settings-error { margin-left: 0; }
+  .settings-modal[aria-label='Studio settings'] {
+    width: 100%;
+    padding: var(--forge-space-value-22) var(--forge-space-4-5);
+  }
+  .settings-modal[aria-label='Studio settings'] .settings-status,
+  .settings-modal[aria-label='Studio settings'] .settings-hint,
+  .settings-modal[aria-label='Studio settings'] .settings-error {
+    margin-left: 0;
+  }
 }

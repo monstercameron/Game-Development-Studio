@@ -17,7 +17,11 @@
   padding: var(--forge-space-3-5) var(--forge-space-4, var(--forge-space-4));
   border: 1px solid var(--model-plaque-edge, #785567);
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--model-plaque-surface-tone-1, #311a2a), var(--model-plaque-surface-tone-2, #24111e));
+  background: linear-gradient(
+    135deg,
+    var(--model-plaque-surface-tone-1, #311a2a),
+    var(--model-plaque-surface-tone-2, #24111e)
+  );
 }
 .model-plaque .model-plaque-icon {
   display: grid;
@@ -28,11 +32,25 @@
   border: 1px solid var(--model-plaque-icon-edge, #81586b);
   border-radius: 12px;
   color: var(--model-plaque-icon-ink, #ffc0a6);
-  background: linear-gradient(145deg, var(--model-plaque-icon-surface-tone-1, #663648), var(--model-plaque-icon-surface-tone-2, #442434));
+  background: linear-gradient(
+    145deg,
+    var(--model-plaque-icon-surface-tone-1, #663648),
+    var(--model-plaque-icon-surface-tone-2, #442434)
+  );
 }
-.editor-title .model-plaque .model-plaque-copy { min-width: 0; }
-.model-plaque .model-plaque-copy small { font-size: var(--forge-font-size-12); font-weight: 700; letter-spacing: .08em; }
-.model-plaque .model-plaque-copy strong { margin-top: var(--forge-space-1, var(--forge-space-1)); font-size: var(--forge-font-lead); line-height: 1.3; }
+.editor-title .model-plaque .model-plaque-copy {
+  min-width: 0;
+}
+.model-plaque .model-plaque-copy small {
+  font-size: var(--forge-font-size-12);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.model-plaque .model-plaque-copy strong {
+  margin-top: var(--forge-space-1, var(--forge-space-1));
+  font-size: var(--forge-font-lead);
+  line-height: 1.3;
+}
 .model-plaque .model-plaque-memory {
   display: flex;
   align-items: center;
@@ -42,23 +60,71 @@
   font-size: var(--forge-font-caption);
   line-height: 1.35;
 }
-.model-plaque .model-plaque-memory svg { flex: none; color: var(--model-plaque-memory-icon-ink, #f0a98e); }
-.editor-title .model-plaque { gap:var(--forge-space-3); padding:var(--forge-space-3) var(--forge-space-4); border-color:var(--forge-border); border-radius:var(--forge-radius-md); background:var(--forge-surface); }
-.model-plaque .model-plaque-icon { border-color:var(--forge-border); border-radius:var(--forge-radius-sm); background:var(--forge-raised); color:var(--forge-orange-hover); }
-.model-plaque .model-plaque-copy small { color:var(--forge-muted); font-size:var(--forge-font-support); line-height:1.35; letter-spacing:.035em; }
-.model-plaque .model-plaque-copy strong { color:var(--forge-text); font-size:var(--forge-font-size-17); overflow-wrap:anywhere; }
-.model-plaque .model-plaque-memory { color:var(--forge-muted); font-size:var(--forge-font-support); }
-.model-plaque .model-plaque-memory svg { color:var(--forge-orange-hover); }
-.model-plaque .model-plaque-icon svg { display:block; }
-.model-plaque .integration-badge { font-size:var(--forge-font-support); }
+.model-plaque .model-plaque-memory svg {
+  flex: none;
+  color: var(--model-plaque-memory-icon-ink, #f0a98e);
+}
+.editor-title .model-plaque {
+  gap: var(--forge-space-3);
+  padding: var(--forge-space-3) var(--forge-space-4);
+  border-color: var(--forge-border);
+  border-radius: var(--forge-radius-md);
+  background: var(--forge-surface);
+}
+.model-plaque .model-plaque-icon {
+  border-color: var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-raised);
+  color: var(--forge-orange-hover);
+}
+.model-plaque .model-plaque-copy small {
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+  line-height: 1.35;
+  letter-spacing: 0.035em;
+}
+.model-plaque .model-plaque-copy strong {
+  color: var(--forge-text);
+  font-size: var(--forge-font-size-17);
+  overflow-wrap: anywhere;
+}
+.model-plaque .model-plaque-memory {
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+}
+.model-plaque .model-plaque-memory svg {
+  color: var(--forge-orange-hover);
+}
+.model-plaque .model-plaque-icon svg {
+  display: block;
+}
+.model-plaque .integration-badge {
+  font-size: var(--forge-font-support);
+}
 @media (min-width: 701px) and (max-width: 1100px) {
-  .model-plaque .integration-badge { display: none; }
+  .model-plaque .integration-badge {
+    display: none;
+  }
 }
 @media (max-width: 550px) {
-  .editor-title .model-plaque { display: flex; width: 100%; gap: var(--forge-space-2-5); padding: var(--forge-space-3, var(--forge-space-3)); }
-  .model-plaque .model-plaque-icon { flex-basis: 42px; width: 42px; height: 42px; }
-  .model-plaque .integration-badge { margin-left: auto; font-size: var(--forge-font-size-11); }
+  .editor-title .model-plaque {
+    display: flex;
+    width: 100%;
+    gap: var(--forge-space-2-5);
+    padding: var(--forge-space-3, var(--forge-space-3));
+  }
+  .model-plaque .model-plaque-icon {
+    flex-basis: 42px;
+    width: 42px;
+    height: 42px;
+  }
+  .model-plaque .integration-badge {
+    margin-left: auto;
+    font-size: var(--forge-font-size-11);
+  }
 }
 @media (max-width: 370px) {
-  .model-plaque .integration-badge { display: none; }
+  .model-plaque .integration-badge {
+    display: none;
+  }
 }

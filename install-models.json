@@ -20,9 +20,7 @@
           "repo": "city96/FLUX.1-dev-gguf",
           "revision": "3c60ac659f4b1f2ab3ca8bd4488272069b36a148",
           "destination": "worldgen",
-          "files": [
-            "flux1-dev-Q5_0.gguf"
-          ],
+          "files": ["flux1-dev-Q5_0.gguf"],
           "sha256File": "flux1-dev-Q5_0.gguf",
           "sha256": "9712851188b107594f695d8069d2d9326cbc355441d1035dc390fda530555c3c"
         },
@@ -30,9 +28,7 @@
           "repo": "second-state/FLUX.1-Fill-dev-GGUF",
           "revision": "f4370bf5aedfa33a5776cdf1b92cc492b48cdcff",
           "destination": "worldgen",
-          "files": [
-            "flux1-fill-dev-Q5_0.gguf"
-          ],
+          "files": ["flux1-fill-dev-Q5_0.gguf"],
           "sha256File": "flux1-fill-dev-Q5_0.gguf",
           "sha256": "a472135796c2eeb42419339b78c8be7649961383c7f804ecee090919d1a00184"
         }
@@ -52,9 +48,7 @@
           "repo": "tencent/HY-World-2.0",
           "revision": "d78a16c91c7a56488894a1c8de4f5c7cc28aa8b0",
           "destination": "hy-world",
-          "include": [
-            "HY-WorldMirror-2.0/*"
-          ],
+          "include": ["HY-WorldMirror-2.0/*"],
           "sha256File": "HY-WorldMirror-2.0/model.safetensors",
           "sha256": "9fff06539d3d9e85338d7de1ffb5afffb7739fa5bf4d62b4b7c319b5ecdde54f"
         }
@@ -93,11 +87,7 @@
           "repo": "facebook/dinov3-vitl16-pretrain-lvd1689m",
           "revision": "ea8dc2863c51be0a264bab82070e3e8836b02d51",
           "destination": "dinov3-vitl16-pretrain-lvd1689m",
-          "files": [
-            "config.json",
-            "model.safetensors",
-            "preprocessor_config.json"
-          ],
+          "files": ["config.json", "model.safetensors", "preprocessor_config.json"],
           "sha256File": "model.safetensors",
           "sha256": "dcb2e45127cccbf1601e5f42fef165eea275c8e5213197e8dcf3f48822718179"
         },
@@ -177,11 +167,7 @@
           "repo": "tencent/HY-Motion-1.0",
           "revision": "620dd559f8d964aac2f82f1204fe6a35ad8ad14d",
           "destination": "HY-Motion",
-          "include": [
-            "HY-Motion-1.0/*",
-            "LICENSE.txt",
-            "README.md"
-          ],
+          "include": ["HY-Motion-1.0/*", "LICENSE.txt", "README.md"],
           "sha256File": "HY-Motion-1.0/latest.ckpt",
           "sha256": "4fa91c6085f30c49bccda150b28d6c8d0887dc07e6d5d4ec0055482732635f10"
         },
@@ -189,24 +175,13 @@
           "repo": "openai/clip-vit-large-patch14",
           "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41",
           "destination": "HY-Motion/clip-vit-large-patch14",
-          "include": [
-            "*.json",
-            "*.txt",
-            "*.safetensors",
-            "README.md"
-          ]
+          "include": ["*.json", "*.txt", "*.safetensors", "README.md"]
         },
         {
           "repo": "Qwen/Qwen3-8B",
           "revision": "b968826d9c46dd6066d109eabc6255188de91218",
           "destination": "HY-Motion/Qwen3-8B",
-          "include": [
-            "*.json",
-            "*.txt",
-            "*.safetensors",
-            "LICENSE",
-            "README.md"
-          ]
+          "include": ["*.json", "*.txt", "*.safetensors", "LICENSE", "README.md"]
         }
       ]
     },
@@ -224,9 +199,7 @@
           "repo": "nvidia/MotionBricks",
           "revision": "3cb362d9b95aa40462abcb4d8cfae9ffb6d97410",
           "destination": "MotionBricks/checkpoints",
-          "include": [
-            "soma/*"
-          ]
+          "include": ["soma/*"]
         }
       ]
     },
@@ -244,10 +217,7 @@
           "repo": "leejet/MiniMax-H3-GGUF",
           "revision": "d9c4c6312b4728a68a15a35626d84775a6523783",
           "destination": "h3-gguf",
-          "files": [
-            "minimax_h3_ref2va_pruned-Q4_K_M.gguf",
-            "qwen3vl_32b_minimax_h3-Q4_K_M.gguf"
-          ]
+          "files": ["minimax_h3_ref2va_pruned-Q4_K_M.gguf", "qwen3vl_32b_minimax_h3-Q4_K_M.gguf"]
         }
       ]
     },
@@ -288,13 +258,7 @@
           "repo": "stabilityai/stable-audio-3-medium",
           "revision": "d4d3579395a8ac0df4ab13b5b1d7138ce7290f81",
           "destination": "stable-audio-3-medium",
-          "include": [
-            "*.json",
-            "*.safetensors",
-            "*.model",
-            "*.md",
-            "NOTICE"
-          ]
+          "include": ["*.json", "*.safetensors", "*.model", "*.md", "NOTICE"]
         }
       ]
     },
@@ -312,13 +276,7 @@
           "repo": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
           "revision": "0c0e3051f131929182e2c023b9537f8b1c68adfe",
           "destination": "Qwen3-TTS-12Hz-1.7B-CustomVoice",
-          "include": [
-            "*.json",
-            "*.txt",
-            "*.safetensors",
-            "speech_tokenizer/*",
-            "README.md"
-          ],
+          "include": ["*.json", "*.txt", "*.safetensors", "speech_tokenizer/*", "README.md"],
           "sha256File": "model.safetensors",
           "sha256": "38b1d5971bdbd982b561cccec982669a53b0537c3cf5e9bd4778ed07bb2f5137"
         }
@@ -338,9 +296,7 @@
           "repo": "nvidia/nemotron-speech-streaming-en-0.6b",
           "revision": "ebe59e5a817142986528bbbee5dba8db7b38ed50",
           "destination": "nemotron-speech-streaming-en-0.6b",
-          "files": [
-            "nemotron-speech-streaming-en-0.6b.q8_0.gguf"
-          ],
+          "files": ["nemotron-speech-streaming-en-0.6b.q8_0.gguf"],
           "sha256File": "nemotron-speech-streaming-en-0.6b.q8_0.gguf",
           "sha256": "d9a01898d2a611c8764e23a1c2f45e70bbd5a425dc4de93692ac951dd603812d"
         }
@@ -361,9 +317,7 @@
           "repo": "facebook/sam3.1",
           "revision": "daa63191845a41281374e725f4c9e51c7a824460",
           "destination": "sam3.1",
-          "files": [
-            "sam3.1_multiplex.pt"
-          ],
+          "files": ["sam3.1_multiplex.pt"],
           "sha256File": "sam3.1_multiplex.pt",
           "sha256": "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6"
         }
@@ -372,9 +326,7 @@
     {
       "id": "game",
       "name": "Mammoth-1",
-      "sources": [
-        "https://huggingface.co/magnitudedev/mammoth-1-GGUF"
-      ],
+      "sources": ["https://huggingface.co/magnitudedev/mammoth-1-GGUF"],
       "destination": "Desktop/Mammoth Studio/models/mammoth-q4km",
       "notes": "Stages Q4_K_M weights. The separate Mammoth Studio environment is required.",
       "downloads": [
@@ -382,9 +334,7 @@
           "repo": "magnitudedev/mammoth-1-GGUF",
           "revision": "c2b9023c674bf456347b793e845f6fabd39720ad",
           "destination": "mammoth-q4km",
-          "files": [
-            "mammoth-1-Q4_K_M.gguf"
-          ],
+          "files": ["mammoth-1-Q4_K_M.gguf"],
           "sha256File": "mammoth-1-Q4_K_M.gguf",
           "sha256": "e453b42c2160e60e9d71b8f6554f8a8fc9ecb9c91cb1c639eec87d63e4bc2e68"
         }
@@ -404,9 +354,7 @@
           "repo": "lmstudio-community/Qwen3.8-27B-GGUF",
           "revision": "5a7da681f60570ab5b439a587e912d2e5eddb582",
           "destination": "Qwen3.8-27B-GGUF",
-          "files": [
-            "Qwen3.8-27B-Q4_K_M.gguf"
-          ]
+          "files": ["Qwen3.8-27B-Q4_K_M.gguf"]
         }
       ]
     }

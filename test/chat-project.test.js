@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chatProjectKey, chatStorageKey} from '../src/chat-project.js';
+import { chatProjectKey, chatStorageKey } from '../src/chat-project.js';
 
 test('chat component identity and browser storage share project scope', () => {
   const projectIds = ['project-a', 'project-b'];

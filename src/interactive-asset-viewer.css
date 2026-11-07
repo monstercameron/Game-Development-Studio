@@ -5,9 +5,17 @@
   min-height: 230px;
   background: var(--forge-bg);
 }
-.inspection-inline-placeholder { width: 100%; height: 100%; min-height: 230px; background: var(--forge-bg); }
+.inspection-inline-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 230px;
+  background: var(--forge-bg);
+}
 .interactive-asset-viewer > .model-preview,
-.interactive-asset-viewer > .motion-preview { height: 100%; min-height: 230px; }
+.interactive-asset-viewer > .motion-preview {
+  height: 100%;
+  min-height: 230px;
+}
 
 .inspection-expand,
 .inspection-close {
@@ -24,11 +32,23 @@
   font-size: var(--forge-font-support);
   font-weight: 600;
 }
-.inspection-expand { position: absolute; z-index: 4; left: 16px; bottom: 16px; box-shadow: var(--forge-shadow-overlay); }
+.inspection-expand {
+  position: absolute;
+  z-index: 4;
+  left: 16px;
+  bottom: 16px;
+  box-shadow: var(--forge-shadow-overlay);
+}
 .inspection-expand:hover,
-.inspection-close:hover { background: var(--forge-raised); border-color: var(--forge-orange); }
+.inspection-close:hover {
+  background: var(--forge-raised);
+  border-color: var(--forge-orange);
+}
 .inspection-expand:focus-visible,
-.inspection-close:focus-visible { outline: 2px solid var(--forge-focus); outline-offset: 3px; }
+.inspection-close:focus-visible {
+  outline: 3px solid var(--forge-focus);
+  outline-offset: 3px;
+}
 
 .inspection-backdrop {
   position: fixed;
@@ -36,7 +56,8 @@
   inset: 0;
   display: grid;
   place-items: center;
-  padding: clamp(var(--forge-space-4-5), 4vh, var(--forge-space-value-48)) clamp(var(--forge-space-value-22), 5vw, var(--forge-space-value-72));
+  padding: clamp(var(--forge-space-4-5), 4vh, var(--forge-space-value-48))
+    clamp(var(--forge-space-value-22), 5vw, var(--forge-space-value-72));
   background: rgb(9 3 8 / 88%);
   backdrop-filter: blur(10px);
 }
@@ -62,8 +83,13 @@
   padding: var(--forge-space-4-5) var(--forge-space-value-26);
   border-bottom: 1px solid var(--forge-border);
 }
-.inspection-header > div { min-width: 0; }
-.inspection-label { color: var(--forge-orange-hover); font-size: var(--forge-font-support); }
+.inspection-header > div {
+  min-width: 0;
+}
+.inspection-label {
+  color: var(--forge-orange-hover);
+  font-size: var(--forge-font-support);
+}
 .inspection-header h2 {
   max-width: min(76ch, 70vw);
   overflow: hidden;
@@ -74,7 +100,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.inspection-close { flex: 0 0 auto; }
+.inspection-close {
+  flex: 0 0 auto;
+}
 .inspection-stage {
   position: relative;
   min-height: 0;
@@ -83,8 +111,15 @@
 }
 .inspection-stage > .model-preview,
 .inspection-stage > .motion-preview,
-.inspection-stage .model-preview { width: 100%; height: 100%; min-height: 0; }
-.inspection-stage .model-preview-message { min-height: 100%; font-size: var(--forge-font-body); }
+.inspection-stage .model-preview {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.inspection-stage .model-preview-message {
+  min-height: 100%;
+  font-size: var(--forge-font-body);
+}
 .inspection-footer {
   margin: 0;
   padding: var(--forge-space-3-5) var(--forge-space-5, var(--forge-space-5));
@@ -95,13 +130,33 @@
 }
 
 @media (min-width: 1600px) {
-  .inspection-dialog { width: min(1760px, 100%); }
-  .inspection-header { padding: var(--forge-space-5, var(--forge-space-5)) var(--forge-space-6, var(--forge-space-6)); }
-  .inspection-footer { padding: var(--forge-space-4, var(--forge-space-4)) var(--forge-space-6, var(--forge-space-6)); }
+  .inspection-dialog {
+    width: min(1760px, 100%);
+  }
+  .inspection-header {
+    padding: var(--forge-space-5, var(--forge-space-5)) var(--forge-space-6, var(--forge-space-6));
+  }
+  .inspection-footer {
+    padding: var(--forge-space-4, var(--forge-space-4)) var(--forge-space-6, var(--forge-space-6));
+  }
+}
+@media (min-width: 2200px) {
+  .inspection-dialog {
+    width: min(2100px, 100%);
+    height: min(1100px, 100%);
+  }
 }
 @media (max-height: 600px) {
-  .inspection-backdrop { padding-block: var(--forge-space-3); }
-  .inspection-dialog { min-height: 0; }
-  .inspection-header { padding-block: var(--forge-space-3); }
-  .inspection-footer { padding-block: var(--forge-space-value-9); }
+  .inspection-backdrop {
+    padding-block: var(--forge-space-3);
+  }
+  .inspection-dialog {
+    min-height: 0;
+  }
+  .inspection-header {
+    padding-block: var(--forge-space-3);
+  }
+  .inspection-footer {
+    padding-block: var(--forge-space-value-9);
+  }
 }

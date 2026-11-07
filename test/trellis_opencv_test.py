@@ -1,4 +1,5 @@
 """Verify the native ARM64 image-processing build used for texture export."""
+
 import cv2
 import numpy as np
 
@@ -9,4 +10,4 @@ image[4, 4] = 0
 result = cv2.inpaint(image, mask, 2, cv2.INPAINT_TELEA)
 assert result.shape == image.shape
 np.testing.assert_array_less(np.abs(result[4, 4].astype(int) - np.array([42, 127, 210])), 2)
-print(f'OpenCV {cv2.__version__} ARM64 texture inpainting passed.')
+print(f"OpenCV {cv2.__version__} ARM64 texture inpainting passed.")

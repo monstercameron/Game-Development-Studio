@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {checkJsonSyntax, isStructuredJsonFormat, safeChatMarkdownHref} from '../src/chat-output.js';
+import {
+  checkJsonSyntax,
+  isStructuredJsonFormat,
+  safeChatMarkdownHref,
+} from '../src/chat-output.js';
 
 test('structured JSON formats are identified without treating text as JSON', () => {
   assert.equal(isStructuredJsonFormat('json'), true);

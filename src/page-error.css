@@ -1,3 +1,15 @@
-.page-error-actions { display: flex; flex-wrap: wrap; gap: var(--forge-space-3); margin-top: var(--forge-space-4); }
-.page-error-actions .outline-button { width: auto; min-height: var(--forge-control-height); padding-inline: var(--forge-space-4); }
-.page-error .game-result { font-size: var(--forge-font-support); line-height: 1.55; }
+.page-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--forge-space-3);
+  margin-top: var(--forge-space-4);
+}
+.page-error-actions .outline-button {
+  width: auto;
+  min-height: var(--forge-control-height);
+  padding-inline: var(--forge-space-4);
+}
+.page-error .game-result {
+  font-size: var(--forge-font-support);
+  line-height: 1.55;
+}

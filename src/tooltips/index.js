@@ -14,4 +14,20 @@ import assets from './pages/assets';
 import models from './pages/models';
 import diagnostics from './pages/diagnostics';
 
-export default {common,overview,chat,images,'3d':threeD,motion,video,music,sfx,voices,segmentation,game,assets,models,diagnostics};
+export default {
+  common,
+  overview,
+  chat,
+  images,
+  '3d': threeD,
+  motion,
+  video,
+  music,
+  sfx,
+  voices,
+  segmentation,
+  game,
+  assets,
+  models,
+  diagnostics,
+};

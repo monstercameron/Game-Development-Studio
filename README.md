@@ -88,20 +88,20 @@ Pass a port as the first argument to both scripts if needed, for example `./star
 
 ## What works today
 
-| Capability | Current state |
-| --- | --- |
-| Studio navigation | Available. Browse the panels and use your browser's Back and Forward buttons to revisit them. |
-| Projects | Available. Create a project and its folders on disk; switch projects from the interface. |
-| Asset library | Available for sample assets and supported files found in project folders. Search, filter, sort, preview, download, and copy paths. |
-| Diagnostics | Available. Inspect local server metadata and stream available logs. |
-| Keep computer awake | Available on Windows while the studio server is running. |
-| Notifications | Permission, preferences, and a test notification are available. The open studio page observes real render completion and can notify you. |
-| Render queue | Durable sequential image, music, sound-effects, video, voice, Hunyuan shape, SAM segmentation, HY-Motion, and MotionBricks jobs save results to the project. Forge starts workers on demand and checks available memory before loading or rendering. Stable Audio requires Hugging Face model access. |
-| Game decisions | Mammoth-1 requests can be sent from the game-logic panel, HTTP API, or MCP. A real request through Forge has been verified. Forge can also start its own guarded Mammoth worker after a GPU memory check. |
-| Other creation panels | Preview only. Saved items are browser drafts, not render jobs. |
-| Model management | The studio reports GPU memory, managed model file sizes, and observed engine status. It can start services, load models after a memory check, stop supported idle services, and permanently remove stopped Forge-managed model folders. Some models remain in their original applications. |
-| Asset ratings, keep, and delete | Project ratings and keep status are saved in the project. Deletion moves a file to project trash; restore it from the asset library or confirm clearing the trash to permanently remove it. Rename preserves ratings and the link to render history. Sample ratings are browser-local. |
-| Render and queue estimates | The header shows current render and queue timing on every page. Creation panels show render time, queue wait, and the combined estimate. Exact matches use completed jobs; nearby settings can provide a clearly labeled rough estimate. Unknown preparation, memory waits, and interrupted jobs are not presented as definite finish times. |
+| Capability                      | Current state                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Studio navigation               | Available. Browse the panels and use your browser's Back and Forward buttons to revisit them.                                                                                                                                                                                                                                                |
+| Projects                        | Available. Create a project and its folders on disk; switch projects from the interface.                                                                                                                                                                                                                                                     |
+| Asset library                   | Available for sample assets and supported files found in project folders. Search, filter, sort, preview, download, and copy paths.                                                                                                                                                                                                           |
+| Diagnostics                     | Available. Inspect local server metadata and stream available logs.                                                                                                                                                                                                                                                                          |
+| Keep computer awake             | Available on Windows while the studio server is running.                                                                                                                                                                                                                                                                                     |
+| Notifications                   | Permission, preferences, and a test notification are available. The open studio page observes real render completion and can notify you.                                                                                                                                                                                                     |
+| Render queue                    | Durable sequential image, music, sound-effects, video, voice, Hunyuan shape, SAM segmentation, HY-Motion, and MotionBricks jobs save results to the project. Forge starts workers on demand and checks available memory before loading or rendering. Stable Audio requires Hugging Face model access.                                        |
+| Game decisions                  | Mammoth-1 requests can be sent from the game-logic panel, HTTP API, or MCP. A real request through Forge has been verified. Forge can also start its own guarded Mammoth worker after a GPU memory check.                                                                                                                                    |
+| Other creation panels           | Preview only. Saved items are browser drafts, not render jobs.                                                                                                                                                                                                                                                                               |
+| Model management                | The studio reports GPU memory, managed model file sizes, and observed engine status. It can start services, load models after a memory check, stop supported idle services, and permanently remove stopped Forge-managed model folders. Some models remain in their original applications.                                                   |
+| Asset ratings, keep, and delete | Project ratings and keep status are saved in the project. Deletion moves a file to project trash; restore it from the asset library or confirm clearing the trash to permanently remove it. Rename preserves ratings and the link to render history. Sample ratings are browser-local.                                                       |
+| Render and queue estimates      | The header shows current render and queue timing on every page. Creation panels show render time, queue wait, and the combined estimate. Exact matches use completed jobs; nearby settings can provide a clearly labeled rough estimate. Unknown preparation, memory waits, and interrupted jobs are not presented as definite finish times. |
 
 ## Using the studio
 
@@ -151,17 +151,17 @@ Use the settings control to request browser notification permission, send a test
 
 These are the workflows represented in the interface. **Listing a model here does not mean it is installed, running, or integrated.** Availability, licensing, hardware requirements, and Windows on Arm support need to be verified for each integration.
 
-| Studio area | Models or services represented | Intended use |
-| --- | --- | --- |
-| Images | Qwen Image 2.1 | Image and concept creation |
-| 3D models | TRELLIS.2, Hunyuan3D 2.1 | Hunyuan untextured shape generation works; TRELLIS.2 and texturing remain previews |
-| Character rigging & motion | HY-Motion 1.0, NVIDIA MotionBricks | Experimental HY-Motion text-to-BVH and MotionBricks SOMA BVH transitions; automatic rigging and retargeting are not connected |
-| Video | MiniMax H3 | Video generation |
-| Music | YuE2 | Music creation |
-| Sound effects | Stable Audio 3 | Sound generation |
-| Voices | Qwen3-TTS, NVIDIA Nemotron ASR Streaming | Preset-voice speech generation plus local streaming transcription API |
-| Segmentation | SAM 3.1 | Image segmentation |
-| Game logic | Mammoth-1 | A Jev-style decision service |
+| Studio area                | Models or services represented           | Intended use                                                                                                                  |
+| -------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Images                     | Qwen Image 2.1                           | Image and concept creation                                                                                                    |
+| 3D models                  | TRELLIS.2, Hunyuan3D 2.1                 | Hunyuan untextured shape generation works; TRELLIS.2 and texturing remain previews                                            |
+| Character rigging & motion | HY-Motion 1.0, NVIDIA MotionBricks       | Experimental HY-Motion text-to-BVH and MotionBricks SOMA BVH transitions; automatic rigging and retargeting are not connected |
+| Video                      | MiniMax H3                               | Video generation                                                                                                              |
+| Music                      | YuE2                                     | Music creation                                                                                                                |
+| Sound effects              | Stable Audio 3                           | Sound generation                                                                                                              |
+| Voices                     | Qwen3-TTS, NVIDIA Nemotron ASR Streaming | Preset-voice speech generation plus local streaming transcription API                                                         |
+| Segmentation               | SAM 3.1                                  | Image segmentation                                                                                                            |
+| Game logic                 | Mammoth-1                                | A Jev-style decision service                                                                                                  |
 
 The central storage location is `models/` inside the studio folder. TRELLIS.2 and its supporting encoder and decoder, Qwen3-TTS CustomVoice, Nemotron ASR, Hunyuan shape, HY-Motion, MotionBricks, and SAM checkpoints are stored there. The model-management page measures managed model file sizes asynchronously, without following links. The total also includes the separate SAM 3 checkpoint. File sizes are estimates of content, not guaranteed reclaimed disk space. Other existing model files remain in their original applications. See [model sources and restoration](docs/MODEL_SOURCES.md) for exact repositories, recorded revisions, representative hashes, and download steps.
 
@@ -219,56 +219,56 @@ Use the panel to filter or pause the stream and copy relevant output. The server
 
 For local inspection, the server exposes:
 
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/diagnostics` | Server metadata and known service reachability |
-| `GET /api/logs` | Recent log snapshot; accepts an optional `source` query parameter |
-| `GET /api/logs/stream` | Live log stream using server-sent events |
-| `GET /api/projects` | Project and indexed asset listing |
-| `GET /api/projects/:id/asset?path=...` | A project asset by its URL-encoded relative path |
-| `POST /api/projects/:id/assets/metadata` | Update an asset’s keep status or rating |
-| `POST /api/projects/:id/assets/trash` | Move an asset to the project’s recoverable trash |
-| `GET /api/projects/:id/assets/trash` | List recoverable trash items and warnings |
-| `POST /api/projects/:id/assets/restore` | Restore a trashed asset without overwriting an existing file |
-| `POST /api/projects/:id/assets/clear-trash` | Permanently remove valid trash items with explicit confirmation |
-| `GET /api/power` | Current keep-awake state |
-| `GET /api/runtime/health` | Supervised runtime process status |
-| `GET /api/runtime/hardware` | NVIDIA GPU memory snapshot and project volume free space when available |
-| `GET /api/runtime/services` | Observed engine status and planned services |
-| `GET /api/runtime/jobs` | Durable render jobs |
-| `GET /api/runtime/jobs/:id` | One render job |
-| `POST /api/projects/:id/references` | Stage a raw PNG, JPEG, or WebP image or video reference in the project |
-| `POST /api/projects/:id/references/from-asset` | Snapshot a project image asset as an image or video reference |
-| `POST /api/projects/:id/assets/rename` | Rename an indexed project asset in place, retaining its extension and metadata |
-| `POST /api/runtime/jobs` | Queue an image, music, sound-effects, video, voice, Hunyuan shape, SAM segmentation, HY-Motion, or MotionBricks job |
-| `POST /api/runtime/game/decide` | Send a structured decision to Mammoth-1 |
-| `POST /api/runtime/models/game/load` | Start and request a managed Mammoth model load after checking memory |
-| `POST /api/runtime/models/game/clear-load-barrier` | Clear a stuck Mammoth load barrier after confirming it is not loading |
-| `POST /api/runtime/estimate` | Estimate a render using completed jobs with matching settings |
-| `POST /api/runtime/models/music/load` | Check GPU memory and request YuE2 model loading in the running service |
-| `POST /api/runtime/models/music/clear-load-barrier` | Clear a stuck model-load barrier after explicit confirmation that YuE2 is not loading or queued to load |
-| `POST /api/runtime/models/sfx/load` | Check GPU memory and request Stable Audio loading; the optional token is never stored in the queue |
-| `POST /api/runtime/models/sfx/clear-load-barrier` | Clear a stuck Stable Audio load barrier only after explicit confirmation that it is not loading |
-| `POST /api/runtime/models/segmentation/load` | Check GPU and host memory and load the running SAM worker |
-| `POST /api/runtime/models/segmentation/clear-load-barrier` | Clear a stuck SAM barrier after verifying it is not loading |
-| `POST /api/runtime/models/3d-hunyuan/load` | Check GPU and host memory and load the running Hunyuan shape worker |
-| `POST /api/runtime/models/3d-hunyuan/clear-load-barrier` | Clear a stuck Hunyuan barrier after verifying it is not loading |
-| `POST /api/runtime/models/motion-hy/load` | Check GPU and host memory and load the HY-Motion worker |
-| `POST /api/runtime/models/motion-hy/clear-load-barrier` | Clear a stuck HY-Motion barrier after verifying it is not loading |
-| `POST /api/runtime/models/asr/load` | Check GPU memory and start Nemotron ASR with its model |
-| `POST /api/runtime/models/asr/clear-load-barrier` | Clear a stuck ASR load barrier after explicitly checking the worker is not loading |
-| `GET /api/runtime/model-storage` | Report the scan state, paths and measured sizes of Forge-managed model folders |
-| `POST /api/runtime/models/:id/remove` | Permanently remove a supported, stopped Forge-managed model; requires `{"confirmation":"permanently-delete-model"}`. Set `retry: true` to retry a failed staged cleanup. |
-| `POST /api/runtime/asr/transcribe` | Transcribe a WAV asset within a selected project |
-| `POST /api/projects/:id/assets/create-text` | Save a transcript, chat reply, or structured decision in the project |
-| `WS /api/asr/realtime` | Live PCM16 transcription with partial and final results |
-| `POST /api/runtime/models/tts/load` | Check GPU memory and request Qwen3-TTS model loading |
-| `POST /api/runtime/models/tts/clear-load-barrier` | Clear a stuck speech-model barrier after checking it is not loading |
-| `POST /api/runtime/engines/start-all` | Start connected engine services without loading models; ASR remains on demand |
-| `POST /api/runtime/models/:id/offload` | Stop a supported, idle service owned by the current runtime (`images`, `music`, `sfx`, `tts`, `3d-hunyuan`, `segmentation`, `motion-hy`, `motion-bricks`, `asr`, or `game`) |
-| `POST /api/runtime/jobs/:id/cancel` | Cancel a job that has not been submitted |
-| `POST /api/runtime/jobs/:id/retry` | Retry a failed job, reusing its engine job when known |
-| `POST /api/runtime/jobs/:id/resolve` | Resolve an interrupted job after checking the remote engine |
+| Endpoint                                                   | Purpose                                                                                                                                                                     |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/diagnostics`                                     | Server metadata and known service reachability                                                                                                                              |
+| `GET /api/logs`                                            | Recent log snapshot; accepts an optional `source` query parameter                                                                                                           |
+| `GET /api/logs/stream`                                     | Live log stream using server-sent events                                                                                                                                    |
+| `GET /api/projects`                                        | Project and indexed asset listing                                                                                                                                           |
+| `GET /api/projects/:id/asset?path=...`                     | A project asset by its URL-encoded relative path                                                                                                                            |
+| `POST /api/projects/:id/assets/metadata`                   | Update an asset’s keep status or rating                                                                                                                                     |
+| `POST /api/projects/:id/assets/trash`                      | Move an asset to the project’s recoverable trash                                                                                                                            |
+| `GET /api/projects/:id/assets/trash`                       | List recoverable trash items and warnings                                                                                                                                   |
+| `POST /api/projects/:id/assets/restore`                    | Restore a trashed asset without overwriting an existing file                                                                                                                |
+| `POST /api/projects/:id/assets/clear-trash`                | Permanently remove valid trash items with explicit confirmation                                                                                                             |
+| `GET /api/power`                                           | Current keep-awake state                                                                                                                                                    |
+| `GET /api/runtime/health`                                  | Supervised runtime process status                                                                                                                                           |
+| `GET /api/runtime/hardware`                                | NVIDIA GPU memory snapshot and project volume free space when available                                                                                                     |
+| `GET /api/runtime/services`                                | Observed engine status and planned services                                                                                                                                 |
+| `GET /api/runtime/jobs`                                    | Durable render jobs                                                                                                                                                         |
+| `GET /api/runtime/jobs/:id`                                | One render job                                                                                                                                                              |
+| `POST /api/projects/:id/references`                        | Stage a raw PNG, JPEG, or WebP image or video reference in the project                                                                                                      |
+| `POST /api/projects/:id/references/from-asset`             | Snapshot a project image asset as an image or video reference                                                                                                               |
+| `POST /api/projects/:id/assets/rename`                     | Rename an indexed project asset in place, retaining its extension and metadata                                                                                              |
+| `POST /api/runtime/jobs`                                   | Queue an image, music, sound-effects, video, voice, Hunyuan shape, SAM segmentation, HY-Motion, or MotionBricks job                                                         |
+| `POST /api/runtime/game/decide`                            | Send a structured decision to Mammoth-1                                                                                                                                     |
+| `POST /api/runtime/models/game/load`                       | Start and request a managed Mammoth model load after checking memory                                                                                                        |
+| `POST /api/runtime/models/game/clear-load-barrier`         | Clear a stuck Mammoth load barrier after confirming it is not loading                                                                                                       |
+| `POST /api/runtime/estimate`                               | Estimate a render using completed jobs with matching settings                                                                                                               |
+| `POST /api/runtime/models/music/load`                      | Check GPU memory and request YuE2 model loading in the running service                                                                                                      |
+| `POST /api/runtime/models/music/clear-load-barrier`        | Clear a stuck model-load barrier after explicit confirmation that YuE2 is not loading or queued to load                                                                     |
+| `POST /api/runtime/models/sfx/load`                        | Check GPU memory and request Stable Audio loading; the optional token is never stored in the queue                                                                          |
+| `POST /api/runtime/models/sfx/clear-load-barrier`          | Clear a stuck Stable Audio load barrier only after explicit confirmation that it is not loading                                                                             |
+| `POST /api/runtime/models/segmentation/load`               | Check GPU and host memory and load the running SAM worker                                                                                                                   |
+| `POST /api/runtime/models/segmentation/clear-load-barrier` | Clear a stuck SAM barrier after verifying it is not loading                                                                                                                 |
+| `POST /api/runtime/models/3d-hunyuan/load`                 | Check GPU and host memory and load the running Hunyuan shape worker                                                                                                         |
+| `POST /api/runtime/models/3d-hunyuan/clear-load-barrier`   | Clear a stuck Hunyuan barrier after verifying it is not loading                                                                                                             |
+| `POST /api/runtime/models/motion-hy/load`                  | Check GPU and host memory and load the HY-Motion worker                                                                                                                     |
+| `POST /api/runtime/models/motion-hy/clear-load-barrier`    | Clear a stuck HY-Motion barrier after verifying it is not loading                                                                                                           |
+| `POST /api/runtime/models/asr/load`                        | Check GPU memory and start Nemotron ASR with its model                                                                                                                      |
+| `POST /api/runtime/models/asr/clear-load-barrier`          | Clear a stuck ASR load barrier after explicitly checking the worker is not loading                                                                                          |
+| `GET /api/runtime/model-storage`                           | Report the scan state, paths and measured sizes of Forge-managed model folders                                                                                              |
+| `POST /api/runtime/models/:id/remove`                      | Permanently remove a supported, stopped Forge-managed model; requires `{"confirmation":"permanently-delete-model"}`. Set `retry: true` to retry a failed staged cleanup.    |
+| `POST /api/runtime/asr/transcribe`                         | Transcribe a WAV asset within a selected project                                                                                                                            |
+| `POST /api/projects/:id/assets/create-text`                | Save a transcript, chat reply, or structured decision in the project                                                                                                        |
+| `WS /api/asr/realtime`                                     | Live PCM16 transcription with partial and final results                                                                                                                     |
+| `POST /api/runtime/models/tts/load`                        | Check GPU memory and request Qwen3-TTS model loading                                                                                                                        |
+| `POST /api/runtime/models/tts/clear-load-barrier`          | Clear a stuck speech-model barrier after checking it is not loading                                                                                                         |
+| `POST /api/runtime/engines/start-all`                      | Start connected engine services without loading models; ASR remains on demand                                                                                               |
+| `POST /api/runtime/models/:id/offload`                     | Stop a supported, idle service owned by the current runtime (`images`, `music`, `sfx`, `tts`, `3d-hunyuan`, `segmentation`, `motion-hy`, `motion-bricks`, `asr`, or `game`) |
+| `POST /api/runtime/jobs/:id/cancel`                        | Cancel a job that has not been submitted                                                                                                                                    |
+| `POST /api/runtime/jobs/:id/retry`                         | Retry a failed job, reusing its engine job when known                                                                                                                       |
+| `POST /api/runtime/jobs/:id/resolve`                       | Resolve an interrupted job after checking the remote engine                                                                                                                 |
 
 For example, in PowerShell:
 
@@ -345,18 +345,18 @@ The library, project covers, and recent-creation strips create thumbnails as vis
 
 Use **Full screen** on a 3D or motion preview in the library or a recent-creation panel to inspect it in a larger modal. Drag to rotate, use the on-screen controls to rotate or zoom, and pause or play motion. Close the modal with **Close** or Escape to return to the same asset.
 
-| Location | Purpose |
-| --- | --- |
-| `src/` | React interface, navigation, notifications, and client logging |
-| `projects.js` | Local project creation and asset discovery |
-| `diagnostics.js` | Server metadata and log streaming |
-| `server.js`, `runtime/http-server.js` | One supervised local service for the React app, HTTP API, and HTTP MCP |
-| `vite.config.js` | Development server with hot reload |
-| `runtime/` | Supervised runtime, GPU monitor worker thread, durable render queue, and MCP bridge |
-| `public/samples/` | Assets included for exploring the library |
-| `projects/` | Your project folders and manually added or future generated assets |
-| `.forge-runtime/` | Launcher state, server logs, and persistent render queue database |
-| `models/` | Forge-managed model checkpoints; other engines may use their existing locations |
+| Location                              | Purpose                                                                             |
+| ------------------------------------- | ----------------------------------------------------------------------------------- |
+| `src/`                                | React interface, navigation, notifications, and client logging                      |
+| `projects.js`                         | Local project creation and asset discovery                                          |
+| `diagnostics.js`                      | Server metadata and log streaming                                                   |
+| `server.js`, `runtime/http-server.js` | One supervised local service for the React app, HTTP API, and HTTP MCP              |
+| `vite.config.js`                      | Development server with hot reload                                                  |
+| `runtime/`                            | Supervised runtime, GPU monitor worker thread, durable render queue, and MCP bridge |
+| `public/samples/`                     | Assets included for exploring the library                                           |
+| `projects/`                           | Your project folders and manually added or future generated assets                  |
+| `.forge-runtime/`                     | Launcher state, server logs, and persistent render queue database                   |
+| `models/`                             | Forge-managed model checkpoints; other engines may use their existing locations     |
 
 Drafts, queue drafts, selected project, notification preferences, and preview ratings are stored in browser local storage. Clearing browser data or switching to a different browser or port can make those settings unavailable. Project files live on disk separately.
 

@@ -3,7 +3,9 @@ export function isStructuredJsonFormat(format) {
 }
 
 export function safeChatMarkdownHref(href) {
-  if (typeof href !== 'string') return undefined;
+  if (typeof href !== 'string') {
+    return undefined;
+  }
   try {
     const url = new URL(href);
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined;
@@ -13,8 +15,12 @@ export function safeChatMarkdownHref(href) {
 }
 
 export function checkJsonSyntax(content, streamStatus) {
-  if (streamStatus !== 'complete') return 'unchecked';
-  if (!content?.trim()) return 'empty';
+  if (streamStatus !== 'complete') {
+    return 'unchecked';
+  }
+  if (!content?.trim()) {
+    return 'empty';
+  }
   try {
     JSON.parse(content);
     return 'valid';

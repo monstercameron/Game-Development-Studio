@@ -1,24 +1,39 @@
 export default {
-  'Provider': 'Choose OpenAI or an OpenAI-compatible chat server. The local Qwen engine is exposed through the compatible-server option.',
-  'Server address': 'Base URL for your compatible server’s OpenAI-style API, such as http://127.0.0.1:8098/v1. Use localhost or a private IPv4 address.',
-  'Speculative decoding': 'Ask the local Qwen engine to use its MTP draft head to speed up generation. This applies only when Qwen starts; stop and restart the engine after changing it. Other compatible servers control their own decoding settings, and activation is not verified.',
-  'Context size': 'The maximum combined tokens for your instructions, conversation, reasoning, and output. Larger windows use more GPU memory. Changes apply when the local Qwen server next starts.',
-  'Max output': 'The most tokens the model may generate in one response, including reasoning where applicable. Your conversation and output must fit inside the context window.',
-  'OpenAI API key': 'Credential sent to OpenAI for requests. It stays in this page’s memory; you can instead set OPENAI_API_KEY on the studio server. Leave blank if that server variable is set.',
-  'Model ID': 'Model name or ID sent with each request. Refresh to list IDs reported by the selected server, or enter one manually. Supported features and parameter behavior vary by model and provider.',
-  'System instructions': 'Guidance included before the conversation on every request. It shapes the assistant’s role and response style.',
-  'Temperature': 'Controls randomness where the provider supports it. Lower values tend to be more consistent; higher values tend to vary more. Providers and reasoning models may handle or ignore it differently.',
-  'Maximum output tokens': 'Upper limit requested for the generated answer. The provider may count reasoning tokens toward the limit or enforce a lower model-specific cap.',
-  'Response': 'Choose ordinary text, JSON object mode, or a JSON Schema constrained response. Structured output support depends on the selected provider and model.',
-  'Text': 'Request a regular text response without a structured-output constraint.',
-  'JSON object': 'Ask the server for a valid JSON object. This does not define required fields, and support varies by provider and model.',
-  'Thinking': 'Choose whether and how much model reasoning to request. The local Qwen engine maps Low, Medium, and High to approximate token budgets; other providers may interpret these levels differently or ignore them.',
-  'Model default': 'Leave reasoning behavior to the selected model and server. No explicit thinking level is sent.',
-  'Off': 'Request reasoning off where supported. Other models or servers may ignore this setting.',
-  'Low': 'Request a low reasoning effort. On local Qwen this sets an approximate 256-token reasoning budget; other providers may interpret it differently.',
-  'Medium': 'Request a medium reasoning effort. On local Qwen this sets an approximate 768-token reasoning budget; other providers may interpret it differently.',
-  'High': 'Request a high reasoning effort. On local Qwen this sets an approximate 1,536-token reasoning budget; other providers may interpret it differently.',
-  'JSON schema': 'Select this format to constrain the response with a JSON Schema, then edit the schema here. The server requests strict schema mode; support and supported features vary by provider and model.',
-  'Message': 'Write a message for the assistant. Enter sends it; Shift + Enter starts a new line.',
+  Provider:
+    'Choose OpenAI or an OpenAI-compatible chat server. The local Qwen engine is exposed through the compatible-server option.',
+  'Server address':
+    'Base URL for your compatible server’s OpenAI-style API, such as http://127.0.0.1:8098/v1. Use localhost or a private IPv4 address.',
+  'Speculative decoding':
+    'Ask the local Qwen engine to use its MTP draft head to speed up generation. This applies only when Qwen starts; stop and restart the engine after changing it. Other compatible servers control their own decoding settings, and activation is not verified.',
+  'Context size':
+    'The maximum combined tokens for your instructions, conversation, reasoning, and output. Larger windows use more GPU memory. Changes apply when the local Qwen server next starts.',
+  'Max output':
+    'The most tokens the model may generate in one response, including reasoning where applicable. Your conversation and output must fit inside the context window.',
+  'OpenAI API key':
+    'Credential sent to OpenAI for requests. It stays in this page’s memory; you can instead set OPENAI_API_KEY on the studio server. Leave blank if that server variable is set.',
+  'Model ID':
+    'Model name or ID sent with each request. Refresh to list IDs reported by the selected server, or enter one manually. Supported features and parameter behavior vary by model and provider.',
+  'System instructions':
+    'Guidance included before the conversation on every request. It shapes the assistant’s role and response style.',
+  Temperature:
+    'Controls randomness where the provider supports it. Lower values tend to be more consistent; higher values tend to vary more. Providers and reasoning models may handle or ignore it differently.',
+  'Maximum output tokens':
+    'Upper limit requested for the generated answer. The provider may count reasoning tokens toward the limit or enforce a lower model-specific cap.',
+  Response:
+    'Choose ordinary text, JSON object mode, or a JSON Schema constrained response. Structured output support depends on the selected provider and model.',
+  Text: 'Request a regular text response without a structured-output constraint.',
+  'JSON object':
+    'Ask the server for a valid JSON object. This does not define required fields, and support varies by provider and model.',
+  Thinking:
+    'Choose whether and how much model reasoning to request. The local Qwen engine maps Low, Medium, and High to approximate token budgets; other providers may interpret these levels differently or ignore them.',
+  'Model default':
+    'Leave reasoning behavior to the selected model and server. No explicit thinking level is sent.',
+  Off: 'Request reasoning off where supported. Other models or servers may ignore this setting.',
+  Low: 'Request a low reasoning effort. On local Qwen this sets an approximate 256-token reasoning budget; other providers may interpret it differently.',
+  Medium:
+    'Request a medium reasoning effort. On local Qwen this sets an approximate 768-token reasoning budget; other providers may interpret it differently.',
+  High: 'Request a high reasoning effort. On local Qwen this sets an approximate 1,536-token reasoning budget; other providers may interpret it differently.',
+  'JSON schema':
+    'Select this format to constrain the response with a JSON Schema, then edit the schema here. The server requests strict schema mode; support and supported features vary by provider and model.',
+  Message: 'Write a message for the assistant. Enter sends it; Shift + Enter starts a new line.',
 };
-

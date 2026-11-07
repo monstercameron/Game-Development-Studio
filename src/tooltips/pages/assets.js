@@ -1,63 +1,81 @@
 const assets = {
-  'Choose collection': 'Choose a project to browse its files, or Sample collection to explore examples. Project actions apply only to the selected project.',
+  'Choose collection':
+    'Choose a project to browse its files, or Sample collection to explore examples. Project actions apply only to the selected project.',
   'Search assets': 'Search asset names, file paths, and file types in the current collection.',
   'Clear search': 'Remove the search text and show assets that match the other filters.',
-  'Sort assets': 'Choose whether assets appear newest first, oldest first, or alphabetically by name.',
+  'Sort assets':
+    'Choose whether assets appear newest first, oldest first, or alphabetically by name.',
   'Display layout': 'Choose a grid of previews or a compact list of assets.',
   'Grid view': 'Show assets as preview cards.',
   'List view': 'Show assets in a compact list.',
-  'Asset type': 'Filter the current collection by file category. Counts show how many assets are in each category.',
-  'All': 'Show every asset in the selected collection.',
-  'Images': 'Show image files in the selected collection.',
+  'Asset type':
+    'Filter the current collection by file category. Counts show how many assets are in each category.',
+  All: 'Show every asset in the selected collection.',
+  Images: 'Show image files in the selected collection.',
   '3D': 'Show 3D model files in the selected collection.',
-  'Video': 'Show video files in the selected collection.',
-  'Audio': 'Show audio files in the selected collection.',
-  'Masks': 'Show mask and segmentation image files in the selected collection.',
+  Video: 'Show video files in the selected collection.',
+  Audio: 'Show audio files in the selected collection.',
+  Masks: 'Show mask and segmentation image files in the selected collection.',
   'Show more': 'Load the next group of matching assets.',
   'Clear filters': 'Reset the search and asset type filter.',
   'New project': 'Create a project folder for generated and imported assets.',
   'Render queue': 'Open the queue to check render progress and manage jobs across projects.',
-  'View and manage renders across projects': 'Open the queue to check render progress and manage jobs across projects.',
+  'View and manage renders across projects':
+    'Open the queue to check render progress and manage jobs across projects.',
   'Refresh render queue': 'Reload the current render queue and its status.',
-  'Hide current rows': 'Hide the rows currently shown in this browser. Their renders continue running.',
+  'Hide current rows':
+    'Hide the rows currently shown in this browser. Their renders continue running.',
   'Show hidden': 'Show queue rows hidden in this browser.',
-  'Clear waiting renders…': 'Cancel eligible waiting renders across all projects. Running and uncertain jobs are kept.',
-  'Cancel': 'Cancel this render if it is still waiting or needs attention.',
-  'Retry': 'Add another attempt for this failed render.',
+  'Clear waiting renders…':
+    'Cancel eligible waiting renders across all projects. Running and uncertain jobs are kept.',
+  Cancel: 'Cancel this render if it is still waiting or needs attention.',
+  Retry: 'Add another attempt for this failed render.',
   'Free GPU memory': 'Open memory controls to free GPU memory for this render.',
-  'Review status…': 'Check the engine queue and history, then confirm here only if the render is no longer running.',
+  'Review status…':
+    'Check the engine queue and history, then confirm here only if the render is no longer running.',
   'Copy render error': 'Copy this render’s error details to the clipboard.',
   'Type CLEAR to confirm': 'Enter CLEAR to enable cancellation of all eligible waiting renders.',
-  'Cancel waiting renders': 'Cancel all eligible waiting renders across projects. This cannot cancel active or uncertain renders.',
-  'Project trash': 'Browse deleted files in this project. Restore files or permanently clear the trash.',
-  'Restore': 'Move this file from project trash back to its original location.',
-  'Clear trash…': 'Permanently delete every file currently in project trash. This cannot be undone.',
-  'Permanently delete trash': 'Permanently remove all trashed files from disk. This cannot be undone.',
+  'Cancel waiting renders':
+    'Cancel all eligible waiting renders across projects. This cannot cancel active or uncertain renders.',
+  'Project trash':
+    'Browse deleted files in this project. Restore files or permanently clear the trash.',
+  Restore: 'Move this file from project trash back to its original location.',
+  'Clear trash…':
+    'Permanently delete every file currently in project trash. This cannot be undone.',
+  'Permanently delete trash':
+    'Permanently remove all trashed files from disk. This cannot be undone.',
   'Close preview': 'Close the asset preview and return to the collection.',
   'Previous asset': 'Open the previous asset in the filtered results.',
   'Next asset': 'Open the next asset in the filtered results.',
-  'Download': 'Save a copy of this asset to your device.',
+  Download: 'Save a copy of this asset to your device.',
   'Copy file location': 'Copy this asset’s project file path.',
-  'Asset rating': 'Rate this asset from one to five stars. Ratings are saved with the project; sample ratings stay in this browser.',
+  'Asset rating':
+    'Rate this asset from one to five stars. Ratings are saved with the project; sample ratings stay in this browser.',
   'Rate 1 out of 5': 'Give this asset one star.',
   'Rate 2 out of 5': 'Give this asset two stars.',
   'Rate 3 out of 5': 'Give this asset three stars.',
   'Rate 4 out of 5': 'Give this asset four stars.',
   'Rate 5 out of 5': 'Give this asset five stars.',
-  'Clear': 'Remove the saved rating from this asset.',
-  'Convert': 'Create a converted copy beside the original. Available for project images, masks, and audio.',
-  'Rename': 'Change this project asset’s file name while keeping its extension. Sample files cannot be renamed.',
-  'Delete': 'Move this project asset to project trash, where it can be restored. Sample files cannot be deleted.',
-  'File name (keep its extension)': 'Enter a new name for this asset and keep its current file extension.',
+  Clear: 'Remove the saved rating from this asset.',
+  Convert:
+    'Create a converted copy beside the original. Available for project images, masks, and audio.',
+  Rename:
+    'Change this project asset’s file name while keeping its extension. Sample files cannot be renamed.',
+  Delete:
+    'Move this project asset to project trash, where it can be restored. Sample files cannot be deleted.',
+  'File name (keep its extension)':
+    'Enter a new name for this asset and keep its current file extension.',
   'Save name': 'Save the new asset name.',
   'Move to trash': 'Move this asset to project trash so it can be restored later.',
   'Convert asset': 'Choose settings for a converted copy. The original file stays in the project.',
   'Close converter': 'Close conversion settings without starting a conversion.',
-  'Output format': 'Choose the file type for the converted copy. Available formats depend on whether the asset is an image or audio.',
-  'JPEG quality': 'Set the JPEG compression quality. Higher values preserve more detail and create larger files.',
+  'Output format':
+    'Choose the file type for the converted copy. Available formats depend on whether the asset is an image or audio.',
+  'JPEG quality':
+    'Set the JPEG compression quality. Higher values preserve more detail and create larger files.',
   'Transparency background': 'Choose the color used where JPEG or BMP cannot keep transparency.',
   'Convert & save copy': 'Convert the asset and save the new file beside the original.',
-  'Close': 'Close the asset preview.',
+  Close: 'Close the asset preview.',
 };
 
 export default assets;

@@ -2,13 +2,27 @@
   width: min(640px, calc(100vw - 40px));
   max-width: 640px;
 }
-.model-remove-modal .settings-head > div { min-width: 0; }
-.model-remove-modal .settings-head h2 { line-height: 1.2; }
+.model-remove-modal .settings-head > div {
+  min-width: 0;
+}
+.model-remove-modal .settings-head h2 {
+  line-height: 1.2;
+}
 .model-remove-modal .settings-head p,
-.model-remove-modal .model-preview-explanation p { font-size: var(--forge-font-body); line-height: 1.6; }
-.model-remove-modal .model-remove-summary { padding: var(--forge-space-value-17); gap: var(--forge-space-value-15); }
-.model-remove-modal .model-remove-summary strong { font-size: var(--forge-font-size-17); }
-.model-remove-modal .model-remove-summary span { font-size: var(--forge-font-support); }
+.model-remove-modal .model-preview-explanation p {
+  font-size: var(--forge-font-body);
+  line-height: 1.6;
+}
+.model-remove-modal .model-remove-summary {
+  padding: var(--forge-space-value-17);
+  gap: var(--forge-space-value-15);
+}
+.model-remove-modal .model-remove-summary strong {
+  font-size: var(--forge-font-size-17);
+}
+.model-remove-modal .model-remove-summary span {
+  font-size: var(--forge-font-support);
+}
 .model-remove-modal .model-remove-details > div {
   align-items: flex-start;
   gap: var(--forge-space-5, var(--forge-space-5));
@@ -16,16 +30,47 @@
   font-size: var(--forge-font-support);
   line-height: 1.5;
 }
-.model-remove-modal .model-remove-details dt { color: var(--forge-muted); flex: 0 0 150px; }
-.model-remove-modal .model-remove-details dd { min-width: 0; }
-.model-remove-modal .model-preview-explanation { gap: var(--forge-space-3, var(--forge-space-3)); padding: var(--forge-space-4, var(--forge-space-4)); color: var(--forge-text); }
-.model-remove-modal .model-preview-explanation svg { color: var(--forge-focus); margin-top: var(--forge-space-0-5); }
-.model-remove-modal .project-dialog-actions { gap: var(--forge-space-2-5); flex-wrap: wrap; }
-.model-remove-modal .project-dialog-actions button { min-height: 44px; font-size: var(--forge-font-support); }
-.model-remove-modal :is(button, input, select):focus-visible { outline: 2px solid var(--forge-focus); outline-offset: 3px; }
-.model-remove-modal button:disabled { cursor: not-allowed; opacity: .58; }
+.model-remove-modal .model-remove-details dt {
+  color: var(--forge-muted);
+  flex: 0 0 150px;
+}
+.model-remove-modal .model-remove-details dd {
+  min-width: 0;
+}
+.model-remove-modal .model-preview-explanation {
+  gap: var(--forge-space-3, var(--forge-space-3));
+  padding: var(--forge-space-4, var(--forge-space-4));
+  color: var(--forge-text);
+}
+.model-remove-modal .model-preview-explanation svg {
+  color: var(--forge-focus);
+  margin-top: var(--forge-space-0-5);
+}
+.model-remove-modal .project-dialog-actions {
+  gap: var(--forge-space-2-5);
+  flex-wrap: wrap;
+}
+.model-remove-modal .project-dialog-actions button {
+  min-height: 44px;
+  font-size: var(--forge-font-support);
+}
+.model-remove-modal :is(button, input, select):focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 3px;
+}
+.model-remove-modal button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
 @media (max-width: 550px) {
-  .model-remove-modal { width: calc(100vw - 24px); }
-  .model-remove-modal .model-remove-details > div { flex-direction: column; gap: var(--forge-space-1, var(--forge-space-1)); }
-  .model-remove-modal .model-remove-details dt { flex-basis: auto; }
+  .model-remove-modal {
+    width: calc(100vw - 24px);
+  }
+  .model-remove-modal .model-remove-details > div {
+    flex-direction: column;
+    gap: var(--forge-space-1, var(--forge-space-1));
+  }
+  .model-remove-modal .model-remove-details dt {
+    flex-basis: auto;
+  }
 }

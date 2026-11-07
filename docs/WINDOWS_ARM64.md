@@ -12,18 +12,18 @@ The active model-load barrier and queue lease are persisted. A lost response can
 
 The checkouts below are in `.forge-runtime/` and ignored by Git in the studio repository. The commits were read from their local Git metadata. They do **not** include Forge's wrapper code in `runtime/`, and they do not describe every Python or CUDA package needed to reproduce the environment.
 
-| Local checkout | Upstream | Commit |
-| --- | --- | --- |
-| `hunyuan3d-src` | [Tencent-Hunyuan/Hunyuan3D-2.1](https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1) | `82920d643c0dc2f7bfd7255f45f62d386edfe60c` |
-| `hy-motion-src` | [Tencent-Hunyuan/HY-Motion-1.0](https://github.com/Tencent-Hunyuan/HY-Motion-1.0) | `4e426f5a1021cbcf7f375458c37b840ee7225229` |
-| `motionbricks-src` | [NVlabs/motionbricks](https://github.com/NVlabs/motionbricks) | `54fc563aeaaf819a753d72cc9fdc6713989cdd43` |
-| `sam3-src` | [facebookresearch/sam3](https://github.com/facebookresearch/sam3) | `f1647e8d0c1d280991f4d1b7d974c2704537fe66` |
-| `trellis2-src` | [microsoft/TRELLIS.2](https://github.com/microsoft/TRELLIS.2) | `75fbf0183001ed9876c8dbb35de6b68552ee08bd` |
-| `trellis2-CuMesh` | [JeffreyXiang/CuMesh](https://github.com/JeffreyXiang/CuMesh) | `12289e1062f0603f2f0d0771b02e1395d247f26f` |
-| `trellis2-FlexGEMM` | [JeffreyXiang/FlexGEMM](https://github.com/JeffreyXiang/FlexGEMM) | `6dd94a859c26ee8246888502eada3dd8ad85532e` |
-| `trellis2-nvdiffrast` | [NVlabs/nvdiffrast](https://github.com/NVlabs/nvdiffrast) | `253ac4fcea7de5f396371124af597e6cc957bfae` |
-| `trellis2-opencv-src` | [opencv/opencv](https://github.com/opencv/opencv) | `49486f61fb25722cbcf586b7f4320921d46fb38e` |
-| `trellis2-utils3d` | [EasternJournalist/utils3d](https://github.com/EasternJournalist/utils3d) | `9a4eb15e4021b67b12c460c7057d642626897ec8` |
+| Local checkout        | Upstream                                                                          | Commit                                     |
+| --------------------- | --------------------------------------------------------------------------------- | ------------------------------------------ |
+| `hunyuan3d-src`       | [Tencent-Hunyuan/Hunyuan3D-2.1](https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1) | `82920d643c0dc2f7bfd7255f45f62d386edfe60c` |
+| `hy-motion-src`       | [Tencent-Hunyuan/HY-Motion-1.0](https://github.com/Tencent-Hunyuan/HY-Motion-1.0) | `4e426f5a1021cbcf7f375458c37b840ee7225229` |
+| `motionbricks-src`    | [NVlabs/motionbricks](https://github.com/NVlabs/motionbricks)                     | `54fc563aeaaf819a753d72cc9fdc6713989cdd43` |
+| `sam3-src`            | [facebookresearch/sam3](https://github.com/facebookresearch/sam3)                 | `f1647e8d0c1d280991f4d1b7d974c2704537fe66` |
+| `trellis2-src`        | [microsoft/TRELLIS.2](https://github.com/microsoft/TRELLIS.2)                     | `75fbf0183001ed9876c8dbb35de6b68552ee08bd` |
+| `trellis2-CuMesh`     | [JeffreyXiang/CuMesh](https://github.com/JeffreyXiang/CuMesh)                     | `12289e1062f0603f2f0d0771b02e1395d247f26f` |
+| `trellis2-FlexGEMM`   | [JeffreyXiang/FlexGEMM](https://github.com/JeffreyXiang/FlexGEMM)                 | `6dd94a859c26ee8246888502eada3dd8ad85532e` |
+| `trellis2-nvdiffrast` | [NVlabs/nvdiffrast](https://github.com/NVlabs/nvdiffrast)                         | `253ac4fcea7de5f396371124af597e6cc957bfae` |
+| `trellis2-opencv-src` | [opencv/opencv](https://github.com/opencv/opencv)                                 | `49486f61fb25722cbcf586b7f4320921d46fb38e` |
+| `trellis2-utils3d`    | [EasternJournalist/utils3d](https://github.com/EasternJournalist/utils3d)         | `9a4eb15e4021b67b12c460c7057d642626897ec8` |
 
 TRELLIS.2's `o-voxel/third_party/eigen` is a Git submodule at `21e4582d1739107337a03460c81412981130373e`. A replacement checkout needs the matching submodule as well as the matching parent commit. The modified TRELLIS.2, CuMesh, and FlexGEMM source diffs are saved as `runtime/trellis-patches/trellis2.patch`, `cumesh.patch`, and `flexgemm.patch`. They are already applied to this machine's checkout. Apply them only to a separate clean checkout at the recorded commit, after checking with `git apply --check`; do not apply them twice or discard local changes.
 

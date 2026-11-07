@@ -1,25 +1,181 @@
-.model-service-actions{display:flex;align-items:center;gap:var(--forge-space-2, var(--forge-space-2));flex-wrap:wrap;flex:none}.model-service-actions .icon-outline{display:inline-flex;align-items:center;justify-content:center;gap:var(--forge-space-1-5);width:auto;min-height:38px;padding:0 var(--forge-space-2-5);white-space:nowrap}.model-service-actions .model-force-stop{color:var(--forge-focus);border-color:var(--forge-danger-border)}.model-service-actions .model-force-stop:hover{background:var(--forge-danger-surface-hover);border-color:var(--forge-danger)}.force-stop-backdrop{z-index:220}.force-stop-dialog{max-width:560px}.force-stop-dialog p{line-height:1.55;color:var(--forge-muted)}.force-stop-kicker{color:var(--forge-focus);font-weight:700;font-size:var(--forge-font-caption)}.force-stop-warning{display:flex;align-items:flex-start;gap:var(--forge-space-2-5);padding:var(--forge-space-3-5);border:1px solid var(--forge-danger-border);border-radius:9px;background:var(--forge-danger-surface);color:var(--forge-text-strong);line-height:1.5}.force-stop-warning svg{flex:none;margin-top:var(--forge-space-0-5);color:var(--forge-focus)}.force-stop-dialog .helper{color:var(--forge-muted)}.force-stop-confirm{display:inline-flex;align-items:center;justify-content:center;gap:var(--forge-space-2, var(--forge-space-2));min-height:42px;padding:var(--forge-space-value-9) var(--forge-space-4, var(--forge-space-4));border:1px solid var(--forge-danger);border-radius:8px;background:var(--forge-danger-action);color:var(--forge-text-strong);font:inherit;font-weight:700;cursor:pointer}.force-stop-confirm:hover{background:var(--forge-danger-action-hover)}.force-stop-confirm:focus-visible,.model-force-stop:focus-visible{outline:2px solid var(--forge-focus);outline-offset:3px}.force-stop-confirm:disabled{opacity:.65;cursor:wait}@media(min-width:551px) and (max-width:1150px){.model-entry:has(.model-service-actions){flex-wrap:wrap}.model-entry:has(.model-service-actions) .model-entry-path{display:none}.model-entry>.model-service-actions{margin-left:auto}}@media(max-width:550px){.model-entry>.model-service-actions{grid-column:2 / -1;grid-row:3;justify-content:flex-start}.force-stop-dialog{max-height:calc(100dvh - 24px);overflow:auto}.force-stop-dialog .project-dialog-actions{flex-wrap:wrap}}
+.model-service-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--forge-space-2, var(--forge-space-2));
+  flex-wrap: wrap;
+  flex: none;
+}
+.model-service-actions .icon-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--forge-space-1-5);
+  width: auto;
+  min-height: 38px;
+  padding: 0 var(--forge-space-2-5);
+  white-space: nowrap;
+}
+.model-service-actions .model-force-stop {
+  color: var(--forge-focus);
+  border-color: var(--forge-danger-border);
+}
+.model-service-actions .model-force-stop:hover {
+  background: var(--forge-danger-surface-hover);
+  border-color: var(--forge-danger);
+}
+.force-stop-backdrop {
+  z-index: 220;
+}
+.force-stop-dialog {
+  max-width: 560px;
+}
+.force-stop-dialog p {
+  line-height: 1.55;
+  color: var(--forge-muted);
+}
+.force-stop-kicker {
+  color: var(--forge-focus);
+  font-weight: 700;
+  font-size: var(--forge-font-caption);
+}
+.force-stop-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--forge-space-2-5);
+  padding: var(--forge-space-3-5);
+  border: 1px solid var(--forge-danger-border);
+  border-radius: 9px;
+  background: var(--forge-danger-surface);
+  color: var(--forge-text-strong);
+  line-height: 1.5;
+}
+.force-stop-warning svg {
+  flex: none;
+  margin-top: var(--forge-space-0-5);
+  color: var(--forge-focus);
+}
+.force-stop-dialog .helper {
+  color: var(--forge-muted);
+}
+.force-stop-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--forge-space-2, var(--forge-space-2));
+  min-height: 42px;
+  padding: var(--forge-space-value-9) var(--forge-space-4, var(--forge-space-4));
+  border: 1px solid var(--forge-danger);
+  border-radius: 8px;
+  background: var(--forge-danger-action);
+  color: var(--forge-text-strong);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.force-stop-confirm:hover {
+  background: var(--forge-danger-action-hover);
+}
+.force-stop-confirm:focus-visible,
+.model-force-stop:focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 3px;
+}
+.force-stop-confirm:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+@media (min-width: 551px) and (max-width: 1150px) {
+  .model-entry:has(.model-service-actions) {
+    flex-wrap: wrap;
+  }
+  .model-entry:has(.model-service-actions) .model-entry-path {
+    display: none;
+  }
+  .model-entry > .model-service-actions {
+    margin-left: auto;
+  }
+}
+@media (max-width: 550px) {
+  .model-entry > .model-service-actions {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    justify-content: flex-start;
+  }
+  .force-stop-dialog {
+    max-height: calc(100dvh - 24px);
+    overflow: auto;
+  }
+  .force-stop-dialog .project-dialog-actions {
+    flex-wrap: wrap;
+  }
+}
 .model-service-actions .icon-outline,
-.force-stop-confirm { min-height: 44px; font-size: var(--forge-font-support); }
-.force-stop-dialog { width: min(600px, calc(100vw - 40px)); max-width: 600px; }
-.force-stop-dialog .settings-head h2 { line-height: 1.2; }
+.force-stop-confirm {
+  min-height: 44px;
+  font-size: var(--forge-font-support);
+}
+.force-stop-dialog {
+  width: min(600px, calc(100vw - 40px));
+  max-width: 600px;
+}
+.force-stop-dialog .settings-head h2 {
+  line-height: 1.2;
+}
 .force-stop-dialog > p,
 .force-stop-dialog .force-stop-warning,
-.force-stop-dialog .helper { font-size: var(--forge-font-body); line-height: 1.6; }
-.force-stop-dialog .force-stop-kicker { font-size: var(--forge-font-support); }
-.force-stop-dialog .force-stop-warning { padding: var(--forge-space-4, var(--forge-space-4)); }
-.force-stop-dialog .project-dialog-actions { gap: var(--forge-space-2-5); }
-.force-stop-dialog .project-dialog-actions button { min-height: 44px; font-size: var(--forge-font-support); }
-.force-stop-dialog :is(button, input, select):focus-visible { outline: 2px solid var(--forge-focus); outline-offset: 3px; }
-@media (min-width: 851px) {
-  .force-stop-dialog :is(button, input, select):focus-visible { outline-width: 3px; }
+.force-stop-dialog .helper {
+  font-size: var(--forge-font-body);
+  line-height: 1.6;
 }
-@media (min-width:551px) {
-.settings-modal.force-stop-dialog { width: min(640px, 100%); max-width: 640px; max-height: min(88dvh, 700px); padding: clamp(var(--forge-space-5), 2.2vw, var(--forge-space-6)); overflow-y: auto; }
-.force-stop-dialog .settings-head { gap: var(--forge-space-value-22); }
-.force-stop-dialog .settings-head > div { min-width: 0; }
-.force-stop-dialog .settings-head h2 { font-size: var(--forge-font-size-26); overflow-wrap: anywhere; }
-.force-stop-dialog .force-stop-warning { gap: var(--forge-space-3, var(--forge-space-3)); padding: var(--forge-space-value-17) var(--forge-space-value-18); }
-.force-stop-dialog .project-dialog-actions { gap: var(--forge-space-3, var(--forge-space-3)); margin-top: var(--forge-space-5, var(--forge-space-5)); }
-.force-stop-dialog .project-dialog-actions button { min-height: 46px; }
+.force-stop-dialog .force-stop-kicker {
+  font-size: var(--forge-font-support);
+}
+.force-stop-dialog .force-stop-warning {
+  padding: var(--forge-space-4, var(--forge-space-4));
+}
+.force-stop-dialog .project-dialog-actions {
+  gap: var(--forge-space-2-5);
+}
+.force-stop-dialog .project-dialog-actions button {
+  min-height: 44px;
+  font-size: var(--forge-font-support);
+}
+.force-stop-dialog :is(button, input, select):focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 3px;
+}
+@media (min-width: 851px) {
+  .force-stop-dialog :is(button, input, select):focus-visible {
+    outline-width: 3px;
+  }
+}
+@media (min-width: 551px) {
+  .settings-modal.force-stop-dialog {
+    width: min(640px, 100%);
+    max-width: 640px;
+    max-height: min(88dvh, 700px);
+    padding: clamp(var(--forge-space-5), 2.2vw, var(--forge-space-6));
+    overflow-y: auto;
+  }
+  .force-stop-dialog .settings-head {
+    gap: var(--forge-space-value-22);
+  }
+  .force-stop-dialog .settings-head > div {
+    min-width: 0;
+  }
+  .force-stop-dialog .settings-head h2 {
+    font-size: var(--forge-font-size-26);
+    overflow-wrap: anywhere;
+  }
+  .force-stop-dialog .force-stop-warning {
+    gap: var(--forge-space-3, var(--forge-space-3));
+    padding: var(--forge-space-value-17) var(--forge-space-value-18);
+  }
+  .force-stop-dialog .project-dialog-actions {
+    gap: var(--forge-space-3, var(--forge-space-3));
+    margin-top: var(--forge-space-5, var(--forge-space-5));
+  }
+  .force-stop-dialog .project-dialog-actions button {
+    min-height: 46px;
+  }
 }

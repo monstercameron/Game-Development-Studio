@@ -12,7 +12,6 @@ export default [
       '.forge-runtime/**',
       '.venv-dev/**',
       'engines/**',
-      'test/fixtures/**',
     ],
   },
   {
@@ -46,5 +45,11 @@ export default [
   {
     files: ['test/**/*.{js,jsx,cjs,mjs}'],
     languageOptions: { globals: { ...globals.browser, ...globals.worker } },
+  },
+  {
+    files: ['public/pcm16-worklet.js'],
+    languageOptions: {
+      globals: { AudioWorkletProcessor: 'readonly', registerProcessor: 'readonly' },
+    },
   },
 ];

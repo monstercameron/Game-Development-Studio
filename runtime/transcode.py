@@ -1,12 +1,13 @@
 """Native Windows asset conversion. Writes a new file; never changes the input."""
+
 import json
-import os
 import sys
 import warnings
 
 
 def image(source, target, fmt, quality, background):
     from PIL import Image, ImageOps
+
     Image.MAX_IMAGE_PIXELS = 100_000_000
     with Image.open(source) as opened:
         opened.seek(0)
@@ -27,6 +28,7 @@ def image(source, target, fmt, quality, background):
                     import torch
                     from torchvision.io import encode_jpeg
                 import numpy as np
+
                 if torch.cuda.is_available():
                     pixels = np.array(picture.convert("RGB"), copy=True)
                     tensor = torch.from_numpy(pixels).permute(2, 0, 1).contiguous().to("cuda")
@@ -40,14 +42,24 @@ def image(source, target, fmt, quality, background):
         if fmt == "webp":
             options["lossless"] = True
             options.pop("quality", None)
-        picture.save(target, format={"jpeg": "JPEG", "png": "PNG", "webp": "WEBP", "bmp": "BMP", "tga": "TGA"}[fmt], **options)
+        picture.save(
+            target,
+            format={"jpeg": "JPEG", "png": "PNG", "webp": "WEBP", "bmp": "BMP", "tga": "TGA"}[fmt],
+            **options,
+        )
     return "CPU"
 
 
 def audio(source, target, fmt, quality):
     import soundfile as sf
-    specs = {"wav": ("WAV", "PCM_24"), "flac": ("FLAC", "PCM_24"),
-             "mp3": ("MP3", "MPEG_LAYER_III"), "ogg": ("OGG", "VORBIS"), "opus": ("OGG", "OPUS")}
+
+    specs = {
+        "wav": ("WAV", "PCM_24"),
+        "flac": ("FLAC", "PCM_24"),
+        "mp3": ("MP3", "MPEG_LAYER_III"),
+        "ogg": ("OGG", "VORBIS"),
+        "opus": ("OGG", "OPUS"),
+    }
     container, subtype = specs[fmt]
     with sf.SoundFile(source) as original:
         # libsndfile's Opus encoder accepts only Opus's supported sample rates.
@@ -56,6 +68,7 @@ def audio(source, target, fmt, quality):
             # Windowed-sinc low-pass resampling in bounded blocks. Avoids loading
             # an entire soundtrack in memory and filters when downsampling.
             import numpy as np
+
             count = len(original)
             if not count:
                 raise ValueError("The audio file is empty.")
@@ -63,10 +76,19 @@ def audio(source, target, fmt, quality):
             offsets = np.arange(-15, 17)
             window = np.kaiser(32, 8.0)
             cutoff = min(1.0, 48000 / rate)
-            with sf.SoundFile(target, "w", samplerate=48000, channels=original.channels,
-                              format=container, subtype=subtype, compression_level=1-quality/100) as output:
+            with sf.SoundFile(
+                target,
+                "w",
+                samplerate=48000,
+                channels=original.channels,
+                format=container,
+                subtype=subtype,
+                compression_level=1 - quality / 100,
+            ) as output:
                 for start in range(0, total, 8192):
-                    positions = np.arange(start, min(start + 8192, total), dtype=np.float64) * (rate / 48000)
+                    positions = np.arange(start, min(start + 8192, total), dtype=np.float64) * (
+                        rate / 48000
+                    )
                     indices = np.floor(positions).astype(np.int64)[:, None] + offsets
                     weights = np.sinc((positions[:, None] - indices) * cutoff) * window
                     weights /= weights.sum(axis=1, keepdims=True)
@@ -74,12 +96,23 @@ def audio(source, target, fmt, quality):
                     low, high = int(indices.min()), int(indices.max())
                     original.seek(low)
                     samples = original.read(high - low + 1, dtype="float32", always_2d=True)
-                    block = np.einsum('ij,ijk->ik', weights, samples[indices - low], optimize=True).astype('float32')
+                    block = np.einsum(
+                        "ij,ijk->ik", weights, samples[indices - low], optimize=True
+                    ).astype("float32")
                     output.write(block)
         else:
-            kwargs = {"compression_level": 1-quality/100} if fmt in ("mp3", "ogg", "opus") else {}
-            with sf.SoundFile(target, "w", samplerate=rate, channels=original.channels,
-                              format=container, subtype=subtype, **kwargs) as output:
+            kwargs = (
+                {"compression_level": 1 - quality / 100} if fmt in ("mp3", "ogg", "opus") else {}
+            )
+            with sf.SoundFile(
+                target,
+                "w",
+                samplerate=rate,
+                channels=original.channels,
+                format=container,
+                subtype=subtype,
+                **kwargs,
+            ) as output:
                 while True:
                     block = original.read(65536, dtype="float32", always_2d=True)
                     if len(block) == 0:
@@ -92,7 +125,13 @@ if __name__ == "__main__":
     try:
         config = json.loads(sys.stdin.read())
         if config["kind"] == "image":
-            backend = image(config["source"], config["target"], config["format"], config["quality"], config["background"])
+            backend = image(
+                config["source"],
+                config["target"],
+                config["format"],
+                config["quality"],
+                config["background"],
+            )
         else:
             backend = audio(config["source"], config["target"], config["format"], config["quality"])
         print(json.dumps({"backend": backend}))

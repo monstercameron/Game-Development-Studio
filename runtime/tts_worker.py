@@ -1,178 +1,292 @@
 """Isolated Qwen3-TTS worker; Forge owns queuing and project asset storage."""
+
 import argparse
 import hmac
+import json
+import logging
 import os
-from pathlib import Path
 import sys
 import threading
+import time
+import traceback
 import uuid
+from pathlib import Path
 
+import uvicorn
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-import uvicorn
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from worker_outputs import recovered_job
-from engine_identity import install_identity_endpoint
-MODEL = Path(os.environ.get('FORGE_TTS_MODEL', ROOT / 'models' / 'Qwen3-TTS-12Hz-1.7B-CustomVoice'))
-OUTPUTS = Path(os.environ.get('FORGE_RUNTIME_DIR', ROOT / '.forge-runtime')) / 'tts-outputs'
+# These imports must follow sys.path setup for the isolated embedded Python runtime.
+from engine_identity import install_identity_endpoint  # noqa: E402
+from worker_outputs import recovered_job  # noqa: E402
+
+MODEL = Path(os.environ.get("FORGE_TTS_MODEL", ROOT / "models" / "Qwen3-TTS-12Hz-1.7B-CustomVoice"))
+OUTPUTS = Path(os.environ.get("FORGE_RUNTIME_DIR", ROOT / ".forge-runtime")) / "tts-outputs"
 OUTPUTS.mkdir(parents=True, exist_ok=True)
-TOKEN = os.environ.get('FORGE_ENGINE_CONTROL_TOKEN', '')
-SPEAKERS = ('Ryan', 'Aiden', 'Vivian', 'Serena', 'Uncle_Fu', 'Dylan', 'Eric', 'Ono_Anna', 'Sohee')
-LANGUAGES = ('Auto', 'English', 'Chinese', 'Japanese', 'Korean', 'German', 'French', 'Russian', 'Portuguese', 'Spanish', 'Italian')
+TOKEN = os.environ.get("FORGE_ENGINE_CONTROL_TOKEN", "")
+SPEAKERS = ("Ryan", "Aiden", "Vivian", "Serena", "Uncle_Fu", "Dylan", "Eric", "Ono_Anna", "Sohee")
+LANGUAGES = (
+    "Auto",
+    "English",
+    "Chinese",
+    "Japanese",
+    "Korean",
+    "German",
+    "French",
+    "Russian",
+    "Portuguese",
+    "Spanish",
+    "Italian",
+)
 lock = threading.Lock()
-state = {'phase': 'idle', 'error': None, 'closing': False}
+state = {"phase": "idle", "error": None, "closing": False}
 jobs = {}
 model = None
 stop_timer = None
-app = FastAPI(title='Forge Qwen3-TTS worker')
-install_identity_endpoint(app, TOKEN, 'tts')
+app = FastAPI(title="Forge Qwen3-TTS worker")
+install_identity_endpoint(app, TOKEN, "tts")
+logger = logging.getLogger(__name__)
+
+
+def log_lifecycle(event, *, started_at, job_id=None, error=None):
+    """Write lifecycle metadata without including request content or error details."""
+    frames = []
+    if error is not None:
+        frames = [
+            {
+                "file": frame.filename.replace("\\", "/").rsplit("/", 1)[-1],
+                "function": frame.name,
+                "line": frame.lineno,
+            }
+            for frame in traceback.extract_tb(error.__traceback__)[-8:]
+        ]
+    fields = {
+        "engine": "forge-qwen3-tts-v1",
+        "event": event,
+        "job_id": job_id,
+        "elapsed_ms": round((time.perf_counter() - started_at) * 1000),
+        "exception_class": type(error).__name__ if error is not None else None,
+        "traceback_frames": frames,
+    }
+    logger.info(json.dumps(fields, separators=(",", ":")))
 
 
 def files_ready():
-    return all((MODEL / item).is_file() for item in ('config.json', 'model.safetensors', 'speech_tokenizer/config.json', 'speech_tokenizer/model.safetensors'))
+    return all(
+        (MODEL / item).is_file()
+        for item in (
+            "config.json",
+            "model.safetensors",
+            "speech_tokenizer/config.json",
+            "speech_tokenizer/model.safetensors",
+        )
+    )
 
 
 def load_worker():
     global model
+    started_at = time.perf_counter()
+    log_lifecycle("model_load_started", started_at=started_at)
     try:
         import torch
         from qwen_tts import Qwen3TTSModel
+
         if not torch.cuda.is_available():
-            raise RuntimeError('CUDA is unavailable in the configured speech runtime.')
-        loaded = Qwen3TTSModel.from_pretrained(str(MODEL), device_map='cuda:0', dtype=torch.bfloat16,
-                                              attn_implementation='eager', local_files_only=True)
+            raise RuntimeError("CUDA is unavailable in the configured speech runtime.")
+        loaded = Qwen3TTSModel.from_pretrained(
+            str(MODEL),
+            device_map="cuda:0",
+            dtype=torch.bfloat16,
+            attn_implementation="eager",
+            local_files_only=True,
+        )
         with lock:
             model = loaded
-            state.update(phase='ready', error=None)
+            state.update(phase="ready", error=None)
+        log_lifecycle("model_load_completed", started_at=started_at)
     except Exception as error:
         with lock:
-            state.update(phase='error', error=str(error)[:1500])
+            state.update(phase="error", error=str(error)[:1500])
+        log_lifecycle("model_load_failed", started_at=started_at, error=error)
 
 
 def render_worker(job_id, request):
+    temp = None
+    started_at = time.perf_counter()
+    log_lifecycle("generation_started", started_at=started_at, job_id=job_id)
     try:
         import soundfile as sf
+
         with lock:
-            jobs[job_id].update(status='running', message='Generating speech.')
-        wavs, sample_rate = model.generate_custom_voice(text=request.text, language=request.language,
-                                                        speaker=request.speaker, instruct=request.instruct,
-                                                        max_new_tokens=request.max_new_tokens)
+            jobs[job_id].update(status="running", message="Generating speech.")
+        wavs, sample_rate = model.generate_custom_voice(
+            text=request.text,
+            language=request.language,
+            speaker=request.speaker,
+            instruct=request.instruct,
+            max_new_tokens=request.max_new_tokens,
+        )
         if not wavs or len(wavs[0]) == 0:
-            raise RuntimeError('The speech model returned empty audio.')
-        temp = OUTPUTS / f'.{job_id}.part'
-        sf.write(str(temp), wavs[0], sample_rate, format='WAV')
-        os.replace(temp, OUTPUTS / f'{job_id}.wav')
+            raise RuntimeError("The speech model returned empty audio.")
+        temp = OUTPUTS / f".{job_id}.part"
+        sf.write(str(temp), wavs[0], sample_rate, format="WAV")
+        os.replace(temp, OUTPUTS / f"{job_id}.wav")
         with lock:
-            jobs[job_id].update(status='completed', message='Speech ready.')
-            state.update(phase='ready', error=None)
+            jobs[job_id].update(status="completed", message="Speech ready.")
+            state.update(phase="ready", error=None)
+        log_lifecycle("generation_completed", started_at=started_at, job_id=job_id)
     except Exception as error:
+        message = str(error)
+        if temp is not None:
+            try:
+                temp.unlink(missing_ok=True)
+            except OSError as cleanup_error:
+                message = f"{message} (could not remove partial audio: {cleanup_error})"
         with lock:
-            jobs[job_id].update(status='failed', message=str(error)[:1500])
-            state.update(phase='ready' if model is not None else 'error', error=None)
+            jobs[job_id].update(status="failed", message=message[:1500])
+            state.update(phase="ready" if model is not None else "error", error=None)
+        log_lifecycle("generation_failed", started_at=started_at, job_id=job_id, error=error)
 
 
 class SpeechRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
-    speaker: str = 'Ryan'
-    language: str = 'English'
-    instruct: str = Field(default='', max_length=500)
+    speaker: str = "Ryan"
+    language: str = "English"
+    instruct: str = Field(default="", max_length=500)
     max_new_tokens: int = Field(default=1024, ge=64, le=2048)
 
 
-@app.get('/api/status')
+@app.get("/api/status")
 def status():
     with lock:
-        return {'engine': 'forge-qwen3-tts-v1', 'phase': state['phase'], 'loaded': model is not None,
-                'model_downloaded': files_ready(), 'error': state['error']}
+        return {
+            "engine": "forge-qwen3-tts-v1",
+            "phase": state["phase"],
+            "loaded": model is not None,
+            "model_downloaded": files_ready(),
+            "error": state["error"],
+        }
 
 
-@app.post('/api/model/load', status_code=202)
+@app.post("/api/model/load", status_code=202)
 def load():
     with lock:
-        if state['closing']:
-            raise HTTPException(409, 'Speech worker is stopping.')
+        if state["closing"]:
+            raise HTTPException(409, "Speech worker is stopping.")
         if model is not None:
-            return {'message': 'Already loaded.'}
-        if state['phase'] == 'loading':
-            return {'message': 'Already loading.'}
-        if state['phase'] == 'generating':
-            raise HTTPException(409, 'Speech worker is busy.')
+            return {"message": "Already loaded."}
+        if state["phase"] == "loading":
+            return {"message": "Already loading."}
+        if state["phase"] == "generating":
+            raise HTTPException(409, "Speech worker is busy.")
         if not files_ready():
-            raise HTTPException(409, 'Speech model files are missing.')
-        state.update(phase='loading', error=None)
-        threading.Thread(target=load_worker, daemon=True).start()
-    return {'message': 'Loading started.'}
+            raise HTTPException(409, "Speech model files are missing.")
+        state.update(phase="loading", error=None)
+        try:
+            threading.Thread(target=load_worker, daemon=True).start()
+        except Exception as error:
+            state.update(phase="error", error=str(error)[:1500])
+            log_lifecycle("model_load_start_failed", started_at=time.perf_counter(), error=error)
+            raise HTTPException(500, "Could not start speech model loading.") from error
+    return {"message": "Loading started."}
 
 
-@app.post('/api/generate', status_code=202)
+@app.post("/api/generate", status_code=202)
 def generate(request: SpeechRequest):
-    if not request.text.strip() or request.speaker not in SPEAKERS or request.language not in LANGUAGES:
-        raise HTTPException(400, 'Invalid text, speaker, or language.')
+    if (
+        not request.text.strip()
+        or request.speaker not in SPEAKERS
+        or request.language not in LANGUAGES
+    ):
+        raise HTTPException(400, "Invalid text, speaker, or language.")
     with lock:
-        if state['closing'] or state['phase'] in ('loading', 'generating'):
-            raise HTTPException(409, 'Speech worker is busy.')
+        if state["closing"] or state["phase"] in ("loading", "generating"):
+            raise HTTPException(409, "Speech worker is busy.")
         if model is None:
-            raise HTTPException(409, 'Load the speech model first.')
+            raise HTTPException(409, "Load the speech model first.")
         job_id = uuid.uuid4().hex
-        jobs[job_id] = {'id': job_id, 'status': 'queued', 'message': 'Waiting for speech generation.'}
-        state.update(phase='generating', error=None)
-        threading.Thread(target=render_worker, args=(job_id, request), daemon=True).start()
-    return {'id': job_id}
+        jobs[job_id] = {
+            "id": job_id,
+            "status": "queued",
+            "message": "Waiting for speech generation.",
+        }
+        state.update(phase="generating", error=None)
+        try:
+            threading.Thread(
+                target=render_worker,
+                args=(job_id, request),
+                daemon=True,
+            ).start()
+        except Exception as error:
+            jobs[job_id].update(status="failed", message=str(error)[:1500])
+            state.update(phase="ready", error=None)
+            log_lifecycle(
+                "generation_start_failed",
+                started_at=time.perf_counter(),
+                job_id=job_id,
+                error=error,
+            )
+            raise HTTPException(500, "Could not start speech generation.") from error
+    return {"id": job_id}
 
 
-@app.get('/api/jobs/{job_id}')
+@app.get("/api/jobs/{job_id}")
 def job_status(job_id: str):
     with lock:
-        job = jobs.get(job_id) or recovered_job(OUTPUTS, job_id, 'wav', 'Recovered completed speech.')
+        job = jobs.get(job_id) or recovered_job(
+            OUTPUTS, job_id, "wav", "Recovered completed speech."
+        )
         if job is None:
-            raise HTTPException(404, 'Job not found.')
+            raise HTTPException(404, "Job not found.")
         return dict(job)
 
 
-@app.get('/api/jobs/{job_id}/audio')
+@app.get("/api/jobs/{job_id}/audio")
 def audio(job_id: str):
     with lock:
-        job = jobs.get(job_id) or recovered_job(OUTPUTS, job_id, 'wav', 'Recovered completed speech.')
-        if job is None or job['status'] != 'completed':
-            raise HTTPException(404, 'Audio not found.')
-    return FileResponse(OUTPUTS / f'{job_id}.wav', media_type='audio/wav')
+        job = jobs.get(job_id) or recovered_job(
+            OUTPUTS, job_id, "wav", "Recovered completed speech."
+        )
+        if job is None or job["status"] != "completed":
+            raise HTTPException(404, "Audio not found.")
+    return FileResponse(OUTPUTS / f"{job_id}.wav", media_type="audio/wav")
 
 
 def finish_stop():
     with lock:
-        if state['closing']:
+        if state["closing"]:
             os._exit(0)
 
 
-@app.post('/api/forge/{action}')
-def control(action: str, x_forge_engine_token: str = Header(default='')):
+@app.post("/api/forge/{action}")
+def control(action: str, x_forge_engine_token: str = Header(default="")):
     global stop_timer
     if not TOKEN or not hmac.compare_digest(TOKEN, x_forge_engine_token):
-        raise HTTPException(403, 'Forbidden.')
+        raise HTTPException(403, "Forbidden.")
     with lock:
-        if action == 'resume':
+        if action == "resume":
             if stop_timer:
                 stop_timer.cancel()
                 stop_timer = None
-            state['closing'] = False
-            return {'resumed': True}
-        if action != 'stop':
-            raise HTTPException(404, 'Not found.')
-        if state['phase'] in ('loading', 'generating'):
-            raise HTTPException(409, 'Speech worker has active work.')
-        state['closing'] = True
+            state["closing"] = False
+            return {"resumed": True}
+        if action != "stop":
+            raise HTTPException(404, "Not found.")
+        if state["phase"] in ("loading", "generating"):
+            raise HTTPException(409, "Speech worker has active work.")
+        state["closing"] = True
         if stop_timer is None:
             stop_timer = threading.Timer(1, finish_stop)
             stop_timer.daemon = True
             stop_timer.start()
-        return {'stopping': True}
+        return {"stopping": True}
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--port', type=int, required=True)
+    parser.add_argument("--port", type=int, required=True)
     args = parser.parse_args()
-    uvicorn.run(app, host='127.0.0.1', port=args.port, access_log=False)
+    uvicorn.run(app, host="127.0.0.1", port=args.port, access_log=False)

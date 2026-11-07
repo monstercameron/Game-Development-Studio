@@ -8,7 +8,12 @@
   overflow: hidden;
   background: var(--forge-surface, #1b0b17);
 }
-.asset-visual-thumbnail > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.asset-visual-thumbnail > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .asset-thumbnail-placeholder {
   display: flex;
   width: 100%;
@@ -21,8 +26,20 @@
   color: var(--forge-text-secondary);
   text-align: center;
 }
-.asset-thumbnail-placeholder svg { color: var(--forge-orange-hover); flex: 0 0 auto; }
-.asset-thumbnail-placeholder small { font-size: var(--forge-font-support); line-height: 1.35; }
-.iteration-recent .asset-thumbnail-placeholder { padding: 0; }
-.iteration-recent .asset-thumbnail-placeholder small { display: none; }
-.iteration-recent .asset-visual-thumbnail > img { object-fit: contain; }
+.asset-thumbnail-placeholder svg {
+  color: var(--forge-orange-hover);
+  flex: 0 0 auto;
+}
+.asset-thumbnail-placeholder small {
+  font-size: var(--forge-font-support);
+  line-height: 1.35;
+}
+.iteration-recent .asset-thumbnail-placeholder {
+  padding: 0;
+}
+.iteration-recent .asset-thumbnail-placeholder small {
+  display: none;
+}
+.iteration-recent .asset-visual-thumbnail > img {
+  object-fit: contain;
+}
