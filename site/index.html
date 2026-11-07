@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1c0d1a" />
+    <meta
+      name="description"
+      content="Forge brings local generative models, a durable render queue, and MCP access together for game asset creation."
+    />
+    <meta property="og:title" content="Forge — Game Development Studio" />
+    <meta
+      property="og:description"
+      content="A local creative studio for game assets, powered by models and accessible to agents through MCP."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="site.js" defer></script>
+    <title>Forge — A studio for the worlds you imagine</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="wrap nav-bar">
+        <a class="brand" href="#top" aria-label="Forge home"
+          ><span class="brand-mark" aria-hidden="true">✳</span
+          ><span>forge<span class="brand-dot">.</span></span></a
+        >
+        <nav aria-label="Main navigation">
+          <a href="#models">Models</a><a href="#mcp">MCP &amp; agents</a
+          ><a href="#workflow">How it works</a>
+        </nav>
+        <a class="nav-github" href="https://github.com/monstercameron/Game-Development-Studio"
+          >View on GitHub <span aria-hidden="true">↗</span></a
+        >
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero wrap" id="top">
+        <div class="hero-copy">
+          <div class="hero-tag"><span></span> An open-source game asset studio</div>
+          <h1>Make the pieces<br />of <em>your world.</em></h1>
+          <p>
+            Images, sound, video, 3D and more—brought together in a local creative workspace, with a
+            render queue and an API your agents can use.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#models"
+              >Explore the models <span aria-hidden="true">↘</span></a
+            ><a
+              class="button button-quiet"
+              href="https://github.com/monstercameron/Game-Development-Studio"
+              >Get Forge <span aria-hidden="true">↗</span></a
+            >
+          </div>
+          <div class="hero-footnote">
+            <span class="sparkle" aria-hidden="true">✳</span
+            ><span
+              >Built for creating locally.<br /><strong>Designed to work with agents.</strong></span
+            >
+          </div>
+        </div>
+        <div
+          class="hero-visual"
+          aria-label="Forge Studio overview showing demo projects and assets"
+        >
+          <div class="visual-orbit orbit-one" aria-hidden="true"></div>
+          <div class="visual-orbit orbit-two" aria-hidden="true"></div>
+          <div class="screen-frame">
+            <div class="screen-top">
+              <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span
+              ><span>Forge / Studio overview</span
+              ><span class="screen-status"><i></i> Local workspace</span>
+            </div>
+            <img
+              src="assets/studio-overview.png"
+              alt="Forge overview with demo projects and recent assets"
+            />
+          </div>
+          <div class="visual-caption">
+            <span class="visual-caption-icon" aria-hidden="true">✦</span
+            ><span
+              ><strong>One place to create.</strong><br />Your projects, assets and tools.</span
+            >
+          </div>
+        </div>
+      </section>
+
+      <div class="ticker" aria-label="Supported creative workflows">
+        <div class="ticker-inner">
+          <span>Images</span><b>✳</b><span>Music</span><b>✳</b><span>Sound</span><b>✳</b
+          ><span>Video</span><b>✳</b><span>3D &amp; worlds</span><b>✳</b><span>Motion</span><b>✳</b
+          ><span>Speech</span>
+        </div>
+      </div>
+
+      <section class="intro wrap" id="workflow">
+        <div class="section-title">
+          <p class="kicker">The creative loop</p>
+          <h2>From first idea<br />to your next game asset.</h2>
+        </div>
+        <div class="intro-content">
+          <p class="large-copy">
+            Keep your ideas moving, your tools connected, and your assets where they belong.
+          </p>
+          <div class="process-list">
+            <div>
+              <span>01</span>
+              <div>
+                <h3>Choose your workspace</h3>
+                <p>
+                  Start a project, pick a model, and bring in compatible references from your
+                  library.
+                </p>
+              </div>
+            </div>
+            <div>
+              <span>02</span>
+              <div>
+                <h3>Let the queue do its work</h3>
+                <p>
+                  Queue jobs in sequence, see estimates when history is available, and review their
+                  progress.
+                </p>
+              </div>
+            </div>
+            <div>
+              <span>03</span>
+              <div>
+                <h3>Keep creating</h3>
+                <p>
+                  Preview and organize outputs in project folders, then refine, convert, or download
+                  them.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="models-section" id="models">
+        <div class="wrap">
+          <div class="models-heading">
+            <div>
+              <p class="kicker">A toolbox for your imagination</p>
+              <h2>Many models.<br /><em>One creative home.</em></h2>
+            </div>
+            <p>
+              Choose the right tool for the asset in front of you. Forge brings these model
+              workflows into one project-centered interface.
+            </p>
+          </div>
+          <div class="model-browser">
+            <div class="model-browser-head">
+              <div>
+                <h3>Explore the lineup</h3>
+                <p>Filter by what you want to make.</p>
+              </div>
+              <div class="model-filters" role="group" aria-label="Filter models by workflow">
+                <button class="active" data-filter="all" aria-pressed="true">All</button
+                ><button data-filter="visual" aria-pressed="false">Visual</button
+                ><button data-filter="audio" aria-pressed="false">Audio &amp; voice</button
+                ><button data-filter="world" aria-pressed="false">3D &amp; motion</button
+                ><button data-filter="agents" aria-pressed="false">Agents</button>
+              </div>
+            </div>
+            <div class="model-grid" id="model-grid">
+              <article class="model-item" data-category="visual">
+                <span class="model-icon coral" aria-hidden="true">◈</span>
+                <div>
+                  <p>Images</p>
+                  <h4>Qwen Image 2.1</h4>
+                  <span>Generate images with optional visual references.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="visual">
+                <span class="model-icon lilac" aria-hidden="true">◉</span>
+                <div>
+                  <p>Segmentation</p>
+                  <h4>Meta SAM 3.1</h4>
+                  <span>Turn a source image into usable masks.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="visual">
+                <span class="model-icon blue" aria-hidden="true">▷</span>
+                <div>
+                  <p>Video</p>
+                  <h4>MiniMax H3 Ref2VA</h4>
+                  <span>Create video through the H3 companion app.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="audio">
+                <span class="model-icon lime" aria-hidden="true">♫</span>
+                <div>
+                  <p>Music</p>
+                  <h4>YuE2</h4>
+                  <span>Explore music generation in the studio.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="audio">
+                <span class="model-icon coral" aria-hidden="true">∿</span>
+                <div>
+                  <p>Sound effects</p>
+                  <h4>Stable Audio 3</h4>
+                  <span>Make audio for moments, spaces and interactions.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="audio">
+                <span class="model-icon lilac" aria-hidden="true">◖</span>
+                <div>
+                  <p>Speech</p>
+                  <h4>Qwen3-TTS</h4>
+                  <span>Turn written lines into voices.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="audio">
+                <span class="model-icon blue" aria-hidden="true">≋</span>
+                <div>
+                  <p>Speech recognition</p>
+                  <h4>Nemotron Streaming ASR</h4>
+                  <span>Transcribe speech in realtime or from files.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="world">
+                <span class="model-icon lime" aria-hidden="true">⬡</span>
+                <div>
+                  <p>3D assets</p>
+                  <h4>Hunyuan3D 2.1</h4>
+                  <span>Explore image-to-3D asset creation.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="world">
+                <span class="model-icon coral" aria-hidden="true">◇</span>
+                <div>
+                  <p>3D assets · experimental</p>
+                  <h4>TRELLIS.2</h4>
+                  <span>An experimental image-to-3D workflow.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="world">
+                <span class="model-icon blue" aria-hidden="true">✺</span>
+                <div>
+                  <p>Worlds</p>
+                  <h4>WorldGen &amp; HY-World 2.0</h4>
+                  <span>Generate or reconstruct spatial scenes.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="world">
+                <span class="model-icon lilac" aria-hidden="true">⌁</span>
+                <div>
+                  <p>Motion · experimental</p>
+                  <h4>HY-Motion &amp; MotionBricks</h4>
+                  <span>Explore generated character motion.</span>
+                </div>
+              </article>
+              <article class="model-item" data-category="agents">
+                <span class="model-icon lime" aria-hidden="true">✳</span>
+                <div>
+                  <p>Chat &amp; decisions</p>
+                  <h4>Qwen &amp; Mammoth</h4>
+                  <span>Chat, structured output and game-logic requests.</span>
+                </div>
+              </article>
+            </div>
+            <div class="model-browser-foot">
+              <span
+                >Models and engines are installed separately. Availability and verification
+                vary.</span
+              ><a
+                href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/MODEL_SOURCES.md"
+                >Model sources &amp; setup <span aria-hidden="true">↗</span></a
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mcp-section wrap" id="mcp">
+        <div class="mcp-copy">
+          <p class="kicker">Built for people and agents</p>
+          <h2>Your studio,<br /><em>at your agent’s fingertips.</em></h2>
+          <p>
+            Forge exposes its creative workflows through the Model Context Protocol. An agent can
+            discover models, organize project assets, queue renders, check progress, and help
+            diagnose the studio.
+          </p>
+          <div class="mcp-features">
+            <div>
+              <span aria-hidden="true">✳</span>
+              <p><strong>Discover</strong>Inspect models, inputs, services and hardware.</p>
+            </div>
+            <div>
+              <span aria-hidden="true">⌁</span>
+              <p>
+                <strong>Create &amp; iterate</strong>Stage references, queue work and inspect
+                results.
+              </p>
+            </div>
+            <div>
+              <span aria-hidden="true">◷</span>
+              <p>
+                <strong>Stay in control</strong>Review queue state, estimates and supported model
+                controls.
+              </p>
+            </div>
+          </div>
+          <a
+            class="text-link"
+            href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/MCP.md"
+            >Read the MCP guide <span aria-hidden="true">↗</span></a
+          >
+        </div>
+        <div class="terminal-wrap">
+          <div class="terminal">
+            <div class="terminal-top">
+              <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span
+              ><span>Connect your agent</span
+              ><button
+                class="copy-button"
+                type="button"
+                data-copy="npm run mcp"
+                aria-label="Copy npm run mcp command"
+              >
+                Copy
+              </button>
+            </div>
+            <div class="terminal-body">
+              <p class="terminal-comment"># Start Forge, then launch the stdio bridge</p>
+              <pre><code><span class="terminal-prompt">$</span> npm run mcp</code></pre>
+              <div class="terminal-divider"></div>
+              <p class="terminal-comment"># Or connect using Streamable HTTP</p>
+              <pre><code>http://127.0.0.1:5173/mcp</code></pre>
+              <div class="terminal-divider"></div>
+              <p class="terminal-comment"># A few tools your agent can discover</p>
+              <div class="terminal-tools">
+                <span>forge_models</span><span>forge_projects</span><span>forge_queue_*</span
+                ><span>forge_job</span><span>forge_chat</span><span>forge_diagnostics</span>
+              </div>
+            </div>
+          </div>
+          <div class="terminal-note">
+            <span aria-hidden="true">✦</span> A shared tool registry for stdio and HTTP. Use
+            <code>tools/list</code> for current schemas.
+          </div>
+          <span class="copy-status" role="status" aria-live="polite"></span>
+        </div>
+      </section>
+
+      <section class="showcase">
+        <div class="wrap showcase-inner">
+          <div class="showcase-art">
+            <img
+              src="assets/asset-library.png"
+              alt="Forge asset library displaying a sample collection"
+              loading="lazy"
+            />
+          </div>
+          <div class="showcase-copy">
+            <p class="kicker">Made to keep things moving</p>
+            <h2>More time creating.<br /><em>Less time searching.</em></h2>
+            <p>
+              Keep assets with their project, inspect recent creations, and return to the work that
+              matters. The library brings previews, ratings, conversion and recoverable trash into
+              the same space.
+            </p>
+            <a
+              class="text-link"
+              href="https://github.com/monstercameron/Game-Development-Studio#capabilities"
+              >Explore the studio <span aria-hidden="true">↗</span></a
+            >
+          </div>
+        </div>
+      </section>
+
+      <section class="start-section wrap" id="get-started">
+        <div>
+          <p class="kicker">Start making</p>
+          <h2>Build something<br /><em>worth exploring.</em></h2>
+          <p>
+            Forge is an early-stage open-source project. The current local setup targets Windows
+            ARM64 and NVIDIA GPU inference. Models, runtimes and some companion apps require
+            separate installation.
+          </p>
+          <div class="start-actions">
+            <a
+              class="button button-primary"
+              href="https://github.com/monstercameron/Game-Development-Studio"
+              >Explore on GitHub <span aria-hidden="true">↗</span></a
+            ><a
+              class="button button-quiet"
+              href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/INSTALLATION.md"
+              >Read the installation guide</a
+            >
+          </div>
+        </div>
+        <div class="start-aside">
+          <span aria-hidden="true">✳</span>
+          <p>
+            <strong>Open source at the core.</strong><br />Forge is MIT licensed. Models and their
+            weights have their own licenses and access requirements.
+          </p>
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer">
+      <div class="wrap footer-inner">
+        <a class="brand" href="#top"
+          ><span class="brand-mark" aria-hidden="true">✳</span
+          ><span>forge<span class="brand-dot">.</span></span></a
+        >
+        <p>A little more room for imagination.</p>
+        <div>
+          <a href="https://github.com/monstercameron/Game-Development-Studio">GitHub</a
+          ><a href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/MCP.md"
+            >MCP guide</a
+          ><a href="https://github.com/monstercameron/Game-Development-Studio/blob/main/LICENSE"
+            >MIT license</a
+          >
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

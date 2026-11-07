@@ -65,6 +65,10 @@ export default [
     },
   },
   {
+    files: ['site/**/*.js'],
+    languageOptions: { globals: globals.browser },
+  },
+  {
     files: ['test/**/*.{js,jsx,cjs,mjs}'],
     languageOptions: { globals: { ...globals.browser, ...globals.worker } },
   },
