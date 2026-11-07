@@ -1,0 +1,14 @@
+node_modules/
+dist/
+projects/
+.forge-runtime/
+models/
+engines/llama-cuda/bin/
+engines/llama-cuda/*.zip
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.env
+.env.*
+!.env.example

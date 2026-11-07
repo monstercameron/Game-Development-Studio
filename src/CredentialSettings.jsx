@@ -1,0 +1,17 @@
+import React, {useEffect, useState} from 'react';
+import {KeyRound} from 'lucide-react';
+import './credential-settings.css';
+
+const providers=[{id:'openai',label:'OpenAI',hint:'Used for OpenAI chat requests.'},{id:'huggingface',label:'Hugging Face',hint:'Used by Forge-managed Stable Audio when model access is needed.'}];
+async function request(action,body={}){
+ const response=await fetch(`/api/credentials/${action}`,{method:'POST',headers:{'Content-Type':'application/json','X-Forge-Request':'credentials'},body:JSON.stringify(body)});
+ const data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.error||'Credential service unavailable.');return data;
+}
+export default function CredentialSettings(){
+ const [status,setStatus]=useState(null),[values,setValues]=useState({openai:'',huggingface:''}),[busy,setBusy]=useState(''),[message,setMessage]=useState(''),[error,setError]=useState('');
+ async function refresh(){const data=await request('status');setStatus(data.credentials)}
+ useEffect(()=>{let alive=true;request('status').then(data=>{if(alive)setStatus(data.credentials)}).catch(()=>{if(alive)setError('Could not load saved-key status. Restart the studio.')});return()=>{alive=false}},[]);
+ async function save(provider){setBusy(provider);setError('');setMessage('');try{await request('save',{provider,secret:values[provider].trim()});setValues(current=>({...current,[provider]:''}));await refresh();setMessage(`${providers.find(item=>item.id===provider).label} key saved.`)}catch(reason){setError(reason.message)}finally{setBusy('')}}
+ async function remove(provider){setBusy(provider);setError('');setMessage('');try{await request('remove',{provider});setValues(current=>({...current,[provider]:''}));await refresh();setMessage(`${providers.find(item=>item.id===provider).label} key removed.`)}catch(reason){setError(reason.message)}finally{setBusy('')}}
+ return <div className="settings-section credential-settings"><div className="settings-title"><div className="settings-symbol"><KeyRound size={18}/></div><div><strong>API keys</strong><p>Save keys for this Windows account. Saved values are never displayed.</p></div></div><div className="credential-list">{providers.map(({id,label,hint})=>{const saved=status?.find(item=>item.provider===id)?.saved;return <form key={id} className="credential-row" onSubmit={event=>{event.preventDefault();save(id)}}><div className="credential-heading"><label htmlFor={`credential-${id}`}>{label}</label><span>{status?(saved?'Saved':'Not saved'):'Checking…'}</span></div><p>{hint}</p><input id={`credential-${id}`} type="password" autoComplete="new-password" placeholder={saved?'Enter a new key to replace it':'Enter API key'} value={values[id]} onChange={event=>setValues(current=>({...current,[id]:event.target.value}))} disabled={!!busy} maxLength={4096}/><div className="credential-actions"><button type="submit" className="outline-button" disabled={!!busy||!values[id].trim()}>{busy===id?'Working…':saved?'Replace key':'Save key'}</button>{saved&&<button type="button" className="ghost-button" disabled={!!busy} onClick={()=>remove(id)}>Remove key</button>}</div></form>})}</div><p className="credential-note">Encrypted with your Windows account and stored locally. Moving the database alone will not make its keys available to another account.</p>{message&&<p className="credential-message" role="status">{message}</p>}{error&&<p className="settings-error" role="alert">{error}</p>}</div>;
+}

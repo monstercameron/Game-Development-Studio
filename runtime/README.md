@@ -1,0 +1,46 @@
+# Runtime map for maintainers
+
+This folder contains Forge-owned adapters and process supervision. It is not a copy of the upstream model repositories. For model file origins, revisions, hashes, and restoration commands see [Model sources and restoration](../docs/MODEL_SOURCES.md). For native build changes and dependency paths see [Windows ARM64 runtime and rebuild notes](../docs/WINDOWS_ARM64.md).
+
+## Process and recovery boundaries
+
+| File or group | Responsibility |
+| --- | --- |
+| `../server.js`, `host-supervisor.js` | Stable parent and HTTP host lifecycle. The parent owns handles for engines it started. |
+| `http-server.js`, `supervisor.js`, `worker.js` | Local HTTP/MCP host, runtime process supervision, request dispatch, and GPU monitoring. The runtime uses `gpu-worker.js` as a worker thread. |
+| `engine-broker.js`, `engine-client.js`, `engines.js`, `catalog.js` | Engine start and ownership operations across process boundaries, fixed loopback endpoints, and service identity/status interpretation. A port alone is not proof of the expected engine. |
+| `engine_identity.py`, `engine-ownership.js`, `engine-recovery.js`, `ownership-windows.ps1`, `ownership-lock.ps1` | Experimental Windows supervisor recovery for TRELLIS.2: authenticated worker identity, a DPAPI-protected journal, and exclusive lock-holder mutations. A journal entry alone does not grant permission to stop a process. Other engines are not yet adopted after a top-level supervisor restart. |
+| `jobs.js`, `*-job.js`, `job-io.js`, `references.js`, `asset-output.js` | Durable queue, type-specific remote submissions and polling, staged inputs, atomic project output, and renamed asset lookup. Queue leases and accepted remote IDs prevent a crash from silently submitting duplicate work. |
+| `model-load.js`, `*-preparation.js`, `recover-service.js` | GPU/system-memory admission, on-demand start/load, and recovery. Admission is a snapshot; it cannot reserve memory against unrelated applications. |
+| `mcp-server.js`, `mcp.js` | Shared tool definitions for HTTP MCP and the local stdio bridge. Both call the same Forge HTTP API. |
+| `model-inventory.js`, `model-removal.js` | Asynchronous managed-file inventory and journaled, explicitly confirmed model removal. Preview or externally managed assets are not automatically eligible for removal. |
+| `credentials.js`, `credentials-windows.ps1` | SQLite API-key store and Windows current-user DPAPI encryption. Keys are passed to the helper via stdin and never returned by the credential API. |
+| `runtime-log.js`, `worker_outputs.py` | Runtime event logging and recovery of atomically completed worker output after a process restart. |
+
+An unverified or missing remote job ID must not be treated as proof that a render stopped. Preserve an `interrupted` or unknown outcome for review. Do not clear a persisted model-load barrier merely because a request timed out; verify the relevant service is no longer loading first.
+
+## Engine integration pattern
+
+Engine names follow the model in files such as `hunyuan_backend.py`, `hunyuan_worker.py`, `hunyuan-preparation.js`, and `hunyuan-job.js`. The Python backend handles model-specific loading/inference, the worker owns the local HTTP service and busy state, the preparation code checks resources and starts or loads the service, and the job adapter transfers inputs and outputs to the durable queue. Not every engine uses all four pieces; existing companion apps have their own APIs.
+
+`*_backend.py` modules are not complete resource managers. Use their corresponding worker/admission path rather than importing one in the main HTTP process. Preserve CUDA-only inference requirements; CPU-side parsing, serialization, and image preprocessing can still be necessary. Model source paths and the installed engine variants are recorded in the [model guide](../docs/MODEL_SOURCES.md).
+
+`auto-memory.js` helps the leased queue recover from insufficient GPU memory. It considers only Forge-owned loaded workers with authenticated atomic stop guards and verified idle state, avoids the target engine, and prefers workers not needed soon. It stops at most one worker before the queue repeats its GPU admission check. Queue cancellation, ownership loss, uncertain stop results, external services, realtime ASR/game services, and unguarded companion audio services remain fenced. It does not automatically clear model-load barriers or bypass host-memory admission.
+
+`force-stop.js` and `force-stop-windows.ps1` implement the explicitly confirmed emergency path. Forge captures the owned launcher's Windows PID, creation time, and expected executable; recovered workers use the verified journal identity. The helper pins and checks process handles before terminating the verified tree and reports an uncertain result if it cannot verify completion. The queue fences an affected job as interrupted before termination, ignores late adapter messages, and clears a model-load barrier only after a confirmed stop and the in-flight preparation has finished. Never pass an arbitrary PID from the HTTP client to this path or treat an externally started service as Forge-owned.
+
+`h3_guard.py`, `asr_guard.py`, and `mammoth_worker.py` contain engine-specific lifetime controls. They do not grant Forge ownership of a service started separately. `sound-credentials.js` reads the configured shared Hugging Face credential for the Forge-owned sound service; do not print the token or include it in queue state, MCP calls, or logs.
+
+On Windows, a restarted supervisor can adopt a TRELLIS.2 worker only after checking its protected token and nonce, listener PID, executable, and process creation time. It rechecks identity before stopping a recovered worker. If a launch was journaled but never bound to a verified process, the record remains unresolved and prevents a duplicate launch; a timeout alone cannot prove it is safe to clear. This first recovery path does not yet cover the other engine types.
+
+## TRELLIS.2 native build
+
+The `trellis-build-*`, `trellis-native-*`, and `trellis-triton-*` scripts build and probe the **existing prepared** Windows ARM64 environment. `trellis-download.py` and `trellis-dinov3-download.js`/`.py` fetch pinned model files and check their hashes. `trellis-patches/` contains source diffs already applied to the local checkouts. See the [build notes](../docs/WINDOWS_ARM64.md) before running any rebuild or attempting to apply a patch.
+
+The current TRELLIS backend is experimental. A local 512 pipeline and its CUDA DINOv3 encoder have been loaded, but the complete model render and its memory budget still need verification. Follow current service and UI status rather than treating an installed checkpoint as a ready engine.
+
+## Operational debugging
+
+Use the studio Diagnostics panel for server metadata, engine logs, and copyable errors. Runtime worker and supervisor restarts are logged under `.forge-runtime/`. Logs can contain prompts and private paths; inspect them before sharing. Do not read or print the shared credentials file during diagnosis.
+
+For automated tests and real GPU probes, see [test/README.md](../test/README.md). A passing substitute-worker test proves protocol/recovery behavior, not generated asset quality or full model compatibility.

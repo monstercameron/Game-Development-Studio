@@ -1,0 +1,181 @@
+diff --git a/o-voxel/setup.py b/o-voxel/setup.py
+index 91cb5ce..bc1fd0b 100644
+--- a/o-voxel/setup.py
++++ b/o-voxel/setup.py
+@@ -16,6 +16,15 @@ else:
+     elif BUILD_TARGET == "rocm":
+         IS_HIP = True
+ 
++if os.name == 'nt':
++    cxx_args = ['/O2', '/std:c++20', '/EHsc', '/permissive-', '/Zc:__cplusplus']
++    nvcc_args = ['-O3', '-std=c++20', '--expt-relaxed-constexpr', '--extended-lambda',
++                 '-Xcompiler=/std:c++20', '-Xcompiler=/EHsc', '-Xcompiler=/permissive-',
++                 '-Xcompiler=/Zc:__cplusplus', '-allow-unsupported-compiler']
++else:
++    cxx_args = ['-O3', '-std=c++17']
++    nvcc_args = ['-O3', '-std=c++17']
++
+ if not IS_HIP:
+     cc_flag = []
+ else:
+@@ -56,8 +65,8 @@ setup(
+                 os.path.join(ROOT, "third_party/eigen"),
+             ],
+             extra_compile_args={
+-                "cxx": ["-O3", "-std=c++17"],
+-                "nvcc": ["-O3","-std=c++17"] + cc_flag,
++                "cxx": cxx_args,
++                "nvcc": nvcc_args + cc_flag,
+             }
+         )
+     ],
+diff --git a/o-voxel/src/convert/flexible_dual_grid.cpp b/o-voxel/src/convert/flexible_dual_grid.cpp
+index ad89edc..28aee16 100644
+--- a/o-voxel/src/convert/flexible_dual_grid.cpp
++++ b/o-voxel/src/convert/flexible_dual_grid.cpp
+@@ -304,7 +304,7 @@ void boundry_qef(
+         // Calculate the QEF for the edge (boundary) defined by v0 and v1
+         Eigen::Vector3d dir(v1.x() - v0.x(), v1.y() - v0.y(), v1.z() - v0.z());
+         double segment_length = dir.norm();
+-        if (segment_length < 1e-6d) continue; // Skip degenerate edges (zero-length)
++        if (segment_length < 1e-6) continue; // Skip degenerate edges (zero-length)
+         dir.normalize();  // unit direction vector
+ 
+         // Projection matrix orthogonal to the direction: I - d d^T
+@@ -334,7 +334,7 @@ void boundry_qef(
+ 
+         Eigen::Vector3d tMax, tDelta;
+         for (int axis = 0; axis < 3; ++axis) {
+-            if (dir[axis] == 0.0d) {
++            if (dir[axis] == 0.0) {
+                 tMax[axis] = std::numeric_limits<double>::infinity();
+                 tDelta[axis] = std::numeric_limits<double>::infinity();
+             } else {
+diff --git a/o-voxel/src/io/filter_neighbor.cpp b/o-voxel/src/io/filter_neighbor.cpp
+index 3af406e..2687dee 100644
+--- a/o-voxel/src/io/filter_neighbor.cpp
++++ b/o-voxel/src/io/filter_neighbor.cpp
+@@ -77,7 +77,7 @@ torch::Tensor encode_sparse_voxel_octree_attr_neighbor_cpu(
+     }
+ 
+     // Pack the deltas into a uint8 tensor
+-    torch::Tensor delta = torch::zeros({N, C}, torch::dtype(torch::kUInt8));
++    torch::Tensor delta = torch::zeros({static_cast<int64_t>(N), static_cast<int64_t>(C)}, torch::dtype(torch::kUInt8));
+     uint8_t* delta_data = delta.data_ptr<uint8_t>();
+     for (int i = 0; i < N; i++) {
+         int x = coord_data[i * 3 + 0];
+@@ -163,7 +163,7 @@ torch::Tensor decode_sparse_voxel_octree_attr_neighbor_cpu(
+     }
+ 
+     // Pack the attribute into a uint8 tensor
+-    torch::Tensor attr = torch::zeros({N, C}, torch::dtype(torch::kUInt8));
++    torch::Tensor attr = torch::zeros({static_cast<int64_t>(N), static_cast<int64_t>(C)}, torch::dtype(torch::kUInt8));
+     uint8_t* attr_data = attr.data_ptr<uint8_t>();
+     for (int i = 0; i < N; i++) {
+         int x = coord_data[i * 3 + 0];
+diff --git a/o-voxel/src/io/filter_parent.cpp b/o-voxel/src/io/filter_parent.cpp
+index 0beadaf..4a4a0e5 100644
+--- a/o-voxel/src/io/filter_parent.cpp
++++ b/o-voxel/src/io/filter_parent.cpp
+@@ -80,7 +80,7 @@ torch::Tensor encode_sparse_voxel_octree_attr_parent_cpu(
+     uint8_t* octree_data = octree.data_ptr<uint8_t>();
+     uint8_t* attr_data = attr.data_ptr<uint8_t>();
+ 
+-    torch::Tensor delta = torch::zeros({N_leaf, C}, torch::kUInt8);
++    torch::Tensor delta = torch::zeros({static_cast<int64_t>(N_leaf), static_cast<int64_t>(C)}, torch::kUInt8);
+     uint32_t svo_ptr = 0;
+     uint32_t attr_ptr = 0;
+     uint32_t delta_ptr = C;
+@@ -151,7 +151,7 @@ torch::Tensor decode_sparse_voxel_octree_attr_parent_cpu(
+     uint8_t* octree_data = octree.data_ptr<uint8_t>();
+     uint8_t* delta_data = delta.data_ptr<uint8_t>();
+ 
+-    torch::Tensor attr = torch::zeros({N_leaf, C}, torch::kUInt8);
++    torch::Tensor attr = torch::zeros({static_cast<int64_t>(N_leaf), static_cast<int64_t>(C)}, torch::kUInt8);
+     uint32_t svo_ptr = 0;
+     uint32_t attr_ptr = 0;
+     uint32_t delta_ptr = C;
+diff --git a/o-voxel/src/io/svo.cpp b/o-voxel/src/io/svo.cpp
+index 6775284..83b5328 100644
+--- a/o-voxel/src/io/svo.cpp
++++ b/o-voxel/src/io/svo.cpp
+@@ -71,7 +71,7 @@ torch::Tensor encode_sparse_voxel_octree_cpu(
+     }
+ 
+     // Convert SVO to tensor
+-    torch::Tensor svo_tensor = torch::from_blob(svo.data(), {svo.size()}, torch::kUInt8).clone();
++    torch::Tensor svo_tensor = torch::from_blob(svo.data(), {static_cast<int64_t>(svo.size())}, torch::kUInt8).clone();
+     return svo_tensor;
+ }
+ 
+@@ -133,6 +133,6 @@ torch::Tensor decode_sparse_voxel_octree_cpu(
+     // Decode SVO into list of codes
+     decode_sparse_voxel_octree_cpu_recursive(octree_data, depth, ptr, stack, codes);
+     // Convert codes to tensor
+-    torch::Tensor codes_tensor = torch::from_blob(codes.data(), {codes.size()}, torch::kInt32).clone();
++    torch::Tensor codes_tensor = torch::from_blob(codes.data(), {static_cast<int64_t>(codes.size())}, torch::kInt32).clone();
+     return codes_tensor;
+ }
+diff --git a/trellis2/modules/image_feature_extractor.py b/trellis2/modules/image_feature_extractor.py
+index c3cb515..6e7185a 100644
+--- a/trellis2/modules/image_feature_extractor.py
++++ b/trellis2/modules/image_feature_extractor.py
+@@ -83,7 +83,12 @@ class DinoV3FeatureExtractor:
+         hidden_states = self.model.embeddings(image, bool_masked_pos=None)
+         position_embeddings = self.model.rope_embeddings(image)
+ 
+-        for i, layer_module in enumerate(self.model.layer):
++        # Transformers 5 nests the layers under ``model``; earlier releases
++        # exposed them directly. Keep TRELLIS's unweighted final layer norm.
++        layers = getattr(self.model, 'layer', None)
++        if layers is None:
++            layers = self.model.model.layer
++        for i, layer_module in enumerate(layers):
+             hidden_states = layer_module(
+                 hidden_states,
+                 position_embeddings=position_embeddings,
+diff --git a/trellis2/modules/sparse/attention/full_attn.py b/trellis2/modules/sparse/attention/full_attn.py
+index 4eb74d2..96777cb 100644
+--- a/trellis2/modules/sparse/attention/full_attn.py
++++ b/trellis2/modules/sparse/attention/full_attn.py
+@@ -169,7 +169,26 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
+             k = k.reshape(N * L, H, CI)     # [T_KV, H, Ci]
+             v = v.reshape(N * L, H, CO)     # [T_KV, H, Co]
+ 
+-    if config.ATTN == 'xformers':
++    if config.ATTN == 'sdpa':
++        # Keep independent sequences separate: allowing them to attend across
++        # batch boundaries silently changes generation. All math stays on CUDA.
++        if num_all_args == 1:
++            q, k, v = qkv.unbind(dim=1)
++        elif num_all_args == 2:
++            k, v = kv.unbind(dim=1)
++        if q.device.type != 'cuda' or k.device.type != 'cuda' or v.device.type != 'cuda':
++            raise RuntimeError('Sparse SDPA requires CUDA.')
++        outputs = []
++        q_offset = kv_offset = 0
++        for q_length, kv_length in zip(q_seqlen, kv_seqlen):
++            qs = q[q_offset:q_offset + q_length].transpose(0, 1).unsqueeze(0)
++            ks = k[kv_offset:kv_offset + kv_length].transpose(0, 1).unsqueeze(0)
++            vs = v[kv_offset:kv_offset + kv_length].transpose(0, 1).unsqueeze(0)
++            outputs.append(torch.nn.functional.scaled_dot_product_attention(qs, ks, vs).squeeze(0).transpose(0, 1))
++            q_offset += q_length
++            kv_offset += kv_length
++        out = torch.cat(outputs, dim=0)
++    elif config.ATTN == 'xformers':
+         if 'xops' not in globals():
+             import xformers.ops as xops
+         if num_all_args == 1:
+diff --git a/trellis2/modules/sparse/config.py b/trellis2/modules/sparse/config.py
+index a5f4d53..1f62cc7 100644
+--- a/trellis2/modules/sparse/config.py
++++ b/trellis2/modules/sparse/config.py
+@@ -21,7 +21,7 @@ def __from_env():
+         CONV = env_sparse_conv_backend
+     if env_sparse_debug is not None:
+         DEBUG = env_sparse_debug == '1'
+-    if env_sparse_attn_backend is not None and env_sparse_attn_backend in ['xformers', 'flash_attn', 'flash_attn_3']:
++    if env_sparse_attn_backend is not None and env_sparse_attn_backend in ['xformers', 'flash_attn', 'flash_attn_3', 'sdpa']:
+         ATTN = env_sparse_attn_backend
+         
+     print(f"[SPARSE] Conv backend: {CONV}; Attention backend: {ATTN}")

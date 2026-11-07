@@ -1,0 +1,47 @@
+.settings-modal.memory-dialog {
+  width: min(720px, 100%);
+  max-height: min(88dvh, 58rem);
+  overflow-y: auto;
+  padding: clamp(var(--forge-space-5), 2.4vw, var(--forge-space-6));
+  scrollbar-gutter: stable;
+}
+.memory-dialog .settings-head { gap: var(--forge-space-value-22); }
+.memory-dialog .settings-head > div { min-width: 0; }
+.memory-dialog .settings-head h2 { line-height: 1.2; }
+.memory-dialog .settings-head p,
+.memory-dialog .helper,
+.memory-dialog .memory-candidates small {
+  color: var(--forge-muted, #d4c0ca);
+  font-size: var(--forge-font-support);
+  line-height: 1.55;
+}
+.memory-dialog .memory-candidates { display: grid; gap: var(--forge-space-2-5); margin: var(--forge-space-4-5) 0; }
+.memory-dialog .memory-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--forge-space-3-5);
+  padding: var(--forge-space-4) var(--forge-space-value-18);
+  border: 1px solid var(--forge-border, #553348);
+  border-radius: var(--forge-radius-md, 10px);
+  background: var(--forge-raised, #2b1021);
+  line-height: 1.45;
+}
+.memory-dialog .memory-candidate > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.memory-dialog .memory-candidate-actions { display: flex; flex-wrap: wrap; gap: var(--forge-space-2); flex: none; }
+.memory-dialog .memory-candidate-actions button { min-height: 42px; }
+.memory-dialog .memory-force-confirm { padding: var(--forge-space-4); border: 1px solid var(--forge-orange, #e95420); border-radius: var(--forge-radius-md, 10px); background: var(--forge-raised, #2b1021); }
+.memory-dialog .memory-force-confirm p { margin: var(--forge-space-2) 0 var(--forge-space-3); color: var(--forge-muted, #d4c0ca); }
+.memory-dialog .memory-candidates strong { font-size: var(--forge-font-body); line-height: 1.4; }
+.memory-dialog .memory-candidates small { display: block; margin-top: var(--forge-space-1-5); }
+.memory-dialog .project-dialog-actions { gap: var(--forge-space-2-5); margin-top: var(--forge-space-5); }
+.memory-dialog .project-dialog-actions button { min-height: 46px; font-size: var(--forge-font-support); }
+.memory-dialog :is(button, input):focus-visible { outline: 2px solid var(--forge-focus, #ffad8d); outline-offset: 3px; }
+@media (min-width: 851px) {
+  .memory-dialog :is(button, input):focus-visible { outline-width: 3px; }
+  .memory-dialog .settings-head h2 { overflow-wrap: anywhere; }
+}
+@media (max-width: 550px) {
+  .settings-modal.memory-dialog { width: calc(100vw - 2 * var(--forge-space-4, 16px)); padding: var(--forge-space-4, var(--forge-space-4)); }
+  .memory-dialog .project-dialog-actions { flex-wrap: wrap; }
+}

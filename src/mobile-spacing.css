@@ -1,0 +1,89 @@
+/* Small-screen rhythm: keep actions close to their content, while giving
+   projects, controls, and recent results distinct breathing room. */
+@media (max-width: 600px) {
+  .page {
+    padding: var(--forge-space-5) clamp(var(--forge-space-4), 4vw, var(--forge-space-value-22)) max(var(--forge-space-6), env(safe-area-inset-bottom));
+  }
+
+  .intro-row,
+  .editor-title,
+  .gallery-top,
+  .models-top { gap: var(--forge-space-4); }
+
+  .editor-title { align-items: flex-start; margin-bottom: var(--forge-space-value-22); }
+  .editor-title .engine-chip { align-self: flex-start; }
+  .creation-context { gap: var(--forge-space-3); margin-bottom: var(--forge-space-3-5); padding: var(--forge-space-value-15) var(--forge-space-4); }
+  .creation-context select { min-height: 44px; }
+  .context-new { min-height: 44px; padding-inline: var(--forge-space-value-5); }
+
+  .form-panel,
+  .runtime-queue,
+  .metadata-panel,
+  .logs-panel,
+  .iteration-panel { padding: var(--forge-space-value-18); }
+
+  .prompt-foot { gap: var(--forge-space-1-5) var(--forge-space-3); }
+  .prompt-foot span:first-child { flex: 1 1 230px; }
+  .prompt-foot span:last-child { white-space: nowrap; }
+  .form-bottom { align-items: stretch; gap: var(--forge-space-value-15); margin-top: var(--forge-space-value-22); padding-top: var(--forge-space-value-18); }
+  .creation-action-note { gap: var(--forge-space-value-7); margin-top: var(--forge-space-3-5); }
+  .creation-model-note { margin-top: var(--forge-space-3-5); }
+  .right-column { gap: var(--forge-space-3-5); }
+  .iteration-panel { gap: var(--forge-space-4); }
+  .iteration-empty { padding: var(--forge-space-5) var(--forge-space-4); }
+  .iteration-recent { margin: -2px; padding: var(--forge-space-1); }
+  .iteration-actions { gap: var(--forge-space-2); }
+  .iteration-actions button { min-height: 44px; }
+  .iteration-library, .iteration-icon { min-height: 44px; }
+  .iteration-icon { min-width: 44px; justify-content: center; align-items: center; }
+
+  .section-title { margin-top: var(--forge-space-value-30); }
+  .workspace-hero-copy { padding: var(--forge-space-4-5) var(--forge-space-4-5) var(--forge-space-5); }
+  .hero-actions { gap: var(--forge-space-3) var(--forge-space-value-18); margin-top: var(--forge-space-value-18); }
+  .tool-grid { gap: var(--forge-space-2-5); }
+  .tool-card { padding: var(--forge-space-value-15); }
+  .project-content { padding: var(--forge-space-value-15) var(--forge-space-4) var(--forge-space-value-11); }
+  .project-assets { margin: var(--forge-space-value-3) var(--forge-space-4) var(--forge-space-value-15); padding-top: var(--forge-space-2-5); }
+
+  .gallery-project-bar { margin-top: var(--forge-space-5); padding: var(--forge-space-4); }
+  .gallery-toolbar { margin-top: var(--forge-space-value-22); }
+  .gallery-filter-row { padding: var(--forge-space-3-5) 0; }
+  .gallery-grid, .gallery-list { padding-top: var(--forge-space-value-18); }
+  .gallery-card-info { padding: var(--forge-space-3); }
+  .gallery-empty { padding: var(--forge-space-5) var(--forge-space-value-18); }
+
+  .models-storage { margin-top: var(--forge-space-5); padding: var(--forge-space-4); }
+  .gpu-summary { padding: var(--forge-space-value-18); gap: var(--forge-space-4); }
+  .gpu-stats { gap: var(--forge-space-value-18) var(--forge-space-5); }
+  .models-preview-note { align-items: flex-start; padding: var(--forge-space-3-5) var(--forge-space-0-5); }
+  .models-list-heading { margin-top: var(--forge-space-value-22); gap: var(--forge-space-3); }
+  .models-toolbar { margin: var(--forge-space-value-15) 0; }
+  .models-table { padding: var(--forge-space-0-5) var(--forge-space-value-15); }
+  .model-entry {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    column-gap: var(--forge-space-3);
+    row-gap: var(--forge-space-1-5);
+    padding: var(--forge-space-value-15) 0;
+  }
+  .model-entry > .tool-icon { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+  .model-entry-main { grid-column: 2; grid-row: 1; min-width: 0; }
+  .model-entry-main span { margin-top: var(--forge-space-1); }
+  .model-entry-status { grid-column: 2; grid-row: 2; margin: 0; }
+  .model-entry > .icon-outline:not(.model-remove) { grid-column: 3; grid-row: 1; align-self: start; }
+  .model-entry > .model-remove { grid-column: 3; grid-row: 2; justify-self: end; margin: 0; }
+
+  .diagnostics-page > .lead { margin-bottom: var(--forge-space-value-22); }
+  .diagnostics-layout { gap: var(--forge-space-3-5); }
+  .server-address { gap: var(--forge-space-2-5); margin-top: var(--forge-space-value-18); padding: var(--forge-space-value-13); }
+  .settings-modal, .gallery-preview-details { padding: var(--forge-space-4-5); }
+  .settings-section { margin-top: var(--forge-space-4-5); padding-top: var(--forge-space-4-5); }
+  .project-dialog-actions { gap: var(--forge-space-2-5); }
+}
+
+@media (max-width: 350px) {
+  .page { padding-inline: var(--forge-space-3-5); }
+  .creation-context { padding: var(--forge-space-3-5); }
+  .model-entry { column-gap: var(--forge-space-value-9); }
+  .gallery-card-info { padding: var(--forge-space-value-11); }
+}

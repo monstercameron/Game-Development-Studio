@@ -1,0 +1,135 @@
+.iteration-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--forge-space-4);
+  min-width: 0;
+  padding: var(--forge-space-value-22);
+}
+
+.iteration-panel .panel-heading { margin-bottom: 0; }
+.iteration-panel .panel-heading h2 { margin-top: var(--forge-space-value-5); }
+
+.iteration-empty {
+  padding: var(--forge-space-value-34) var(--forge-space-5);
+  text-align: center;
+  color: var(--forge-muted);
+  background: var(--forge-surface-inset);
+  border: 1px dashed var(--forge-border);
+  border-radius: var(--forge-radius-md);
+}
+.iteration-empty strong { color: var(--forge-text); font-size: var(--forge-font-lead); }
+.iteration-empty p,
+.iteration-hint,
+.iteration-refine p,
+.iteration-confirm p {
+  margin: var(--forge-space-2) 0 0;
+  line-height: 1.55;
+  font-size: var(--forge-font-support);
+  color: var(--forge-muted);
+}
+
+.iteration-media {
+  display: flex;
+  min-height: 220px;
+  height: clamp(260px, 27vw, 430px);
+  max-height: 52vh;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--forge-bg);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-md);
+}
+.iteration-media > img,
+.iteration-media > video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.iteration-audio {
+  width: 100%;
+  padding: var(--forge-space-value-36) var(--forge-space-5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--forge-space-value-18);
+  color: var(--forge-orange-hover);
+}
+.iteration-audio audio { width: min(100%, 480px); }
+
+.iteration-caption { display: flex; align-items: center; justify-content: space-between; gap: var(--forge-space-3-5); min-width: 0; }
+.iteration-caption > div { min-width: 0; display: flex; flex-direction: column; gap: var(--forge-space-value-5); }
+.iteration-caption strong,
+.iteration-caption span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.iteration-caption strong { font-size: var(--forge-font-body); }
+.iteration-caption span { color: var(--forge-muted); font-size: var(--forge-font-support); }
+.iteration-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+  color: var(--forge-text);
+}
+.iteration-icon:hover { border-color: var(--forge-orange); background: var(--forge-raised); }
+.iteration-icon:focus-visible { outline: 2px solid var(--forge-focus); outline-offset: 3px; }
+
+.iteration-recent { display: flex; gap: var(--forge-space-value-9); overflow-x: auto; padding: var(--forge-space-1); }
+.iteration-recent button {
+  flex: 0 0 68px;
+  height: 58px;
+  padding: 0;
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-control-bg);
+  color: var(--forge-text);
+  overflow: hidden;
+  cursor: pointer;
+}
+.iteration-recent button:hover { border-color: var(--forge-control-hover); }
+.iteration-recent button.selected { outline: 2px solid var(--forge-orange); outline-offset: 1px; }
+.iteration-recent img { width: 100%; height: 100%; object-fit: contain; }
+
+.iteration-actions { display: flex; gap: var(--forge-space-value-9); flex-wrap: wrap; }
+.iteration-actions button { width: auto; min-width: 0; min-height: 44px; flex: 1 1 auto; padding-inline: var(--forge-space-3-5); }
+.iteration-actions button:hover:not(:disabled) { border-color: var(--forge-control-hover); }
+.iteration-actions button[aria-pressed="true"] { border-color: var(--forge-orange); color: var(--forge-text); }
+.iteration-actions button:focus-visible,
+.iteration-recent button:focus-visible,
+.iteration-library:focus-visible,
+.iteration-rating button:focus-visible { outline: 2px solid var(--forge-focus); outline-offset: 3px; }
+.iteration-delete { color: var(--forge-danger); }
+.iteration-rating { display: flex; align-items: center; justify-content: space-between; gap: var(--forge-space-2-5); flex-wrap: wrap; font-size: var(--forge-font-support); color: var(--forge-muted); }
+.iteration-rating > div { display: flex; }
+.iteration-rating button { display: grid; place-items: center; min-width: var(--forge-control-height-compact); min-height: var(--forge-control-height-compact); background: transparent; color: var(--forge-focus); border: 0; border-radius: 5px; cursor: pointer; }
+.iteration-hint { margin: 0; }
+
+.iteration-confirm,
+.iteration-refine { padding: var(--forge-space-value-18); background: var(--forge-surface-inset); border: 1px solid var(--forge-border); border-radius: var(--forge-radius-md); }
+.iteration-confirm > div,
+.iteration-refine > div { display: flex; justify-content: flex-end; gap: var(--forge-space-value-9); margin-top: var(--forge-space-3-5); flex-wrap: wrap; }
+.iteration-refine > label:first-child { display: block; margin-bottom: var(--forge-space-2); font-weight: 650; }
+.iteration-refine textarea { width: 100%; min-height: 110px; }
+.iteration-check { display: flex; align-items: center; gap: var(--forge-space-value-9); margin-top: var(--forge-space-3); font-size: var(--forge-font-support); color: var(--forge-text); }
+.iteration-check input { width: auto; margin: 0; }
+.iteration-message { display: flex; align-items: center; justify-content: space-between; gap: var(--forge-space-2-5); color: var(--forge-text); font-size: var(--forge-font-support); overflow-wrap: anywhere; }
+.iteration-message button,
+.iteration-library { background: none; border: 0; color: var(--forge-orange-hover); cursor: pointer; font-weight: 650; }
+.iteration-message button { min-height: 40px; padding: var(--forge-space-1) var(--forge-space-2); }
+.iteration-library { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--forge-space-2); min-height: 44px; padding: var(--forge-space-1) 0; }
+
+@media (min-width: 1450px) {
+  .iteration-panel { padding: var(--forge-space-value-26); gap: var(--forge-space-value-18); }
+  .iteration-media { height: clamp(360px, 30vw, 520px); max-height: 56vh; }
+  .iteration-recent button { flex-basis: 76px; height: 64px; }
+}
+
+@media (max-width: 480px) {
+  .iteration-media { height: 240px; min-height: 180px; }
+  .iteration-actions button { flex: 1 1 auto; }
+}

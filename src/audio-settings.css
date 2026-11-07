@@ -1,0 +1,12 @@
+.audio-settings{margin:var(--forge-space-4, var(--forge-space-4)) 0;color:var(--forge-text,#f6eeef);border:1px solid var(--forge-border,#553348);border-radius:var(--forge-radius-md,9px);background:var(--forge-surface,#210a19)}
+.audio-settings summary{min-height: var(--forge-control-height-large);cursor:pointer;padding:var(--forge-space-3, var(--forge-space-3)) var(--forge-space-4, var(--forge-space-4));font-weight:650;font-size: var(--forge-font-support);list-style-position:inside}
+.audio-settings summary:hover{color:var(--forge-text-strong,#fff4f0);background:color-mix(in srgb,var(--forge-raised,#2b1021) 70%,transparent)}
+.audio-settings summary:focus-visible{outline:2px solid var(--forge-focus,#ffd0b7);outline-offset:2px;border-radius:var(--forge-radius-sm,6px)}
+.audio-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--forge-space-4, var(--forge-space-4));padding:var(--forge-space-1) var(--forge-space-4) var(--forge-space-4)}
+.audio-setting{display:flex;flex-direction:column;gap:var(--forge-space-value-7);min-width:0;color:var(--forge-text,#f6eeef);font-size: var(--forge-font-support);font-weight:600}
+.audio-setting input,.audio-setting textarea{width:100%;box-sizing:border-box;font:inherit;font-weight:400;color:var(--forge-text,#f6eeef);background:var(--forge-control-bg,#190710);border:1px solid var(--forge-control-border,#80576f);border-radius:var(--forge-radius-sm,6px)}
+.audio-setting input{min-height: var(--forge-control-height);padding:var(--forge-space-2-5) var(--forge-space-3, var(--forge-space-3));font-size:var(--forge-font-lead)}
+.audio-setting textarea{min-height:84px;padding:var(--forge-space-2-5) var(--forge-space-3, var(--forge-space-3));font-size:var(--forge-font-lead);line-height:1.5}
+.audio-setting small{color:var(--forge-muted,#d4c0ca);font-size: var(--forge-font-support);font-weight:400;line-height:1.45}
+.audio-setting-wide{grid-column:1/-1}
+@media(max-width:600px){.audio-settings-grid{grid-template-columns:1fr}.audio-setting-wide{grid-column:auto}}
