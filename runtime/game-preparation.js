@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { planModelLoad, hostMemoryConflict } from './model-load.js';
+import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
 
 // A conservative initial estimate for Q4_K_M plus its CUDA working buffers.
 // This is not a reservation; concurrent applications may still consume memory.
@@ -135,7 +135,7 @@ export function createGameLoader({
         };
       }
       const free = freeMemory();
-      if (!Number.isFinite(free) || free < GAME_HOST_REQUIRED_BYTES) {
+      if (hostMemoryShort(free, GAME_HOST_REQUIRED_BYTES)) {
         return {
           status: 409,
           body: hostMemoryConflict(free, GAME_HOST_REQUIRED_BYTES, await services(), ['game']),

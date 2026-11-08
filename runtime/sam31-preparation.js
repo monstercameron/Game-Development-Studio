@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { planModelLoad, hostMemoryConflict } from './model-load.js';
+import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
 
 // One still-image test succeeded. These admission budgets remain conservative
 // estimates, not reservations or limits on other applications.
@@ -56,7 +56,7 @@ export function createSam31Loader({
         };
       }
       const free = freeMemory();
-      if (!Number.isFinite(free) || free < SAM31_HOST_LOAD_BYTES) {
+      if (hostMemoryShort(free, SAM31_HOST_LOAD_BYTES)) {
         return {
           status: 409,
           body: hostMemoryConflict(free, SAM31_HOST_LOAD_BYTES, await services(), ['segmentation']),
@@ -207,7 +207,7 @@ export function createSam31Preparation({ startEngine, loadModel, autoStart = tru
 export function createSam31RenderPreparation({ hardware, services, freeMemory = os.freemem }) {
   return async () => {
     const free = freeMemory();
-    if (!Number.isFinite(free) || free < 3 * 1024 ** 3) {
+    if (hostMemoryShort(free, 3 * 1024 ** 3)) {
       return {
         status: 'waiting_memory',
         stage: 'Waiting for system memory.',

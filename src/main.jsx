@@ -1411,7 +1411,13 @@ function App() {
                 ],
                 ['music', Music2, 'Music', 'Soundtracks for every story', 'peach'],
                 ['sfx', AudioLines, 'Sound effects', 'The details you can hear', 'blue'],
-                ['3d', Box, '3D models', 'Untextured shapes from a reference image', 'yellow'],
+                [
+                  '3d',
+                  Box,
+                  '3D models',
+                  'Shapes from a reference image, optionally painted',
+                  'yellow',
+                ],
                 ['world', Cloud, 'Worlds', 'Explorable 3D scenes from text or images', 'violet'],
                 [
                   'motion',
@@ -1637,12 +1643,15 @@ function App() {
                           updateSearch(setRouteParams, { model: e.target.value });
                         }}
                       >
-                        <option value="Hunyuan3D 2.1">Hunyuan3D 2.1 · untextured shape</option>
+                        <option value="Hunyuan3D 2.1">
+                          Hunyuan3D 2.1 · shape, optional texture
+                        </option>
                         <option value="TRELLIS.2">TRELLIS.2 · experimental textured model</option>
                       </select>
                       <p className="helper">
-                        Hunyuan creates an untextured shape. TRELLIS.2 creates an experimental
-                        textured model and requires a transparent PNG or WebP.
+                        Hunyuan creates an untextured shape and can optionally paint it
+                        (experimental). TRELLIS.2 creates an experimental textured model and
+                        requires a transparent PNG or WebP.
                       </p>
                     </>
                   )}

@@ -60,3 +60,23 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.hunyuan-controls__texture {
+  margin-top: var(--forge-space-4, 16px);
+}
+
+.hunyuan-controls__switch {
+  display: flex;
+  align-items: center;
+  gap: var(--forge-space-2-5, 10px);
+  cursor: pointer;
+}
+
+.hunyuan-controls__field .hunyuan-controls__switch input {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  flex: none;
+  padding: 0;
+  accent-color: var(--forge-focus, #ffad8d);
+}

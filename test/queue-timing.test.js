@@ -110,3 +110,42 @@ test('nearby estimates are labeled rough and reject very different work or refer
   };
   assert.equal(estimateFromNearbyHistory('music', { ...music.request, cot: 'off' }, [music]), null);
 });
+
+test('painted 3D renders never borrow shape-only timing history', () => {
+  const shape = {
+    type: '3d',
+    status: 'completed',
+    request: { steps: 30, resolution: 128 },
+    startedAt: '2026-01-01T00:00:00Z',
+    finishedAt: '2026-01-01T00:00:40Z',
+  };
+  const painted = { ...shape, request: { ...shape.request, texture: true, texture_size: 2048 } };
+  assert.equal(
+    estimateFromNearbyHistory('3d', { steps: 30, resolution: 128 }, [shape]).sampleCount,
+    1,
+  );
+  assert.equal(
+    estimateFromNearbyHistory(
+      '3d',
+      { steps: 30, resolution: 128, texture: true, texture_size: 2048 },
+      [shape],
+    ),
+    null,
+  );
+  assert.equal(
+    estimateFromNearbyHistory(
+      '3d',
+      { steps: 30, resolution: 128, texture: true, texture_size: 1024 },
+      [painted],
+    ),
+    null,
+  );
+  assert.equal(
+    estimateFromNearbyHistory(
+      '3d',
+      { steps: 30, resolution: 128, texture: true, texture_size: 2048 },
+      [painted],
+    ).sampleCount,
+    1,
+  );
+});

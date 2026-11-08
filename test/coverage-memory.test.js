@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAutoMemoryManager } from '../runtime/auto-memory.js';
 import { createTrellisLoader } from '../runtime/trellis-preparation.js';
+import { HOST_MEMORY_FLOOR_BYTES, hostMemoryShort } from '../runtime/model-load.js';
 
 const statusResponse = () => ({
   ok: true,
@@ -12,7 +13,7 @@ const statusResponse = () => ({
   }),
 });
 
-test('TRELLIS load admission blocks on system memory before probing GPU memory', async () => {
+test('TRELLIS load admission blocks on a real system memory shortage before probing GPU memory', async () => {
   let hardwareProbes = 0,
     loadRequests = 0,
     serviceProbes = 0;
@@ -25,7 +26,7 @@ test('TRELLIS load admission blocks on system memory before probing GPU memory',
       }
       return statusResponse();
     },
-    freeMemory: () => 7 * 1024 ** 3,
+    freeMemory: () => 1 * 1024 ** 3,
     hardware: async () => {
       hardwareProbes++;
       return { devices: [{ index: 0, freeMiB: 48 * 1024 }] };
@@ -121,4 +122,19 @@ test('auto-memory cancellation after reservation releases it without announcing 
   assert.deepEqual(released, ['tts']);
   assert.equal(announced, 0);
   assert.equal(stopped, 0);
+});
+
+test('host memory is a soft requirement: only a real shortage blocks unless the policy is strict', () => {
+  const GiB = 1024 ** 3;
+  // A busy desktop (7 GiB free) must not block a job whose budget is 12 GiB while the GPU has room.
+  assert.equal(hostMemoryShort(7 * GiB, 12 * GiB, undefined), false);
+  assert.equal(hostMemoryShort(HOST_MEMORY_FLOOR_BYTES, 12 * GiB, undefined), false);
+  assert.equal(hostMemoryShort(HOST_MEMORY_FLOOR_BYTES - 1, 12 * GiB, undefined), true);
+  // The floor never exceeds a smaller budget.
+  assert.equal(hostMemoryShort(GiB, GiB / 2, undefined), false);
+  // An unreadable reading is treated as a shortage.
+  assert.equal(hostMemoryShort(Number.NaN, GiB, undefined), true);
+  // Strict policy restores the full per-engine budget.
+  assert.equal(hostMemoryShort(7 * GiB, 12 * GiB, 'strict'), true);
+  assert.equal(hostMemoryShort(12 * GiB, 12 * GiB, 'strict'), false);
 });

@@ -1,6 +1,6 @@
 const threeD = {
   '3D model':
-    'Choose which model makes the 3D asset. Hunyuan creates an untextured shape; TRELLIS.2 attempts a textured model and is experimental.',
+    'Choose which model makes the 3D asset. Hunyuan creates an untextured shape by default and can optionally paint a texture (experimental); TRELLIS.2 attempts a textured model and is experimental.',
   'Creative notes (draft only)':
     'These notes are saved with the draft, but are not sent to either 3D model.',
   'Reference image':
@@ -23,6 +23,10 @@ const threeD = {
     'Sets the TRELLIS.2 texture size to 1024 pixels. Larger textures can take longer and use more memory; a full render is not yet verified.',
   '2048 px':
     'Sets the largest listed TRELLIS.2 texture size. It may take longer and use more memory; a full render is not yet verified.',
+  'Paint texture (experimental)':
+    'Adds a second Hunyuan stage that paints colour and metallic-roughness maps from your reference image. It loads extra models and takes much longer. Leave it off for the tested untextured shape.',
+  'Texture map size':
+    'Sets the size of the painted Hunyuan texture maps. 2048 holds more detail than 1024 and makes a larger file.',
   'Denoising steps':
     'Sets how many refinement steps the model runs. More steps can take longer; Hunyuan’s default is 30 and TRELLIS.2’s is 12.',
   'Advanced settings': 'Open the optional seed control for this 3D render.',

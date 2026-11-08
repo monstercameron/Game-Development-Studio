@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / ".forge-runtime" / "motionbricks-packages"))
 # These imports must follow sys.path setup for the isolated embedded Python runtime.
 from engine_identity import install_identity_endpoint  # noqa: E402
+from host_memory import host_bytes_needed  # noqa: E402
 from worker_outputs import recovered_job  # noqa: E402
 
 MODEL = Path(os.environ.get("FORGE_MOTIONBRICKS_MODEL", ROOT / "models" / "MotionBricks"))
@@ -92,7 +93,7 @@ def available_memory():
 
 
 def require_memory(gib):
-    if available_memory() < gib * 1024**3:
+    if available_memory() < host_bytes_needed(gib * 1024**3):
         raise RuntimeError(f"At least {gib} GiB of free system memory is required.")
 
 

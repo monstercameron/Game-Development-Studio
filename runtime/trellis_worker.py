@@ -17,6 +17,7 @@ import uvicorn
 from engine_identity import install_identity_endpoint
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
+from host_memory import host_bytes_needed
 from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
 from trellis_manifest import ROOT, missing_files
@@ -57,7 +58,7 @@ def check_memory(host_bytes, gpu_bytes):
     status.length = ctypes.sizeof(status)
     if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
         raise RuntimeError("Could not check available system memory.")
-    if status.available_phys < host_bytes:
+    if status.available_phys < host_bytes_needed(host_bytes):
         raise RuntimeError(
             f"At least {host_bytes // 1024**3} GiB of available system memory is required."
         )

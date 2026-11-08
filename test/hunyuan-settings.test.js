@@ -40,3 +40,30 @@ test('3D settings reject malformed controls before uploading references', () => 
     assert.throws(() => hunyuanShapeRequest({}, refs), /reference/);
   }
 });
+
+test('3D texture settings are added only when painting is on', () => {
+  const id = '4d4ad065-ce7e-44e6-b4fc-c1c62d6d326e.png';
+  assert.equal(
+    'texture' in hunyuanShapeRequest({ texture: false, textureSize: 1024 }, [id]),
+    false,
+  );
+  assert.deepEqual(hunyuanShapeRequest({ seed: 5, texture: true }, [id]), {
+    model: 'hunyuan',
+    references: [id],
+    seed: 5,
+    steps: 30,
+    resolution: 128,
+    texture: true,
+    texture_size: 2048,
+  });
+  assert.equal(
+    hunyuanShapeRequest({ texture: true, textureSize: '1024' }, [id]).texture_size,
+    1024,
+  );
+  for (const textureSize of [0, 512, 4096, 'big']) {
+    assert.throws(() => hunyuanShapeRequest({ texture: true, textureSize }, [id]), /texture/i);
+  }
+  for (const texture of ['yes', 1, null]) {
+    assert.throws(() => hunyuanShapeRequest({ texture }, [id]), /Texture/);
+  }
+});

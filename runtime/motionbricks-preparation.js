@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { planModelLoad, hostMemoryConflict } from './model-load.js';
+import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
 
 // The worker independently rechecks these thresholds. Estimates are not reservations.
 export const MOTIONBRICKS_HOST_LOAD_BYTES = 7 * 1024 ** 3;
@@ -64,7 +64,7 @@ export function createMotionBricksLoader({
         };
       }
       const free = freeMemory();
-      if (!Number.isFinite(free) || free < MOTIONBRICKS_HOST_LOAD_BYTES) {
+      if (hostMemoryShort(free, MOTIONBRICKS_HOST_LOAD_BYTES)) {
         return {
           status: 409,
           body: hostMemoryConflict(free, MOTIONBRICKS_HOST_LOAD_BYTES, await services(), [
@@ -228,7 +228,7 @@ export function createMotionBricksRenderPreparation({
 }) {
   return async () => {
     const free = freeMemory();
-    if (!Number.isFinite(free) || free < MOTIONBRICKS_HOST_RENDER_BYTES) {
+    if (hostMemoryShort(free, MOTIONBRICKS_HOST_RENDER_BYTES)) {
       return {
         status: 'waiting_memory',
         stage: 'Waiting for system memory.',

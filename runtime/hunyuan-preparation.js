@@ -1,10 +1,15 @@
 import os from 'node:os';
-import { planModelLoad, hostMemoryConflict } from './model-load.js';
+import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
 
 // Measured one 128-resolution run at roughly 10 GiB GPU and 5 GiB host memory.
 // Higher resolutions have not been calibrated; these remain admission estimates.
 export const HUNYUAN_GPU_BUDGET_MIB = 16 * 1024;
 export const HUNYUAN_HOST_REQUIRED_BYTES = 8 * 1024 ** 3;
+// Optional texture stage, measured once at 1024: 14.0 GiB peak GPU allocation and 12.3 GiB peak
+// worker RSS (model loading dominates) on top of the resident shape model. The shape stage's
+// working memory is released before painting, so the stages need the larger of the two, not the sum.
+export const HUNYUAN_TEXTURE_GPU_BUDGET_MIB = 16 * 1024;
+export const HUNYUAN_TEXTURE_HOST_REQUIRED_BYTES = 12 * 1024 ** 3;
 
 export function createHunyuanLoader({
   hardware,
@@ -58,7 +63,7 @@ export function createHunyuanLoader({
         };
       }
       const free = freeMemory();
-      if (!Number.isFinite(free) || free < HUNYUAN_HOST_REQUIRED_BYTES) {
+      if (hostMemoryShort(free, HUNYUAN_HOST_REQUIRED_BYTES)) {
         return {
           status: 409,
           body: hostMemoryConflict(free, HUNYUAN_HOST_REQUIRED_BYTES, await services(), [
@@ -214,16 +219,19 @@ export function createHunyuanPreparation({ startEngine, loadModel, autoStart = t
 }
 
 export function createHunyuanRenderPreparation({ hardware, services, freeMemory = os.freemem }) {
-  return async ({ resolution }) => {
+  return async ({ resolution, texture = false }) => {
     const free = freeMemory();
-    if (!Number.isFinite(free) || free < 4 * 1024 ** 3) {
+    const hostRequired = texture ? HUNYUAN_TEXTURE_HOST_REQUIRED_BYTES : 4 * 1024 ** 3;
+    if (hostMemoryShort(free, hostRequired)) {
       return {
         status: 'waiting_memory',
         stage: 'Waiting for system memory.',
-        details: hostMemoryConflict(free, 4 * 1024 ** 3, await services(), ['3d-hunyuan']),
+        details: hostMemoryConflict(free, hostRequired, await services(), ['3d-hunyuan']),
       };
     }
-    const budget = { 128: 4096, 256: 8192, 384: 16384 }[resolution];
+    const shapeBudget = { 128: 4096, 256: 8192, 384: 16384 }[resolution];
+    const budget =
+      shapeBudget && texture ? Math.max(shapeBudget, HUNYUAN_TEXTURE_GPU_BUDGET_MIB) : shapeBudget;
     if (!budget) {
       return {
         status: 'needs_attention',
@@ -240,7 +248,9 @@ export function createHunyuanRenderPreparation({ hardware, services, freeMemory 
           (await services()).filter((service) => service.id !== '3d-hunyuan'),
           budget,
         ),
-        estimate: 'Uncalibrated additional working-memory estimate for this 3D resolution.',
+        estimate: texture
+          ? 'Uncalibrated additional working-memory estimate for this 3D resolution plus the texture stage.'
+          : 'Uncalibrated additional working-memory estimate for this 3D resolution.',
       };
     }
     if (plan.code === 'insufficient_gpu_memory') {

@@ -24,7 +24,12 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       const settings =
         job.type === 'trellis'
           ? { texture_size: job.request.texture_size }
-          : { resolution: job.request.resolution };
+          : {
+              resolution: job.request.resolution,
+              ...(job.request.texture === true
+                ? { texture: true, texture_size: job.request.texture_size }
+                : {}),
+            };
       try {
         response = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
@@ -87,7 +92,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       }
       if (state.status === 'failed') {
         send(job.id, 'failed', {
-          error: String(state.message || '3D shape generation failed.').slice(0, 2000),
+          error: String(state.message || '3D generation failed.').slice(0, 2000),
         });
         return;
       }

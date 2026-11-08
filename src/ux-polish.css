@@ -293,4 +293,8 @@
 }
 
 /* Sidebar project label: keep its help button on the same line as the text. */
-.sidebar .workspace-label { display: flex; align-items: center; flex-wrap: nowrap; }
+.sidebar .workspace-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+}

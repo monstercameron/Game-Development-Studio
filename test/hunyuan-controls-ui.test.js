@@ -41,6 +41,13 @@ test('Hunyuan controls describe supported ranges, units, defaults, and invalid v
     assert.match(valid, /aria-describedby="hunyuan-steps-help"/);
     assert.doesNotMatch(valid, /aria-invalid="true"/);
 
+    assert.match(valid, /Paint texture \(experimental\)/);
+    assert.doesNotMatch(valid, /Texture map size/);
+    const painted = render({ texture: true, textureSize: 1024 });
+    assert.match(painted, /checked=""/);
+    assert.match(painted, /Texture map size/);
+    assert.match(painted, /<option value="1024" selected="">/);
+
     const invalid = render({ shapeSteps: '2.5', resolution: 192 });
     assert.match(invalid, /aria-invalid="true"/);
     assert.match(invalid, /whole number from 1 to 100/);

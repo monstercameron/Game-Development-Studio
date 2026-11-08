@@ -244,6 +244,8 @@ function validate(input, root = projectsRoot) {
       seed = 123,
       steps = 30,
       resolution = 128,
+      texture = false,
+      texture_size = 2048,
     } = input.request;
     if (model !== 'hunyuan') {
       throw Error('Only Hunyuan3D shape generation is connected.');
@@ -267,11 +269,22 @@ function validate(input, root = projectsRoot) {
     ) {
       throw Error('Invalid 3D seed, steps, or resolution.');
     }
+    if (typeof texture !== 'boolean' || ![1024, 2048].includes(texture_size)) {
+      throw Error('Invalid 3D texture option or texture size.');
+    }
     findProject(input.projectId, root);
     return {
       type: '3d',
       projectId: input.projectId,
-      request: { model: 'hunyuan', references, seed, steps, resolution },
+      // Shape-only requests keep their original shape so history and estimates still match.
+      request: {
+        model: 'hunyuan',
+        references,
+        seed,
+        steps,
+        resolution,
+        ...(texture ? { texture: true, texture_size } : {}),
+      },
     };
   }
   if (input.type === 'voices') {
@@ -542,6 +555,10 @@ function profile(type, request) {
   }
   if (type === 'voices') {
     values.push(Math.ceil((request.text?.length || 0) / 50));
+  }
+  if (type === '3d') {
+    // Painted renders take far longer, so they never share timing history with shape-only ones.
+    values.push(request.texture === true ? request.texture_size : false);
   }
   return JSON.stringify(values);
 }

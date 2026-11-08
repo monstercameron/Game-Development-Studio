@@ -1,4 +1,6 @@
-"""Isolated Hunyuan3D shape worker. Forge manages admission and the queue."""
+"""Isolated Hunyuan3D shape worker with an optional texture stage.
+
+Forge manages admission and the queue."""
 
 import argparse
 import base64
@@ -66,6 +68,53 @@ def load_worker():
             state.update(phase="error", error=str(error)[:1500])
 
 
+def release_gpu_cache():
+    gc.collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
+def texture_ready():
+    try:
+        from hunyuan_paint_backend import native_modules_ready, texture_files_ready
+
+        return texture_files_ready(MODEL) and native_modules_ready(SOURCE)
+    except Exception:
+        return False
+
+
+def set_message(job_id, message):
+    with lock:
+        jobs[job_id].update(message=message)
+
+
+def paint_mesh(job_id, mesh, image, request):
+    # Texture models are loaded for this job and released afterwards so the
+    # idle worker keeps only the shape model resident.
+    from hunyuan_paint_backend import generate_texture, load_texture_models
+
+    release_gpu_cache()
+    set_message(job_id, "Loading texture models.")
+    models = load_texture_models(SOURCE, MODEL)
+    try:
+        return generate_texture(
+            models,
+            mesh,
+            image,
+            texture_size=request.texture_size,
+            progress=lambda message: set_message(job_id, message),
+        )
+    finally:
+        models.close()
+        del models
+        gc.collect()
+
+
 def render_worker(job_id, image, request):
     try:
         from hunyuan_backend import generate_shape
@@ -75,14 +124,19 @@ def render_worker(job_id, image, request):
         mesh = generate_shape(
             model, image, seed=request.seed, steps=request.steps, resolution=request.resolution
         )
+        done = "3D shape ready."
+        if request.texture:
+            mesh = paint_mesh(job_id, mesh, image, request)
+            done = "Textured 3D model ready."
         temp = OUTPUTS / f".{job_id}.part"
         mesh.export(str(temp), file_type="glb")
         os.replace(temp, OUTPUTS / f"{job_id}.glb")
         with lock:
-            jobs[job_id].update(status="completed", message="3D shape ready.")
+            jobs[job_id].update(status="completed", message=done)
             state.update(phase="ready", error=None)
     except Exception as error:
         traceback.print_exc()
+        release_gpu_cache()
         with lock:
             jobs[job_id].update(status="failed", message=str(error)[:1500])
             state.update(phase="ready" if model is not None else "error", error=None)
@@ -93,6 +147,8 @@ class ShapeRequest(BaseModel):
     seed: int = Field(default=123, ge=0, le=2147483647)
     steps: int = Field(default=30, ge=1, le=100)
     resolution: int = 128
+    texture: bool = False
+    texture_size: int = 2048
 
 
 @app.get("/api/status")
@@ -103,6 +159,7 @@ def status():
             "phase": state["phase"],
             "loaded": model is not None,
             "model_downloaded": files_ready(),
+            "texture_available": texture_ready(),
             "error": state["error"],
         }
 
@@ -129,6 +186,12 @@ def load():
 def generate(request: ShapeRequest):
     if request.resolution not in (128, 256, 384):
         raise HTTPException(400, "Unsupported mesh resolution.")
+    if request.texture_size not in (1024, 2048):
+        raise HTTPException(400, "Unsupported texture size.")
+    if request.texture and not texture_ready():
+        raise HTTPException(
+            409, "Texture models or native helpers are missing; install them or turn texture off."
+        )
     try:
         prefix, data = request.image.split(",", 1)
         if prefix not in (

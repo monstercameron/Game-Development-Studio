@@ -3,10 +3,15 @@ import './hunyuan-controls.css';
 
 const SUPPORTED_RESOLUTIONS = [128, 256, 384];
 
-// This exposes only parameters accepted by the connected shape backend.
+// This exposes only parameters accepted by the connected Hunyuan backend.
 export default function HunyuanControls({ draft, onChange }) {
   const steps = draft.shapeSteps === undefined ? 30 : (draft.shapeSteps ?? '');
   const resolution = draft.resolution ?? 128;
+  const texture = draft.texture === true;
+  const textureSize = draft.textureSize ?? 2048;
+  const textureSizeError = [1024, 2048].includes(Number(textureSize))
+    ? ''
+    : 'Choose a 1024 or 2048 pixel texture.';
   let stepsError = '';
   try {
     hunyuanSteps(steps);
@@ -18,7 +23,7 @@ export default function HunyuanControls({ draft, onChange }) {
     : 'Choose 128, 256, or 384 samples per axis.';
 
   return (
-    <section className="hunyuan-controls" aria-label="Hunyuan shape settings">
+    <section className="hunyuan-controls" aria-label="Hunyuan 3D settings">
       <div className="hunyuan-controls__fields">
         <div className="hunyuan-controls__field">
           <label className="field-label" htmlFor="hunyuan-resolution">
@@ -70,6 +75,48 @@ export default function HunyuanControls({ draft, onChange }) {
               'Whole numbers from 1 to 100. The default is 30; more steps take longer.'}
           </p>
         </div>
+      </div>
+      <div className="hunyuan-controls__field hunyuan-controls__texture">
+        <label className="hunyuan-controls__switch" htmlFor="hunyuan-texture">
+          <input
+            id="hunyuan-texture"
+            type="checkbox"
+            role="switch"
+            checked={texture}
+            aria-describedby="hunyuan-texture-help"
+            onChange={(event) => onChange({ texture: event.target.checked })}
+          />
+          <span className="field-label">Paint texture (experimental)</span>
+        </label>
+        <p className="hunyuan-controls__hint" id="hunyuan-texture-help">
+          Paints colour and metallic-roughness maps onto the shape using your reference image. It
+          loads extra models, takes several more minutes, and needs more GPU and system memory.
+          Untextured is the default and the tested path.
+        </p>
+        {texture && (
+          <>
+            <label className="field-label" htmlFor="hunyuan-texture-size">
+              Texture map size
+            </label>
+            <select
+              id="hunyuan-texture-size"
+              value={textureSize}
+              aria-invalid={Boolean(textureSizeError)}
+              aria-describedby="hunyuan-texture-size-help"
+              onChange={(event) => onChange({ textureSize: Number(event.target.value) })}
+            >
+              <option value={1024}>1024 pixels</option>
+              <option value={2048}>2048 pixels</option>
+            </select>
+            <p
+              className={textureSizeError ? 'hunyuan-controls__error' : 'hunyuan-controls__hint'}
+              id="hunyuan-texture-size-help"
+              role={textureSizeError ? 'alert' : undefined}
+            >
+              {textureSizeError || 'Larger maps hold more detail and make a larger file.'}
+            </p>
+          </>
+        )}
       </div>
     </section>
   );

@@ -82,3 +82,30 @@ test('Hunyuan checks additional working memory before each render', async () => 
   assert.equal(await prepare({ resolution: 128 }), null);
   assert.equal((await prepare({ resolution: 999 })).status, 'needs_attention');
 });
+
+test('Hunyuan texture stage needs its own GPU and host headroom before the render starts', async () => {
+  let free = 10000;
+  const prepare = createHunyuanRenderPreparation({
+    freeMemory: () => 64 * 1024 ** 3,
+    hardware: async () => ({ devices: [{ freeMiB: free }] }),
+    services: async () => [{ id: 'tts', name: 'TTS', modelLoaded: true, canUnload: true }],
+  });
+  assert.equal(await prepare({ resolution: 128 }), null);
+  const blocked = await prepare({ resolution: 128, texture: true });
+  assert.equal(blocked.status, 'waiting_memory');
+  assert.match(blocked.details.estimate, /texture stage/);
+  assert.equal(
+    (await prepare({ resolution: 128, texture: false })) === null,
+    true,
+    'texture off keeps the shape-only budget',
+  );
+  free = 30000;
+  assert.equal(await prepare({ resolution: 128, texture: true }), null);
+  assert.equal((await prepare({ resolution: 999, texture: true })).status, 'needs_attention');
+  const short = createHunyuanRenderPreparation({
+    freeMemory: () => 512 * 1024 ** 2,
+    hardware: async () => ({ devices: [{ freeMiB: 90000 }] }),
+    services: async () => [],
+  });
+  assert.equal((await short({ resolution: 128, texture: true })).status, 'waiting_memory');
+});

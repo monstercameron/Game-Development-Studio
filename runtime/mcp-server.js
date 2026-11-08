@@ -372,13 +372,15 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
     'forge_queue_hunyuan_shape',
     {
       description:
-        'Queue an untextured Hunyuan3D shape from one staged reference image. Forge starts and loads the model after GPU and host-memory checks.',
+        'Queue a Hunyuan3D 2.1 shape from one staged reference image. Untextured by default; set texture to true for an experimental textured GLB (albedo plus metallic-roughness) that needs the texture models and much more time and memory. Forge starts and loads the model after GPU and host-memory checks.',
       inputSchema: {
         projectId: z.string().uuid(),
         reference: z.string().min(1),
         seed: z.number().int().min(0).max(2147483647).default(123),
         steps: z.number().int().min(1).max(100).default(30),
         resolution: z.union([z.literal(128), z.literal(256), z.literal(384)]).default(128),
+        texture: z.boolean().default(false),
+        texture_size: z.union([z.literal(1024), z.literal(2048)]).default(2048),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },

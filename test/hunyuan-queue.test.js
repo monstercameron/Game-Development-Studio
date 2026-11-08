@@ -106,3 +106,46 @@ test(
     }
   },
 );
+
+test('3D texture options are validated and kept only when on', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-hunyuan-texture-')),
+    projects = path.join(dir, 'projects'),
+    project = path.join(projects, 'Game'),
+    id = randomUUID();
+  await fs.mkdir(path.join(project, 'images'), { recursive: true });
+  await fs.writeFile(path.join(project, '.forge-project.json'), JSON.stringify({ id }));
+  await fs.writeFile(
+    path.join(project, 'images', 'source.png'),
+    Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.from('snapshot')]),
+  );
+  const ref = await stageProjectAsset(project, 'images/source.png');
+  const queue = new JobQueue({
+    directory: path.join(dir, 'state'),
+    projects,
+    intervalMs: 50,
+    autoStart: false,
+  });
+  try {
+    const base = { type: '3d', projectId: id, request: { references: [ref.id] } };
+    for (const bad of [{ texture: 'yes' }, { texture: 1 }, { texture: true, texture_size: 512 }]) {
+      assert.throws(
+        () => queue.enqueue({ ...base, request: { ...base.request, ...bad } }),
+        /texture/i,
+      );
+    }
+    const shapeOnly = queue.enqueue({ ...base, request: { ...base.request, texture: false } });
+    assert.equal('texture' in shapeOnly.request, false);
+    assert.equal('texture_size' in shapeOnly.request, false);
+    const painted = queue.enqueue({
+      ...base,
+      request: { ...base.request, texture: true, texture_size: 1024 },
+    });
+    assert.equal(painted.request.texture, true);
+    assert.equal(painted.request.texture_size, 1024);
+    const defaults = queue.enqueue({ ...base, request: { ...base.request, texture: true } });
+    assert.equal(defaults.request.texture_size, 2048);
+  } finally {
+    queue.stop();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

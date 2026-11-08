@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { planModelLoad, hostMemoryConflict } from './model-load.js';
+import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
 
 // Conservative, uncalibrated budgets. A free-memory reading is not a reservation.
 const HOST_LOAD = 8 * 1024 ** 3,
@@ -53,7 +53,7 @@ export function createTrellisLoader({
         };
       }
       const free = freeMemory();
-      if (!Number.isFinite(free) || free < HOST_LOAD) {
+      if (hostMemoryShort(free, HOST_LOAD)) {
         return {
           status: 409,
           body: hostMemoryConflict(free, HOST_LOAD, await services(), ['3d-trellis']),
@@ -172,7 +172,7 @@ export function createTrellisPreparation({
       };
     }
     const free = freeMemory();
-    if (!Number.isFinite(free) || free < HOST_RENDER) {
+    if (hostMemoryShort(free, HOST_RENDER)) {
       return {
         status: 'waiting_memory',
         stage: 'Waiting for system memory.',
@@ -219,7 +219,7 @@ export function createTrellisPreparation({
 export function createTrellisRenderPreparation({ hardware, services, freeMemory = os.freemem }) {
   return async () => {
     const free = freeMemory();
-    if (!Number.isFinite(free) || free < HOST_RENDER) {
+    if (hostMemoryShort(free, HOST_RENDER)) {
       return {
         status: 'waiting_memory',
         stage: 'Waiting for system memory.',

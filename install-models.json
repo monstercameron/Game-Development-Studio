@@ -126,13 +126,15 @@
     },
     {
       "id": "3d-hunyuan",
-      "name": "Hunyuan3D 2.1 shape",
+      "name": "Hunyuan3D 2.1 shape and texture",
       "sources": [
         "https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1",
-        "https://huggingface.co/tencent/Hunyuan3D-2.1"
+        "https://huggingface.co/tencent/Hunyuan3D-2.1",
+        "https://huggingface.co/facebook/dinov2-giant",
+        "https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.1.0"
       ],
       "destination": "models/Hunyuan3D-2.1",
-      "notes": "Stages shape and VAE files; the Windows CUDA environment is separate.",
+      "notes": "Stages shape and VAE files plus the optional texture models (about 11 GB more: Paint PBR weights and DINOv2-giant). The Real-ESRGAN x4plus upscaler is a GitHub release file the Hugging Face installer cannot fetch; download RealESRGAN_x4plus.pth (SHA-256 4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1) into models/Hunyuan3D-2.1. The Windows CUDA environment and native texture helpers are separate (runtime/hunyuan-build-paint.cmd).",
       "downloads": [
         {
           "repo": "tencent/Hunyuan3D-2.1",
@@ -148,6 +150,31 @@
           ],
           "sha256File": "hunyuan3d-dit-v2-1/model.fp16.ckpt",
           "sha256": "6b519fc7242f78e9b5f47ea4d55668fe3d944a2d27332f4ca68d29a6ff603f5e"
+        },
+        {
+          "repo": "tencent/Hunyuan3D-2.1",
+          "revision": "0b94677654c57bb9a6b6845cd7b704ccf551d327",
+          "destination": "Hunyuan3D-2.1",
+          "include": [
+            "hunyuan3d-paintpbr-v2-1/model_index.json",
+            "hunyuan3d-paintpbr-v2-1/README.md",
+            "hunyuan3d-paintpbr-v2-1/feature_extractor/*",
+            "hunyuan3d-paintpbr-v2-1/scheduler/*",
+            "hunyuan3d-paintpbr-v2-1/text_encoder/*",
+            "hunyuan3d-paintpbr-v2-1/tokenizer/*",
+            "hunyuan3d-paintpbr-v2-1/unet/*",
+            "hunyuan3d-paintpbr-v2-1/vae/*"
+          ],
+          "sha256File": "hunyuan3d-paintpbr-v2-1/unet/diffusion_pytorch_model.bin",
+          "sha256": "675a1b5cd0098b2002637c443946529c03c5cd54427f40245263350feb3dd5b8"
+        },
+        {
+          "repo": "facebook/dinov2-giant",
+          "revision": "611a9d42f2335e0f921f1e313ad3c1b7178d206d",
+          "destination": "Hunyuan3D-2.1/dinov2-giant",
+          "files": ["config.json", "preprocessor_config.json", "model.safetensors"],
+          "sha256File": "model.safetensors",
+          "sha256": "917d3c470db999d32a312f8542149be91c7cbac61ee8fb4b67ae3d82b79ce21f"
         }
       ]
     },

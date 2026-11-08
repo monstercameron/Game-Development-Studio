@@ -45,11 +45,24 @@ export function hunyuanShapeRequest(
     draft.seed === '' || draft.seed === undefined
       ? 123
       : integer(draft.seed, 'Seed', 0, 2147483647);
-  return {
+  const request = {
     model: 'hunyuan',
     references: referenceIds,
     seed,
     steps: hunyuanSteps(draft.shapeSteps),
     resolution,
   };
+  if (draft.texture !== undefined && typeof draft.texture !== 'boolean') {
+    throw Error('Texture must be on or off.');
+  }
+  if (draft.texture === true) {
+    const textureSize = draft.textureSize === undefined ? 2048 : Number(draft.textureSize);
+    if (![1024, 2048].includes(textureSize)) {
+      throw Error('Choose a 1024 or 2048 pixel texture.');
+    }
+    // Shape-only requests stay unchanged so their timing history keeps matching.
+    request.texture = true;
+    request.texture_size = textureSize;
+  }
+  return request;
 }

@@ -77,10 +77,11 @@ export const modelCatalog = [
     icon: 'box',
     tone: 'yellow',
     panel: '3d',
-    purpose: 'Turn a reference image into an untextured 3D shape.',
+    purpose:
+      'Turn a reference image into an untextured 3D shape, or optionally an experimental painted one.',
     gpu: '~16 GiB load · up to +16 GiB render',
     inputs: ['Reference image'],
-    outputs: ['Untextured GLB'],
+    outputs: ['Untextured GLB', 'Textured GLB (optional, experimental)'],
     engine: 'Hunyuan3D shape worker',
     mcpTools: ['forge_queue_hunyuan_shape'],
   },

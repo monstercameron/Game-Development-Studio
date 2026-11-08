@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # These imports must follow sys.path setup for the isolated embedded Python runtime.
 from engine_identity import install_identity_endpoint  # noqa: E402
+from host_memory import host_bytes_needed  # noqa: E402
 from worker_outputs import recovered_job  # noqa: E402
 
 MODEL = Path(
@@ -106,7 +107,7 @@ def free_host_memory():
 def require_memory(*, loading):
     # Conservative estimates, not reservations. Actual SAM budgets are uncalibrated.
     host_gib, gpu_gib = (9, 14) if loading else (3, 10)
-    if free_host_memory() < host_gib * 1024**3:
+    if free_host_memory() < host_bytes_needed(host_gib * 1024**3):
         raise RuntimeError(f"At least {host_gib} GiB of free system memory is required.")
     import torch
 

@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { planModelLoad, hostMemoryConflict } from './model-load.js';
+import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
 
 // One short text-to-motion test succeeded. These admission budgets remain conservative
 // estimates, not reservations or limits on other applications.
@@ -56,7 +56,7 @@ export function createHyMotionLoader({
         };
       }
       const free = freeMemory();
-      if (!Number.isFinite(free) || free < HYMOTION_HOST_LOAD_BYTES) {
+      if (hostMemoryShort(free, HYMOTION_HOST_LOAD_BYTES)) {
         return {
           status: 409,
           body: hostMemoryConflict(free, HYMOTION_HOST_LOAD_BYTES, await services(), ['motion-hy']),
@@ -210,7 +210,7 @@ export function createHyMotionRenderPreparation({ hardware, services, freeMemory
     const hostGiB = duration <= 5 ? 4 : 6,
       budget = duration <= 5 ? HYMOTION_GPU_RENDER_MIB : 16 * 1024;
     const free = freeMemory();
-    if (!Number.isFinite(free) || free < hostGiB * 1024 ** 3) {
+    if (hostMemoryShort(free, hostGiB * 1024 ** 3)) {
       return {
         status: 'waiting_memory',
         stage: 'Waiting for system memory.',

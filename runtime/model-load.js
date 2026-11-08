@@ -28,6 +28,26 @@ export function memoryCandidates(services, exclude = []) {
       url,
     }));
 }
+// Host RAM is a soft requirement. The per-engine budgets are uncalibrated estimates, and weights are
+// loaded with memory mapping, so a desktop that is merely busy must not block a job while the GPU has
+// room. Only a real shortage (below a small hard floor) blocks by default. Set
+// FORGE_HOST_MEMORY_POLICY=strict to enforce the full per-engine budget again.
+export const HOST_MEMORY_FLOOR_BYTES = 2 * 1024 ** 3;
+export function hostMemoryShort(
+  freeBytes,
+  requiredBytes,
+  policy = process.env.FORGE_HOST_MEMORY_POLICY,
+) {
+  if (!Number.isFinite(freeBytes)) {
+    return true;
+  }
+  const needed =
+    String(policy || '').toLowerCase() === 'strict'
+      ? requiredBytes
+      : Math.min(requiredBytes, HOST_MEMORY_FLOOR_BYTES);
+  return freeBytes < needed;
+}
+
 export function hostMemoryConflict(freeBytes, requiredBytes, services, exclude = []) {
   const free = Number.isFinite(freeBytes) && freeBytes >= 0 ? freeBytes : null;
   return {

@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / ".forge-runtime" / "hymotion-packages"))
 from engine_identity import install_identity_endpoint  # noqa: E402
+from host_memory import host_bytes_needed  # noqa: E402
 from worker_outputs import recovered_job  # noqa: E402
 
 SOURCE = Path(os.environ.get("FORGE_HYMOTION_SOURCE", ROOT / ".forge-runtime" / "hy-motion-src"))
@@ -136,7 +137,7 @@ def free_host_memory():
 
 def require_memory(*, loading, duration=3):
     host_gib, gpu_gib = (9, 28) if loading else ((4, 10) if duration <= 5 else (6, 18))
-    if free_host_memory() < host_gib * 1024**3:
+    if free_host_memory() < host_bytes_needed(host_gib * 1024**3):
         raise RuntimeError(f"At least {host_gib} GiB of free system memory is required.")
     import torch
 
@@ -170,7 +171,7 @@ def load_worker(job_id=None):
         from hymotion_backend import load_motion_core, load_motion_text_encoder
 
         pipeline = load_motion_core(SOURCE, MODEL)
-        if free_host_memory() < 9 * 1024**3:
+        if free_host_memory() < host_bytes_needed(9 * 1024**3):
             raise RuntimeError(
                 "At least 9 GiB of free system memory is required before loading the text encoders."
             )

@@ -107,6 +107,13 @@ export function estimateFromNearbyHistory(type, request, jobs) {
     if (type === 'trellis' && request.texture_size !== job.request?.texture_size) {
       continue;
     }
+    if (
+      type === '3d' &&
+      (request.texture === true ? request.texture_size : false) !==
+        (job.request?.texture === true ? job.request.texture_size : false)
+    ) {
+      continue;
+    }
     const duration = (Date.parse(job.finishedAt) - Date.parse(job.startedAt)) / 1000;
     if (Number.isFinite(duration) && duration > 0) {
       samples.push(duration * ratio);
