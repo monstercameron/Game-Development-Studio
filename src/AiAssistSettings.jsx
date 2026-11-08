@@ -20,11 +20,11 @@ async function verifyTranslationModel(model) {
     headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'i18n' },
     body: JSON.stringify({ model }),
   });
-  const data = await response.json().catch(() => ({}));
+  const responseBody = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw Error(data.error || 'The model could not be checked.');
+    throw Error(responseBody.error || 'The model could not be checked.');
   }
-  return data;
+  return responseBody;
 }
 
 async function request(method, body) {
@@ -37,11 +37,11 @@ async function request(method, body) {
         : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await response.json().catch(() => ({}));
+  const responseBody = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw Error(data.error || 'AI assist settings are unavailable.');
+    throw Error(responseBody.error || 'AI assist settings are unavailable.');
   }
-  return data;
+  return responseBody;
 }
 
 /** Settings section listing the provider and model id each optional AI feature uses. */
@@ -55,10 +55,10 @@ export default function AiAssistSettings() {
   useEffect(() => {
     let alive = true;
     request('GET')
-      .then((data) => {
+      .then((loaded) => {
         if (alive) {
-          setFeatures(data.features);
-          setDrafts(Object.fromEntries(data.features.map((item) => [item.feature, item])));
+          setFeatures(loaded.features);
+          setDrafts(Object.fromEntries(loaded.features.map((item) => [item.feature, item])));
         }
       })
       .catch((reason) => {
@@ -97,15 +97,15 @@ export default function AiAssistSettings() {
     setMessage('');
     try {
       const { provider, model } = drafts[feature];
-      const data = await request('POST', { feature, provider, model });
+      const saved = await request('POST', { feature, provider, model });
       setFeatures((current) =>
-        current.map((item) => (item.feature === feature ? data.feature : item)),
+        current.map((item) => (item.feature === feature ? saved.feature : item)),
       );
-      setDrafts((current) => ({ ...current, [feature]: data.feature }));
-      setMessage(`${data.feature.label} will use ${data.feature.model}.`);
+      setDrafts((current) => ({ ...current, [feature]: saved.feature }));
+      setMessage(`${saved.feature.label} will use ${saved.feature.model}.`);
       log.info('settings.ai_assist.save.completed', {
         feature,
-        provider: data.feature.provider,
+        provider: saved.feature.provider,
       });
     } catch (reason) {
       log.warn('settings.ai_assist.save.failed', { feature, errorClass: reason?.name });

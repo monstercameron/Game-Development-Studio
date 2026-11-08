@@ -29,12 +29,12 @@ const WRITE_FIELDS = new Set(['changes', 'key', 'value', 'via']);
 const RESET_FIELDS = new Set(['key', 'group', 'via']);
 const log = createLogger('settings');
 
-function json(res, status, data) {
+function json(res, status, body) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
   });
-  res.end(JSON.stringify(data));
+  res.end(JSON.stringify(body));
 }
 
 async function readJson(req) {
@@ -53,7 +53,7 @@ async function readJson(req) {
   try {
     const value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw Error('not an object');
+      throw new Error('not an object');
     }
     return value;
   } catch {

@@ -40,6 +40,7 @@ OUTPUTS.mkdir(parents=True, exist_ok=True)
 TOKEN = os.environ.get("FORGE_ENGINE_CONTROL_TOKEN", "")
 app = FastAPI(title="Forge MotionBricks experimental worker")
 install_identity_endpoint(app, TOKEN, "motion-bricks")
+# Guards state, jobs, session and current_rig, which worker threads and HTTP handlers share.
 lock = threading.Lock()
 state = {"phase": "idle", "error": None, "closing": False}
 jobs = {}
@@ -141,7 +142,7 @@ def load_worker(rig, threads):
 
 
 def render_worker(job_id, rig, tensors):
-    temp = OUTPUTS / f".{job_id}.part"
+    staging_path = OUTPUTS / f".{job_id}.part"
     stop = log.time("motion.generate.completed", {"jobId": job_id, "format": "json"})
     try:
         log.info("motion.job.state.changed", {"jobId": job_id, "from": "queued", "to": "running"})
@@ -161,8 +162,8 @@ def render_worker(job_id, rig, tensors):
         }
         # json.dumps escapes non-ASCII by default, so len() is the byte count.
         payload = json.dumps(result, allow_nan=False, separators=(",", ":"))
-        temp.write_text(payload, encoding="utf-8")
-        os.replace(temp, OUTPUTS / f"{job_id}.json")
+        staging_path.write_text(payload, encoding="utf-8")
+        os.replace(staging_path, OUTPUTS / f"{job_id}.json")
         log.debug(
             "motion.file.written",
             {"kind": "output", "extension": "json", "outputBytes": len(payload)},
@@ -175,7 +176,7 @@ def render_worker(job_id, rig, tensors):
         log.error("motion.generate.failed", {"jobId": job_id, "format": "json", "error": error})
         traceback.print_exc()
         try:
-            temp.unlink(missing_ok=True)
+            staging_path.unlink(missing_ok=True)
         except OSError as cleanup_error:
             log.debug("motion.file.cleanup.failed", {"error": cleanup_error})
         with lock:
@@ -184,7 +185,7 @@ def render_worker(job_id, rig, tensors):
 
 
 def render_bvh_worker(job_id, clip, tensors, alignment):
-    temp = OUTPUTS / f".{job_id}.part"
+    staging_path = OUTPUTS / f".{job_id}.part"
     stop = log.time("motion.generate.completed", {"jobId": job_id, "format": "bvh"})
     try:
         log.info("motion.job.state.changed", {"jobId": job_id, "from": "queued", "to": "running"})
@@ -197,8 +198,8 @@ def render_bvh_worker(job_id, clip, tensors, alignment):
 
         output = infer(session, "soma", tensors)
         bvh = decode_bvh(clip, output, alignment)
-        temp.write_text(bvh, encoding="utf-8")
-        os.replace(temp, OUTPUTS / f"{job_id}.bvh")
+        staging_path.write_text(bvh, encoding="utf-8")
+        os.replace(staging_path, OUTPUTS / f"{job_id}.bvh")
         bvh_bytes = len(bvh.encode("utf-8"))
         log.debug(
             "motion.file.written", {"kind": "output", "extension": "bvh", "outputBytes": bvh_bytes}
@@ -211,7 +212,7 @@ def render_bvh_worker(job_id, clip, tensors, alignment):
         log.error("motion.generate.failed", {"jobId": job_id, "format": "bvh", "error": error})
         traceback.print_exc()
         try:
-            temp.unlink(missing_ok=True)
+            staging_path.unlink(missing_ok=True)
         except OSError as cleanup_error:
             log.debug("motion.file.cleanup.failed", {"error": cleanup_error})
         with lock:
@@ -230,6 +231,7 @@ class GenerateRequest(BaseModel):
 
 
 class BvhRequest(BaseModel):
+    # Caps the uploaded BVH text at 10 MiB.
     bvh: str = Field(min_length=1, max_length=10 * 1024**2)
     context_frame: int = Field(ge=0, strict=True)
     target_frame: int = Field(ge=0, strict=True)

@@ -14,9 +14,9 @@ function escapeHtml(text) {
  * @returns {Promise<http.Server | null>} null when the port could not be bound
  */
 export function startRecoveryNeededServer({ port, component, count, windowMs }) {
-  const minutes = Math.max(1, Math.round(windowMs / 60000));
+  const windowMinutes = Math.max(1, Math.round(windowMs / 60000));
   const message =
-    `Forge Studio stopped its ${component} after ${count} crashes in ${minutes} minutes, ` +
+    `Forge Studio stopped its ${component} after ${count} crashes in ${windowMinutes} minutes, ` +
     'instead of restarting it again. Your queued renders, projects and models were not changed, ' +
     'and engines that were running still are. Open Diagnostics logs, or run the studio from a ' +
     'terminal to see the error, fix the cause, then start the studio again. After the restart the ' +

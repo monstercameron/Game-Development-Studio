@@ -9,6 +9,7 @@ import { audioPayload } from '../src/audio-payload.js';
 import { describeSettings, reusePlan } from '../src/generation-details.js';
 
 async function makeQueue(t) {
+  // The holder lets the cleanup registered here stop the queue created below.
   const holder = { queue: null };
   t.after(() => holder.queue?.stop());
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-voice-sampling-'));
@@ -20,6 +21,7 @@ async function makeQueue(t) {
     path.join(projects, 'Fixture', '.forge-project.json'),
     JSON.stringify({ id: projectId }),
   );
+  // autoStart is off: these tests cover enqueue-time validation and persistence, not job execution.
   holder.queue = new JobQueue({ directory: path.join(root, 'state'), projects, autoStart: false });
   return { queue: holder.queue, projectId };
 }

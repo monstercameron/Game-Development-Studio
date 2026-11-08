@@ -69,7 +69,7 @@ test('3D assets offer the other mesh formats and list the extra files an OBJ wri
 
     const container = document.querySelector('#root');
     root = createRoot(container);
-    const options = () =>
+    const optionValues = () =>
       [...container.querySelector('select').options].map((option) => option.value);
     await act(async () => {
       root.render(
@@ -80,7 +80,7 @@ test('3D assets offer the other mesh formats and list the extra files an OBJ wri
       );
     });
     // Every format except the file's own, with the likely one chosen first.
-    assert.deepEqual(options(), ['gltf', 'obj', 'ply', 'stl']);
+    assert.deepEqual(optionValues(), ['gltf', 'obj', 'ply', 'stl']);
     assert.equal(container.querySelector('select').value, 'obj');
     assert.match(
       container.textContent,
@@ -107,7 +107,7 @@ test('3D assets offer the other mesh formats and list the extra files an OBJ wri
     );
     assert.match(status, /metallic and roughness maps are dropped/);
 
-    for (const [id, expected, first] of [
+    for (const [id, expected, likelyFormat] of [
       ['3d/a.gltf', ['glb', 'obj', 'ply', 'stl'], 'glb'],
       ['3d/a.stl', ['glb', 'gltf', 'obj', 'ply'], 'glb'],
     ]) {
@@ -119,8 +119,8 @@ test('3D assets offer the other mesh formats and list the extra files an OBJ wri
           }),
         );
       });
-      assert.deepEqual(options(), expected);
-      assert.equal(container.querySelector('select').value, first);
+      assert.deepEqual(optionValues(), expected);
+      assert.equal(container.querySelector('select').value, likelyFormat);
     }
   } finally {
     if (root) {

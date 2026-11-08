@@ -33,6 +33,9 @@ VIEW_SIZE = 512
 VIEW_SIZES = (512, 768)
 DIFFUSION_STEPS = 15
 SIMPLIFY_FACES = 40000
+# Candidate camera poses for view selection, as parallel lists: azimuth and elevation in degrees,
+# and a weight. The first six are upstream's fixed poses; the loop adds 24 low-weight poses on
+# rings at +/-20 degrees elevation, so 30 candidates in total.
 CANDIDATE_AZIMS = [0, 90, 180, 270, 0, 180]
 CANDIDATE_ELEVS = [0, 0, 0, 0, 90, -90]
 CANDIDATE_WEIGHTS = [1, 0.1, 0.5, 0.1, 0.05, 0.05]
@@ -59,6 +62,7 @@ REQUIRED_FILES = (
     "dinov2-giant/model.safetensors",
     "RealESRGAN_x4plus.pth",
 )
+# Compiled helpers the texture stage imports; they are probed with find_spec, never imported here.
 NATIVE_MODULES = ("custom_rasterizer_kernel", "xatlas", "fast_simplification")
 
 
@@ -262,6 +266,11 @@ class PaintModels:
 
 
 def load_texture_models(source_dir, model_dir, *, device="cuda"):
+    """Load the texture models onto `device`.
+
+    Raises RuntimeError when CUDA is unavailable or a model fails to load. The caller must
+    complete GPU and host-memory admission before calling this.
+    """
     log.info("three-d.texture.model.load.started", {"device": device})
     stop = log.time("three-d.texture.model.load.completed", {"device": device})
     try:
@@ -405,7 +414,9 @@ def generate_texture(
             random.seed(0)
             np.random.seed(0)
             torch.manual_seed(0)
-            count = len(controls) // 2
+            # The control list holds normal views followed by position views, one of each per
+            # painted view, so the first half of the output is albedo and the second is material.
+            painted_view_count = len(controls) // 2
             pipeline = models.pipeline
             result = pipeline(
                 [reference],
@@ -416,12 +427,13 @@ def generate_texture(
                 generator=torch.Generator(device=pipeline.device).manual_seed(0),
                 width=view_size,
                 height=view_size,
-                num_in_batch=count,
-                images_normal=[controls[:count]],
-                images_position=[controls[count:]],
+                num_in_batch=painted_view_count,
+                images_normal=[controls[:painted_view_count]],
+                images_position=[controls[painted_view_count:]],
                 dino_hidden_states=models.dino(reference),
             ).images
-            albedo_views, mr_views = result[:count], result[count:]
+            albedo_views = result[:painted_view_count]
+            mr_views = result[painted_view_count:]
 
             say("Upscaling painted views.")
             size = render.default_resolution[0]
@@ -442,10 +454,10 @@ def generate_texture(
             baked_vertices, _faces, baked_uv, _uv_idx = render.get_mesh(normalize=False)
             albedo = render.get_texture()
             metallic, roughness = render.get_texture_mr()
-            half = (texture_size, texture_size)
-            albedo = cv2.resize(albedo, half, interpolation=cv2.INTER_AREA)
-            metallic = cv2.resize(metallic[:, :, 0], half, interpolation=cv2.INTER_AREA)
-            roughness = cv2.resize(roughness[:, :, 0], half, interpolation=cv2.INTER_AREA)
+            final_size = (texture_size, texture_size)
+            albedo = cv2.resize(albedo, final_size, interpolation=cv2.INTER_AREA)
+            metallic = cv2.resize(metallic[:, :, 0], final_size, interpolation=cv2.INTER_AREA)
+            roughness = cv2.resize(roughness[:, :, 0], final_size, interpolation=cv2.INTER_AREA)
             textured_mesh = _glb_from_arrays(
                 baked_vertices.astype(np.float32),
                 normals,

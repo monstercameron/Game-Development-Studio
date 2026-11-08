@@ -13,5 +13,7 @@ export function pollDelayMs(failures, normalMs = 5000) {
   if (!Number.isFinite(failures) || failures <= 0) {
     return normalMs;
   }
+  // The exponent is capped so a long outage cannot overflow the doubling; the ceiling is
+  // reached after about five failures, so the cap never changes a visible delay.
   return Math.min(RECONNECT_FIRST_MS * 2 ** (Math.min(failures, 10) - 1), RECONNECT_MAX_MS);
 }

@@ -12,6 +12,17 @@ from scipy.spatial.transform import Rotation
 
 
 def motion_to_bvh(rot6d, translation, rest_joints, parents, names, fps=30):
+    """Convert one HY-Motion clip to BVH text.
+
+    rot6d is (frames, joints, 6) with the 6D rotation columns per joint, translation is
+    (frames, 3) for the root, rest_joints is (joints, 3) in the rest pose, parents is a
+    1D integer array with the root first and every parent before its children, and names
+    gives one label per joint (non-identifier characters become underscores). fps must be
+    greater than 0 and at most 240.
+
+    Returns the BVH document with a trailing newline. Raises ValueError for any shape,
+    value, or skeleton that the exporter cannot represent; nothing is partially returned.
+    """
     rotations = np.asarray(rot6d, dtype=np.float64)
     translation = np.asarray(translation, dtype=np.float64)
     rest = np.asarray(rest_joints, dtype=np.float64)
@@ -55,17 +66,17 @@ def motion_to_bvh(rot6d, translation, rest_joints, parents, names, fps=30):
 
     # This is the same 6D column convention used in the upstream geometry.py.
     pairs = rotations.reshape(frames, count, 3, 2)
-    a, b = pairs[..., 0], pairs[..., 1]
-    length_a = np.linalg.norm(a, axis=-1, keepdims=True)
-    if (length_a < 1e-8).any():
+    first_column, second_column = pairs[..., 0], pairs[..., 1]
+    first_length = np.linalg.norm(first_column, axis=-1, keepdims=True)
+    if (first_length < 1e-8).any():
         raise ValueError("Motion contains a degenerate rotation.")
-    x = a / length_a
-    b = b - (x * b).sum(axis=-1, keepdims=True) * x
-    length_b = np.linalg.norm(b, axis=-1, keepdims=True)
-    if (length_b < 1e-8).any():
+    x_axis = first_column / first_length
+    second_column = second_column - (x_axis * second_column).sum(axis=-1, keepdims=True) * x_axis
+    second_length = np.linalg.norm(second_column, axis=-1, keepdims=True)
+    if (second_length < 1e-8).any():
         raise ValueError("Motion contains a degenerate rotation.")
-    y = b / length_b
-    matrices = np.stack((x, y, np.cross(x, y)), axis=-1)
+    y_axis = second_column / second_length
+    matrices = np.stack((x_axis, y_axis, np.cross(x_axis, y_axis)), axis=-1)
     euler = (
         Rotation.from_matrix(matrices.reshape(-1, 3, 3)).as_euler("XYZ").reshape(frames, count, 3)
     )

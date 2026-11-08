@@ -45,13 +45,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LOCAL_HOST = /^(127\.0\.0\.1|localhost)(:\d+)?$/;
 const ORPHAN_AGE_MS = 60 * 60 * 1000;
 
-function send(res, status, data) {
+function send(res, status, payload) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
   });
-  res.end(JSON.stringify(data));
+  res.end(JSON.stringify(payload));
 }
 
 function isLocalRequest(req) {
@@ -148,7 +148,12 @@ function limitedStream(limit, counter) {
   });
 }
 
-/** Removes staging folders that no queue row owns, left by a crash during an upload. */
+/**
+ * Removes staging folders that no queue row owns, left by a crash during an upload. Only folders
+ * older than maxAgeMs are removed, so an upload that is still starting is never touched.
+ * Unreadable projects and folders are logged and skipped, never thrown. Resolves to the number of
+ * folders removed.
+ */
 export async function sweepOrphanStaging(
   projectsRoot,
   knownIds,

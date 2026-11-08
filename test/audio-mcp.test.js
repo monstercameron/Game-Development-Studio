@@ -9,14 +9,15 @@ import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
 test('music MCP forwards guidance and negative style to the durable queue API', async (t) => {
   const submissions = [];
-  const server = createServer(async (req, res) => {
+  // Fake studio: records each queue submission so the test can inspect the payload.
+  const server = createServer(async (incomingRequest, serverResponse) => {
     let body = '';
-    for await (const chunk of req) {
+    for await (const chunk of incomingRequest) {
       body += chunk;
     }
-    submissions.push({ path: req.url, body: JSON.parse(body) });
-    res.writeHead(201, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ job: { id: 'test-job' } }));
+    submissions.push({ path: incomingRequest.url, body: JSON.parse(body) });
+    serverResponse.writeHead(201, { 'Content-Type': 'application/json' });
+    serverResponse.end(JSON.stringify({ job: { id: 'test-job' } }));
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

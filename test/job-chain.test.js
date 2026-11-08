@@ -10,7 +10,8 @@ import { JobQueue } from '../runtime/jobs.js';
 // Chained renders: a render declares request.referenceFrom = { jobId } and takes its reference
 // from the finished output of an earlier render. These tests use temporary projects and no engine.
 
-// Never reach a real engine that may be running on this computer: every engine URL points at a closed port.
+// Never reach a real engine that may be running on this computer: every engine URL points at
+// a closed port.
 for (const name of [
   'FORGE_HUNYUAN_URL',
   'FORGE_TRELLIS_URL',
@@ -58,7 +59,7 @@ async function setup(t, options = {}) {
     }
     await removeFolder(dir);
   });
-  return { dir, projects, folder, projectId, otherId, queue, open, state };
+  return { folder, projectId, otherId, queue, open };
 }
 
 const segmentation = (projectId, extra = {}) => ({
@@ -412,7 +413,7 @@ test('text-to-3D chains a transparent image into the 3D render', async (t) => {
 
 test('timing keys count a waiting reference and separate TRELLIS pipelines', async (t) => {
   const { queue, projectId } = await setup(t);
-  const done = (type, request, seconds) => {
+  const insertCompletedJob = (type, request, seconds) => {
     const id = randomUUID();
     queue.db
       .prepare(
@@ -430,7 +431,7 @@ test('timing keys count a waiting reference and separate TRELLIS pipelines', asy
       );
   };
   const ref = `${randomUUID()}.png`;
-  done(
+  insertCompletedJob(
     'images',
     { prompt: 'x', width: 1024, height: 1024, num_inference_steps: 25, references: [ref] },
     40,
@@ -449,7 +450,11 @@ test('timing keys count a waiting reference and separate TRELLIS pipelines', asy
   assert.equal(estimate.available, true);
   assert.equal(estimate.typicalSeconds, 40);
 
-  done('trellis', { model: 'trellis', steps: 12, texture_size: 1024, target_faces: 100000 }, 120);
+  insertCompletedJob(
+    'trellis',
+    { model: 'trellis', steps: 12, texture_size: 1024, target_faces: 100000 },
+    120,
+  );
   const base = { references: [ref], steps: 12, texture_size: 1024, target_faces: 100000 };
   assert.equal(queue.estimate({ type: 'trellis', projectId, request: base }).sampleCount, 1);
   assert.equal(

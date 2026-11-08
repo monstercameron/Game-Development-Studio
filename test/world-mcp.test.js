@@ -17,11 +17,11 @@ test('world catalog entries share the world worker status', () => {
 test('MCP queues a world with its selected model and staged references', async (t) => {
   let request;
   const server = createServer(async (req, res) => {
-    let raw = '';
+    let rawBody = '';
     for await (const chunk of req) {
-      raw += chunk;
+      rawBody += chunk;
     }
-    request = { path: req.url, body: JSON.parse(raw) };
+    request = { path: req.url, body: JSON.parse(rawBody) };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end('{}');
   });
@@ -41,8 +41,8 @@ test('MCP queues a world with its selected model and staged references', async (
       stderr: 'pipe',
     }),
   );
-  const projectId = randomUUID(),
-    reference = `${randomUUID()}.png`;
+  const projectId = randomUUID();
+  const reference = `${randomUUID()}.png`;
   const result = await client.callTool({
     name: 'forge_queue_world',
     arguments: {

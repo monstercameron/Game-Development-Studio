@@ -8,6 +8,7 @@ async function listen(server) {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   return server.address().port;
 }
+
 async function request(port, origin, route = '/api/asr/realtime') {
   return new Promise((resolve, reject) => {
     const socket = net.createConnection({ host: '127.0.0.1', port });
@@ -28,9 +29,10 @@ async function request(port, origin, route = '/api/asr/realtime') {
     socket.on('error', reject);
   });
 }
+
 test('stream proxy restricts origin and forwards only its fixed route', async (t) => {
-  let requests = 0,
-    received = '';
+  let requests = 0;
+  let received = '';
   const backend = net.createServer((socket) => {
     requests++;
     socket.on('data', (chunk) => {

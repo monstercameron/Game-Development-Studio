@@ -44,11 +44,15 @@ class OutputRecoveryTests(unittest.TestCase):
                 with self.subTest(worker=filename):
                     output = Path(directory) / folder
                     output.mkdir()
+                    # The empty file and the .part file stand in for interrupted writes. Only the
+                    # completed output may be served, so both must answer 404.
                     job_id, empty_id, partial_id = "a" * 32, "b" * 32, "c" * 32
                     payload = b"completed output for recovery"
                     (output / f"{job_id}.{extension}").write_bytes(payload)
                     (output / f"{empty_id}.{extension}").touch()
                     (output / f".{partial_id}.part").write_bytes(b"incomplete")
+                    # Each worker starts twice, so the second start must recover the same
+                    # committed output from disk after the first process has exited.
                     for _ in range(2):
                         port = unused_port()
                         env = {

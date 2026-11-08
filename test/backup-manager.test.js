@@ -65,10 +65,10 @@ test('a run backs up what exists, skips what is missing and unchanged, and repor
   makeDb(path.join(project, DB_NAME));
   const manager = createBackupManager({ runtimeDirectory: runtime, projectsRoot: projects });
   const first = await manager.runOnce();
-  const status = Object.fromEntries(
+  const statusByName = Object.fromEntries(
     first.map((result) => [result.name.replace(/-[0-9a-f]{8}$/, ''), result.status]),
   );
-  assert.deepEqual(status, {
+  assert.deepEqual(statusByName, {
     jobs: 'created',
     settings: 'skipped',
     i18n: 'skipped',
@@ -114,12 +114,12 @@ test('a damaged project database is restored from its backup the next time it is
   await fs.writeFile(file, bytes);
   resetDatabaseChecksForTests();
   assert.equal(readAssetMeta(project, output).prompt.text, 'click', 'the backup was restored');
-  const events = readRecoveryEvents({ directory: runtime }).map((event) => event.code);
-  assert.ok(events.includes('database.quarantined'));
-  assert.ok(events.includes('database.restored'));
-  const names = await fs.readdir(project);
+  const eventCodes = readRecoveryEvents({ directory: runtime }).map((event) => event.code);
+  assert.ok(eventCodes.includes('database.quarantined'));
+  assert.ok(eventCodes.includes('database.restored'));
+  const fileNames = await fs.readdir(project);
   assert.ok(
-    names.some((name) => name.startsWith('.forge-meta.corrupt-')),
+    fileNames.some((name) => name.startsWith('.forge-meta.corrupt-')),
     'the damaged file is kept',
   );
 });

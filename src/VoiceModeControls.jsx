@@ -45,11 +45,11 @@ export default function VoiceModeControls({
 }) {
   const [picking, setPicking] = useRouteToggle('voiceReference');
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
   // null means the storage scan has not answered; the server still refuses a missing checkpoint.
   const [installed, setInstalled] = useState({});
   const mode = modes.some(([id]) => id === draft.voiceMode) ? draft.voiceMode : 'preset';
-  const staged = Boolean(draft.voiceReferenceId);
+  const isStaged = Boolean(draft.voiceReferenceId);
   // Null when the browser could not read the clip; the worker decides in that case.
   const referenceSeconds = Number.isFinite(draft.voiceReferenceSeconds)
     ? draft.voiceReferenceSeconds
@@ -90,11 +90,11 @@ export default function VoiceModeControls({
   // transcript instead: it is the next required field. Remove is a destructive control, so it is
   // a poor place for focus to land.
   useEffect(() => {
-    if (staged && focusTranscriptOnStage.current) {
+    if (isStaged && focusTranscriptOnStage.current) {
       focusTranscriptOnStage.current = false;
       transcriptRef.current?.focus();
     }
-  }, [staged]);
+  }, [isStaged]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -130,9 +130,10 @@ export default function VoiceModeControls({
     if (!source) {
       return;
     }
-    setBusy(true);
+    setIsBusy(true);
     setError('');
-    // Read the length while the copy is in flight. The read never rejects, so it cannot fail staging.
+    // Read the length while the copy is in flight. The read never rejects, so it cannot
+    // fail staging.
     const durationRead = readClipDurationSeconds(file);
     try {
       const response = await fetch(
@@ -150,8 +151,9 @@ export default function VoiceModeControls({
       const seconds = await durationRead;
       focusTranscriptOnStage.current = true;
       const clipKey = JSON.stringify([source.projectId, source.path]);
-      // A transcript typed for another clip no longer matches, so choosing a different clip clears
-      // it. Unbound text (typed before any clip, or restored by Reuse settings) stays for this clip.
+      // A transcript typed for another clip no longer matches, so choosing a different clip
+      // clears it. Unbound text (typed before any clip, or restored by Reuse settings) stays for
+      // this clip.
       const transcriptBoundKey = draft.voiceReferenceTextKey || '';
       const clearsTranscript =
         transcriptBoundKey !== '' &&
@@ -170,7 +172,7 @@ export default function VoiceModeControls({
       log.warn('voices.reference.failed', { errorClass: reason?.name });
       setError(reason.message);
     } finally {
-      setBusy(false);
+      setIsBusy(false);
     }
   }
 
@@ -181,8 +183,8 @@ export default function VoiceModeControls({
         <div className="audio-setting-group-fields">
           {modes.map(([id, label, help]) => {
             const checkpoint = VOICE_MODE_CHECKPOINTS[id];
-            const missing = Boolean(checkpoint) && installed[checkpoint] === false;
-            const reason = missing
+            const isMissing = Boolean(checkpoint) && installed[checkpoint] === false;
+            const reason = isMissing
               ? `Not installed: ${checkpointNames[checkpoint]}. Stage it with .\\install.ps1 -Models ${checkpoint}.`
               : help;
             return (
@@ -193,7 +195,7 @@ export default function VoiceModeControls({
                   name="voice-mode"
                   value={id}
                   checked={mode === id}
-                  disabled={missing}
+                  disabled={isMissing}
                   aria-describedby={`voice-mode-${id}-help`}
                   onChange={() => {
                     log.info('voices.mode.selected', { mode: id });
@@ -266,7 +268,7 @@ export default function VoiceModeControls({
             you choose it, so later edits do not change this render.
           </p>
           <div className="audio-setting-group-fields">
-            {staged ? (
+            {isStaged ? (
               <div
                 className="sound-source-chosen audio-setting-wide"
                 role="status"
@@ -301,12 +303,12 @@ export default function VoiceModeControls({
                   type="button"
                   className="outline-button"
                   id="voiceReference-choose"
-                  disabled={busy || !projects.length}
+                  disabled={isBusy || !projects.length}
                   aria-invalid={referenceError ? 'true' : undefined}
                   aria-describedby={referenceError ? 'voiceReference-error' : undefined}
                   onClick={() => setPicking(true)}
                 >
-                  {busy ? 'Copying clip…' : 'Choose from asset library'}
+                  {isBusy ? 'Copying clip…' : 'Choose from asset library'}
                 </button>
                 <small className="sound-source-help">
                   WAV, FLAC or MP3, {CLONE_REFERENCE_SECONDS.min} to {CLONE_REFERENCE_SECONDS.max}{' '}

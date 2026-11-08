@@ -68,6 +68,14 @@ function logToolCalls(server) {
     });
 }
 
+/**
+ * Builds the Forge MCP server for one transport session.
+ *
+ * @param {string} [origin] Local studio origin (http://127.0.0.1 or http://localhost, no path).
+ *   Defaults to FORGE_STUDIO_URL, then the Vite dev server.
+ * @returns {McpServer} A server with every Forge tool registered.
+ * @throws {Error} When origin is not a plain local http origin.
+ */
 export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http://127.0.0.1:5173') {
   const base = new URL(origin);
   if (
@@ -86,6 +94,12 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
   }
   const server = new McpServer({ name: 'forge-studio', version: '0.1.0' });
   logToolCalls(server);
+  /**
+   * GET a studio path. Never throws: transport failures and non-2xx responses come back as an
+   * MCP result with isError set, so one unreachable service does not abort the tool call.
+   *
+   * @param {string} path Studio path beginning with /api/.
+   */
   async function read(path) {
     const route = routeTemplate(path);
     try {
@@ -118,6 +132,14 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
       };
     }
   }
+  /**
+   * POST a JSON body to a studio path. Never throws; failures return an MCP result with isError.
+   *
+   * @param {string} path Studio path beginning with /api/.
+   * @param {unknown} body Value serialized as the JSON request body.
+   * @param {number} [timeout] Abort timeout in milliseconds.
+   * @param {string} [requestKind] X-Forge-Request value; inferred from the path when omitted.
+   */
   async function write(path, body, timeout = 10000, requestKind) {
     const route = routeTemplate(path);
     try {

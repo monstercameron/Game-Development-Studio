@@ -64,7 +64,7 @@ const createServer = http.createServer;
 http.createServer = function (...args) {
   const at = args.findIndex((value) => typeof value === 'function');
   if (at >= 0) {
-    args[at] = require('./h3_args.cjs').withCapabilities(args[at]);
+    args[at] = require(h3Args).withCapabilities(args[at]);
   }
   return createServer.apply(this, args);
 };

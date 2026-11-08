@@ -54,8 +54,8 @@ test('trash confirmation names the action, manages focus, and announces request 
     };
 
     const sourcePath = path.join(repositoryRoot, 'src', 'ProjectTrash.jsx');
-    const source = await readFile(sourcePath, 'utf8');
-    const component = source.replace(/^import .*;\r?\n/gm, '');
+    const componentSource = await readFile(sourcePath, 'utf8');
+    const component = componentSource.replace(/^import .*;\r?\n/gm, '');
     const prelude = `
       import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
       const Trash2 = () => null;

@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { MAX_SETTING_CHANGES, SETTING_GROUPS } from './core-settings.js';
 
-const change = {
+const CHANGE_ANNOTATIONS = {
   readOnlyHint: false,
   destructiveHint: false,
   idempotentHint: true,
@@ -25,6 +25,13 @@ function refusal(text) {
   return { isError: true, content: [{ type: 'text', text }] };
 }
 
+/**
+ * Registers the three settings tools on an MCP server.
+ *
+ * `read(path)` and `write(path, body, timeout, requestKind)` are the loopback helpers built in
+ * runtime/mcp-server.js; `write` takes the timeout in milliseconds and the service name that
+ * its X-Forge-Request check expects. `readonly` is the annotation object for read-only tools.
+ */
 export function registerSettingsTools(server, { read, write, readonly }) {
   server.registerTool(
     'forge_settings_list',
@@ -55,19 +62,19 @@ export function registerSettingsTools(server, { read, write, readonly }) {
           .optional()
           .describe('Several changes to apply together. Use this or key and value, not both.'),
       },
-      annotations: change,
+      annotations: CHANGE_ANNOTATIONS,
     },
     ({ key, value, changes }) => {
-      const single = key !== undefined || value !== undefined;
-      if (single === (changes !== undefined)) {
+      const isSingleChange = key !== undefined || value !== undefined;
+      if (isSingleChange === (changes !== undefined)) {
         return refusal('Give either key and value, or changes, but not both.');
       }
-      if (single && (key === undefined || value === undefined)) {
+      if (isSingleChange && (key === undefined || value === undefined)) {
         return refusal('A single change needs both key and value.');
       }
       return write(
         '/api/settings',
-        { changes: single ? [{ key, value }] : changes, via: 'mcp' },
+        { changes: isSingleChange ? [{ key, value }] : changes, via: 'mcp' },
         30000,
         'settings',
       );
@@ -82,7 +89,7 @@ export function registerSettingsTools(server, { read, write, readonly }) {
         key: settingKey.optional(),
         group: groupId.optional(),
       },
-      annotations: change,
+      annotations: CHANGE_ANNOTATIONS,
     },
     ({ key, group }) => {
       if ((key === undefined) === (group === undefined)) {

@@ -6,8 +6,12 @@ import path from 'node:path';
 import { JobQueue } from '../runtime/jobs.js';
 
 test('bulk clear requires confirmation and cancels only waiting jobs without remote work', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-clear-'));
-  const queue = new JobQueue({ directory: dir, projects: dir, autoStart: false });
+  const tempDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-clear-'));
+  const queue = new JobQueue({
+    directory: tempDirectory,
+    projects: tempDirectory,
+    autoStart: false,
+  });
   try {
     const insert = queue.db.prepare(
       'INSERT INTO jobs(id,type,project_id,request,status,remote_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',
@@ -31,6 +35,6 @@ test('bulk clear requires confirmation and cancels only waiting jobs without rem
     assert.equal(queue.get('x').status, 'waiting_engine');
   } finally {
     queue.stop();
-    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
   }
 });

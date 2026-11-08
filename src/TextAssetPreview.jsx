@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
 import './text-asset-preview.css';
+
+// Upper bound in bytes for previewed text. It is checked against asset metadata before
+// fetching and again against the response Content-Length before the body is read.
+const MAX_PREVIEW_BYTES = 512 * 1024;
+
 export default function TextAssetPreview({ asset }) {
   const [state, setState] = useState({ loading: true, text: '', error: '' });
   useEffect(() => {
     const controller = new AbortController();
     setState({ loading: true, text: '', error: '' });
-    if (asset.size > 512 * 1024) {
+    if (asset.size > MAX_PREVIEW_BYTES) {
       setState({
         loading: false,
         text: '',
@@ -18,7 +23,7 @@ export default function TextAssetPreview({ asset }) {
         if (!response.ok) {
           throw Error('Could not load this file.');
         }
-        if (Number(response.headers.get('content-length')) > 512 * 1024) {
+        if (Number(response.headers.get('content-length')) > MAX_PREVIEW_BYTES) {
           throw Error('This file is too large to preview. Download it to read it.');
         }
         return response.text();

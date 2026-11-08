@@ -9,6 +9,8 @@ const subscribe = (listener) => {
   return () => listeners.delete(listener);
 };
 export const getVideoFrames = () => frames;
+// Unknown slots are ignored rather than stored, so a bad slot name cannot add a key to `frames`.
+// A null file clears only that slot.
 export function setVideoFrame(slot, file) {
   if (slot !== 'first' && slot !== 'last') {
     return;

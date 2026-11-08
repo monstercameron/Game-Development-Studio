@@ -7,7 +7,7 @@ import { audioClipPattern, videoClipPattern } from './video-options.js';
 // Reference videos and audio for H3 come from the project's own assets. Like staged images
 // they are copied at queue time, so a later edit or deletion cannot change a queued render.
 export const MAX_CLIP_BYTES = { video: 64 * 1024 * 1024, audio: 32 * 1024 * 1024 };
-const kinds = {
+const CLIP_KINDS_BY_EXTENSION = {
   '.webm': 'video',
   '.mp4': 'video',
   '.wav': 'audio',
@@ -16,7 +16,9 @@ const kinds = {
   '.ogg': 'audio',
   '.opus': 'audio',
 };
-export const clipKind = (name) => kinds[path.extname(String(name)).toLowerCase()] || null;
+// Returns null for unsupported extensions so callers can reject the file with one message.
+export const clipKind = (name) =>
+  CLIP_KINDS_BY_EXTENSION[path.extname(String(name)).toLowerCase()] || null;
 
 async function inputDirectory(projectFolder, create = false) {
   const root = await fs.realpath(projectFolder),
@@ -30,6 +32,12 @@ async function inputDirectory(projectFolder, create = false) {
   }
   return dir;
 }
+/**
+ * Copies a project file into the project's .forge-inputs folder so a queued job keeps its bytes.
+ * `relative` is a forward-slash path inside the project. Throws for invalid, hidden, linked,
+ * out-of-project, missing, unsupported or oversized files; messages are safe to show users.
+ * @returns {Promise<{ id: string, kind: 'video' | 'audio', size: number }>}
+ */
 export async function stageProjectClip(projectFolder, relative) {
   if (
     typeof relative !== 'string' ||
@@ -66,7 +74,11 @@ export async function stageProjectClip(projectFolder, relative) {
   await copyFileExclusive(real, path.join(dir, id));
   return { id, kind, size: info.size };
 }
-// Resolves a staged clip to its file, rechecking type and link status when the job runs.
+/**
+ * Resolves a staged clip to its file, rechecking type and link status when the job runs.
+ * Throws if the ID is malformed for `kind`, or the staged file is missing, a link or too large.
+ * @returns {Promise<string>} absolute path to the staged file
+ */
 export async function stagedClipPath(projectFolder, id, kind) {
   const pattern = kind === 'video' ? videoClipPattern : audioClipPattern;
   if (typeof id !== 'string' || !pattern.test(id)) {

@@ -11,6 +11,27 @@ const qwenFallback = () =>
   document.querySelector('.chat-composer textarea:not(:disabled)') ||
   document.querySelector('.chat-model-selector:not(:disabled)');
 
+// Status line under a service name. A service closed in this session wins, then an
+// active render, then the model state; a missing state is reported as unknown.
+function candidateStatusLabel(model, isClosed) {
+  if (isClosed) {
+    return 'Closed';
+  }
+  if (model.busy) {
+    return 'Currently in use';
+  }
+  if (model.id === 'video') {
+    return 'No active video render; its model is released between renders';
+  }
+  if (model.modelLoaded === false) {
+    return 'Model not loaded';
+  }
+  if (model.modelLoaded === null || model.modelLoaded === undefined) {
+    return 'Model state unknown';
+  }
+  return 'Model loaded';
+}
+
 export default function MemoryDialog({
   conflict,
   onClose,
@@ -25,6 +46,8 @@ export default function MemoryDialog({
     [closed, setClosed] = useState([]),
     [forceTarget, setForceTarget] = useState(null);
   const forceTrigger = useRef(null),
+    // Set when focus should go back to the force-close button after the prompt is dismissed.
+    // Confirming clears it, because focus then moves to the dialog itself.
     returnToForceTrigger = useRef(false),
     forceHeading = useRef(null);
   const busy = working || !!action;
@@ -38,9 +61,11 @@ export default function MemoryDialog({
     fallbackFocus: target === 'Qwen' ? qwenFallback : undefined,
   });
   const system = conflict.code === 'insufficient_host_memory';
+  // Host memory arrives in bytes and GPU memory in MiB; both are shown in GiB.
   const free = system ? conflict.freeBytes / 1024 ** 3 : conflict.device?.freeMiB / 1024;
   const required = system ? conflict.requiredBytes / 1024 ** 3 : conflict.requiredMiB / 1024;
   const shortfall = system ? conflict.shortfallBytes / 1024 ** 3 : conflict.shortfallMiB / 1024;
+  // Layout effect so focus moves before paint, when the prompt or its trigger is in the DOM.
   useLayoutEffect(() => {
     if (forceTarget) {
       forceHeading.current?.focus();
@@ -79,13 +104,13 @@ export default function MemoryDialog({
       setNotice(
         `${model.name} service stopped. Check memory again when you are ready; available memory may take a moment to update.`,
       );
-    } catch (e) {
+    } catch (closeError) {
       log.warn('memory.service.close.failed', {
         modelId: model.id,
         operation: force ? 'force-close' : 'close',
-        error: e,
+        error: closeError,
       });
-      setActionError(e.message);
+      setActionError(closeError.message);
     } finally {
       setAction('');
     }
@@ -151,17 +176,7 @@ export default function MemoryDialog({
                 <div>
                   <strong>{model.name}</strong>
                   <small>
-                    {closed.includes(model.id)
-                      ? 'Closed'
-                      : model.busy
-                        ? 'Currently in use'
-                        : model.id === 'video'
-                          ? 'No active video render; its model is released between renders'
-                          : model.modelLoaded === false
-                            ? 'Model not loaded'
-                            : model.modelLoaded === null || model.modelLoaded === undefined
-                              ? 'Model state unknown'
-                              : 'Model loaded'}
+                    {candidateStatusLabel(model, closed.includes(model.id))}
                     {!model.managed && model.url ? ` · External service at ${model.url}` : ''}
                     {model.id === 'chat' && !closed.includes(model.id)
                       ? ' · Idle state cannot be verified, so safe stop is unavailable'

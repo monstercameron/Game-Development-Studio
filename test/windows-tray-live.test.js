@@ -9,6 +9,16 @@ import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Signal 0 only checks that the process exists; it does not stop it.
+const isProcessGone = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch {
+    return true;
+  }
+};
 async function waitFor(check, timeout = 20000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -38,6 +48,8 @@ test(
     await once(probe, 'listening');
     const port = probe.address().port;
     await new Promise((resolve) => probe.close(resolve));
+    // Drop inherited FORGE_* settings so the spawned Studio cannot reach the user's
+    // runtime or projects.
     const environment = Object.fromEntries(
       Object.entries(process.env).filter(([key]) => !key.startsWith('FORGE_')),
     );
@@ -59,34 +71,21 @@ test(
         child.kill();
       }
       if (state.trayPid) {
-        await waitFor(() => {
-          try {
-            process.kill(state.trayPid, 0);
-            return false;
-          } catch {
-            return true;
-          }
-        }, 12000).catch(() => {});
+        await waitFor(() => isProcessGone(state.trayPid), 12000).catch(() => {});
       }
       await fs.rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     });
     const heartbeat = await waitFor(async () => {
       const file = path.join(root, 'runtime', `tray-status-${port}.json`);
-      const value = JSON.parse((await fs.readFile(file, 'utf8')).replace(/^\uFEFF/, ''));
-      return value.ownerPid === child.pid && value.pid ? value : null;
+      // The status file may start with a byte order mark, which JSON.parse rejects.
+      const candidate = JSON.parse((await fs.readFile(file, 'utf8')).replace(/^\uFEFF/, ''));
+      return candidate.ownerPid === child.pid && candidate.pid ? candidate : null;
     });
     state.trayPid = heartbeat.pid;
     assert.notEqual(state.trayPid, child.pid);
     const status = await (await fetch(`http://127.0.0.1:${port}/api/tray/status`)).json();
     assert.equal(status.active, true);
     child.kill();
-    await waitFor(() => {
-      try {
-        process.kill(state.trayPid, 0);
-        return false;
-      } catch {
-        return true;
-      }
-    }, 12000);
+    await waitFor(() => isProcessGone(state.trayPid), 12000);
   },
 );

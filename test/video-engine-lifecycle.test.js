@@ -20,6 +20,7 @@ async function freePort() {
   await new Promise((resolve) => probe.close(resolve));
   return port;
 }
+
 async function waitFor(fn, timeout = 8000) {
   const end = Date.now() + timeout;
   while (Date.now() < end) {
@@ -81,8 +82,8 @@ test('a queued video job starts the unreachable video engine and then waits for 
         started.push(id);
         return { id, status: 'starting' };
       },
-      // The address above only points the queue at a closed port for this test; the real
-      // worker passes its own environment.
+      // An empty environment keeps a developer's own FORGE_VIDEO_URL from changing the result;
+      // the real worker passes its own environment.
       autoStart: (type) => autoStartsService(type, {}),
     }),
   });
@@ -144,13 +145,18 @@ test('one engine can be started on its own with the same rules as start-all', as
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-start-one-'));
   const port = await freePort();
   const onDemandPort = await freePort();
-  const base = { cwd: dir, command: process.execPath, endpoint: '/api/status', kind: 'h3' };
+  const sharedFields = {
+    cwd: dir,
+    command: process.execPath,
+    endpoint: '/api/status',
+    kind: 'h3',
+  };
   const manager = new EngineManager({
     logDir: dir,
     logger: () => {},
     definitions: [
       {
-        ...base,
+        ...sharedFields,
         id: 'video',
         name: 'H3 test',
         port,
@@ -158,7 +164,7 @@ test('one engine can be started on its own with the same rules as start-all', as
         noRestart: true,
       },
       {
-        ...base,
+        ...sharedFields,
         id: 'world',
         name: 'On-demand test',
         port: onDemandPort,
@@ -234,8 +240,8 @@ test('the video engine is a guarded, stoppable engine in the real definitions', 
   assert.equal(video.quiesce, 'h3-guard-v1');
   assert.equal(video.onDemand, undefined);
   const manager = new EngineManager({
-    // The video guard is adoptable after a studio restart, which starts the ownership lock helper
-    // process; this test only reads status and must not start it.
+    // The video guard is adoptable after a studio restart, which starts the ownership lock
+    // helper process; this test only reads status and must not start it.
     definitions: engineDefinitions
       .filter((item) => ['video', 'chat'].includes(item.id))
       .map((item) => ({ ...item, recoverable: false })),

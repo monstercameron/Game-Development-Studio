@@ -35,8 +35,8 @@ export const VIDEO_SOURCES = [
 function FrameSlot({ slot, label, optional, draft, update, openPicker, error = '' }) {
   const frames = useVideoFrames();
   const file = frames[slot];
-  const descriptor = draft[slot === 'first' ? 'videoFirstFrame' : 'videoLastFrame'];
   const key = slot === 'first' ? 'videoFirstFrame' : 'videoLastFrame';
+  const descriptor = draft[key];
   const [problem, setProblem] = useState('');
   const choose = (chosen) => {
     setProblem('');
@@ -164,6 +164,19 @@ function ClipList({ kind, items, max, noun, onAdd, onRemove }) {
       </button>
     </div>
   );
+}
+
+function pickerTitle(picker) {
+  if (picker === 'first') {
+    return 'Choose the first frame';
+  }
+  if (picker === 'last') {
+    return 'Choose the last frame';
+  }
+  if (picker === 'video') {
+    return 'Choose a reference video';
+  }
+  return 'Choose reference audio';
 }
 
 // part="source" is the choice of what the video starts from; part="details" holds the pictures and
@@ -315,15 +328,7 @@ export default function VideoMediaInputs({
       )}
       {picker && active && (
         <AssetPicker
-          title={
-            picker === 'first'
-              ? 'Choose the first frame'
-              : picker === 'last'
-                ? 'Choose the last frame'
-                : picker === 'video'
-                  ? 'Choose a reference video'
-                  : 'Choose reference audio'
-          }
+          title={pickerTitle(picker)}
           description={
             picker === 'video'
               ? 'WebM or MP4 videos from this project, up to 64 MiB.'

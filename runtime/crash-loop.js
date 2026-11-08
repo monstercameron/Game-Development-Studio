@@ -49,7 +49,7 @@ export function createCrashLoopGuard({
 
 /**
  * Persists that auto-restart stopped, so the next start and the Recovery report can say why.
- * Never throws.
+ * A failed marker write is logged and not rethrown; the recovery journal entry is still attempted.
  */
 export function markRecoveryNeeded(
   component,
@@ -82,6 +82,10 @@ export function markRecoveryNeeded(
   );
 }
 
+/**
+ * Returns the parsed stop marker, or null when it is missing or unreadable.
+ * The marker is not validated beyond JSON parsing; callers must check the fields they use.
+ */
 export function readRecoveryNeeded(directory = defaultRuntimeDirectory()) {
   try {
     return JSON.parse(fs.readFileSync(path.join(directory, RECOVERY_NEEDED_FILE), 'utf8'));

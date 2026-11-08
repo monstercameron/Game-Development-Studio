@@ -22,7 +22,7 @@ function waitFor(queue, id, statuses) {
       if (statuses.includes(job.status)) {
         resolve(job);
       } else if (Date.now() >= deadline) {
-        reject(Error(`World job stayed ${job.status}: ${job.stage}`));
+        reject(new Error(`World job stayed ${job.status}: ${job.stage}`));
       } else {
         setTimeout(check, 20);
       }
@@ -31,6 +31,8 @@ function waitFor(queue, id, statuses) {
   });
 }
 
+// A remote job that vanishes must stay interrupted, never be resubmitted or auto-completed,
+// and the job log must carry only ids, status and type (no prompt or error text).
 test('an unknown world remote job stays interrupted until explicitly resolved and logs safely', async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-world-status-'));
   const projects = path.join(root, 'projects');
@@ -43,24 +45,24 @@ test('an unknown world remote job stays interrupted until explicitly resolved an
   );
 
   let submissions = 0;
-  const server = createServer((req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    if (req.url === '/api/status') {
-      res.end(JSON.stringify({ engine: 'forge-world-v1', ready: true, busy: false }));
+  const server = createServer((request, response) => {
+    response.setHeader('Content-Type', 'application/json');
+    if (request.url === '/api/status') {
+      response.end(JSON.stringify({ engine: 'forge-world-v1', ready: true, busy: false }));
       return;
     }
-    if (req.url === '/api/generate') {
+    if (request.url === '/api/generate') {
       submissions += 1;
-      res.end(JSON.stringify({ id: remoteId }));
+      response.end(JSON.stringify({ id: remoteId }));
       return;
     }
-    if (req.url === `/api/jobs/${remoteId}`) {
-      res.statusCode = 404;
-      res.end(JSON.stringify({ detail: 'World job not found.' }));
+    if (request.url === `/api/jobs/${remoteId}`) {
+      response.statusCode = 404;
+      response.end(JSON.stringify({ detail: 'World job not found.' }));
       return;
     }
-    res.statusCode = 404;
-    res.end(JSON.stringify({ detail: 'Not found.' }));
+    response.statusCode = 404;
+    response.end(JSON.stringify({ detail: 'Not found.' }));
   });
 
   const oldUrl = process.env.FORGE_WORLD_URL;

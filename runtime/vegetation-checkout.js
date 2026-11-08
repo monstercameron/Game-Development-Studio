@@ -86,7 +86,7 @@ export function readLinkedRepository({
 /** FORGE_SEEDTHREE_DIR (tests, custom locations) or external/SeedThree under the Forge root. */
 export function checkoutDirectory({ root = appRoot, env = process.env } = {}) {
   const override = env.FORGE_SEEDTHREE_DIR;
-  return path.resolve(override ? override : path.join(root, DEFAULT_RELATIVE_DIRECTORY));
+  return path.resolve(override || path.join(root, DEFAULT_RELATIVE_DIRECTORY));
 }
 
 // Error class and code only: messages can hold repository paths or stderr, so none are logged.
@@ -116,6 +116,7 @@ export function runProgram(file, args, { cwd, timeoutMs = GIT_TIMEOUT_MS, env } 
         timeout: timeoutMs,
         windowsHide: true,
         maxBuffer: 8 * 1024 * 1024,
+        // Git must fail instead of waiting for a credential prompt; no console is attached.
         env: { ...process.env, ...env, GIT_TERMINAL_PROMPT: '0' },
       },
       (error, stdout, stderr) => {

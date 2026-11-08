@@ -129,6 +129,8 @@ export function formatFixPrompt(error) {
   return parts.join('\n');
 }
 
+// Character caps (JavaScript string length, not bytes) so one long stack or suggestion cannot
+// make the issue body unbounded.
 export const ISSUE_LIMITS = Object.freeze({
   title: 120,
   stack: 12000,
@@ -146,7 +148,7 @@ export const ISSUE_LIMITS = Object.freeze({
 export function buildIssueContent(error, environment) {
   const firstLine = String(error.message).split('\n')[0].trim();
   const title = `[${error.source}] ${firstLine}`.slice(0, ISSUE_LIMITS.title);
-  const engine = error.source.startsWith('engine:') ? error.source.slice(7) : 'none';
+  const engine = error.source.startsWith('engine:') ? error.source.slice('engine:'.length) : 'none';
   const fixLines = [];
   if (error.fixSource) {
     fixLines.push(
@@ -175,7 +177,7 @@ export function buildIssueContent(error, environment) {
   const body = [
     '## Summary',
     '',
-    `${firstLine.slice(0, 500)}`,
+    firstLine.slice(0, 500),
     '',
     `Reported from Forge's error review after the fix was confirmed to work. Seen ${error.count} time${error.count === 1 ? '' : 's'}.`,
     '',

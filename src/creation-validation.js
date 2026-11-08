@@ -44,11 +44,11 @@ const tooLarge = (files) =>
 export function creationFieldErrors({ section, draft, files = {}, model = '', forDraft = false }) {
   const errors = [];
   const add = (field, message) => errors.push({ field, ...FIELD_TARGETS[field], message });
-  const refs = draft.refs || [];
+  const references = draft.refs || [];
   const motionBricks = section === 'motion' && model === 'NVIDIA MotionBricks';
 
   if (forDraft) {
-    if (section === '3d' && draft.threeDMode !== 'text' && !refs.length) {
+    if (section === '3d' && draft.threeDMode !== 'text' && !references.length) {
       add('reference', 'Add a reference image for your 3D draft.');
     } else if (section === '3d' && draft.threeDMode === 'text' && !hasText(draft.prompt)) {
       add('description', 'Describe the object you want to create.');
@@ -72,9 +72,9 @@ export function creationFieldErrors({ section, draft, files = {}, model = '', fo
       }
     } else {
       const shapeFiles = files.shapeFiles || [];
-      if (!refs.length) {
+      if (!references.length) {
         add('reference', 'Choose a reference image before rendering.');
-      } else if (shapeFiles.length !== 1 || refs.length !== 1) {
+      } else if (shapeFiles.length !== 1 || references.length !== 1) {
         add('reference', `Choose the reference image again before rendering. ${REFRESH_HINT}`);
       } else if (shapeFiles[0].size > TEN_MIB) {
         add('reference', SINGLE_IMAGE_SIZE_MESSAGE);
@@ -93,9 +93,9 @@ export function creationFieldErrors({ section, draft, files = {}, model = '', fo
 
   if (section === 'segmentation') {
     const segmentationFiles = files.segmentationFiles || [];
-    if (!refs.length && !segmentationFiles.length) {
+    if (!references.length && !segmentationFiles.length) {
       add('reference', 'Choose a reference image to segment.');
-    } else if (segmentationFiles.length !== 1 || refs.length !== 1) {
+    } else if (segmentationFiles.length !== 1 || references.length !== 1) {
       add('reference', `Choose the reference image again before segmenting. ${REFRESH_HINT}`);
     } else if (segmentationFiles[0].size > TEN_MIB) {
       add('reference', SINGLE_IMAGE_SIZE_MESSAGE);
@@ -104,7 +104,7 @@ export function creationFieldErrors({ section, draft, files = {}, model = '', fo
 
   if (section === 'images') {
     const imageFiles = files.imageFiles || [];
-    if (refs.length !== imageFiles.length) {
+    if (references.length !== imageFiles.length) {
       add('reference', `Choose the image references again before rendering. ${REFRESH_HINT}`);
     } else if (tooLarge(imageFiles)) {
       add('reference', IMAGE_SIZE_MESSAGE);
@@ -131,12 +131,12 @@ export function creationFieldErrors({ section, draft, files = {}, model = '', fo
     } else if (source === 'references') {
       const videoFiles = files.videoFiles || [];
       const hasClips = Boolean(draft.videoClips?.length || draft.videoAudios?.length);
-      if (!refs.length && !hasClips) {
+      if (!references.length && !hasClips) {
         add(
           'reference',
           'Add 1–9 reference images, or a reference video or audio clip, to queue a video.',
         );
-      } else if (refs.length !== videoFiles.length) {
+      } else if (references.length !== videoFiles.length) {
         add('reference', `Choose the video reference images again before queuing. ${REFRESH_HINT}`);
       } else if (tooLarge(videoFiles)) {
         add('reference', IMAGE_SIZE_MESSAGE);

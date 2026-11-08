@@ -53,6 +53,7 @@ export function isValidKey(key) {
   return typeof key === 'string' && KEY_PATTERN.test(key) && isKnownNamespace(namespaceOf(key));
 }
 
+/** Returns the namespace segment of a key, or "" when the key has no leading namespace. */
 export function namespaceOf(key) {
   const dot = typeof key === 'string' ? key.indexOf('.') : -1;
   return dot > 0 ? key.slice(0, dot) : '';

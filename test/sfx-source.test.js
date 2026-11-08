@@ -206,41 +206,41 @@ test('the browser sends a source sound only when one is chosen', () => {
 });
 
 test('Lab support for source sounds is read from its status', async () => {
-  const lab = (status) => async () => ({ ok: true, json: async () => status });
-  await requireAudioInput('http://lab', lab({ audio_input: true }));
+  const fakeStatusFetch = (status) => async () => ({ ok: true, json: async () => status });
+  await requireAudioInput('http://lab', fakeStatusFetch({ audio_input: true }));
   await assert.rejects(
-    requireAudioInput('http://lab', lab({ loaded: true })),
+    requireAudioInput('http://lab', fakeStatusFetch({ loaded: true })),
     /does not accept source/,
   );
   await assert.rejects(
-    requireAudioInput('http://lab', lab({ audio_input: 'yes' })),
+    requireAudioInput('http://lab', fakeStatusFetch({ audio_input: 'yes' })),
     /does not accept/,
   );
 });
 
 async function runSfxWorker(t, { request, lab }) {
   const requests = [];
-  const server = createServer((req, res) => {
+  const server = createServer((req, response) => {
     let body = '';
     req.on('data', (chunk) => (body += chunk));
     req.on('end', () => {
       requests.push({ method: req.method, url: req.url, body: body ? JSON.parse(body) : null });
-      res.setHeader('Content-Type', 'application/json');
+      response.setHeader('Content-Type', 'application/json');
       if (req.url === '/api/session') {
-        res.end(JSON.stringify({ session: 'fixture-session' }));
+        response.end(JSON.stringify({ session: 'fixture-session' }));
       } else if (req.url === '/api/status') {
-        res.end(JSON.stringify(lab));
+        response.end(JSON.stringify(lab));
       } else if (req.url === '/api/generate') {
-        res.statusCode = 202;
-        res.end(JSON.stringify({ job_id: 'lab-job' }));
+        response.statusCode = 202;
+        response.end(JSON.stringify({ job_id: 'lab-job' }));
       } else if (req.url === '/api/jobs/lab-job') {
-        res.end(JSON.stringify({ status: 'completed', result: { url: '/audio/result.wav' } }));
+        response.end(JSON.stringify({ status: 'completed', result: { url: '/audio/result.wav' } }));
       } else if (req.url === '/audio/result.wav') {
-        res.setHeader('Content-Type', 'audio/wav');
-        res.end('edited wav bytes');
+        response.setHeader('Content-Type', 'audio/wav');
+        response.end('edited wav bytes');
       } else {
-        res.statusCode = 404;
-        res.end('{}');
+        response.statusCode = 404;
+        response.end('{}');
       }
     });
   });

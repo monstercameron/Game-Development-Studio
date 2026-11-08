@@ -36,7 +36,7 @@ test('polling stays at the normal period while healthy and backs off from 1 s to
   assert.equal(pollDelayMs(0), 5000);
   assert.equal(pollDelayMs(0, 7000), 7000);
   assert.deepEqual(
-    [1, 2, 3, 4, 5, 6, 50].map((n) => pollDelayMs(n)),
+    [1, 2, 3, 4, 5, 6, 50].map((failureCount) => pollDelayMs(failureCount)),
     [1000, 2000, 4000, 8000, 15000, 15000, 15000],
   );
   assert.equal(pollDelayMs(Number.NaN), 5000);
@@ -116,8 +116,8 @@ test('saved conversations keep what is valid, and the unsent chat draft tolerate
   assert.deepEqual(kept[0].messages, [{ role: 'user', content: 'hi' }]);
 
   for (const raw of [undefined, '{"text":', '[]', '{"text":5}', 'null']) {
-    const storage = memoryStorage(raw === undefined ? {} : { [CHAT_DRAFT_KEY]: raw });
-    assert.equal(readChatDraft(storage), '');
+    const damagedStorage = memoryStorage(raw === undefined ? {} : { [CHAT_DRAFT_KEY]: raw });
+    assert.equal(readChatDraft(damagedStorage), '');
   }
   const storage = memoryStorage();
   writeChatDraft('half a thought', storage);

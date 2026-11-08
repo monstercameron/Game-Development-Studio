@@ -5,10 +5,12 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+# runtime/ is not an installed package, so it is added to the path before the import.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runtime"))
 import asr_guard  # noqa: E402
 
 
+# Carries only the fields native_command reads. The paths are placeholders; nothing is launched.
 def arguments(right_context):
     return SimpleNamespace(
         native=Path("nemo-speech.exe"),

@@ -288,9 +288,9 @@ async function mount(t, { entry = '/megascans', project = PROJECT, state }) {
         summary: { running: 1, queued: 1, failed: 1, completed: 1, maxConcurrent: 2 },
       });
     }
-    const detail = /^\/listings\/(.+)$/.exec(route);
-    if (detail) {
-      const listing = state.listings.find((item) => item.id === detail[1]);
+    const detailMatch = /^\/listings\/(.+)$/.exec(route);
+    if (detailMatch) {
+      const listing = state.listings.find((item) => item.id === detailMatch[1]);
       return listing
         ? respond(200, { listing, imports: [] })
         : respond(404, { error: 'Listing not found.' });
@@ -363,7 +363,7 @@ async function mount(t, { entry = '/megascans', project = PROJECT, state }) {
   });
   const settle = async (ms = 20) => act(async () => sleep(ms));
   await settle();
-  return { dom, root, location, selected, settle, container: document.getElementById('root') };
+  return { location, selected, settle, container: document.getElementById('root') };
 }
 
 const idleScan = {

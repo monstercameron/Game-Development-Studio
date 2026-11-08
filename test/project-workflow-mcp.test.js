@@ -56,11 +56,11 @@ test('MCP creates a project and updates asset metadata through the real project 
   });
   assert.notEqual(saved.isError, true);
   const textPath = JSON.parse(saved.content[0].text).path;
-  const text = await client.callTool({
+  const readResult = await client.callTool({
     name: 'forge_read_text_asset',
     arguments: { projectId: project.id, path: textPath },
   });
-  assert.equal(text.content[0].text, 'A saved transcript.');
+  assert.equal(readResult.content[0].text, 'A saved transcript.');
   const escaped = await client.callTool({
     name: 'forge_read_text_asset',
     arguments: { projectId: project.id, path: '../outside.txt' },

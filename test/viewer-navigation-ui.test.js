@@ -16,7 +16,7 @@ async function mountViewer(t, props) {
         : { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 };
     };
   const { default: InteractiveAssetViewer } = await harness.load('InteractiveAssetViewer.jsx');
-  harness.show = async (nextProps = props) => {
+  harness.show = async (nextProps) => {
     await act(async () => {
       harness.root.render(
         React.createElement(InteractiveAssetViewer, { url: '/b.glb', name: 'b.glb', ...nextProps }),

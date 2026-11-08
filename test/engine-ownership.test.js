@@ -16,14 +16,14 @@ import {
 
 const enabled = process.platform === 'win32';
 async function freePort() {
-  const socket = net.createServer();
-  socket.listen(0, '127.0.0.1');
-  await once(socket, 'listening');
-  const port = socket.address().port;
-  await new Promise((resolve) => socket.close(resolve));
+  const server = net.createServer();
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const port = server.address().port;
+  await new Promise((resolve) => server.close(resolve));
   return port;
 }
-async function message(child, data, expected) {
+async function message(child, payload, expected) {
   const reply = new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(Error('Worker response timed out.')), 5000);
     function receive(value) {
@@ -36,7 +36,7 @@ async function message(child, data, expected) {
     }
     child.on('message', receive);
   });
-  child.send(data);
+  child.send(payload);
   return reply;
 }
 
@@ -89,8 +89,8 @@ test(
       { code: 'EEXIST' },
     );
     assert.equal(await fs.readFile(path.join(journal.directory, `${id}.json`), 'utf8'), unchanged);
-    const second = new EngineOwnershipJournal({ directory });
-    assert.equal((await second.read(id)).nonce, nonce);
+    const restartedJournal = new EngineOwnershipJournal({ directory });
+    assert.equal((await restartedJournal.read(id)).nonce, nonce);
     worker = fork(new URL('./fixtures/ownership-worker.js', import.meta.url), [], {
       execArgv: [],
       stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
@@ -101,8 +101,8 @@ test(
     assert.equal(discovered.verified, true);
     assert.equal(discovered.pid, worker.pid);
     await initialLock.release();
-    resumedLock = await second.acquireLock();
-    const running = await second.bind(id, nonce, discovered);
+    resumedLock = await restartedJournal.acquireLock();
+    const running = await restartedJournal.bind(id, nonce, discovered);
     assert.equal(running.state, 'running');
     assert.equal(
       (await verifyEngineOwnership(await journal.read(id), { id, port, executable })).verified,
@@ -145,13 +145,13 @@ test(
     assert.equal((await verifyEngineOwnership(running, { id, port, executable })).verified, false);
     await message(worker, { type: 'mode', mode: 'wrong-pid' }, 'mode-ready');
     assert.equal((await verifyEngineOwnership(running, { id, port, executable })).verified, false);
-    await assert.rejects(second.clear(id, '0'.repeat(64)), /does not match/);
+    await assert.rejects(restartedJournal.clear(id, '0'.repeat(64)), /does not match/);
     const exited = once(worker, 'exit');
     worker.send({ type: 'stop' });
     await exited;
     assert.equal((await probeWindowsProcess(discovered)).state, 'exited_or_reused');
     assert.equal((await verifyEngineOwnership(running, { id, port, executable })).verified, false);
-    assert.equal(await second.clear(id, nonce), true);
+    assert.equal(await restartedJournal.clear(id, nonce), true);
     assert.equal(await journal.read(id), null);
   },
 );
@@ -203,13 +203,13 @@ test(
       interpreter = path.join(base, 'python.exe');
     await fs.writeFile(launcher, 'launcher');
     await fs.writeFile(interpreter, 'interpreter');
-    const cfg = path.join(folder, 'env', 'pyvenv.cfg');
-    await fs.writeFile(cfg, `executable = ${interpreter}\n`);
+    const configFile = path.join(folder, 'env', 'pyvenv.cfg');
+    await fs.writeFile(configFile, `executable = ${interpreter}\n`);
     assert.deepEqual(
       (await expectedEngineExecutables(launcher)).map((value) => value.toLowerCase()),
       [launcher, interpreter].map((value) => value.toLowerCase()),
     );
-    await fs.appendFile(cfg, `executable = ${interpreter}\n`);
+    await fs.appendFile(configFile, `executable = ${interpreter}\n`);
     await assert.rejects(expectedEngineExecutables(launcher), /invalid/);
   },
 );

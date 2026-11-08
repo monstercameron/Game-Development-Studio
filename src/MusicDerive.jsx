@@ -4,7 +4,7 @@ import { createLog } from './app-log.js';
 
 const log = createLog('music');
 
-async function queue(projectId, request) {
+async function queueMusicJob(projectId, request) {
   // log-coverage: ignore -- non-OK responses are thrown to submit(), which logs music.derive.failed; failed /api calls are captured by app-log
   const response = await fetch('/api/runtime/jobs', {
     method: 'POST',
@@ -63,7 +63,7 @@ function MusicDeriveActions({ project, asset, onQueued }) {
     setMessage('');
     setHasError(false);
     try {
-      await queue(project.id, deriveMusicRequest(mode, asset, values));
+      await queueMusicJob(project.id, deriveMusicRequest(mode, asset, values));
       log.info('music.derive.queued', { mode });
       setMessage(
         mode === 'extend'

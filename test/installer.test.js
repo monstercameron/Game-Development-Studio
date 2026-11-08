@@ -17,7 +17,7 @@ test('installer catalog covers each selectable studio model and uses HTTPS sourc
   const ids = entries.map((item) => item.id);
   assert.equal(new Set(ids).size, ids.length);
   // Optional entries stage extra checkpoints for features beyond the core studio models.
-  // Optional entries stage extra checkpoints; the catalog marks the same entries as optional.
+  // The install manifest and the studio catalog must agree on which entries are optional.
   assert.deepEqual(
     entries
       .filter((item) => item.optional)

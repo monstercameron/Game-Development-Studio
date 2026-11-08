@@ -39,7 +39,6 @@ async function loraFolder(t, names = ['pixel-art.safetensors', 'ink wash (v2).sa
     }
     await fs.rm(directory, { recursive: true, force: true });
   });
-  return directory;
 }
 
 test('LoRA names must be plain safetensors files that exist in the scanned folder', async (t) => {
@@ -207,7 +206,7 @@ async function makeProject(t) {
   const projectId = randomUUID();
   await fs.mkdir(path.join(project, 'images'), { recursive: true });
   await fs.writeFile(path.join(project, '.forge-project.json'), JSON.stringify({ id: projectId }));
-  return { root, projects, project, projectId };
+  return { root, projects, projectId };
 }
 
 test('the queue records variation labels, LoRA and advanced image options', async (t) => {
@@ -275,10 +274,8 @@ async function runImageWorker(t, { request, engine }) {
     await new Promise((resolve) => server.close(resolve));
     await fs.rm(directory, { recursive: true, force: true });
   });
-  const messages = [];
   const done = new Promise((resolve) => {
     child.on('message', (message) => {
-      messages.push(message);
       if (['complete', 'failed', 'interrupted'].includes(message.type)) {
         resolve(message);
       }
@@ -289,7 +286,7 @@ async function runImageWorker(t, { request, engine }) {
     projectFolder: directory,
     baseUrl: `http://127.0.0.1:${server.address().port}`,
   });
-  return { requests, outcome: await done, messages };
+  return { requests, outcome: await done };
 }
 
 test('the image worker sends LoRA and a sigma list but keeps variation labels to itself', async (t) => {

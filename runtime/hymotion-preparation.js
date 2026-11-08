@@ -23,6 +23,7 @@ export function createHyMotionLoader({
     if (inFlight) {
       return inFlight;
     }
+    // Concurrent callers share one load request so two clicks cannot send two POSTs.
     inFlight = (async () => {
       let status;
       try {
@@ -92,6 +93,7 @@ export function createHyMotionLoader({
         });
         if (!response.ok) {
           log.warn('motion.hymotion.load.rejected', { httpStatus: response.status });
+          // A 5xx can follow a load the worker already started, so the outcome stays unknown.
           return response.status >= 500
             ? {
                 status: 503,
@@ -115,6 +117,7 @@ export function createHyMotionLoader({
           body: { code: 'load_requested', message: 'HY-Motion loading requested.', memory: plan },
         };
       } catch (error) {
+        // The request may have reached the worker before the connection failed.
         log.warn('motion.hymotion.load.unknown', { error, reason: 'load_unknown' });
         return {
           status: 503,
@@ -230,8 +233,9 @@ export function createHyMotionPreparation({ startEngine, loadModel, autoStart = 
 
 export function createHyMotionRenderPreparation({ hardware, services, freeMemory = os.freemem }) {
   return async ({ duration }) => {
-    const hostGiB = duration <= 5 ? 4 : 6,
-      budget = duration <= 5 ? HYMOTION_GPU_RENDER_MIB : 16 * 1024;
+    const isShortRender = duration <= 5;
+    const hostGiB = isShortRender ? 4 : 6;
+    const budget = isShortRender ? HYMOTION_GPU_RENDER_MIB : 16 * 1024;
     const free = freeMemory();
     if (hostMemoryShort(free, hostGiB * 1024 ** 3)) {
       return {

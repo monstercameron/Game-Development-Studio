@@ -98,6 +98,7 @@ async function change(window, element, value) {
     );
   });
 }
+
 const click = (window, element) =>
   act(async () => element.dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
 const byText = (container, selector, pattern) =>

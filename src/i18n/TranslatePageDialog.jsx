@@ -60,6 +60,20 @@ function codeError(error, t) {
   return '';
 }
 
+// How a review row was produced. Any kind the server adds later reads as not translated.
+function reviewKindLabel(kind, t) {
+  if (kind === 'override') {
+    return t('i18n.review.kindOverride', 'Your edit');
+  }
+  if (kind === 'machine') {
+    return t('i18n.review.kindMachine', 'Machine translated');
+  }
+  if (kind === 'stale') {
+    return t('i18n.review.kindStale', 'English changed; shown in English');
+  }
+  return t('i18n.review.kindMissing', 'Not translated; shown in English');
+}
+
 const REVIEW_LIMIT = 150;
 
 function TranslationReview({ lang, namespaces, fetchImpl, onChanged }) {
@@ -79,7 +93,7 @@ function TranslationReview({ lang, namespaces, fetchImpl, onChanged }) {
     setError('');
     const query = new URLSearchParams({ lang, ns: namespace });
     i18nRequest(`/strings?${query}`, { signal: controller.signal, fetchImpl })
-      .then((data) => setRows(data.strings))
+      .then((response) => setRows(response.strings))
       .catch((reason) => {
         if (reason.name !== 'AbortError') {
           log.warn('i18n.strings.failed', { locale: lang, ...errorLogFields(reason) });
@@ -224,15 +238,7 @@ function TranslationReview({ lang, namespaces, fetchImpl, onChanged }) {
                       {t('i18n.review.remove', 'Remove my edit')}
                     </button>
                   )}
-                  <small>
-                    {row.kind === 'override'
-                      ? t('i18n.review.kindOverride', 'Your edit')
-                      : row.kind === 'machine'
-                        ? t('i18n.review.kindMachine', 'Machine translated')
-                        : row.kind === 'stale'
-                          ? t('i18n.review.kindStale', 'English changed; shown in English')
-                          : t('i18n.review.kindMissing', 'Not translated; shown in English')}
-                  </small>
+                  <small>{reviewKindLabel(row.kind, t)}</small>
                 </form>
               )}
             </li>
@@ -304,14 +310,14 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
     setErrorCode('');
     setStatusMessage('');
     try {
-      const data = await i18nRequest('/preview', {
+      const previewData = await i18nRequest('/preview', {
         method: 'POST',
         body: { lang: code, namespaces },
         fetchImpl,
       });
-      setPreview(data);
+      setPreview(previewData);
       setStep('preview');
-      log.debug('i18n.preview.completed', { locale: code, stringCount: data.strings });
+      log.debug('i18n.preview.completed', { locale: code, stringCount: previewData.strings });
     } catch (reason) {
       log.warn('i18n.preview.failed', { locale: code, ...errorLogFields(reason) });
       showError(reason);
@@ -398,7 +404,7 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
     setIsBusy(true);
     setError('');
     try {
-      const data = await i18nRequest('/cache', {
+      const removal = await i18nRequest('/cache', {
         method: 'DELETE',
         body: {
           lang: preview.lang,
@@ -411,18 +417,18 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
       log.info('i18n.cache.removed', {
         locale: preview.lang,
         scope: kind,
-        removedCount: data.removed,
+        removedCount: removal.removed,
       });
       setConfirming('');
       setStatusMessage(
         tp(
           'i18n.dialog.removed',
-          data.removed,
+          removal.removed,
           {
             one: '{count} saved translation removed.',
             other: '{count} saved translations removed.',
           },
-          { count: formatNumber(data.removed) },
+          { count: formatNumber(removal.removed) },
         ),
       );
       reloadCatalogs(preview.lang);

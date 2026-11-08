@@ -48,6 +48,11 @@ function openOutside(url) {
     reason: isExternalWebUrl(url) ? 'studio_origin' : 'not_web_url',
   });
 }
+/**
+ * Confirms that the service on `port` is this checkout's Studio.
+ * Resolves to the supervisor PID (or the server PID) used for the exit monitor.
+ * Throws when diagnostics are unavailable, the status is not OK, or the service is another install.
+ */
 async function checkStudio() {
   const checkStartedAtMs = performance.now();
   const response = await fetch(`${origin}/api/diagnostics`, {
@@ -139,9 +144,10 @@ if (!app.requestSingleInstanceLock({ windowAction: launchAction })) {
           const requestUrl = details.requestingUrl || webContents.getURL();
           const isStudioRequest =
             isStudioUrl(webContents.getURL(), origin) && isStudioUrl(requestUrl, origin);
-          const isGranted = isStudioRequest && isAllowedPermission(permission, origin, origin);
+          const isPermissionAllowed = isAllowedPermission(permission, origin, origin);
+          const isGranted = isStudioRequest && isPermissionAllowed;
           // Only names on the policy allow-list are logged; others are reported as 'other'.
-          const feature = isAllowedPermission(permission, origin, origin) ? permission : 'other';
+          const feature = isPermissionAllowed ? permission : 'other';
           if (isGranted) {
             log.info('desktop.permission.granted', { feature });
           } else {

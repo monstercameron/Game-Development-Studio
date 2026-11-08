@@ -26,8 +26,9 @@ const childFile = fileURLToPath(new URL('./vegetation-child.js', import.meta.url
 export const GENERATION_TIMEOUT_MS = 120_000;
 export const SCHEMA_TIMEOUT_MS = 60_000;
 export const HEAP_LIMIT_MIB = 3072;
+// Characters of child stdout kept. Output past this cap is dropped, so a reply beyond it is lost.
 const REPLY_LIMIT = 1_000_000;
-const jobIdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+const JOB_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
 /** Raised when SeedThree cannot be used; `code` tells callers which Fetch action applies. */
 export class VegetationUnavailableError extends Error {
@@ -252,6 +253,7 @@ export function runChild(
       }
     });
     child.stderr.on('data', (chunk) => {
+      // Only the first 4000 characters are kept; the error message quotes their last lines.
       if (stderr.length < 4000) {
         stderr += chunk;
       }
@@ -387,7 +389,7 @@ async function generateVegetationAssetUnlogged({
   env = process.env,
   onStage = () => {},
 }) {
-  if (!jobIdPattern.test(jobId)) {
+  if (!JOB_ID_PATTERN.test(jobId)) {
     throw Error('A valid job ID is required.');
   }
   const status = quickCheckoutStatus({ root, env });

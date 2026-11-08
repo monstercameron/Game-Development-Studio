@@ -474,7 +474,7 @@ test('the launcher answers the capability probe and rewrites arguments end to en
   const bad = await post(base, forgeBody({ ref_audios: ['../../etc/passwd'] }));
   assert.equal(bad.status, 400);
   assert.match((await bad.json()).error, /prepared reference audio is missing/);
-  // The input root really is the only place clips are read from.
+  // Fixture sanity check: the valid clip exists, so the rejection below is about the path.
   assert.equal(existsSync(path.join(dir, 'job1', 'audio-1.wav')), true);
 });
 

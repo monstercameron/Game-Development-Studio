@@ -11,6 +11,13 @@ export const MOTIONBRICKS_HOST_RENDER_BYTES = 4 * 1024 ** 3;
 export const MOTIONBRICKS_GPU_LOAD_MIB = 8 * 1024;
 export const MOTIONBRICKS_GPU_RENDER_MIB = 3 * 1024;
 
+/**
+ * Builds the load action for the MotionBricks SOMA rig. Concurrent calls share one in-flight
+ * request. The returned function resolves to { status, body } for the HTTP response.
+ * - 202 load_requested: the worker accepted the request; loading may still fail later.
+ * - 503 load_unknown: the outcome is unknown; the queue load barrier must stay in place.
+ * Byte and MiB budgets are estimates, not reservations; the worker rechecks them.
+ */
 export function createMotionBricksLoader({
   hardware,
   services,
@@ -148,6 +155,12 @@ export function createMotionBricksLoader({
   };
 }
 
+/**
+ * Builds the queue preparation step for MotionBricks. It resolves to a stage object, or to
+ * null when claimLoad() returns false, meaning another caller holds the load claim and this
+ * caller must not load. loadBarrier: true means the persisted load barrier must stay until the
+ * worker is verified no longer loading, because a timed-out load does not prove it stopped.
+ */
 export function createMotionBricksPreparation({ startEngine, loadModel, autoStart = true }) {
   return async ({ health, reachable, claimLoad, retryModel = false }) => {
     if (!reachable) {
@@ -244,6 +257,11 @@ export function createMotionBricksPreparation({ startEngine, loadModel, autoStar
   };
 }
 
+/**
+ * Builds the queue preparation step for a MotionBricks render. It resolves to null when the
+ * render may start, otherwise to a waiting or needs_attention stage. Both budgets are
+ * estimates checked against live readings, not reservations.
+ */
 export function createMotionBricksRenderPreparation({
   hardware,
   services,

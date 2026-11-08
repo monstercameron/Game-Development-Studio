@@ -33,6 +33,7 @@ MODEL_ID = "HY-Motion-1.0"
 OUTPUTS = Path(os.environ.get("FORGE_RUNTIME_DIR", ROOT / ".forge-runtime")) / "hymotion-outputs"
 OUTPUTS.mkdir(parents=True, exist_ok=True)
 TOKEN = os.environ.get("FORGE_ENGINE_CONTROL_TOKEN", "")
+# Weights are local under models/; a missing file must fail the load, not start a download.
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 app = FastAPI(title="Forge HY-Motion worker")
@@ -117,6 +118,7 @@ def files_ready():
 
 
 def free_host_memory():
+    """Return available physical memory in bytes; raise RuntimeError if it cannot be measured."""
     if os.name == "nt":
 
         class MemoryStatus(ctypes.Structure):
@@ -144,6 +146,7 @@ def free_host_memory():
 
 
 def require_memory(*, loading, duration=3):
+    # Budgets in GiB are admission estimates, not measured peak usage.
     host_gib, gpu_gib = (9, 28) if loading else ((4, 10) if duration <= 5 else (6, 18))
     if free_host_memory() < host_bytes_needed(host_gib * 1024**3):
         raise RuntimeError(f"At least {host_gib} GiB of free system memory is required.")
@@ -215,7 +218,7 @@ def render_worker(job_id, request):
     started_at = time.perf_counter()
     log_lifecycle("motion_render_started", job_id=job_id, started_at=started_at)
     log.info("motion.render.started", {"jobId": job_id})
-    temp = OUTPUTS / f".{job_id}.part"
+    partial_path = OUTPUTS / f".{job_id}.part"
     try:
         with lock:
             jobs[job_id].update(status="running", message="Generating character motion.")
@@ -230,8 +233,8 @@ def render_worker(job_id, request):
             steps=request.steps,
             guidance=request.guidance,
         )
-        temp.write_text(bvh, encoding="utf-8")
-        os.replace(temp, OUTPUTS / f"{job_id}.bvh")
+        partial_path.write_text(bvh, encoding="utf-8")
+        os.replace(partial_path, OUTPUTS / f"{job_id}.bvh")
         log.debug(
             "motion.file.written",
             {"jobId": job_id, "kind": "bvh", "bytes": len(bvh.encode("utf-8"))},
@@ -252,7 +255,7 @@ def render_worker(job_id, request):
     except Exception as error:
         traceback.clear_frames(error.__traceback__)
         try:
-            temp.unlink(missing_ok=True)
+            partial_path.unlink(missing_ok=True)
         except OSError as cleanup_error:
             log.warn(
                 "motion.temp.cleanup.failed",
@@ -399,6 +402,7 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
         log.info("motion.stop.requested", {"route": "/api/forge/:action"})
         state["closing"] = True
         if stop_timer is None:
+            # Delay the exit so this HTTP response is sent before the process ends.
             stop_timer = threading.Timer(1, finish_stop)
             stop_timer.daemon = True
             stop_timer.start()

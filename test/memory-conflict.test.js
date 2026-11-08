@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { hostMemoryConflict, planModelLoad } from '../runtime/model-load.js';
 
 test('system memory conflicts show safely managed, busy and external candidates', () => {
+  // Fixture roles: idle is managed and safe to unload; busy is managed but mid-job, so it
+  // cannot be unloaded; external is unmanaged, so it is listed without unload rights; target
+  // is the model being loaded; offline holds no memory and must be skipped.
   const services = [
     {
       id: 'idle',

@@ -12,6 +12,7 @@ import {
 import { createEnvironmentTexture, createLightRig } from './viewer-lighting';
 import { fileExtension, fitDistance, viewDirection } from './viewer-core';
 
+// Thumbnail edge length in pixels; every output is a square of this size.
 const side = 320;
 function canvas() {
   const c = document.createElement('canvas');
@@ -28,15 +29,16 @@ function fit(c, source, width, height) {
     h = height * scale;
   c.getContext('2d').drawImage(source, (side - w) / 2, (side - h) / 2, w, h);
 }
+// max is a byte limit, checked against content-length and then the downloaded size.
 async function fetchBytes(url, max = 64 * 1024 * 1024) {
-  const r = await fetch(url);
-  if (!r.ok) {
+  const response = await fetch(url);
+  if (!response.ok) {
     throw Error('Cannot read asset.');
   }
-  if (Number(r.headers.get('content-length')) > max) {
+  if (Number(response.headers.get('content-length')) > max) {
     throw Error('Asset is too large to preview.');
   }
-  const bytes = await r.arrayBuffer();
+  const bytes = await response.arrayBuffer();
   if (bytes.byteLength > max) {
     throw Error('Asset is too large to preview.');
   }
@@ -197,6 +199,13 @@ async function modelThumbnail(url, name) {
     renderer?.forceContextLoss();
   }
 }
+
+/**
+ * Renders a square PNG data URL for an asset card.
+ * Rejects when the asset has no visual preview (for example audio) or cannot be decoded.
+ * @param {object} asset Asset record with url or file, name or title, and category.
+ * @returns {Promise<string>} PNG data URL.
+ */
 export async function renderThumbnail(asset) {
   const url = asset.url || asset.file,
     name = asset.name || asset.title || asset.id;

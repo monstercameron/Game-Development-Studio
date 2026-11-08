@@ -129,19 +129,19 @@ test('MCP exposes guarded queue, power, asset and engine controls with the corre
 });
 
 test('MCP chat uses the real chat bridge and reports a completed stream and structured settings', async (t) => {
-  let sent;
-  let complete = true;
+  let sentChatBody;
+  let isStreamComplete = true;
   const app = express();
   chatService({
     fetchImpl: async (url, options) => {
       if (url.pathname.endsWith('/models')) {
         return Response.json({ data: [{ id: 'qwen' }] });
       }
-      sent = JSON.parse(options.body);
+      sentChatBody = JSON.parse(options.body);
       const events = [
         'data: {"choices":[{"delta":{"content":"hello "}}]}\r\n\r\n',
         'data: {"choices":[{"delta":{"content":"world"}}],"usage":{"completion_tokens":2}}\r\n\r\n',
-        ...(complete ? ['data: [DONE]\r\n\r\n'] : []),
+        ...(isStreamComplete ? ['data: [DONE]\r\n\r\n'] : []),
       ];
       return new Response(events.join(''), { headers: { 'Content-Type': 'text/event-stream' } });
     },
@@ -166,11 +166,11 @@ test('MCP chat uses the real chat bridge and reports a completed stream and stru
   assert.equal(response.text, 'hello world');
   assert.equal(response.usage.completion_tokens, 2);
   assert.ok(response.firstTokenMs >= 0);
-  assert.equal(sent.max_tokens, 128);
+  assert.equal(sentChatBody.max_tokens, 128);
   // The default endpoint is the local Qwen engine, whose template needs xhigh instead of high.
-  assert.equal(sent.reasoning_effort, 'xhigh');
-  assert.deepEqual(sent.response_format.json_schema.schema, { type: 'object' });
-  complete = false;
+  assert.equal(sentChatBody.reasoning_effort, 'xhigh');
+  assert.deepEqual(sentChatBody.response_format.json_schema.schema, { type: 'object' });
+  isStreamComplete = false;
   const interrupted = await client.callTool({ name: 'forge_chat', arguments: args });
   assert.equal(interrupted.isError, true);
   assert.match(interrupted.content[0].text, /before completion/);

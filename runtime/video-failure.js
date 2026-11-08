@@ -4,10 +4,11 @@
 const FAIL_FAST_EXIT = /engine exit 3221226505|0xC0000409/i;
 
 // H3 reports only "engine exit N" when a render fails. Turn the two failures whose cause Forge can
-// name into an instruction; anything else keeps H3's own text.
-export function failureMessage(current) {
-  const reason = String(current.message || 'H3 Studio failed.');
-  const details = String(current.details || '');
+// name into an instruction; anything else keeps H3's own text. The result is capped at 2000
+// characters, so `failure` is { message, details } from the H3 job error and both may be absent.
+export function failureMessage(failure) {
+  const reason = String(failure.message || 'H3 Studio failed.');
+  const details = String(failure.details || '');
   if (FAIL_FAST_EXIT.test(reason) || FAIL_FAST_EXIT.test(details)) {
     return 'The video engine crashed (0xC0000409), often under memory pressure. Retry; if it repeats, offload other models and lower max GPU memory/size.';
   }

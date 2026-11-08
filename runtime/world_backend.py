@@ -50,7 +50,7 @@ def main():
     # A mesh can be written as a game-ready GLB; everything else is a PLY.
     extension = "glb" if request["output"] == "glb" else "ply"
     target = work / f"result.part.{extension}"
-    images = [work / ("input-" + str(index) + ".png") for index in range(request["image_count"])]
+    images = [work / f"input-{index}.png" for index in range(request["image_count"])]
     report_stage(work, "Loading the CUDA world generator.")
     if request["model"] == "worldgen":
         # Import only the selected model stack inside the CUDA worker process.
@@ -86,12 +86,7 @@ def main():
                 / "worldgen"
                 / ("flux1-dev-Q5_0.gguf" if mode == "text" else "flux1-fill-dev-Q5_0.gguf")
             )
-            quantized_enabled = mode in ("text", "image")
-            if (
-                quantized_enabled
-                and quantized_path.is_file()
-                and os.environ.get("FORGE_WORLDGEN_FULL_PRECISION") != "1"
-            ):
+            if quantized_path.is_file() and os.environ.get("FORGE_WORLDGEN_FULL_PRECISION") != "1":
                 from diffusers import FluxTransformer2DModel, GGUFQuantizationConfig
 
                 pipeline_class = (

@@ -67,7 +67,8 @@ export async function inspectFinishedOutput(job, projectFolder) {
   return { state: result.level === 'structural' ? 'valid' : 'unverified', output };
 }
 
-const BLOCKING = new Set(['interrupted', 'needs_attention']);
+// Statuses a person must look at before a deterministic job is restarted automatically.
+const PERSON_REQUIRED_STATUSES = new Set(['interrupted', 'needs_attention']);
 
 /**
  * Describes one unfinished job for the Recovery report.
@@ -85,7 +86,7 @@ export function classifyJobForRecovery(job) {
   let reason;
   let safeToRetry = false;
   if (job.type === 'vegetation') {
-    kind = BLOCKING.has(job.status) ? 'needs_attention' : 'restartable';
+    kind = PERSON_REQUIRED_STATUSES.has(job.status) ? 'needs_attention' : 'restartable';
     reason = 'Vegetation is deterministic and has no remote job; running it again is safe.';
     safeToRetry = true;
   } else if (job.status === 'interrupted') {

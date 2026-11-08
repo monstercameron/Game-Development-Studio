@@ -81,8 +81,8 @@ test('cancelling while checking services prevents an automatic stop', async () =
     stopped = 0;
   const manager = createAutoMemoryManager({
     services: () =>
-      new Promise((r) => {
-        resolve = r;
+      new Promise((resolveServices) => {
+        resolve = resolveServices;
       }),
     offload: async () => {
       stopped++;
@@ -96,6 +96,8 @@ test('cancelling while checking services prevents an automatic stop', async () =
   assert.equal(stopped, 0);
 });
 
+// Wiring test: a loopback fake stands in for the music engine. It proves the queue, memory
+// recheck and load-barrier handoff, not generated audio or real GPU inference.
 test(
   'a queued render frees an idle model, rechecks memory, loads and completes',
   { timeout: 12000 },
@@ -150,8 +152,8 @@ test(
     });
     const autoMemory = createAutoMemoryManager({
       services: async () => (free ? [] : [service('tts')]),
-      offload: async (id) => {
-        assert.equal(id, 'tts');
+      offload: async (serviceId) => {
+        assert.equal(serviceId, 'tts');
         offloads++;
         free = true;
         return { stopped: true };

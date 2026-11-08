@@ -33,7 +33,7 @@ test('3D page controls: description mode, background removal and TRELLIS pipelin
     });
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     // The pipeline list comes from the runtime service list; answer it without a network.
-    let servicesPipelines = ['512', '1024'];
+    const servicesPipelines = ['512', '1024'];
     globalThis.fetch = async (url) => {
       if (String(url) === '/api/runtime/services') {
         return {
@@ -240,7 +240,6 @@ test('3D page controls: description mode, background removal and TRELLIS pipelin
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
     assert.deepEqual(options(), ['512', '1024']);
-    servicesPipelines = undefined;
   } finally {
     if (root) {
       await act(async () => root.unmount());

@@ -20,7 +20,10 @@ const REQUEST_KEYS = new Set([
 ]);
 const GROUP_PATTERN = /^[a-f0-9-]{36}$/i;
 
-/** Finds a species entry in the schema, or null. Own keys only. */
+/**
+ * Finds the species entry whose key matches. Returns null for a non-string key or a schema with
+ * no species list, so a bad client value never throws here.
+ */
 export function findSpecies(schema, key) {
   if (typeof key !== 'string' || !Array.isArray(schema?.species)) {
     return null;
@@ -144,8 +147,8 @@ export function normalizeVegetationRequest(input, schema) {
       .map((id) => [id, params[id]]),
   );
   const out = { species: speciesEntry.key, seed, budget, params: sorted };
-  const variation = [input.variation_group, input.variation_index, input.variation_count];
-  if (variation.some((item) => item !== undefined && item !== null)) {
+  const variationFields = [input.variation_group, input.variation_index, input.variation_count];
+  if (variationFields.some((item) => item !== undefined && item !== null)) {
     if (
       typeof input.variation_group !== 'string' ||
       !GROUP_PATTERN.test(input.variation_group) ||
@@ -209,7 +212,10 @@ export function clampSuggestedParams(raw, speciesEntry) {
   return { params, ignored, adjusted };
 }
 
-/** Values to show in the form: defaults for the species with `params` applied. */
+/**
+ * Values to show in the form: defaults for the species with `params` applied.
+ * Returns a Map from control id to value (ids are never object keys).
+ */
 export function effectiveValues(speciesEntry, params = {}) {
   const values = new Map();
   for (const control of speciesEntry?.controls || []) {

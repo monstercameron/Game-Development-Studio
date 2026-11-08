@@ -29,6 +29,15 @@ export function parseSigmaSchedule(value) {
   return numbers;
 }
 
+/**
+ * Validates the optional Qwen Image fields of a request and returns only the ones that differ from
+ * the engine defaults. Throws a plain Error with a user-facing message for any invalid value.
+ *
+ * @param {object} request The raw request body; unknown fields are ignored here.
+ * @param {{ sizeFromReference: boolean, steps: number }} context Whether the size follows the last
+ *   reference image, and the sampling step count that a sigma schedule must match.
+ * @returns {object} The fields to store on the job; empty when every value is the default.
+ */
 export function normalizeImageExtras(request, { sizeFromReference, steps }) {
   const {
     output_resolution: outputResolution = null,
@@ -106,7 +115,9 @@ export function normalizeImageExtras(request, { sizeFromReference, steps }) {
 }
 
 // N sibling requests that share every setting and differ only in seed and variation position.
-// A given seed is used for the first and counted up from there; otherwise each seed is random.
+// A given seed is used for the first and counted up from there; otherwise random seeds are drawn
+// until each one is distinct, so no two siblings render the same image. makeGroup supplies the
+// shared variation group ID, and randomSeed is injected so tests can fix the seeds.
 export function variationRequests(request, count, { randomSeed, makeGroup }) {
   if (!Number.isInteger(count) || count < 1 || count > IMAGE_MAX_VARIATIONS) {
     throw Error(`Variations must be from 1 to ${IMAGE_MAX_VARIATIONS}.`);

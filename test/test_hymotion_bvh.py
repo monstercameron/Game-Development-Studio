@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -57,8 +58,6 @@ class BvhExportTests(unittest.TestCase):
         )
         if not (root / "kintree.bin").exists():
             self.skipTest("Upstream HY-Motion source is not installed.")
-        import json
-
         parents = np.fromfile(root / "kintree.bin", dtype=np.int32)
         rest = np.fromfile(root / "j_template.bin", dtype=np.float32).reshape(-1, 3)
         names = json.loads((root / "joint_names.json").read_text())

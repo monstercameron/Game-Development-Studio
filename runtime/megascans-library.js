@@ -67,6 +67,12 @@ export function parseFabListing(input) {
   return { id: lower, url: `https://www.fab.com/listings/${lower}` };
 }
 
+/**
+ * Accepts an array or a comma-separated string. Returns at most LIBRARY_LIMITS.tags unique,
+ * lowercase tags of at most LIBRARY_LIMITS.tagLength characters.
+ * @param {unknown} input
+ * @returns {string[]}
+ */
 export function normalizeTags(input) {
   const raw = Array.isArray(input) ? input : typeof input === 'string' ? input.split(',') : [];
   const tags = [];
@@ -146,9 +152,12 @@ function ftsQuery(text) {
     .map((word) => word.replace(/[^\p{L}\p{N}_-]/gu, ''))
     .filter(Boolean)
     .slice(0, 8);
+  // Each term is quoted and given a prefix star, so no FTS5 operator in the user's text can
+  // change the shape of the query.
   return words.map((word) => `"${word}"*`).join(' ');
 }
 
+// Listings without a publish date sort last. Ties fall back to title and id so paging is stable.
 const SORTS = {
   newest: '(published_at IS NULL), published_at DESC, title COLLATE NOCASE, id',
   title: 'title COLLATE NOCASE ASC, id',
@@ -367,7 +376,8 @@ export class MegascansLibrary {
 
   /**
    * Full-text search over the local library and the Fab cache, with an optional exact tag filter.
-   * @param {{ q?: string, tag?: string, sort?: 'newest' | 'title' | 'recent', page?: number, pageSize?: number }} query
+   * @param {{ q?: string, tag?: string, sort?: 'newest' | 'title' | 'recent', page?: number,
+   *   pageSize?: number }} query
    */
   search({ q = '', tag = '', sort = 'newest', page = 1, pageSize = 24 } = {}) {
     const size = Math.min(

@@ -23,14 +23,14 @@ export async function decide(input) {
     log.warn('game.decision.rejected', { reason: 'missing_state' });
     throw Error('Provide a game state as text.');
   }
-  const bytes = Buffer.byteLength(JSON.stringify(input));
-  if (bytes > 210000) {
-    log.warn('game.decision.rejected', { reason: 'request_too_large', requestBytes: bytes });
+  const requestBytes = Buffer.byteLength(JSON.stringify(input));
+  if (requestBytes > 210000) {
+    log.warn('game.decision.rejected', { reason: 'request_too_large', requestBytes });
     throw Error('Decision request is too large.');
   }
   log.debug('game.decision.started', {
     questionCount: Object.keys(input.questions).length,
-    requestBytes: bytes,
+    requestBytes,
   });
   const stopDecision = log.time('game.decision.completed', { host: '127.0.0.1' });
   try {

@@ -111,9 +111,9 @@ async function call(route, body, signal) {
 }
 function readSaved(key) {
   try {
-    const x = sanitizeSavedChatList(JSON.parse(localStorage.getItem(key)));
-    log.debug('chat.conversations.loaded', { conversationCount: x.length });
-    return x.length ? normalizeSavedChats(x) : [makeChat()];
+    const savedList = sanitizeSavedChatList(JSON.parse(localStorage.getItem(key)));
+    log.debug('chat.conversations.loaded', { conversationCount: savedList.length });
+    return savedList.length ? normalizeSavedChats(savedList) : [makeChat()];
   } catch (error) {
     log.warn('chat.conversations.load.failed', { ...errorFields(error), reason: 'using_empty' });
     return [makeChat()];
@@ -127,6 +127,40 @@ function savedNumber(key, fallback, valid) {
     log.debug('chat.setting.read.failed', { ...errorFields(error), reason: 'using_default' });
     return fallback;
   }
+}
+// One exchange is one user message; assistant replies are not counted separately.
+function exchangeCountLabel(messages) {
+  const exchangeCount = messages.filter((message) => message.role === 'user').length;
+  return `${exchangeCount} ${exchangeCount === 1 ? 'exchange' : 'exchanges'}`;
+}
+// Status text for the model selector. Only the local Qwen server reports reachability.
+function describeModelStatus({ provider, isLocalQwen, isOnline, runtimeStatus }) {
+  if (provider === 'openai') {
+    return 'OpenAI API · not checked';
+  }
+  if (!isLocalQwen) {
+    return 'Compatible endpoint · not checked';
+  }
+  if (isOnline) {
+    return 'Studio server online';
+  }
+  return runtimeStatus === 'starting' ? 'Starting' : 'Starts on send';
+}
+// Schema replies also get a note that the schema itself is not checked.
+function structuredSyntaxLabel(syntax, format) {
+  const isSchema = format === 'schema';
+  if (syntax === 'valid') {
+    return isSchema ? 'Valid JSON syntax · schema conformance not checked.' : 'Valid JSON syntax.';
+  }
+  if (syntax === 'invalid') {
+    return isSchema
+      ? 'Invalid JSON syntax · schema conformance not checked.'
+      : 'Invalid JSON syntax.';
+  }
+  if (syntax === 'empty') {
+    return 'No JSON content to check.';
+  }
+  return 'JSON syntax not checked · response incomplete.';
 }
 function ResponseMetrics({ metrics }) {
   const ttft = Number.isFinite(metrics?.ttftMs) ? `${(metrics.ttftMs / 1000).toFixed(2)}s` : '—';
@@ -160,7 +194,8 @@ export default function Chat({ project }) {
   const [params, setParams] = useSearchParams();
   const active = params.get('conversation') || chats[0]?.id;
   const setActive = (id) => updateSearch(setParams, { conversation: id });
-  // Unsent text survives this page being mounted again (the project resolving late) and a reload.
+  // Unsent text survives this page being mounted again (the project resolving late)
+  // and a reload.
   const [prompt, setPrompt] = useState(() => {
     const draft = readChatDraft();
     log.debug('chat.draft.restored', { hasDraft: draft.length > 0 });
@@ -202,7 +237,8 @@ export default function Chat({ project }) {
   const DEFAULT_SYSTEM =
     'You are a creative game development assistant. Be clear, practical, and concise.';
   const [resetArmed, setResetArmed] = useState(false);
-  // Gated reset: disabled while every option is at its default; an enabled click only arms a confirmation.
+  // Gated reset: disabled while every option is at its default; an enabled click only arms
+  // a confirmation.
   const optionsDirty =
     format !== 'text' ||
     effort !== 'auto' ||
@@ -222,7 +258,8 @@ export default function Chat({ project }) {
     ]
       .filter(Boolean)
       .join(' · ') || 'Defaults';
-  // Reset covers only the per-message Options and advanced fields. Context size belongs to the local engine panel.
+  // Reset covers only the per-message Options and advanced fields. Context size belongs to
+  // the local engine panel.
   const resetOptions = () => {
     setFormat('text');
     setEffort('auto');
@@ -246,7 +283,7 @@ export default function Chat({ project }) {
     () => window.matchMedia('(min-width: 851px) and (max-width: 1599px)').matches,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [optionsOpen, setOptionsOpen] = useState(() => false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const configRef = useRef(null),
     closeSettingsRef = useRef(null);
   closeSettingsRef.current = () => setSettings(false);
@@ -352,9 +389,9 @@ export default function Chat({ project }) {
     async function refreshMemory() {
       try {
         const response = await call('status', {});
-        const status = await response.json();
+        const memoryStatus = await response.json();
         if (active) {
-          setMemory(status);
+          setMemory(memoryStatus);
         }
       } catch (error) {
         log.debug('chat.memory.status.failed', errorFields(error));
@@ -514,16 +551,12 @@ export default function Chat({ project }) {
   function imageFilesFromTransfer(transfer) {
     return [...(transfer?.files || [])].filter((file) => file.type.startsWith('image/'));
   }
-  const modelStatus =
-    provider === 'openai'
-      ? 'OpenAI API · not checked'
-      : localQwen
-        ? modelOnline
-          ? 'Studio server online'
-          : chatRuntime?.status === 'starting'
-            ? 'Starting'
-            : 'Starts on send'
-        : 'Compatible endpoint · not checked';
+  const modelStatus = describeModelStatus({
+    provider,
+    isLocalQwen: localQwen,
+    isOnline: modelOnline,
+    runtimeStatus: chatRuntime?.status,
+  });
   async function saveResponse(content, id, question = '') {
     setSavingMessage(id);
     setError('');
@@ -749,8 +782,13 @@ export default function Chat({ project }) {
       setError('Maximum output tokens must be a whole number from 1 to 262,144.');
       return;
     }
-    const sampling = Number(temperature);
-    if (temperature === '' || !Number.isFinite(sampling) || sampling < 0 || sampling > 2) {
+    const temperatureValue = Number(temperature);
+    if (
+      temperature === '' ||
+      !Number.isFinite(temperatureValue) ||
+      temperatureValue < 0 ||
+      temperatureValue > 2
+    ) {
       log.warn('chat.send.rejected', { reason: 'invalid_temperature' });
       setError('Temperature must be a number from 0 to 2.');
       return;
@@ -800,7 +838,8 @@ export default function Chat({ project }) {
     const prior = chat.messages
       .filter((m) => m.content)
       .map(({ role, content }) => ({ role, content }));
-    // Mirrors the server limits (150 messages including system, 100,000 characters each) so long chats fail with a clear next step.
+    // Mirrors the server limits (150 messages including system, 100,000 characters each) so long
+    // chats fail with a clear next step.
     if (
       prior.length + (system.trim() ? 1 : 0) + 1 > 150 ||
       [user, ...prior].some((m) => m.content.length > 100000)
@@ -1108,11 +1147,7 @@ export default function Chat({ project }) {
                     disabled={busy}
                   >
                     <span>{c.title}</span>
-                    <small>
-                      {c.messages.length
-                        ? `${c.messages.filter((message) => message.role === 'user').length} ${c.messages.filter((message) => message.role === 'user').length === 1 ? 'exchange' : 'exchanges'}`
-                        : 'Draft'}
-                    </small>
+                    <small>{c.messages.length ? exchangeCountLabel(c.messages) : 'Draft'}</small>
                   </button>
                 )}
                 <button
@@ -1221,18 +1256,7 @@ export default function Chat({ project }) {
                       m.streamStatus !== 'streaming' &&
                       m.streamStatus !== 'failed' &&
                       m.streamStatus !== 'stopped';
-                  const syntaxLabel =
-                    syntax === 'valid'
-                      ? m.format === 'schema'
-                        ? 'Valid JSON syntax · schema conformance not checked.'
-                        : 'Valid JSON syntax.'
-                      : syntax === 'invalid'
-                        ? m.format === 'schema'
-                          ? 'Invalid JSON syntax · schema conformance not checked.'
-                          : 'Invalid JSON syntax.'
-                        : syntax === 'empty'
-                          ? 'No JSON content to check.'
-                          : 'JSON syntax not checked · response incomplete.';
+                  const syntaxLabel = structuredSyntaxLabel(syntax, m.format);
                   const canRetry =
                     m.role === 'assistant' &&
                     !busy &&

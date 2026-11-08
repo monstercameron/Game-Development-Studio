@@ -32,9 +32,10 @@ export function memoryCandidates(services, exclude = []) {
       url,
     }));
 }
-// Host RAM is a soft requirement. The per-engine budgets are uncalibrated estimates, and weights are
-// loaded with memory mapping, so a desktop that is merely busy must not block a job while the GPU has
-// room. Only a real shortage (below a small hard floor) blocks by default. Set
+
+// Host RAM is a soft requirement. The per-engine budgets are uncalibrated estimates, and weights
+// are loaded with memory mapping, so a desktop that is merely busy must not block a job while the
+// GPU has room. Only a real shortage (below a small hard floor) blocks by default. Set
 // FORGE_HOST_MEMORY_POLICY=strict (or the memory.hostPolicy setting) enforces the full per-engine
 // budget again.
 export const HOST_MEMORY_FLOOR_BYTES = 2 * 1024 ** 3;
@@ -75,6 +76,16 @@ export function hostMemoryConflict(freeBytes, requiredBytes, services, exclude =
   };
 }
 
+/**
+ * Decides whether the inference GPU has room for a model load. The result is blocking unless a
+ * single GPU can be identified and its free memory verified.
+ *
+ * @param {object} hardware GPU snapshot with `devices` (name, index, freeMiB).
+ * @param {object[]} services Service records used to suggest unload candidates on a shortage.
+ * @param {number} [budgetMiB] Model budget estimate in MiB, not a measured requirement.
+ * @returns {object} `{ code: 'ready', device, requiredMiB }`, or a blocking code
+ *   (`gpu_memory_unavailable` or `insufficient_gpu_memory`) with a message.
+ */
 export function planModelLoad(hardware, services, budgetMiB = YUE_BUDGET_MIB) {
   const devices = Array.isArray(hardware?.devices) ? hardware.devices : [];
   const gpuDevices = devices.filter(
@@ -124,8 +135,8 @@ export function createModelLoader({
   baseUrl = 'http://127.0.0.1:8765',
   fetcher = fetch,
 }) {
-  let inFlight = null,
-    lastRequested = 0;
+  let inFlight = null;
+  let lastRequested = 0;
   return async function loadMusic() {
     if (inFlight) {
       return inFlight;

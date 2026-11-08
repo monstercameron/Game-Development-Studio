@@ -54,6 +54,7 @@ export default function useDialogFocus({ onClose, initialFocus, fallbackFocus } 
     };
     focusInitial();
 
+    // Only the topmost modal reacts, so stacked dialogs do not both close on one Escape.
     const isTopmost = () => topModal() === element;
     const handleKeyDown = (event) => {
       if (!isTopmost()) {
@@ -74,8 +75,8 @@ export default function useDialogFocus({ onClose, initialFocus, fallbackFocus } 
         element.focus();
         return;
       }
-      const first = controls[0],
-        last = controls.at(-1);
+      const first = controls[0];
+      const last = controls.at(-1);
       if (
         event.shiftKey &&
         (document.activeElement === first || !element.contains(document.activeElement))
@@ -94,17 +95,19 @@ export default function useDialogFocus({ onClose, initialFocus, fallbackFocus } 
     document.addEventListener('keydown', handleKeyDown, true);
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true);
-      const canRestore = (element) =>
-        element?.isConnected &&
-        element !== document.body &&
-        element !== document.documentElement &&
-        typeof element.focus === 'function' &&
-        (element.matches(FOCUSABLE) ||
-          element.hasAttribute('tabindex') ||
-          element.isContentEditable) &&
-        !element.matches(':disabled,[hidden],[inert]') &&
-        element.getClientRects().length &&
-        !element.closest('[hidden],[inert],[aria-hidden="true"]');
+      // The opener may have been unmounted or hidden while the dialog was open, so only
+      // restore focus to a connected, visible, focusable candidate.
+      const canRestore = (candidate) =>
+        candidate?.isConnected &&
+        candidate !== document.body &&
+        candidate !== document.documentElement &&
+        typeof candidate.focus === 'function' &&
+        (candidate.matches(FOCUSABLE) ||
+          candidate.hasAttribute('tabindex') ||
+          candidate.isContentEditable) &&
+        !candidate.matches(':disabled,[hidden],[inert]') &&
+        candidate.getClientRects().length &&
+        !candidate.closest('[hidden],[inert],[aria-hidden="true"]');
       if (canRestore(previous)) {
         previous.focus();
         if (document.activeElement === previous) {

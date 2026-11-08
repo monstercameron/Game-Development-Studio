@@ -31,12 +31,12 @@ export default function ErrorIssuePanel({ error, onUpdated, onStatus }) {
     setFailure('');
     setPhase('loading');
     try {
-      const data = await postErrors(`/${error.id}/issue-preview`);
-      setPreview(data);
+      const previewResult = await postErrors(`/${error.id}/issue-preview`);
+      setPreview(previewResult);
       log.info('errors.issue.previewed', {
         errorId: error.id,
-        isAvailable: data.available,
-        duplicateCount: data.duplicates?.length,
+        isAvailable: previewResult.available,
+        duplicateCount: previewResult.duplicates?.length,
       });
       setPhase('preview');
     } catch (reason) {
@@ -50,23 +50,23 @@ export default function ErrorIssuePanel({ error, onUpdated, onStatus }) {
     }
   }
 
-  async function publish(mode, number) {
+  async function publish(mode, issueNumber) {
     setPhase('posting');
     setFailure('');
     try {
-      const data = await postErrors(`/${error.id}/issue`, {
+      const publishResult = await postErrors(`/${error.id}/issue`, {
         digest: preview.digest,
         mode,
-        ...(number ? { number } : {}),
+        ...(issueNumber ? { number: issueNumber } : {}),
       });
-      onUpdated(data.error);
+      onUpdated(publishResult.error);
       log.info('errors.issue.posted', { errorId: error.id, mode });
       setPreview(null);
       setPhase('idle');
       onStatus(
         mode === 'comment'
-          ? `Comment added to issue #${data.issue.number}.`
-          : `GitHub issue #${data.issue.number} created.`,
+          ? `Comment added to issue #${publishResult.issue.number}.`
+          : `GitHub issue #${publishResult.issue.number} created.`,
       );
     } catch (reason) {
       log.warn('errors.issue.post.failed', {

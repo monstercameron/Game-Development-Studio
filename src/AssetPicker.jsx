@@ -20,10 +20,10 @@ export default function AssetPicker({
   onClose,
 }) {
   const [projectId, setProjectId] = useState(project?.id || projects[0]?.id || '');
-  const [query, setQuery] = useState(''),
-    [selected, setSelected] = useState([]),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const dialog = useDialogFocus({
     onClose: () => {
       if (!busyRef.current) {
@@ -32,9 +32,11 @@ export default function AssetPicker({
     },
     initialFocus: '.asset-picker-close',
   });
-  const abort = useRef(null),
-    closeRef = useRef(onClose),
-    busyRef = useRef(false);
+  const abortRef = useRef(null);
+  const closeRef = useRef(onClose);
+  const busyRef = useRef(false);
+  // The dialog's Escape handler can run after a later render, so it reads the latest
+  // onClose and busy values through these refs.
   closeRef.current = onClose;
   busyRef.current = busy;
   const thumbnailFailuresRef = useRef(0);
@@ -66,7 +68,7 @@ export default function AssetPicker({
       setProjectId(project?.id || projects[0].id);
     }
   }, [projectId, projects, project?.id]);
-  useEffect(() => () => abort.current?.abort(), []);
+  useEffect(() => () => abortRef.current?.abort(), []);
   function toggle(asset) {
     setError('');
     if (selected.includes(asset.id)) {
@@ -100,7 +102,7 @@ export default function AssetPicker({
     setBusy(true);
     setError('');
     const controller = new AbortController();
-    abort.current = controller;
+    abortRef.current = controller;
     try {
       const files = await readLibraryFiles(source, chosen, {
         maxBytes,
@@ -121,6 +123,18 @@ export default function AssetPicker({
         setBusy(false);
       }
     }
+  }
+  function describeEmptyResults() {
+    if (!source) {
+      return 'Create a project and add a compatible file first.';
+    }
+    if (!source.assets?.length) {
+      return 'Add a compatible file to this project or choose another project.';
+    }
+    if (hasCompatibleAssets) {
+      return 'Change or clear your search, or choose another project.';
+    }
+    return 'Add a supported file to this project or choose another project.';
   }
   return (
     <div
@@ -204,24 +218,16 @@ export default function AssetPicker({
               <strong>
                 {source && hasCompatibleAssets ? 'No matching files' : 'No compatible files'}
               </strong>
-              <span>
-                {!source
-                  ? 'Create a project and add a compatible file first.'
-                  : !source.assets?.length
-                    ? 'Add a compatible file to this project or choose another project.'
-                    : hasCompatibleAssets
-                      ? 'Change or clear your search, or choose another project.'
-                      : 'Add a supported file to this project or choose another project.'}
-              </span>
+              <span>{describeEmptyResults()}</span>
             </div>
           ) : (
             <div className="asset-picker-grid">
               {matches.map((asset) => {
                 const overFileLimit = asset.size > maxBytes,
                   overTotalLimit = asset.size > totalBytes,
-                  tooLarge = overFileLimit || overTotalLimit,
-                  active = selected.includes(asset.id),
-                  visual = ['Images', 'Masks'].includes(asset.category),
+                  isTooLarge = overFileLimit || overTotalLimit,
+                  isSelected = selected.includes(asset.id),
+                  isVisual = ['Images', 'Masks'].includes(asset.category),
                   folder = asset.id.includes('/') ? asset.id.split('/').slice(0, -1).join('/') : '',
                   metadataId = `asset-picker-meta-${encodeURIComponent(asset.id)}`,
                   limitMessage = overFileLimit
@@ -231,16 +237,16 @@ export default function AssetPicker({
                   <button
                     type="button"
                     key={asset.id}
-                    className={'asset-picker-item ' + (active ? 'selected' : '')}
-                    aria-pressed={active}
-                    aria-label={`${active ? 'Deselect' : 'Select'} ${asset.name}`}
+                    className={'asset-picker-item ' + (isSelected ? 'selected' : '')}
+                    aria-pressed={isSelected}
+                    aria-label={`${isSelected ? 'Deselect' : 'Select'} ${asset.name}`}
                     aria-describedby={metadataId}
-                    disabled={busy || tooLarge}
+                    disabled={busy || isTooLarge}
                     onClick={() => toggle(asset)}
-                    title={tooLarge ? limitMessage : undefined}
+                    title={isTooLarge ? limitMessage : undefined}
                   >
                     <span className="asset-picker-thumb">
-                      {visual ? (
+                      {isVisual ? (
                         <img
                           src={asset.url}
                           alt=""
@@ -258,12 +264,12 @@ export default function AssetPicker({
                         {asset.name.split('.').pop().toUpperCase()}
                       </span>
                       <span className="asset-picker-check" aria-hidden="true">
-                        {active && <Check size={15} />}
+                        {isSelected && <Check size={15} />}
                       </span>
                     </span>
                     <span className="asset-picker-name">{asset.name}</span>
                     <small id={metadataId} className="asset-picker-meta">
-                      {tooLarge ? limitMessage : sizeLabel(asset.size)}
+                      {isTooLarge ? limitMessage : sizeLabel(asset.size)}
                       <span className="asset-picker-folder">
                         {folder ? `Folder: ${folder}` : 'Project root'}
                       </span>

@@ -123,7 +123,7 @@ export function rowMoveState(entries, id, { previousId = null, nextId = null } =
   };
 }
 
-/** The sentence announced after a move, from the runtime's answer. */
+/** The sentence announced after a move. `note` is appended as the reason when it is given. */
 export function moveAnnouncement(name, { moved, position, count, note, clamped }) {
   const where = `position ${position} of ${count}`;
   const base = moved ? `Moved ${name} to ${where}.` : `${name} stays at ${where}.`;

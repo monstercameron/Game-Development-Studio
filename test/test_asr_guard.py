@@ -18,10 +18,10 @@ async def request(port, route, token="control", method="POST"):
         f"{method} {route} HTTP/1.1\r\nHost: localhost\r\nX-Forge-Engine-Token: {token}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".encode()
     )
     await writer.drain()
-    data = await reader.read()
+    response = await reader.read()
     writer.close()
     await writer.wait_closed()
-    return data
+    return response
 
 
 class GuardTests(unittest.IsolatedAsyncioTestCase):

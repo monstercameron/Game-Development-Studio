@@ -67,6 +67,8 @@ const SECRET_PATTERNS = [
 const WINDOWS_PATH =
   /(?:file:\/{2,3})?\b[A-Za-z]:(?:\\\\|\\|\/)(?:[^\\/\r\n"'<>|:*?()[\]]+(?:\\\\|\\|\/))*[^\\/\r\n"'<>|:*?()[\]\s]*/g;
 
+// Keeps only the path inside site-packages, or the last two segments, so local install folders
+// do not appear in copied errors.
 function shortenAbsolutePath(match) {
   const separator = match.includes('/') && !match.includes('\\') ? '/' : '\\';
   const parts = match.split(/[\\/]+/).filter(Boolean);
@@ -140,7 +142,13 @@ export function expandPlaceholders(value, roots = {}) {
   return text;
 }
 
-/** Keeps the head and tail of a long value. Python's innermost frame is at the end. */
+/**
+ * Keeps the head and tail of a long value. Python's innermost frame is at the end.
+ *
+ * @param {unknown} value Text to shorten; non-strings become ''.
+ * @param {number} limit Maximum length in characters. The marker counts toward it when there is
+ *   room; a smaller limit returns only the marker.
+ */
 export function truncateMiddle(value, limit) {
   const text = typeof value === 'string' ? value : '';
   if (text.length <= limit) {
@@ -166,22 +174,22 @@ export function normalizeForFingerprint(value) {
     .slice(0, 600);
 }
 
-const PYTHON_FRAME = /^\s*File "([^"]+)", line \d+, in (\S+)/;
-const JS_FRAME = /^\s*at (?:(.+?) \()?(.+?):\d+(?::\d+)?\)?\s*$/;
+const PYTHON_FRAME_PATTERN = /^\s*File "([^"]+)", line \d+, in (\S+)/;
+const JS_FRAME_PATTERN = /^\s*at (?:(.+?) \()?(.+?):\d+(?::\d+)?\)?\s*$/;
 
 /** Returns up to `count` normalized innermost stack frames (file and function, no line numbers). */
 export function topFrames(stack, count = 5) {
-  const python = [],
-    javascript = [];
+  const python = [];
+  const javascript = [];
   for (const line of String(stack || '').split(/\r?\n/)) {
-    const py = PYTHON_FRAME.exec(line);
-    if (py) {
-      python.push(`${py[1]}:${py[2]}`);
+    const pythonMatch = PYTHON_FRAME_PATTERN.exec(line);
+    if (pythonMatch) {
+      python.push(`${pythonMatch[1]}:${pythonMatch[2]}`);
       continue;
     }
-    const js = JS_FRAME.exec(line);
-    if (js) {
-      javascript.push(`${js[2]}:${js[1] || ''}`);
+    const javascriptMatch = JS_FRAME_PATTERN.exec(line);
+    if (javascriptMatch) {
+      javascript.push(`${javascriptMatch[2]}:${javascriptMatch[1] || ''}`);
     }
   }
   // Python prints the innermost frame last; V8 prints it first.

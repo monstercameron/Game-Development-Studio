@@ -148,7 +148,7 @@ test('WebGL setup failures are announced with a retry and a download link', asyn
 
   log.engineFails = false;
   await harness.click(
-    [...alert.querySelectorAll('button')].find((b) => /Try again/.test(b.textContent)),
+    [...alert.querySelectorAll('button')].find((button) => /Try again/.test(button.textContent)),
   );
   await harness.settle();
   assert.equal(container.querySelector('[role="alert"]'), null);
@@ -167,7 +167,7 @@ test('load failures explain what to do and release the engine', async (t) => {
   assert.match(alert.textContent, /Nothing to show/);
   assert.match(alert.textContent, /no visible geometry/);
   assert.equal(
-    [...alert.querySelectorAll('button')].some((b) => /Try again/.test(b.textContent)),
+    [...alert.querySelectorAll('button')].some((button) => /Try again/.test(button.textContent)),
     false,
     'an empty file cannot be fixed by retrying',
   );

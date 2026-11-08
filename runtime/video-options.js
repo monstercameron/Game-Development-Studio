@@ -63,7 +63,8 @@ export function videoDimensions(aspect = 'landscape', resolution = 'standard') {
 
 export const VIDEO_STEPS = [8, 12, 20, 30];
 export const TURBO_STEPS = [4, 8];
-// Duration presets shown in the studio; any 17k + 5 frame count up to MAX_VIDEO_FRAMES is accepted.
+// Duration presets shown in the studio; any 17k + 5 frame count from 22 up to MAX_VIDEO_FRAMES is
+// accepted (validFrameCount), so the presets are examples rather than the full list.
 export const VIDEO_FRAME_PRESETS = {
   56: 'About 2 seconds',
   124: 'About 5 seconds',
@@ -168,7 +169,7 @@ export function videoWarnings(request = {}) {
 // Every field a queued video request may carry. Anything else is rejected rather than dropped,
 // so an unsupported setting never silently produces a different render than the one requested.
 // Older jobs only stored prompt, references, aspect, frames and steps; all of those stay valid.
-// `referenceFrom` and the variation fields are handled (and removed) before this check runs.
+// `referenceFrom` is removed by the chain handling in runtime/jobs.js before this check runs.
 export const VIDEO_REQUEST_FIELDS = new Set([
   'prompt',
   'references',

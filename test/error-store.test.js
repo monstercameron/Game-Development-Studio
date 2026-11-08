@@ -18,7 +18,11 @@ async function tempDir(t) {
     }
     await fs.rm(directory, { recursive: true, force: true });
   });
-  return { directory, track: (store) => (stores.push(store), store) };
+  const track = (store) => {
+    stores.push(store);
+    return store;
+  };
+  return { directory, track };
 }
 
 const TRACEBACK = [

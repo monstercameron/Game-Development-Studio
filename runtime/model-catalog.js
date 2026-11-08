@@ -320,10 +320,27 @@ export const modelCatalog = [
     usedBy: ['3d-trellis'],
   },
 ];
+
+// Every entry is tagged role 'model' unless it sets its own role; the
+// supporting checkpoints keep role 'dependency' because the spread comes last.
 export function modelCatalogDefinitions() {
   return modelCatalog.map((model) => ({ role: 'model', ...model }));
 }
 
+/**
+ * Joins the static catalog with service status and the file inventory.
+ *
+ * @param {object} [options]
+ * @param {Array|null} [options.services] Supervisor service list. Null means the runtime
+ *   is unavailable, so every model's `service` is null.
+ * @param {object|null} [options.inventory] Storage scan with `state`, `observedAt`,
+ *   `error` and `entries`. Null means no scan was taken, so every `storage` is null.
+ * @param {object|null} [options.chatService] Status for the `chat` entry only.
+ * @param {string[]} [options.managedIds] Model ids Forge manages, used when the scan has
+ *   no entry for a model.
+ * @returns {object} Snapshot with `schemaVersion`, `generatedAt` and per-model
+ *   `service` and `storage`.
+ */
 export function buildModelCatalog({
   services = null,
   inventory = null,
@@ -331,7 +348,8 @@ export function buildModelCatalog({
   managedIds = [],
 } = {}) {
   const managed = new Set(managedIds);
-  // These are the IDs currently accepted by the guarded removal endpoint.
+  // Must stay in step with the removal route in runtime/supervisor.js and the MCP enum;
+  // see docs/ADDING_A_MODEL.md.
   const removable = new Set(['tts', '3d-hunyuan', 'segmentation', 'motion-hy', 'asr']);
   return {
     schemaVersion: 1,

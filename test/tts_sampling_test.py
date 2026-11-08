@@ -25,15 +25,17 @@ class TtsSamplingTests(unittest.TestCase):
 
         def generate(**kwargs):
             calls.append(kwargs)
+            # One second of silence at the model's 24 kHz output rate.
             return [[0.0] * 24000], 24000
 
         worker.model = types.SimpleNamespace(generate_custom_voice=generate)
         worker.jobs["b" * 32] = {"status": "queued"}
+        # The worker imports soundfile at render time; stub it to write bytes without audio.
         soundfile = types.SimpleNamespace(
             write=lambda path, *args, **kwargs: Path(path).write_bytes(b"audio")
         )
         with patch.dict(sys.modules, {"soundfile": soundfile}):
-            worker.render_worker("b" * 32, worker.SpeechRequest(text="hello", **request))
+            worker.render_worker("b" * 32, worker.SpeechRequest(text="hello", **request), None)
         self.assertEqual(worker.jobs["b" * 32]["status"], "completed")
         return calls[0]
 

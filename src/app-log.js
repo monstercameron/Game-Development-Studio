@@ -25,6 +25,8 @@ export const BATCH_ROWS = 20;
 export const FLUSH_MS = 2000;
 export const PENDING_CAP_ROWS = 200;
 export const MAX_SEND_ROWS = 100;
+// Identical records (same level, component, event and job) beyond DEDUPE_BURST_ROWS inside one
+// window are dropped and counted, so a loop cannot flood the ingest route.
 const DEDUPE_WINDOW_MS = 10_000;
 const DEDUPE_BURST_ROWS = 10;
 const LEVEL_STORAGE_KEY = 'forge.logLevel';
@@ -205,13 +207,13 @@ export function createLog(component, context = undefined, { sampleRate = 1 } = {
   } catch {
     contextFields = null;
   }
-  const rate = Number.isFinite(sampleRate) ? Math.min(1, Math.max(0, sampleRate)) : 1;
+  const keepFraction = Number.isFinite(sampleRate) ? Math.min(1, Math.max(0, sampleRate)) : 1;
 
   function write(level, event, fields, message) {
     if (LOG_LEVELS[level] < currentThreshold()) {
       return;
     }
-    if (rate < 1 && LOG_LEVELS[level] < LOG_LEVELS.warn && Math.random() >= rate) {
+    if (keepFraction < 1 && LOG_LEVELS[level] < LOG_LEVELS.warn && Math.random() >= keepFraction) {
       return;
     }
     emit(name, level, event, fields, message, contextFields);
@@ -235,7 +237,7 @@ export function createLog(component, context = undefined, { sampleRate = 1 } = {
       };
     },
     child: (extraContext) =>
-      createLog(name, { ...contextFields, ...extraContext }, { sampleRate: rate }),
+      createLog(name, { ...contextFields, ...extraContext }, { sampleRate: keepFraction }),
   };
   return log;
 }

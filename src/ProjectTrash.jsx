@@ -24,6 +24,7 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
     confirmTriggerRef = useRef(null),
     cancelConfirmRef = useRef(null),
     wasConfirmRef = useRef(false);
+  // Drop the previous project's list so a stale trash view never shows under a new project id.
   useEffect(() => {
     setItems([]);
     setMessage('');
@@ -42,14 +43,14 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
     // log-coverage: ignore -- the app-log fetch wrapper records failed /api calls
     fetch(`/api/projects/${projectId}/assets/trash`)
       .then(async (response) => {
-        const data = await response.json();
+        const responseBody = await response.json();
         if (!response.ok) {
-          throw Error(data.error || 'Could not load trash.');
+          throw Error(responseBody.error || 'Could not load trash.');
         }
-        log.debug('projects.trash.loaded', { itemCount: data.items?.length ?? 0 });
+        log.debug('projects.trash.loaded', { itemCount: responseBody.items?.length ?? 0 });
         if (active) {
-          setItems(data.items);
-          setWarnings(data.warnings || []);
+          setItems(responseBody.items);
+          setWarnings(responseBody.warnings || []);
         }
       })
       .catch((error) => {
@@ -67,6 +68,7 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
       active = false;
     };
   }, [open, projectId, revision]);
+  // Runs before paint so focus moves to a neighbouring row before the removed button unmounts.
   useLayoutEffect(() => {
     if (focusAfterRemoval === null) {
       return;
@@ -108,15 +110,15 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'project' },
         body: JSON.stringify(body),
       });
-      const data = await response.json();
+      const responseBody = await response.json();
       if (!response.ok) {
-        throw Error(data.error || 'Could not update trash.');
+        throw Error(responseBody.error || 'Could not update trash.');
       }
-      const cleanupPending = action === 'restore' && data.cleanupPending === true;
+      const cleanupPending = action === 'restore' && responseBody.cleanupPending === true;
       if (action === 'restore') {
         log.info('projects.trash.restored', { isCleanupPending: cleanupPending });
       } else {
-        log.info('projects.trash.cleared', { deletedCount: data.deleted });
+        log.info('projects.trash.cleared', { deletedCount: responseBody.deleted });
       }
       if (cleanupPending) {
         setPendingCleanupIds((previous) => [...new Set([...previous, body.trashId])]);
@@ -141,7 +143,7 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
           ? cleanupPending
             ? 'Asset restored. Some trash data could not be removed and was preserved for recovery.'
             : 'Asset restored.'
-          : `${data.deleted} trashed files permanently deleted.`,
+          : `${responseBody.deleted} trashed files permanently deleted.`,
       );
       await onChanged();
     } catch (error) {

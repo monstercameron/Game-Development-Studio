@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -48,15 +48,15 @@ test('stale staging files are deleted, recent and in-use ones are kept, and only
     [deadJob, 'failed'],
   ]);
   const images = path.join(project, 'images');
-  const staleGlb = path.join(images, `.forge-${deadJob}.png.${randomUUID()}.part`);
+  const staleDownload = path.join(images, `.forge-${deadJob}.png.${randomUUID()}.part`);
   const staleIndex = path.join(project, `.forge-assets.json.${randomUUID()}.tmp`);
   const liveDownload = path.join(images, `.forge-${liveJob}.png.${randomUUID()}.part`);
   const recent = path.join(images, `.forge-${randomUUID()}.png.${randomUUID()}.part`);
   const asset = path.join(images, 'forge-final.png');
-  for (const file of [staleGlb, staleIndex, liveDownload, recent, asset]) {
+  for (const file of [staleDownload, staleIndex, liveDownload, recent, asset]) {
     await fs.writeFile(file, 'bytes');
   }
-  await age(staleGlb, 30);
+  await age(staleDownload, 30);
   await age(staleIndex, 30);
   await age(liveDownload, 200);
   await age(asset, 500);
@@ -66,7 +66,7 @@ test('stale staging files are deleted, recent and in-use ones are kept, and only
     result.deleted.map((item) => item.kind),
     ['stale_staging', 'stale_staging'],
   );
-  await assert.rejects(fs.stat(staleGlb), { code: 'ENOENT' });
+  await assert.rejects(fs.stat(staleDownload), { code: 'ENOENT' });
   await assert.rejects(fs.stat(staleIndex), { code: 'ENOENT' });
   await fs.stat(liveDownload);
   await fs.stat(recent);
@@ -76,7 +76,9 @@ test('stale staging files are deleted, recent and in-use ones are kept, and only
     result.deleted.every((item) => !path.isAbsolute(item.path) && item.project?.name === 'Alpha'),
   );
   assert.ok(
-    readRecoveryEvents({ directory: runtime }).some((e) => e.code === 'sweep.staging_deleted'),
+    readRecoveryEvents({ directory: runtime }).some(
+      (event) => event.code === 'sweep.staging_deleted',
+    ),
   );
 });
 
@@ -188,9 +190,8 @@ test('a file in use by an open job cannot be quarantined by naming its id', asyn
   const file = path.join(project, 'images', `.forge-${job}.png.${randomUUID()}.part`);
   await fs.writeFile(file, 'x');
   await age(file, 100);
-  const crypto = await import('node:crypto');
-  const guess = crypto
-    .createHash('sha1')
+  // A correctly derived id for a file that an open job is still writing must be refused.
+  const guess = createHash('sha1')
     .update(`project|Alpha|images/${path.basename(file)}`)
     .digest('hex')
     .slice(0, 16);

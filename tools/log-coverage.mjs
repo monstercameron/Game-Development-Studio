@@ -633,12 +633,6 @@ function toRelative(file) {
   return path.relative(repositoryRoot, path.resolve(file)).split(path.sep).join('/');
 }
 
-/**
- * Analyzes one file.
- *
- * @returns {{ file: string, language: string, logCalls: number, gapScore: number,
- *   missingRequired: number, missingRecommended: number, signals: object[], parseError?: string }}
- */
 const RELATIVE_IMPORT = /(?:^|\n)\s*(?:import|export)\b[^'"]*?from\s*['"](\.{1,2}\/[^'"]+)['"]/g;
 let browserBundledFiles = null;
 
@@ -665,14 +659,14 @@ export function findBrowserBundledFiles() {
   const seen = new Set(queue);
   while (queue.length) {
     const file = queue.pop();
-    let text;
+    let sourceText;
     try {
-      text = fs.readFileSync(file, 'utf8');
+      sourceText = fs.readFileSync(file, 'utf8');
     } catch {
       // log-coverage: ignore -- a file removed during the scan has no imports to follow
       continue;
     }
-    for (const match of text.matchAll(RELATIVE_IMPORT)) {
+    for (const match of sourceText.matchAll(RELATIVE_IMPORT)) {
       const target = path.resolve(path.dirname(file), match[1]);
       if (!/\.(?:m?js|jsx)$/.test(target) || seen.has(target) || !fs.existsSync(target)) {
         continue;
@@ -712,6 +706,13 @@ function browserLoggerSignals(source, relative) {
   ];
 }
 
+/**
+ * Analyzes one file. A parse failure is returned as `parseError` instead of thrown, so one bad
+ * file does not stop a repository-wide run.
+ *
+ * @returns {{ file: string, language: string, logCalls: number, gapScore: number,
+ *   missingRequired: number, missingRecommended: number, signals: object[], parseError?: string }}
+ */
 export function analyzeFile(file) {
   const relative = toRelative(file);
   const source = fs.readFileSync(file, 'utf8');

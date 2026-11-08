@@ -10,9 +10,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 RUNTIME = Path(__file__).resolve().parents[1] / "runtime"
+# runtime/ is not a package, so it must be on sys.path before this import (hence E402).
 sys.path.insert(0, str(RUNTIME))
 import hidden_console  # noqa: E402
 
+# Win32 CreateProcess flag: the child gets no console inherited from this process.
 DETACHED_PROCESS = 0x00000008
 PROBE = """
 import ctypes, json, sys

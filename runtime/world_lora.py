@@ -5,6 +5,11 @@ from pathlib import Path
 
 
 def support_offline_lora(pipeline_class):
+    """Patch pipeline_class.load_lora_weights in place to accept a local LoRA file path.
+
+    Diffusers expects a folder plus weight_name, so a single .safetensors path is split
+    into those two parts. Other sources pass through unchanged.
+    """
     original = pipeline_class.load_lora_weights
 
     def load_local_lora(self, source, *args, **kwargs):

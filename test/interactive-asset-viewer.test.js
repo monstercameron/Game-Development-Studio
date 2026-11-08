@@ -44,6 +44,8 @@ test('interactive preview fills the inspection window and manages keyboard focus
       configurable: true,
       value: true,
     });
+    // jsdom has no layout engine. Attached elements report a fixed box so the viewer's
+    // size measurements succeed; detached elements report nothing.
     dom.window.HTMLElement.prototype.getClientRects = function getClientRects() {
       return this.isConnected ? [{ width: 100, height: 40 }] : [];
     };
@@ -55,6 +57,8 @@ test('interactive preview fills the inspection window and manages keyboard focus
 
     const sourcePath = path.join(repositoryRoot, 'src', 'InteractiveAssetViewer.jsx');
     const source = await readFile(sourcePath, 'utf8');
+    // Strip the imports and swap the lazy 3D previews for button stubs. jsdom has no WebGL,
+    // and this test covers only the dialog focus and dismissal behavior.
     let component = source.replace(/^import .*;\r?\n/gm, '');
     component = component
       .replace(

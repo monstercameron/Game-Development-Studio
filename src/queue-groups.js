@@ -77,11 +77,11 @@ export function buildQueueGroups(jobs, { expanded = false } = {}) {
   const nested = new Set();
   const groups = GROUP_DEFINITIONS.map((definition) => {
     const matching = jobs.filter((job) => definition.statuses.includes(job.status));
-    const result = definition.id === 'waiting' ? inRuntimeOrder(matching) : orderChains(matching);
-    result.nested.forEach((id) => nested.add(id));
+    const ordering = definition.id === 'waiting' ? inRuntimeOrder(matching) : orderChains(matching);
+    ordering.nested.forEach((id) => nested.add(id));
     return {
       ...definition,
-      items: result.ordered,
+      items: ordering.ordered,
       limit: definition.limit[expanded ? 1 : 0],
     };
   });

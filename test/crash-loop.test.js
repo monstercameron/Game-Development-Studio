@@ -109,9 +109,9 @@ test('a host that stays up is not counted as a crash loop', async (t) => {
   });
   t.after(() => supervisor.stop());
   supervisor.start();
-  const first = await waitFor(() => supervisor.child?.pid && supervisor.child);
-  first.kill();
-  await waitFor(() => supervisor.child && supervisor.child !== first && supervisor.child.pid);
+  const firstChild = await waitFor(() => supervisor.child?.pid && supervisor.child);
+  firstChild.kill();
+  await waitFor(() => supervisor.child && supervisor.child !== firstChild && supervisor.child.pid);
   assert.equal(supervisor.crashLooped, false);
   assert.equal(hosts, 2);
 });
@@ -140,10 +140,10 @@ test('the runtime worker supervisor also gives up after repeated crashes', async
   });
   supervisor.start();
   await waitFor(() => supervisor.status().crashLooped);
-  const total = workers;
+  const workersAtTrip = workers;
   await new Promise((resolve) => setTimeout(resolve, 100));
-  assert.equal(workers, total);
-  assert.equal(total, 3);
+  assert.equal(workers, workersAtTrip);
+  assert.equal(workersAtTrip, 3);
   assert.ok(logs.some((line) => line.includes('worker_crash_loop')));
   assert.equal(readRecoveryNeeded(directory).component, 'runtime worker');
   supervisor.stop();
@@ -161,15 +161,15 @@ test('the recovery-needed responder answers 503 with a clear message on the stud
     windowMs: 600000,
   });
   t.after(() => new Promise((resolve) => server.close(resolve)));
-  const page = await fetch(`http://127.0.0.1:${port}/`);
-  assert.equal(page.status, 503);
-  assert.match(await page.text(), /Recovery needed/);
-  const api = await fetch(`http://127.0.0.1:${port}/api/runtime/jobs`);
-  assert.equal(api.status, 503);
-  const body = await api.json();
+  const pageResponse = await fetch(`http://127.0.0.1:${port}/`);
+  assert.equal(pageResponse.status, 503);
+  assert.match(await pageResponse.text(), /Recovery needed/);
+  const apiResponse = await fetch(`http://127.0.0.1:${port}/api/runtime/jobs`);
+  assert.equal(apiResponse.status, 503);
+  const body = await apiResponse.json();
   assert.equal(body.error, 'recovery_needed');
   assert.match(body.message, /5 crashes in 10 minutes/);
-  const foreign = await new Promise((resolve, reject) => {
+  const foreignHostStatus = await new Promise((resolve, reject) => {
     const request = http.request(
       { host: '127.0.0.1', port, path: '/', headers: { Host: 'example.com' } },
       (response) => {
@@ -180,5 +180,5 @@ test('the recovery-needed responder answers 503 with a clear message on the stud
     request.on('error', reject);
     request.end();
   });
-  assert.equal(foreign, 403);
+  assert.equal(foreignHostStatus, 403);
 });

@@ -12,15 +12,26 @@ function reportUnavailable(error) {
   console.error(`Runtime log unavailable${code}.`);
 }
 
+/**
+ * Creates the runtime worker log writer. It never throws: when the file cannot be opened,
+ * lines fall back to stderr. Callers must call close() to flush the stream on shutdown.
+ *
+ * @param {{ directory?: string }} [options] Log directory; defaults to FORGE_RUNTIME_DIR
+ *   or the repository's .forge-runtime folder.
+ * @returns {{ write: (level: string, message: string, raw?: boolean) => void, close: () => void }}
+ */
 // A slow or failed disk must not stall inference or grow an unbounded queue.
 // Lost output is counted, so diagnostics never silently implies a complete log.
 export function createRuntimeLog({
   directory = process.env.FORGE_RUNTIME_DIR || defaultDirectory,
 } = {}) {
-  let stream = null,
-    blocked = false,
-    dropped = 0,
-    closed = false;
+  // stream is null after an open or write error; writes then go to stderr.
+  let stream = null;
+  // blocked is true while the stream buffer is full and waiting for 'drain'.
+  let blocked = false;
+  // dropped counts bytes discarded while blocked, reported on the next drain.
+  let dropped = 0;
+  let closed = false;
   try {
     fs.mkdirSync(directory, { recursive: true });
     stream = fs.createWriteStream(path.join(directory, 'runtime-worker.log'), {

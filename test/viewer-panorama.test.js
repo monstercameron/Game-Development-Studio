@@ -230,7 +230,7 @@ test('only WorldGen GLB outputs are flagged as panorama shells in the details in
   other.output = `3d/forge-${other.id}.ply`;
   recordJobOutput(world, folder);
   recordJobOutput(other, folder);
-  const index = readMetaIndex(folder);
-  assert.equal(index[world.output].panorama, true);
-  assert.equal(index[other.output].panorama, undefined);
+  const metaIndex = readMetaIndex(folder);
+  assert.equal(metaIndex[world.output].panorama, true);
+  assert.equal(metaIndex[other.output].panorama, undefined);
 });

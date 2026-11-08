@@ -6,12 +6,17 @@ import './model-removal-dialog.css';
 
 const log = createLog('model');
 
-const size = (value) =>
+// Milliseconds between onRefresh calls while a removal is in progress.
+const REMOVAL_POLL_INTERVAL_MS = 1200;
+
+// Byte counts use binary units. null means the size was never measured, not zero.
+const formatSize = (value) =>
   value === null || value === undefined
     ? 'Not measured'
     : value >= 1024 ** 3
       ? `${(value / 1024 ** 3).toFixed(1)} GiB`
       : `${(value / 1024 ** 2).toFixed(1)} MiB`;
+
 async function post(path, body = {}) {
   // log-coverage: ignore -- failed /api calls are already logged by app-log-install (http.request.failed)
   const response = await fetch(path, {
@@ -26,6 +31,36 @@ async function post(path, body = {}) {
   return result;
 }
 
+// Explains the removal state. Conditions are checked in priority order, so the first
+// match wins; a managed model that is still scanning must not be told to stop its service.
+function getRemovalExplanation({ managed, storage, inProgress, inventoryState, failed, stopped }) {
+  if (!managed) {
+    return 'This model is stored in another application or has not been installed. Manage those files in their original location.';
+  }
+  if (storage.removable === false) {
+    return 'Forge does not remove this model’s files. Other apps or preview pipelines may depend on them, so manage them in their original location.';
+  }
+  if (inProgress) {
+    return 'Removing the model files. You can close this dialog while cleanup continues.';
+  }
+  if (inventoryState === 'scanning') {
+    return 'Checking model storage. Removal will be available when the scan finishes.';
+  }
+  if (storage.installed === false) {
+    return 'This model folder is not currently installed.';
+  }
+  if (storage.installed !== true && !failed) {
+    return 'The installation state could not be confirmed. Refresh model storage before removing files.';
+  }
+  if (!stopped) {
+    return 'Stop the model service before removing its files.';
+  }
+  if (failed) {
+    return 'The previous removal did not finish. Retry cleanup after resolving the error.';
+  }
+  return 'This permanently deletes the model files. It does not delete project assets. You will need to reinstall the model to use it again.';
+}
+
 export default function ModelRemovalDialog({
   model,
   id,
@@ -37,13 +72,13 @@ export default function ModelRemovalDialog({
   onRefresh,
 }) {
   const titleId = useId();
-  const [busyAction, setBusyAction] = useState(''),
-    [error, setError] = useState(''),
-    [acknowledged, setAcknowledged] = useState(false);
+  const [busyAction, setBusyAction] = useState('');
+  const [error, setError] = useState('');
+  const [acknowledged, setAcknowledged] = useState(false);
   const busy = Boolean(busyAction);
   const inProgress = ['prepared', 'deleting'].includes(removal?.state);
   const failed = removal?.state === 'failed';
-  const managed = !!storage;
+  const managed = Boolean(storage);
   const stopped = service?.status === 'unavailable' && !service?.managed;
   const canRemove =
     managed &&
@@ -65,7 +100,7 @@ export default function ModelRemovalDialog({
       return;
     }
     log.debug('model.removal.polling.started');
-    const timer = setInterval(() => onRefresh(), 1200);
+    const timer = setInterval(() => onRefresh(), REMOVAL_POLL_INTERVAL_MS);
     return () => {
       log.debug('model.removal.polling.stopped');
       clearInterval(timer);
@@ -75,7 +110,8 @@ export default function ModelRemovalDialog({
     log.debug('model.removal.dismissed', { modelId: id });
     onClose();
   }
-  async function remove() {
+  // The server checks the confirmation phrase itself; the checkbox only prevents a stray click.
+  async function handleRemove() {
     log.info('model.removal.confirmed', { modelId: id, isRetry: failed });
     setBusyAction('remove');
     setError('');
@@ -93,7 +129,7 @@ export default function ModelRemovalDialog({
       setBusyAction('');
     }
   }
-  async function stop() {
+  async function handleStop() {
     log.info('model.offload.requested', { modelId: id });
     setBusyAction('stop');
     setError('');
@@ -156,29 +192,20 @@ export default function ModelRemovalDialog({
           </div>
           <div>
             <dt>Measured file size</dt>
-            <dd>{storage?.installed ? size(storage.bytes) : 'Not available'}</dd>
+            <dd>{storage?.installed ? formatSize(storage.bytes) : 'Not available'}</dd>
           </div>
         </dl>
         <div className="model-preview-explanation">
           <ShieldCheck size={18} aria-hidden="true" />
           <p>
-            {!managed
-              ? 'This model is stored in another application or has not been installed. Manage those files in their original location.'
-              : storage.removable === false
-                ? 'Forge does not remove this model’s files. Other apps or preview pipelines may depend on them, so manage them in their original location.'
-                : inProgress
-                  ? 'Removing the model files. You can close this dialog while cleanup continues.'
-                  : inventoryState === 'scanning'
-                    ? 'Checking model storage. Removal will be available when the scan finishes.'
-                    : storage.installed === false
-                      ? 'This model folder is not currently installed.'
-                      : storage.installed !== true && !failed
-                        ? 'The installation state could not be confirmed. Refresh model storage before removing files.'
-                        : !stopped
-                          ? 'Stop the model service before removing its files.'
-                          : failed
-                            ? 'The previous removal did not finish. Retry cleanup after resolving the error.'
-                            : 'This permanently deletes the model files. It does not delete project assets. You will need to reinstall the model to use it again.'}
+            {getRemovalExplanation({
+              managed,
+              storage,
+              inProgress,
+              inventoryState,
+              failed,
+              stopped,
+            })}
           </p>
         </div>
         {(error || removal?.error) && (
@@ -205,7 +232,7 @@ export default function ModelRemovalDialog({
             Close
           </button>
           {managed && !stopped && !inProgress && service?.canUnload && (
-            <button className="icon-outline" disabled={busy} onClick={stop}>
+            <button className="icon-outline" disabled={busy} onClick={handleStop}>
               <Power size={14} aria-hidden="true" />{' '}
               {busyAction === 'stop' ? 'Stopping service…' : 'Stop service'}
             </button>
@@ -214,7 +241,7 @@ export default function ModelRemovalDialog({
             className="danger-solid"
             disabled={busy || !canRemove || (!inProgress && !acknowledged)}
             title={canRemove && !acknowledged ? 'Tick the confirmation box first.' : undefined}
-            onClick={remove}
+            onClick={handleRemove}
           >
             {busyAction === 'remove' || inProgress ? (
               <LoaderCircle size={15} className="motion-spinner" aria-hidden="true" />

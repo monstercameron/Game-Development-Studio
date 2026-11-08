@@ -24,6 +24,8 @@ export function changeAmountProblem(value) {
     : 'Enter a number from 0.05 to 1.';
 }
 
+// A blank start or end means "not set". Each returned message is empty when that value is fine,
+// and the end is checked against the start only when the start itself is valid.
 export function regionProblems(draft) {
   const problems = { start: '', end: '' };
   const start = isBlank(draft.soundRegionStart) ? null : Number(draft.soundRegionStart);

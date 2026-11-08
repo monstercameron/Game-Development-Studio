@@ -1,4 +1,4 @@
-// tools/log-coverage.mjs on small fixtures (test/fixtures/log-coverage/).
+// Covers tools/log-coverage.mjs on small fixtures (test/fixtures/log-coverage/).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';

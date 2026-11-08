@@ -5,6 +5,7 @@ import { readAudioSource } from './references.js';
 const log = createLogger('voices');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // Logs a short error code or class name only. Error messages can contain local paths or text.
 function errorCodeOf(error) {
   const code = error?.code ?? error?.cause?.code;
@@ -13,6 +14,7 @@ function errorCodeOf(error) {
   }
   return typeof error?.name === 'string' ? error.name : 'Error';
 }
+
 // A cloned voice sends its staged reference clip as base64. The queue keeps only the staged ID; the
 // bytes are read here when the job runs, so the worker receives the snapshot taken at queue time.
 async function workerRequest(request, projectFolder) {
@@ -38,6 +40,7 @@ async function workerRequest(request, projectFolder) {
   }
   return { ...rest, reference_audio_base64: bytes.toString('base64') };
 }
+
 function send(jobId, type, values = {}) {
   // Progress is high volume (every poll), so it is traced; every other type is a state change.
   if (type === 'progress') {
@@ -49,10 +52,12 @@ function send(jobId, type, values = {}) {
     process.send({ jobId, type, ...values });
   }
 }
+
 process.on('disconnect', () => {
   log.info('voices.process.stopped', { reason: 'disconnected' });
   process.exit(0);
 });
+
 process.once('message', async ({ job, projectFolder, baseUrl }) => {
   log.info('voices.job.started', {
     jobId: job.id,

@@ -67,14 +67,7 @@ def load_worker():
     except Exception as error:
         log.error("three-d.model.load.failed", {"modelId": MODEL_ID, "error": error})
         traceback.print_exc()
-        gc.collect()
-        try:
-            import torch
-
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        except Exception as cache_error:
-            log.debug("three-d.gpu.cache.release.failed", {"error": cache_error})
+        release_gpu_cache()
         with lock:
             state.update(phase="error", error=str(error)[:1500])
 
@@ -145,19 +138,19 @@ def render_worker(job_id, image, request):
             resolution=request.resolution,
             guidance_scale=request.guidance_scale,
         )
-        done = "3D shape ready."
+        done_message = "3D shape ready."
         if request.texture:
             mesh = paint_mesh(job_id, mesh, image, request)
-            done = "Textured 3D model ready."
+            done_message = "Textured 3D model ready."
         elif request.target_faces:
             set_message(job_id, f"Reducing the mesh to about {request.target_faces:,} triangles.")
             mesh = reduce_faces(mesh, request.target_faces)
-        temp = OUTPUTS / f".{job_id}.part"
-        mesh.export(str(temp), file_type="glb")
-        os.replace(temp, OUTPUTS / f"{job_id}.glb")
+        staging_path = OUTPUTS / f".{job_id}.part"
+        mesh.export(str(staging_path), file_type="glb")
+        os.replace(staging_path, OUTPUTS / f"{job_id}.glb")
         log.debug("three-d.file.written", {"kind": "output"})
         with lock:
-            jobs[job_id].update(status="completed", message=done)
+            jobs[job_id].update(status="completed", message=done_message)
             state.update(phase="ready", error=None)
         stop({"outcome": "completed"})
     except Exception as error:
@@ -238,14 +231,14 @@ def generate(request: ShapeRequest):
             409, "Texture models or native helpers are missing; install them or turn texture off."
         )
     try:
-        prefix, data = request.image.split(",", 1)
+        prefix, encoded_image = request.image.split(",", 1)
         if prefix not in (
             "data:image/png;base64",
             "data:image/jpeg;base64",
             "data:image/webp;base64",
         ):
             raise ValueError("Unsupported image.")
-        raw = base64.b64decode(data, validate=True)
+        raw = base64.b64decode(encoded_image, validate=True)
         if len(raw) > 10 * 1024 * 1024:
             raise ValueError("Image is too large.")
         with Image.open(io.BytesIO(raw)) as source:

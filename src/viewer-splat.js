@@ -34,6 +34,22 @@ function robustBounds(mesh, count) {
 // Gaussian splat source. The library renders splats itself; the engine supplies the
 // camera, orbit controls (so no window-level key handlers are installed), helpers and
 // snapshot support through a small adapter.
+/**
+ * Loads a PLY Gaussian splat scene into the studio engine and frames the camera on it.
+ *
+ * @param {object} engine Studio engine exposing host, renderer, camera, scene, controls
+ *   and attachAdapter / setAdapterContent.
+ * @param {object} options
+ * @param {string} options.url PLY file URL; a HEAD request reads its size when allowed.
+ * @param {AbortSignal} options.signal Cancels loading; an abort rejects with AbortError.
+ * @param {(label: string) => void} options.onStage Receives the current stage label.
+ * @param {(fraction: number | null) => void} options.onProgress Receives a 0-1 fraction,
+ *   or null while the library processes the parsed splats.
+ * @returns {Promise<{kind: string, byteLength: number | null}>} byteLength is null when
+ *   the size request fails.
+ * @throws {DOMException} AbortError when the signal aborts.
+ * @throws {ViewerError} PARSE when the file cannot be read, EMPTY when it has no splats.
+ */
 export async function loadSplatSource(engine, { url, signal, onStage, onProgress }) {
   onStage('Loading Gaussian scene…');
   const viewer = new GaussianSplats3D.Viewer({

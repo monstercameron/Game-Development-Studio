@@ -4,10 +4,10 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { ModelRemoval } from '../runtime/model-removal.js';
-import { EngineManager } from '../runtime/engines.js';
 import net from 'node:net';
 import { once } from 'node:events';
+import { ModelRemoval } from '../runtime/model-removal.js';
+import { EngineManager } from '../runtime/engines.js';
 
 const models = [{ id: 'tts', folder: 'voice' }];
 async function fixture(t) {

@@ -58,7 +58,7 @@ test('Hunyuan painter options are advanced, validated and left out at their defa
     /only apply with texture on/,
   );
   // A larger painter never borrows the default's timing history.
-  const done = (request, seconds) => {
+  const insertCompletedJob = (request, seconds) => {
     queue.db
       .prepare(
         "INSERT INTO jobs(id,type,project_id,request,status,created_at,updated_at,started_at,finished_at) VALUES(?,?,?,?,'completed','a','a',?,?)",
@@ -79,7 +79,7 @@ test('Hunyuan painter options are advanced, validated and left out at their defa
         new Date(Date.parse('2026-01-01T00:00:00.000Z') + seconds * 1000).toISOString(),
       );
   };
-  done({}, 300);
+  insertCompletedJob({}, 300);
   const estimate = (request) =>
     queue.estimate({ type: '3d', projectId, request: { ...base, ...request } });
   assert.equal(estimate({}).typicalSeconds, 300);

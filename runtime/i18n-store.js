@@ -142,6 +142,7 @@ export function createTranslationStore({ directory, now = () => new Date() }) {
         throw error;
       }
     },
+    /** Saves a personal override; a `null` value removes it and returns nothing. */
     setOverride(lang, { key, namespace, sourceHash, value }) {
       const connection = open(true);
       if (value === null) {

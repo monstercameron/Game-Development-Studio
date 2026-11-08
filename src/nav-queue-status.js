@@ -1,5 +1,6 @@
 // Queue state is global across projects; it does not imply GPU availability.
-const pageTypes = {
+// Maps each studio page to the queue job types it shows in its sidebar indicator.
+const PAGE_JOB_TYPES = {
   images: ['images'],
   '3d': ['3d', 'trellis'],
   world: ['world'],
@@ -11,13 +12,25 @@ const pageTypes = {
   voices: ['voices'],
   segmentation: ['segmentation'],
 };
-const attention = new Set(['needs_attention', 'interrupted', 'waiting_memory']);
-const running = new Set(['preparing', 'submitting', 'running', 'finalizing']);
-const waiting = new Set(['queued', 'waiting_engine']);
+const ATTENTION_STATUSES = new Set(['needs_attention', 'interrupted', 'waiting_memory']);
+const RUNNING_STATUSES = new Set(['preparing', 'submitting', 'running', 'finalizing']);
+const WAITING_STATUSES = new Set(['queued', 'waiting_engine']);
 
+/**
+ * Summarizes the queue for one studio page, counting only jobs whose type belongs to that page.
+ *
+ * Returns null for a page that is not a key of PAGE_JOB_TYPES. A failed or still-loading queue read returns
+ * state 'unknown' rather than 'free', so a stale or missing read is never shown as idle.
+ * Jobs in ATTENTION_STATUSES take precedence over running and waiting jobs in the summary.
+ *
+ * @param {string} page Studio page id, a key of PAGE_JOB_TYPES.
+ * @param {Array<{ type: string, status: string }>} jobs Queue jobs from all projects.
+ * @param {{ loading?: boolean, error?: string }} [options] Queue read state.
+ * @returns {{ state: string, short: string, detail: string } | null}
+ */
 export function pageQueueStatus(page, jobs, { loading = false, error = '' } = {}) {
-  const types = pageTypes[page];
-  if (!types) {
+  const jobTypes = PAGE_JOB_TYPES[page];
+  if (!jobTypes) {
     return null;
   }
   if (error) {
@@ -30,14 +43,14 @@ export function pageQueueStatus(page, jobs, { loading = false, error = '' } = {}
   if (loading) {
     return { state: 'unknown', short: 'Checking', detail: 'Checking the render queue.' };
   }
-  const related = jobs.filter((job) => types.includes(job.type));
+  const related = jobs.filter((job) => jobTypes.includes(job.type));
   const counts = { running: 0, waiting: 0, attention: 0 };
   for (const job of related) {
-    if (attention.has(job.status)) {
+    if (ATTENTION_STATUSES.has(job.status)) {
       counts.attention++;
-    } else if (running.has(job.status)) {
+    } else if (RUNNING_STATUSES.has(job.status)) {
       counts.running++;
-    } else if (waiting.has(job.status)) {
+    } else if (WAITING_STATUSES.has(job.status)) {
       counts.waiting++;
     }
   }

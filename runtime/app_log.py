@@ -538,7 +538,6 @@ class _Writer:
         self.internal_errors = 0
         self.thread: threading.Thread | None = None
         self.stop_event = threading.Event()
-        self.level_epoch = 0
         self.next_level_refresh = 0.0
         self.default_threshold = LOG_LEVELS[DEFAULT_LOG_LEVEL]
         self.component_thresholds: dict[str, int] = {}
@@ -559,7 +558,6 @@ class _Writer:
         level, components = parse_level_spec(spec)
         self.default_threshold = LOG_LEVELS[level]
         self.component_thresholds = {name: LOG_LEVELS[value] for name, value in components.items()}
-        self.level_epoch += 1
 
     def _settings_spec(self) -> str:
         import sqlite3
@@ -798,15 +796,15 @@ class _Writer:
                 if self.mode == "off":
                     return
                 text = "".join(json.dumps(record, separators=(",", ":")) + "\n" for record in batch)
-                data = text.encode("utf-8")
-                target = self._file_for(len(data))
+                encoded = text.encode("utf-8")
+                target = self._file_for(len(encoded))
                 if target is None:
                     self.dropped["spool"] += len(batch)
                     return
                 try:
                     with open(target, "ab") as handle:
-                        handle.write(data)
-                    self.file_bytes += len(data)
+                        handle.write(encoded)
+                    self.file_bytes += len(encoded)
                 except OSError:
                     self.dropped["write"] += len(batch)
                     self.file_path = None

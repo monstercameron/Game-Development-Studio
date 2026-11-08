@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { estimateFromNearbyHistory, forecastQueue, formatDuration } from '../src/queue-timing.js';
 
+// Timing history as the forecast receives it for a job with a known typical duration.
 const known = (seconds) => ({ available: true, typicalSeconds: seconds, confidence: 'limited' });
+
 test('estimates a sequential queue from remaining running time and queued renders', () => {
   const jobs = [
     { id: 'running', status: 'running', startedAt: '2026-01-01T00:00:00Z' },
@@ -19,6 +21,7 @@ test('estimates a sequential queue from remaining running time and queued render
   assert.equal(forecast.perJob.later.waitSeconds, 80);
   assert.equal(formatDuration(forecast.seconds), '1m 40s');
 });
+
 test('does not promise a completion time when preparation or attention blocks the queue', () => {
   for (const status of [
     'preparing',
@@ -46,6 +49,7 @@ test('does not promise a completion time when preparation or attention blocks th
     );
   }
 });
+
 test('uses a worker ETA but does not turn an overdue historical estimate into zero', () => {
   const job = {
     id: 'a',
@@ -67,6 +71,7 @@ test('uses a worker ETA but does not turn an overdue historical estimate into ze
   );
   assert.equal(forecastQueue([], {}).seconds, 0);
 });
+
 test('nearby estimates are labeled rough and reject very different work or reference counts', () => {
   const jobs = [
     {

@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ensureChatReady, isStudioQwen } from '../src/chat-autostart.js';
 const connection = { provider: 'compatible', endpoint: 'http://127.0.0.1:8098/v1' };
-const missing = () => Object.assign(Error('connection refused'), { code: 'server_unreachable' });
+const unreachableError = () =>
+  Object.assign(Error('connection refused'), { code: 'server_unreachable' });
 const signal = () => new AbortController().signal;
 test('only the local Qwen alias is eligible for automatic startup', () => {
   assert.equal(isStudioQwen({ ...connection, model: 'qwen3.8-27b' }), true);
@@ -26,7 +27,7 @@ test('starts an unavailable local server once and waits for readiness', async ()
     signal: signal(),
     probe: async () => {
       if (++probes < 3) {
-        throw missing();
+        throw unreachableError();
       }
     },
     isLoading: async () => true,
@@ -37,7 +38,7 @@ test('starts an unavailable local server once and waits for readiness', async ()
       clock += 2000;
     },
     now: () => clock,
-    onStatus: (v) => statuses.push(v),
+    onStatus: (status) => statuses.push(status),
   });
   assert.equal(starts, 0);
   assert.equal(probes, 3);
@@ -50,7 +51,7 @@ test('starts an unavailable local server once and waits for readiness', async ()
     signal: signal(),
     probe: async () => {
       if (++probes < 3) {
-        throw missing();
+        throw unreachableError();
       }
     },
     isLoading: async () => false,
@@ -114,7 +115,7 @@ test('startup failure and cancellation never submit a message', async () => {
       model: 'qwen3.8-27b',
       signal: controller.signal,
       probe: async () => {
-        throw missing();
+        throw unreachableError();
       },
       isLoading: async () => false,
       start: async () => {},
@@ -134,7 +135,7 @@ test('startup failure and cancellation never submit a message', async () => {
       probe: async () => {},
       start: async () => {},
     }),
-    (e) => e.name === 'AbortError',
+    (error) => error.name === 'AbortError',
   );
 });
 
@@ -148,7 +149,7 @@ test('a concurrent startup is awaited instead of starting a second model', async
     signal: signal(),
     probe: async () => {
       if (++probes === 1) {
-        throw missing();
+        throw unreachableError();
       }
     },
     isLoading: async () => ++checks > 1,

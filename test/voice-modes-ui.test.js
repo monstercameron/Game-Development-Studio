@@ -706,10 +706,10 @@ test('a clone clip shows its length and warns when it is outside 3 to 30 seconds
       voiceConsent: true,
     };
     await render({ ...staged, voiceReferenceSeconds: 1.2 });
-    const alert = document.querySelector('[role="alert"]');
-    assert.equal(alert.textContent, 'Reference audio must be 3 to 30 seconds long.');
+    const alertElement = document.querySelector('[role="alert"]');
+    assert.equal(alertElement.textContent, 'Reference audio must be 3 to 30 seconds long.');
     const row = document.querySelector('.sound-source-chosen');
-    assert.equal(row.getAttribute('aria-describedby'), alert.id);
+    assert.equal(row.getAttribute('aria-describedby'), alertElement.id);
     assert.match(row.textContent, /Length 1\.2 s/);
 
     await render({ ...staged, voiceReferenceSeconds: 45 });

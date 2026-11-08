@@ -239,7 +239,7 @@ async function visionHarness(t, { vision = true, projector = true, reachable = t
       headers: { 'Content-Type': 'application/json', Origin: origin, 'X-Forge-Request': 'chat' },
       body: JSON.stringify(body),
     });
-  return { sent, state, post, origin, app, server };
+  return { sent, post, origin, app };
 }
 
 const localRequest = {

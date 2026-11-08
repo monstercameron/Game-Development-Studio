@@ -8,6 +8,18 @@ const appLog = createLogger('tray');
 
 // A tray crash must not affect the web host or model workers. Restart the
 // lightweight helper with bounded backoff while the studio supervisor is alive.
+/**
+ * Starts the Windows tray helper and keeps it running until stop() is called.
+ * Launch failures and unexpected exits are retried with backoff; the function
+ * itself does not throw when a launch fails.
+ *
+ * @param {object} options
+ * @param {number} options.port Studio port the tray helper connects to.
+ * @param {number} options.ownerPid PID of the studio supervisor the helper monitors.
+ * @param {(message: string) => void} options.log Supervisor event log callback.
+ * @returns {{ stop: () => void }} stop() prevents further restarts. It does not
+ *   kill a helper that is already running.
+ */
 export function startWindowsTray({
   port,
   ownerPid,
@@ -51,6 +63,7 @@ export function startWindowsTray({
       timer = null;
       start();
     }, delay);
+    // Unref so a pending restart timer alone does not keep the supervisor alive.
     timer.unref();
   }
   function start() {
@@ -78,6 +91,8 @@ export function startWindowsTray({
       if (child === processHandle) {
         child = null;
       }
+      // A helper that ran for 30 seconds is considered healthy, so the next
+      // failure starts again from the shortest restart delay.
       if (Date.now() - started > 30000) {
         failures = 0;
       }

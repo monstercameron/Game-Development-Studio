@@ -40,7 +40,7 @@ if (
 
 import torch  # noqa: E402 - keep the memory guard ahead of CUDA initialization.
 from PIL import Image  # noqa: E402 - keep the memory guard ahead of CUDA initialization.
-from trellis2.modules.image_feature_extractor import (  # noqa: E402 - guarded CUDA test imports.
+from trellis2.modules.image_feature_extractor import (  # noqa: E402 - follows the memory guard above.
     DinoV3FeatureExtractor,
 )
 

@@ -4,7 +4,7 @@
 // the information travels with the project. Hidden names are skipped by the asset
 // listing, so the database is never shown as an asset. Everything here uses
 // parameterised SQL and never throws into callers that must not fail (job
-// completion, rename, trash): the exported record*/safe helpers log and continue.
+// completion, rename, trash): the exported record* helpers log and continue.
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -143,7 +143,7 @@ function isoOrNull(value) {
 }
 
 // Same rules as references.js / asset-output.js: forward slashes, no empty or
-// dot segments, nothing hidden, no drive letters.
+// dot segments, nothing hidden, no drive letters. Throws an Error on any violation.
 export function validateAssetPath(rel) {
   if (
     typeof rel !== 'string' ||
@@ -599,7 +599,6 @@ function openDb(folder, { create = true, logger } = {}) {
       throw error;
     }
   }
-  return null;
 }
 function withDb(folder, options, work) {
   const db = openDb(folder, options);
@@ -1029,7 +1028,10 @@ export function backfillAssetMeta(
     }
     const jobs = jobLookup([...new Set(wanted.map((item) => item.jobId))], projectId);
     const byStem = new Map(
-      assets.map((a) => [path.posix.dirname(a.id) + '/' + stem(path.posix.basename(a.id)), a]),
+      assets.map((entry) => [
+        path.posix.dirname(entry.id) + '/' + stem(path.posix.basename(entry.id)),
+        entry,
+      ]),
     );
     let created = 0;
     const rows = [];

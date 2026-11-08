@@ -98,7 +98,7 @@ async function mount(t, { env = {}, intercept } = {}) {
   });
   const settle = (ms = 40) => act(async () => sleep(ms));
   await settle();
-  return { container, dom, requests, settle, service };
+  return { container, dom, requests };
 }
 
 const row = (container, key) => container.querySelector(`[data-setting="${key}"]`);
@@ -232,7 +232,7 @@ test('reset is gated: confirm or cancel, Escape closes, focus returns', async (t
   group = row(container, 'queue.chainUnload').querySelector('.reset-confirm');
   await press(
     dom,
-    [...group.querySelectorAll('button')].find((b) => b.textContent === 'Cancel'),
+    [...group.querySelectorAll('button')].find((button) => button.textContent === 'Cancel'),
   );
   assert.equal(requests.filter((item) => item.url === '/api/settings/reset').length, 0);
 
@@ -240,7 +240,7 @@ test('reset is gated: confirm or cancel, Escape closes, focus returns', async (t
   group = row(container, 'queue.chainUnload').querySelector('.reset-confirm');
   await press(
     dom,
-    [...group.querySelectorAll('button')].find((b) => b.textContent === 'Yes, reset'),
+    [...group.querySelectorAll('button')].find((button) => button.textContent === 'Yes, reset'),
   );
   const reset = requests.find((item) => item.url === '/api/settings/reset');
   assert.deepEqual(reset.body, { key: 'queue.chainUnload', via: 'ui' });
@@ -364,7 +364,7 @@ test('a failed load shows an alert and Retry loads the list', async (t) => {
   assert.equal(container.querySelectorAll('[data-setting]').length, 0);
   await press(
     dom,
-    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry'),
+    [...container.querySelectorAll('button')].find((button) => button.textContent === 'Retry'),
   );
   assert.equal(container.querySelector('[role="alert"]'), null);
   assert.ok(container.querySelectorAll('[data-setting]').length >= 25);

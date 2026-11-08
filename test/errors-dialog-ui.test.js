@@ -132,7 +132,9 @@ async function mount(t, { entry = '/?dialog=errors', state = {} } = {}) {
     }
     if (method === 'GET' && route === '/export') {
       return respond(200, {
-        errors: state.errors.filter((e) => e.status === 'new').map((e) => detailOf(e)),
+        errors: state.errors
+          .filter((error) => error.status === 'new')
+          .map((error) => detailOf(error)),
       });
     }
     const detail = /^\/(\d+)(?:\/([a-z-]+))?$/.exec(route);

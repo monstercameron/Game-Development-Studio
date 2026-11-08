@@ -147,7 +147,10 @@ export function shippedCatalogLoader(globMap = {}) {
   };
 }
 
-/** Loads cached machine translations and personal overrides from the local i18n service. */
+/**
+ * Loads cached machine translations and personal overrides from the local i18n service.
+ * Rejects when the service answers with a non-OK status.
+ */
 export function serverCatalogLoader(fetchImpl) {
   return async (locale, namespace) => {
     const query = new URLSearchParams({ lang: locale, ns: namespace });
@@ -156,8 +159,11 @@ export function serverCatalogLoader(fetchImpl) {
     if (!response.ok) {
       throw Error(`Catalog ${namespace} is unavailable (${response.status}).`);
     }
-    const data = await response.json();
-    return { entries: data.entries || {}, machine: data.machine || null };
+    const catalogPayload = await response.json();
+    return {
+      entries: catalogPayload.entries || {},
+      machine: catalogPayload.machine || null,
+    };
   };
 }
 
@@ -212,8 +218,9 @@ export function I18nProvider({ children, catalogs, fetchImpl, storage }) {
     let active = true;
     request('/api/i18n/preference')
       .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        const locale = data?.locale === PSEUDO_LOCALE ? data.locale : normalizeLocale(data?.locale);
+      .then((preference) => {
+        const savedLocale = preference?.locale;
+        const locale = savedLocale === PSEUDO_LOCALE ? savedLocale : normalizeLocale(savedLocale);
         if (active && locale) {
           i18n.setLocale(locale);
         }

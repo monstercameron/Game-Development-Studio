@@ -16,12 +16,12 @@ const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost)(:\d+)?$/;
 const BACKUP_NAMES = ['jobs', 'settings', 'i18n', 'keys', 'megascans'];
 const log = createLogger('runtime');
 
-function json(res, status, data) {
+function json(res, status, payload) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
   });
-  res.end(JSON.stringify(data));
+  res.end(JSON.stringify(payload));
 }
 
 async function readJson(req, limit = 16 * 1024) {
@@ -85,13 +85,13 @@ export function recoveryService({
       throw error;
     });
     stop({ status: response.status });
-    const data = await response.json().catch(() => ({}));
+    const responseBody = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw Object.assign(new Error(data.error || `Request failed (${response.status}).`), {
+      throw Object.assign(new Error(responseBody.error || `Request failed (${response.status}).`), {
         status: response.status === 409 ? 409 : 502,
       });
     }
-    return data;
+    return responseBody;
   }
 
   const manager = createRecoveryManager({ runtimeDirectory, projectsRoot, callRuntime });
@@ -192,7 +192,8 @@ export function recoveryService({
           if (status >= 500) {
             log.error('recovery.request.failed', { reason: error.code || 'error' });
           } else {
-            // Refusals from runtime/recovery-report.js (bad input, job not found, not safe to retry).
+            // Refusals from runtime/recovery-report.js (bad input, job not found, not safe to
+            // retry).
             log.warn('recovery.request.rejected', {
               route: '/api/recovery',
               status,

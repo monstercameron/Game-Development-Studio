@@ -17,6 +17,12 @@ const providers = [
     hint: 'Used by Forge-managed Stable Audio when model access is needed.',
   },
 ];
+
+/**
+ * POSTs a credential action to /api/credentials/<action> and returns the parsed JSON body.
+ * The secret travels only in the JSON body, never in the URL or the error text.
+ * Throws an Error with the server message (or a generic one) when the response is not ok.
+ */
 async function request(action, body = {}) {
   // log-coverage: ignore -- failed /api calls are already logged by app-log-install (http.request.failed)
   const response = await fetch(`/api/credentials/${action}`, {
@@ -30,6 +36,7 @@ async function request(action, body = {}) {
   }
   return data;
 }
+
 export default function CredentialSettings() {
   const [status, setStatus] = useState(null),
     [values, setValues] = useState({ openai: '', huggingface: '' }),

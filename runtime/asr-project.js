@@ -27,8 +27,8 @@ export async function transcribeProjectAudio(
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size < 44 || stat.size > 32 * 1024 * 1024) {
     throw Error('The WAV must be a regular file of at most 32 MiB.');
   }
-  const real = await fs.realpath(requested),
-    rel = path.relative(project, real);
+  const real = await fs.realpath(requested);
+  const rel = path.relative(project, real);
   if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
     throw Error('The WAV must be inside this project.');
   }

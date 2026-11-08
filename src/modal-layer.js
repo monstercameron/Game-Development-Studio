@@ -1,8 +1,8 @@
 // A later node in the DOM is not necessarily the top dialog: Forge's asset,
 // inspection, and confirmation overlays deliberately use different z-layers.
 export function selectTopModal(dialogs, { visible, zIndex }) {
-  let top = null,
-    highest = -Infinity;
+  let top = null;
+  let highest = -Infinity;
   for (const dialog of dialogs) {
     if (!visible(dialog)) {
       continue;
@@ -20,8 +20,8 @@ export function topModal() {
   const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
   return selectTopModal(dialogs, {
     visible: (element) => {
-      const style = getComputedStyle(element),
-        rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
       return (
         style.display !== 'none' &&
         style.visibility !== 'hidden' &&

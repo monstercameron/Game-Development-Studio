@@ -1,5 +1,6 @@
-// The compact v1 endpoint cannot take a custom score or sampling overrides, so a request that sets
-// them goes to the studio endpoint, with duration expressed as the song-token cap (25 tokens per second).
+// The compact v1 endpoint cannot take a custom score or sampling overrides, so a request that
+// sets them goes to the studio endpoint. Duration there is expressed as the song-token cap
+// (25 tokens per second).
 export function submission(request) {
   const { abc, temperature, top_p, top_k, repetition_penalty, ...rest } = request;
   const sampling = Object.fromEntries(
@@ -25,7 +26,14 @@ export function submission(request) {
   };
 }
 
-// The engine requests for a derived job, given the YuE2 track it found for the source job.
+/**
+ * Builds the YuE2 request for a derived job (extend or resynth) from the source track.
+ *
+ * @param {object} request The derived-job request; `operation` selects extend or resynth.
+ * @param {string} track The YuE2 track name, at most 300 characters.
+ * @returns {{ path: string, payload: object }} The endpoint path and JSON body.
+ * @throws {Error} When YuE2 reported no usable track for the source render.
+ */
 export function derivedSubmission(request, track) {
   if (typeof track !== 'string' || !track || track.length > 300) {
     throw Error('YuE2 did not report a track for the source render.');

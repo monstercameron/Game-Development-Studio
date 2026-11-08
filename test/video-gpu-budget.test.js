@@ -55,23 +55,23 @@ test('reference videos raise the engine budget to the measured 12 GiB unless one
 });
 
 test('memory admission waits for the budget the render will actually be given', async () => {
-  let free = 11000;
+  let freeMiB = 11000;
   const prepare = createVideoPreparation({
-    hardware: async () => ({ devices: [{ freeMiB: free }] }),
+    hardware: async () => ({ devices: [{ freeMiB }] }),
     services: async () => [],
   });
   assert.equal(await prepare({ references: [picture] }), null, '6 GiB plus the reserve fits');
   assert.equal(await prepare(), null, 'a call without a request keeps the 6 GiB threshold');
-  const clips = await prepare({ references: [picture], reference_videos: [clip] });
-  assert.equal(clips.status, 'waiting_memory');
-  assert.equal(clips.details.requiredMiB, 12 * 1024 + GPU_RESERVE_MIB);
+  const clipAdmission = await prepare({ references: [picture], reference_videos: [clip] });
+  assert.equal(clipAdmission.status, 'waiting_memory');
+  assert.equal(clipAdmission.details.requiredMiB, 12 * 1024 + GPU_RESERVE_MIB);
   assert.equal(
     await prepare({ reference_videos: [clip], max_vram: 8 }),
     null,
     'an explicit budget is not overridden',
   );
   assert.equal((await prepare({ references: [picture], max_vram: 12 })).status, 'waiting_memory');
-  free = 20000;
+  freeMiB = 20000;
   assert.equal(await prepare({ reference_videos: [clip] }), null);
 });
 

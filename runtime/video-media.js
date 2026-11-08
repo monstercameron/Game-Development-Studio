@@ -30,6 +30,11 @@ export const REFERENCE_CLIP_FRAMES = 73;
 export const REFERENCE_AUDIO_SECONDS = 15;
 const STALE_MS = 7 * 24 * 3600 * 1000;
 
+/**
+ * Runs runtime/h3_inputs.py once for a list of media tasks. Resolves with the script's `results`
+ * array. Rejects with a user-facing message when the runtime is missing, the script exits non-zero,
+ * its output is not valid JSON, or it runs past `timeout` ms (the child is then killed).
+ */
 export function runPython(tasks, { timeout = 300000 } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(python, ['-I', script], {
@@ -49,7 +54,11 @@ export function runPython(tasks, { timeout = 300000 } = {}) {
       if (!settled) {
         settled = true;
         clearTimeout(timer);
-        error ? reject(error) : resolve(value);
+        if (error) {
+          reject(error);
+        } else {
+          resolve(value);
+        }
       }
     };
     const timer = setTimeout(() => {
@@ -109,6 +118,8 @@ export function runPython(tasks, { timeout = 300000 } = {}) {
         finish(Error('The media runtime returned an invalid result.'));
       }
     });
+    // A script that exits early closes stdin and raises EPIPE here. The close handler reports
+    // the real failure, so this error is ignored on purpose.
     child.stdin.on('error', () => {});
     child.stdin.end(JSON.stringify({ tasks }));
   });
@@ -133,6 +144,7 @@ async function pruneOldInputs() {
     });
   }
 }
+
 export const jobInputFolder = (jobId) => path.join(H3_INPUT_ROOT, jobId);
 export const removeJobInputs = (jobId) =>
   fs.rm(jobInputFolder(jobId), { recursive: true, force: true }).catch((error) => {

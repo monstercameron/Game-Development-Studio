@@ -27,7 +27,10 @@ function knownPid(child) {
   return Number.isSafeInteger(child?.pid) ? child.pid : undefined;
 }
 
-// Owns the HTTP host but not the engines, whose handles remain in the parent.
+/**
+ * Owns the HTTP host child process but not the engines, whose handles remain in the parent.
+ * The host is restarted with exponential backoff until the crash-loop guard stops it.
+ */
 export class HostSupervisor {
   constructor({
     port,
@@ -95,6 +98,8 @@ export class HostSupervisor {
       this.onCrashLoop(loop);
       return;
     }
+    // A host that ran for more than 30 s was healthy, so the backoff starts again from the base
+    // delay. The exponent is capped at 2^6 and the delay at 10 s.
     this.failures = (Date.now() - started > 30000 ? 0 : this.failures) + 1;
     const delay = Math.min(this.restartDelay * 2 ** Math.min(this.failures - 1, 6), 10000);
     this.log(
@@ -131,6 +136,8 @@ export class HostSupervisor {
     const reason = code === null && signal === null ? 'spawn_failed' : 'process_exit';
     appLog.warn('supervisor.host.exited', { ...exitFields, reason });
     this.log(`Supervisor event=host_stopped reason=${reason}`);
+    // Exit 78 (EX_CONFIG) is written by runtime/http-server.js for an invalid port or a missing
+    // build. Restarting cannot fix either, so the supervisor stops instead.
     if (code === 78) {
       this.finished = true;
       appLog.error('supervisor.host.fatal', { exitCode: code, reason: 'startup_configuration' });
@@ -232,7 +239,7 @@ export class HostSupervisor {
           },
         );
     });
-    host.on('error', (_error) => {
+    host.on('error', () => {
       this.log('Supervisor event=host_process_error reason=process_error');
       appLog.error('supervisor.host.error', { reason: 'process_error', pid: knownPid(host) });
       if (host.pid === null || host.pid === undefined) {

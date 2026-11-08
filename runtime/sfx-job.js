@@ -5,6 +5,7 @@ import { requireAudioInput, soundPayload } from './sfx-request.js';
 const log = createLogger('sfx');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function send(jobId, type, values = {}) {
   // Progress is high volume (every poll), so it is traced; every other type is a state change.
   if (type === 'progress') {
@@ -16,10 +17,13 @@ function send(jobId, type, values = {}) {
     process.send({ jobId, type, ...values });
   }
 }
+
+// The host disconnects this worker to cancel it. Exiting stops polling, and nothing is saved.
 process.on('disconnect', () => {
   log.info('sfx.process.stopped', { reason: 'disconnected' });
   process.exit(0);
 });
+
 process.once('message', async ({ job, projectFolder, baseUrl }) => {
   log.info('sfx.job.started', { jobId: job.id, hasRemoteId: Boolean(job.remoteId) });
   let remoteId = job.remoteId;
@@ -35,11 +39,11 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           signal: AbortSignal.timeout(5000),
           redirect: 'error',
         });
-        const data = await response.json();
-        if (!response.ok || typeof data.session !== 'string') {
+        const sessionBody = await response.json();
+        if (!response.ok || typeof sessionBody.session !== 'string') {
           throw Error('Invalid session');
         }
-        session = data.session;
+        session = sessionBody.session;
         stopSessionRequest({ status: response.status });
       } catch (error) {
         log.warn('sfx.session.request.failed', {

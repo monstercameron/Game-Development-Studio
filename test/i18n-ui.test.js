@@ -65,8 +65,8 @@ function installDom(t) {
   return dom;
 }
 
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
+function jsonResponse(body, status = 200) {
+  return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
   });
@@ -120,11 +120,11 @@ test('provider applies the saved locale, lang/dir, rich text and lazy catalogs',
     },
   });
   function Demo() {
-    const { t } = useT();
+    const { t: translate } = useT();
     return h(
       'div',
       null,
-      h('h1', null, t('images.demo.title', 'Create an image')),
+      h('h1', null, translate('images.demo.title', 'Create an image')),
       h(
         'p',
         null,
@@ -349,7 +349,7 @@ test('language menu and translate dialog: preview, send, progress, report, focus
   );
   assert.ok(document.activeElement.classList.contains('translate-search'), 'search has focus');
 
-  // Search, pick German and review the preview.
+  // The preview comes first: nothing is sent until the person has seen what would leave.
   const search = document.activeElement;
   await act(async () => {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
@@ -378,7 +378,7 @@ test('language menu and translate dialog: preview, send, progress, report, focus
     namespaces: ['images', 'shell', 'common', 'settings', 'errors', 'i18n'],
   });
 
-  // Focus stays inside the dialog.
+  // Tab from the last control must wrap to the first, so focus cannot leave the dialog.
   const focusable = [...dialog.querySelectorAll('button:not(:disabled), input, select')];
   focusable.at(-1).focus();
   await act(async () => {

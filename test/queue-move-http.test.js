@@ -42,7 +42,7 @@ async function waitFor(check, label, timeout = 15000) {
     }
     await pause(25);
   }
-  throw Error(`Timed out waiting for ${label}`);
+  throw new Error(`Timed out waiting for ${label}`);
 }
 
 // Cleanup steps run last-in first-out in one hook, so a queue is stopped before its folder goes.
@@ -164,14 +164,14 @@ async function startStudio(t) {
     .run(blocker.id);
   seed.stop();
 
-  const saved = {};
+  const previousEnv = {};
   const env = {
     FORGE_RUNTIME_DIR: state,
     FORGE_PROJECTS_DIR: projects,
     ...Object.fromEntries(ENGINE_URLS.map((name) => [name, CLOSED])),
   };
   for (const [name, value] of Object.entries(env)) {
-    saved[name] = process.env[name];
+    previousEnv[name] = process.env[name];
     process.env[name] = value;
   }
   const app = express();
@@ -186,7 +186,7 @@ async function startStudio(t) {
     httpServer.close();
     // Closing the server stops the runtime worker; give its process time to release the files.
     await pause(1000);
-    for (const [name, value] of Object.entries(saved)) {
+    for (const [name, value] of Object.entries(previousEnv)) {
       if (value === undefined) {
         delete process.env[name];
       } else {

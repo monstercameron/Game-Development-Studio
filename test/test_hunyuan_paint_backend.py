@@ -15,9 +15,9 @@ sys.path.insert(0, str(ROOT / "runtime"))
 from runtime import hunyuan_paint_backend as paint  # noqa: E402
 
 
-def glb_json(data):
-    length = struct.unpack("<I", data[12:16])[0]
-    return json.loads(data[20 : 20 + length])
+def glb_json(glb_bytes):
+    length = struct.unpack("<I", glb_bytes[12:16])[0]
+    return json.loads(glb_bytes[20 : 20 + length])
 
 
 class HunyuanPaintBackendTest(unittest.TestCase):

@@ -86,8 +86,7 @@ def fake_soundfile(length_samples, sample_rate=16000):
 
 
 class RecordingModel:
-    def __init__(self, label):
-        self.label = label
+    def __init__(self):
         self.calls = []
 
     def generate_custom_voice(self, **kwargs):
@@ -119,7 +118,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
         return self.worker.SpeechRequest(**base)
 
     def test_clone_sends_reference_transcript_in_icl_mode_and_the_decoded_clip(self):
-        model = RecordingModel("base")
+        model = RecordingModel()
         clip = (FakeAudio(16000 * 5), 16000)
         request = self.request(
             mode="clone", reference_text="The reference words.", max_new_tokens=512
@@ -136,7 +135,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
         self.assertEqual(kwargs["temperature"], 0.7)
 
     def test_voice_only_clone_uses_x_vector_mode_and_withholds_any_transcript(self):
-        model = RecordingModel("base")
+        model = RecordingModel()
         clip = (FakeAudio(16000 * 5), 16000)
         self.worker.model = model
         for transcript in ("", "Words that must not reach the model."):
@@ -155,7 +154,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
         self.assertFalse(self.request(mode="clone").clone_voice_only)
 
     def test_generate_accepts_a_voice_only_clone_without_a_transcript(self):
-        self.worker.model = RecordingModel("base")
+        self.worker.model = RecordingModel()
         self.worker.loaded_variant = "base"
         request = self.request(
             mode="clone", clone_voice_only=True, reference_audio_base64="UklGRg=="
@@ -169,7 +168,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
         self.assertTrue(started_request.clone_voice_only)
 
     def test_design_passes_the_description_as_instruct(self):
-        model = RecordingModel("design")
+        model = RecordingModel()
         self.worker.model = model
         request = self.request(mode="design", voice_description="A calm narrator, low and warm.")
         self.worker.synthesize(request, None, {})
@@ -179,7 +178,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
         self.assertNotIn("speaker", kwargs)
 
     def test_preset_keeps_the_custom_voice_call(self):
-        model = RecordingModel("custom")
+        model = RecordingModel()
         self.worker.model = model
         self.worker.synthesize(self.request(speaker="Aiden", instruct="Brisk."), None, {})
         name, kwargs = model.calls[-1]
@@ -208,7 +207,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
         self.assertEqual(error.exception.status_code, 400)
 
     def test_generate_refuses_bad_clone_and_design_requests_before_queuing(self):
-        self.worker.model = RecordingModel("custom")
+        self.worker.model = RecordingModel()
         self.worker.loaded_variant = "custom_voice"
         cases = [
             (self.request(mode="clone", reference_audio_base64="UklGRg=="), "transcript"),
@@ -224,7 +223,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
         self.assertEqual(self.worker.jobs, {})
 
     def test_generate_refuses_a_mode_whose_checkpoint_is_not_resident(self):
-        self.worker.model = RecordingModel("custom")
+        self.worker.model = RecordingModel()
         self.worker.loaded_variant = "custom_voice"
         with self.assertRaises(FakeHTTPException) as error:
             self.worker.generate(self.request(mode="design", voice_description="A bright voice."))
@@ -241,7 +240,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
             def start(self):
                 pass
 
-        self.worker.model = RecordingModel("custom")
+        self.worker.model = RecordingModel()
         self.worker.loaded_variant = "custom_voice"
         with (
             patch.object(self.worker, "checkpoint_ready", return_value=True),
@@ -265,7 +264,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
         self.assertEqual(missing.exception.status_code, 409)
 
     def test_status_reports_the_resident_checkpoint_and_each_installed_checkpoint(self):
-        self.worker.model = RecordingModel("base")
+        self.worker.model = RecordingModel()
         self.worker.loaded_variant = "base"
         with patch.object(
             self.worker,
@@ -281,7 +280,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
 
     def test_load_unloads_the_previous_checkpoint_before_loading_the_new_one(self):
         events = []
-        previous = RecordingModel("custom")
+        previous = RecordingModel()
         self.worker.model = previous
         self.worker.loaded_variant = "custom_voice"
 
@@ -289,7 +288,7 @@ class VoiceModesWorkerTests(unittest.TestCase):
             @staticmethod
             def from_pretrained(path, **kwargs):
                 events.append(("load", Path(path).name, self.worker.model))
-                return RecordingModel("design")
+                return RecordingModel()
 
         fake_torch = types.SimpleNamespace(
             cuda=types.SimpleNamespace(

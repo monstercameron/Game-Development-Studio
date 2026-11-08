@@ -1,6 +1,7 @@
 """Exercise the isolated HY-Motion worker over loopback with a fake model."""
 
 import json
+import os
 import socket
 import sys
 import tempfile
@@ -77,7 +78,10 @@ class MotionWorkerTests(unittest.TestCase):
         fake = types.SimpleNamespace(
             load_motion_core=Mock(return_value=object()), load_motion_text_encoder=encoder
         )
+        # The default host-memory policy only enforces a 2 GiB floor, so the 9 GiB text-encoder
+        # budget is checked in full only in strict mode.
         with (
+            patch.dict(os.environ, {"FORGE_HOST_MEMORY_POLICY": "strict"}),
             patch.dict(sys.modules, {"hymotion_backend": fake}),
             patch.object(worker, "files_ready", return_value=True),
             patch.object(worker, "require_memory"),
@@ -122,6 +126,7 @@ class MotionWorkerTests(unittest.TestCase):
             status, body = http(self.base, "/api/generate", body=request)
             self.assertEqual(status, 202)
             job_id = json.loads(body)["id"]
+            # Stop must be token-gated and must not interrupt a job that is still running.
             try:
                 self.assertTrue(entered.wait(5))
                 self.assertEqual(http(self.base, "/api/generate", body=request)[0], 409)
@@ -146,7 +151,9 @@ class MotionWorkerTests(unittest.TestCase):
             status, data = http(self.base, "/api/jobs/" + job_id + "/motion")
             self.assertEqual(status, 200)
             self.assertEqual(data.splitlines()[0], b"HIERARCHY")
+            # Zero steps is an invalid request and is refused with 422 instead of being queued.
             self.assertEqual(http(self.base, "/api/generate", body={**request, "steps": 0})[0], 422)
+            # Resume cancels the pending exit timer, so finish_stop must never run.
             with patch.object(worker, "finish_stop") as finish_stop:
                 headers = {"X-Forge-Engine-Token": worker.TOKEN}
                 self.assertEqual(

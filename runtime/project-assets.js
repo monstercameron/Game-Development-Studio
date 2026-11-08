@@ -7,7 +7,8 @@ import { createLogger } from './app-log.js';
 
 const log = createLogger('projects');
 const locks = new Map();
-const filename = '.forge-assets.json';
+// Per-folder index of asset ratings, kept status and source output. The name is persisted on disk.
+const ASSET_METADATA_FILENAME = '.forge-assets.json';
 const safeErrorCode = (error) =>
   typeof error?.code === 'string' && /^[A-Z0-9_]{1,32}$/i.test(error.code) ? error.code : 'UNKNOWN';
 // Log fields name the folder an asset sits in, never the file name the user chose.
@@ -29,9 +30,9 @@ function assetKind(rel) {
 function warn(logger, operation, stage, error) {
   try {
     logger(`WARN operation=${operation} stage=${stage} error_code=${safeErrorCode(error)}`);
-  } catch (error) {
+  } catch (loggingError) {
     // Logging must not change the outcome of a committed file operation.
-    log.debug('projects.asset.warn.failed', { errorClass: error?.name });
+    log.debug('projects.asset.warn.failed', { errorClass: loggingError?.name });
   }
 }
 function inside(root, target) {
@@ -39,26 +40,26 @@ function inside(root, target) {
   return rel !== '' && !rel.startsWith(`..${path.sep}`) && rel !== '..' && !path.isAbsolute(rel);
 }
 async function regular(file) {
-  const s = await fs.lstat(file);
-  if (!s.isFile() || s.isSymbolicLink()) {
+  const stat = await fs.lstat(file);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
     throw Error('Asset is not a regular file.');
   }
-  return s;
+  return stat;
 }
 export async function readAssetMetadata(folder) {
   try {
-    const file = path.join(folder, filename);
+    const file = path.join(folder, ASSET_METADATA_FILENAME);
     await regular(file);
-    const data = JSON.parse(await fs.readFile(file, 'utf8'));
+    const metadata = JSON.parse(await fs.readFile(file, 'utf8'));
     if (
-      data.version !== 1 ||
-      !data.assets ||
-      typeof data.assets !== 'object' ||
-      Array.isArray(data.assets)
+      metadata.version !== 1 ||
+      !metadata.assets ||
+      typeof metadata.assets !== 'object' ||
+      Array.isArray(metadata.assets)
     ) {
       throw Error('Invalid asset metadata.');
     }
-    return data.assets;
+    return metadata.assets;
   } catch (error) {
     if (error.code === 'ENOENT') {
       return {};
@@ -69,7 +70,7 @@ export async function readAssetMetadata(folder) {
 async function save(folder, assets) {
   // Staged, flushed and renamed: a crash leaves the previous complete index or the new one.
   await atomicWriteFile(
-    path.join(folder, filename),
+    path.join(folder, ASSET_METADATA_FILENAME),
     JSON.stringify({ version: 1, assets }, null, 2),
   );
 }
@@ -171,9 +172,14 @@ async function trashItems(project, strict = false) {
     try {
       await regular(manifest);
       const stat = await regular(source);
-      const data = JSON.parse(await fs.readFile(manifest, 'utf8'));
-      originalPath(data.path);
-      items.push({ trashId: id, path: data.path, deletedAt: data.deletedAt, size: stat.size });
+      const manifestRecord = JSON.parse(await fs.readFile(manifest, 'utf8'));
+      originalPath(manifestRecord.path);
+      items.push({
+        trashId: id,
+        path: manifestRecord.path,
+        deletedAt: manifestRecord.deletedAt,
+        size: stat.size,
+      });
     } catch (error) {
       if (strict && error.code !== 'ENOENT') {
         throw error;
@@ -193,6 +199,13 @@ async function trashItems(project, strict = false) {
 export function listTrash(project) {
   return locked(project.folder, () => trashItems(project));
 }
+/**
+ * Permanently deletes the validated trash pairs of a project. The exact confirmation string is
+ * required so a stray call cannot empty the trash.
+ *
+ * @returns {Promise<{ deleted: number }>} Count of trash items removed.
+ * @throws {Error} When the confirmation is missing or the trash folder is unsafe.
+ */
 export function clearTrash(project, confirmation) {
   return locked(project.folder, async () => {
     if (confirmation !== 'permanently-delete-trash') {
@@ -513,6 +526,13 @@ export function trashAsset(project, rel) {
     return { trashId: id };
   });
 }
+/**
+ * Copies a trash item back to its original project path. A cleanup failure after the copy is
+ * reported as cleanupPending rather than thrown, because the restored file is already committed.
+ *
+ * @returns {Promise<{ path: string, cleanupPending?: true }>} The restored project path.
+ * @throws {Error} When the id, the original path or the destination is invalid.
+ */
 export function restoreAsset(project, id, { logger = console.warn, unlink = fs.unlink } = {}) {
   return locked(project.folder, async () => {
     if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id)) {
@@ -527,8 +547,8 @@ export function restoreAsset(project, id, { logger = console.warn, unlink = fs.u
       source = path.join(folder, `${id}.asset`);
     await regular(manifest);
     await regular(source);
-    const data = JSON.parse(await fs.readFile(manifest, 'utf8'));
-    const rel = originalPath(data.path);
+    const manifestRecord = JSON.parse(await fs.readFile(manifest, 'utf8'));
+    const rel = originalPath(manifestRecord.path);
     const target = path.resolve(project.folder, ...rel.split('/')),
       root = await fs.realpath(project.folder),
       parent = await fs.realpath(path.dirname(target));

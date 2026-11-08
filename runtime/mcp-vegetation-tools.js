@@ -61,8 +61,8 @@ export async function vegetationSchemaResult(read, species) {
 /** One job per variation, with consecutive seeds. Jobs queued before a failure stay queued. */
 export async function queueVegetation(write, input) {
   const { projectId, variations = 1, seed, ...rest } = input;
-  const first = seed ?? randomInt(1, 9999 - (variations - 1) + 1);
-  if (first + variations - 1 > 9999) {
+  const firstSeed = seed ?? randomInt(1, 9999 - (variations - 1) + 1);
+  if (firstSeed + variations - 1 > 9999) {
     return textResult(
       {
         error: `Seeds go up to 9999: use a seed of ${9999 - variations + 1} or lower for ${variations} variations.`,
@@ -70,7 +70,7 @@ export async function queueVegetation(write, input) {
       true,
     );
   }
-  const requests = vegetationVariations({ ...rest, seed: first }, variations, randomUUID);
+  const requests = vegetationVariations({ ...rest, seed: firstSeed }, variations, randomUUID);
   const results = [];
   for (const request of requests) {
     const result = await write('/api/runtime/jobs', { type: 'vegetation', projectId, request });

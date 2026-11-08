@@ -45,14 +45,15 @@ function startWatchdog() {
 }
 
 async function readCommand() {
-  let text = '';
+  // The host writes one JSON command and closes stdin; the 1 MB cap bounds memory before parsing.
+  let commandText = '';
   for await (const chunk of process.stdin) {
-    text += chunk;
-    if (text.length > 1_000_000) {
+    commandText += chunk;
+    if (commandText.length > 1_000_000) {
       throw Error('The command is too large.');
     }
   }
-  return JSON.parse(text);
+  return JSON.parse(commandText);
 }
 
 function reply(value) {

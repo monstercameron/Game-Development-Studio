@@ -4,21 +4,28 @@ const log = createLog('chat');
 
 // Only the studio-owned local Qwen alias is started automatically. Compatible
 // servers at other addresses (and other model IDs) remain user managed.
+/**
+ * Returns true only for the loopback endpoint that the studio launches itself.
+ * Any other provider, model or address returns false and is never auto-started.
+ *
+ * @param {{ provider: string, endpoint: string, model: string }} settings
+ * @returns {boolean} false for a malformed endpoint instead of throwing.
+ */
 export function isStudioQwen({ provider, endpoint, model }) {
   if (provider !== 'compatible' || model !== 'qwen3.8-27b') {
     return false;
   }
   try {
-    const u = new URL(endpoint);
+    const url = new URL(endpoint);
     return (
-      u.protocol === 'http:' &&
-      ['127.0.0.1', 'localhost'].includes(u.hostname) &&
-      u.port === '8098' &&
-      u.pathname.replace(/\/+$/, '') === '/v1' &&
-      !u.username &&
-      !u.password &&
-      !u.search &&
-      !u.hash
+      url.protocol === 'http:' &&
+      ['127.0.0.1', 'localhost'].includes(url.hostname) &&
+      url.port === '8098' &&
+      url.pathname.replace(/\/+$/, '') === '/v1' &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash
     );
     // log-coverage: ignore -- pure check called during render (Chat.jsx); a bad URL is not a fault.
   } catch {
@@ -26,6 +33,8 @@ export function isStudioQwen({ provider, endpoint, model }) {
   }
 }
 const aborted = () => new DOMException('Message cancelled.', 'AbortError');
+// Resolves after ms milliseconds. Rejects with an AbortError as soon as the signal aborts,
+// so a cancelled message never waits out the remaining polling interval.
 function delay(ms, signal) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -44,6 +53,23 @@ function delay(ms, signal) {
   });
 }
 
+/**
+ * Makes sure the studio-owned Qwen server is answering before a chat message is sent.
+ * Starts it when it is not running and polls until it is ready. Resolves without action
+ * for any endpoint that isStudioQwen does not accept.
+ *
+ * @param {object} options
+ * @param {object} options.connection Provider settings passed to isStudioQwen.
+ * @param {string} options.model Model id to check.
+ * @param {(signal?: AbortSignal) => Promise<void>} options.probe Rejects while not ready.
+ * @param {(signal?: AbortSignal) => Promise<void>} options.start Requests the model start.
+ * @param {(signal?: AbortSignal) => Promise<boolean>} options.isLoading Reports an active load.
+ * @param {AbortSignal} [options.signal] Cancels the wait; rejects with AbortError.
+ * @param {(text: string) => void} [options.onStatus] Receives user-visible progress text.
+ * @param {number} [options.timeoutMs=600000] Maximum wait for the model to load, in ms.
+ * @throws {Error} When the model stops loading, the wait times out, or an unexpected
+ *   probe error occurs. The message is shown to the user.
+ */
 export async function ensureChatReady({
   connection,
   model,

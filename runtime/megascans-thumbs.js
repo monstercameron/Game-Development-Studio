@@ -205,6 +205,7 @@ export class ThumbnailCache {
       if (!entry.isFile() || !entry.name.endsWith('.img')) {
         continue;
       }
+      // A file removed between readdir and stat is not counted; there is nothing to evict.
       const stat = await fs.stat(path.join(this.directory, entry.name)).catch(() => null);
       if (stat) {
         files.push({ name: entry.name, size: stat.size, time: stat.mtimeMs });

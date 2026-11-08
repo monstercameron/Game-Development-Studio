@@ -26,7 +26,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-const project = randomUUID();
+const projectId = randomUUID();
 const staged = `${randomUUID()}.png`;
 
 function pixels(width, height, alphaAt) {
@@ -90,7 +90,7 @@ test('3D requests are built without a reference and validated like the queue doe
 
 test('remove-background builds a cutout step and a dependent 3D step', () => {
   const steps = removeBackgroundSteps({
-    projectId: project,
+    projectId,
     draft: { model: 'Hunyuan3D 2.1', seed: 3, removeBackgroundPrompt: '  the dragon ' },
     fallbackModel: 'Hunyuan3D 2.1',
     referenceId: staged,
@@ -98,7 +98,7 @@ test('remove-background builds a cutout step and a dependent 3D step', () => {
   assert.equal(steps.length, 2);
   assert.deepEqual(steps[0], {
     type: 'segmentation',
-    projectId: project,
+    projectId,
     request: { prompt: 'the dragon', references: [staged], output: 'transparent', confidence: 0.5 },
   });
   assert.equal(steps[1].type, '3d');
@@ -112,12 +112,11 @@ test('remove-background builds a cutout step and a dependent 3D step', () => {
     /at most 1000/,
   );
   assert.throws(
-    () =>
-      removeBackgroundChain({ projectId: project, referenceId: staged, model: 'x', request: {} }),
+    () => removeBackgroundChain({ projectId, referenceId: staged, model: 'x', request: {} }),
     /Choose Hunyuan3D or TRELLIS/,
   );
   const trellis = removeBackgroundSteps({
-    projectId: project,
+    projectId,
     draft: { model: 'TRELLIS.2', seed: 1 },
     fallbackModel: '',
     referenceId: staged,
@@ -150,7 +149,7 @@ test('text-to-3D uses the Images request builder with a transparent square image
   assert.throws(() => textImageRequest({ prompt: 'x', textImageSteps: '2.5' }), /Image steps/);
 
   const steps = textTo3dSteps({
-    projectId: project,
+    projectId,
     draft: { prompt: 'a lamp', model: 'TRELLIS.2', seed: 4, trellisPipeline: '1024' },
     fallbackModel: 'Hunyuan3D 2.1',
   });
@@ -160,8 +159,7 @@ test('text-to-3D uses the Images request builder with a transparent square image
   assert.equal(steps[1].request.pipeline, '1024');
   assert.deepEqual(steps[1].request.referenceFrom, { step: 0 });
   assert.throws(
-    () =>
-      textTo3dChain({ projectId: project, model: 'trellis', image: { prompt: ' ' }, request: {} }),
+    () => textTo3dChain({ projectId, model: 'trellis', image: { prompt: ' ' }, request: {} }),
     /Describe the object/,
   );
 });

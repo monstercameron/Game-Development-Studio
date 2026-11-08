@@ -85,15 +85,15 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
     while (true) {
       let state;
       try {
-        const r = await fetch(`${baseUrl}/api/jobs/${remoteId}`, {
+        const statusResponse = await fetch(`${baseUrl}/api/jobs/${remoteId}`, {
           signal: AbortSignal.timeout(10000),
           redirect: 'error',
         });
-        log.trace('world.status.polled', { jobId: job.id, status: r.status });
-        if (r.status === 404) {
+        log.trace('world.status.polled', { jobId: job.id, status: statusResponse.status });
+        if (statusResponse.status === 404) {
           log.warn('world.job.interrupted', {
             jobId: job.id,
-            status: r.status,
+            status: statusResponse.status,
             reason: 'remote_job_missing',
           });
           send(job.id, 'interrupted', {
@@ -102,10 +102,10 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           });
           return;
         }
-        if (!r.ok) {
-          throw Error(`HTTP ${r.status}`);
+        if (!statusResponse.ok) {
+          throw Error(`HTTP ${statusResponse.status}`);
         }
-        state = await r.json();
+        state = await statusResponse.json();
       } catch (error) {
         log.warn('world.status.poll.failed', { jobId: job.id, ...errorFields(error) });
         send(job.id, 'progress', { stage: 'Waiting to reconnect to the world worker.' });

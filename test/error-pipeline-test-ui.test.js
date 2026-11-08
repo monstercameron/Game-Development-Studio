@@ -1,5 +1,7 @@
-// jsdom tests for Diagnostics, Developer tools, Test the error pipeline (src/ErrorPipelineTest.jsx).
-// The studio API is a fake fetch; test/errors-e2e.test.js runs the same section against the real host.
+// jsdom tests for Diagnostics, Developer tools, Test the error pipeline
+// (src/ErrorPipelineTest.jsx).
+// The studio API is a fake fetch. test/errors-e2e.test.js runs the same section against the
+// real studio host.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
@@ -90,7 +92,7 @@ async function mount(t, { responses = {}, installCapture = false } = {}) {
     await act(() => sleep(wait));
   };
   const statusOf = (id) => document.getElementById(`error-test-status-${id}`);
-  return { dom, state, calls, byText, click, statusOf };
+  return { state, calls, byText, click, statusOf };
 }
 
 test('the section is a collapsed Developer tools panel with named buttons and live statuses', async (t) => {

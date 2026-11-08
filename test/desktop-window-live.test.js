@@ -12,6 +12,7 @@ const appRoot = fileURLToPath(new URL('..', import.meta.url));
 const electron = path.join(appRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
 const probe = fileURLToPath(new URL('./fixtures/desktop-window-probe.js', import.meta.url));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function waitFor(check, timeout = 15000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -28,6 +29,9 @@ async function waitFor(check, timeout = 15000) {
   throw new Error('Timed out waiting for the desktop window.');
 }
 
+// Drives the real tray script and Electron window. Proves the tray commands control the window
+// after it is minimized and after it is hidden. Opt-in because it needs an interactive Windows
+// desktop, so it is skipped unless FORGE_RUN_TRAY_INTEGRATION=1.
 test(
   'real tray menu controls an Electron window, including when it is hidden',
   {
@@ -36,6 +40,7 @@ test(
   },
   async (t) => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-desktop-window-'));
+    // Fake studio: answers the endpoints the tray script polls; any other path gets a placeholder.
     const server = createServer((req, res) => {
       if (req.url === '/api/diagnostics') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -105,18 +110,21 @@ test(
       await new Promise((resolve) => server.close(resolve));
       await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
     });
+
     const state = async () => JSON.parse(await fs.readFile(path.join(root, 'window.json'), 'utf8'));
     const waitState = (check) =>
       waitFor(async () => {
         const value = await state();
         return check(value) && value;
       });
+
     let sequence = 0;
     const action = async (name) =>
       fs.writeFile(
         path.join(root, 'runtime', `tray-test-command-${port}.json`),
         JSON.stringify({ sequence: ++sequence, action: name }),
       );
+
     await waitState((value) => value.visible);
     await waitFor(() =>
       fs.access(path.join(root, 'runtime', `tray-status-${port}.json`)).then(() => true),

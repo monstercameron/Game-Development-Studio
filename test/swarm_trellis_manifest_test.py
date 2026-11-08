@@ -43,9 +43,10 @@ class TrellisManifestTest(unittest.TestCase):
         self.assertEqual(manifest.pipelines_available(), ["512"])
         for path in manifest.extra_files(manifest.PIPELINE_EXTRAS["1024"]):
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("{}", encoding="utf-8") if path.suffix == ".json" else path.write_bytes(
-                b"x"
-            )
+            if path.suffix == ".json":
+                path.write_text("{}", encoding="utf-8")
+            else:
+                path.write_bytes(b"x")
         self.assertEqual(
             manifest.pipelines_available(), ["512", "1024", "1024_cascade", "1536_cascade"]
         )

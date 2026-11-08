@@ -21,17 +21,25 @@ const SOURCE_FILTERS = [
   ['engine', 'Engines'],
 ];
 
+// Unknown sources fall back to the generic bug icon.
+function pickSourceIcon(source) {
+  if (source === 'browser') {
+    return Monitor;
+  }
+  if (source === 'queue') {
+    return ListOrdered;
+  }
+  if (source === 'server') {
+    return Server;
+  }
+  if (source.startsWith('engine:')) {
+    return Cpu;
+  }
+  return Bug;
+}
+
 function SourceIcon({ source }) {
-  const Icon =
-    source === 'browser'
-      ? Monitor
-      : source === 'queue'
-        ? ListOrdered
-        : source === 'server'
-          ? Server
-          : source.startsWith('engine:')
-            ? Cpu
-            : Bug;
+  const Icon = pickSourceIcon(source);
   return <Icon size={14} aria-hidden="true" />;
 }
 
@@ -56,6 +64,22 @@ function parseSelectedId(value) {
   return /^\d{1,12}$/.test(value || '') ? Number(value) : null;
 }
 
+// Returns the list button a navigation key moves to, or null when the key does not move focus.
+function pickKeyboardTarget(key, buttons, index) {
+  switch (key) {
+    case 'ArrowDown':
+      return buttons[Math.min(buttons.length - 1, index + 1)];
+    case 'ArrowUp':
+      return buttons[Math.max(0, index - 1)];
+    case 'Home':
+      return buttons[0];
+    case 'End':
+      return buttons.at(-1);
+    default:
+      return null;
+  }
+}
+
 /**
  * Errors review dialog (route state ?dialog=errors&error=<id>). Lists captured errors on the
  * left and shows the selected one on the right.
@@ -72,6 +96,7 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
   const [reload, setReload] = useState(0);
   const [message, setMessage] = useState('');
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
+  // Request counter: a response is applied only when it belongs to the newest request.
   const latest = useRef(0);
   const listRef = useRef(null);
   const dialog = useDialogFocus({ onClose, initialFocus: '.errors-search input' });
@@ -144,16 +169,7 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
     if (index < 0) {
       return;
     }
-    const target =
-      event.key === 'ArrowDown'
-        ? buttons[Math.min(buttons.length - 1, index + 1)]
-        : event.key === 'ArrowUp'
-          ? buttons[Math.max(0, index - 1)]
-          : event.key === 'Home'
-            ? buttons[0]
-            : event.key === 'End'
-              ? buttons.at(-1)
-              : null;
+    const target = pickKeyboardTarget(event.key, buttons, index);
     if (target) {
       event.preventDefault();
       target.focus();
@@ -161,7 +177,7 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
     }
   }
 
-  async function copyAllNew() {
+  async function handleCopyAllNew() {
     try {
       const data = await getErrors('/export?status=new');
       setMessage(
@@ -178,7 +194,7 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
     }
   }
 
-  async function clearResolved() {
+  async function handleClearResolved() {
     try {
       const data = await postErrors('/clear', { statuses: ['resolved'], confirm: 'clear' });
       log.info('errors.clear.completed', { removedCount: data.removed });
@@ -262,7 +278,7 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
               ))}
             </select>
           </label>
-          <button type="button" className="outline-button" onClick={copyAllNew}>
+          <button type="button" className="outline-button" onClick={handleCopyAllNew}>
             Copy all new
           </button>
           {isConfirmingClear ? (
@@ -270,7 +286,7 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
               <button
                 type="button"
                 className="outline-button errors-danger"
-                onClick={clearResolved}
+                onClick={handleClearResolved}
               >
                 Delete {resolvedCount} resolved
               </button>

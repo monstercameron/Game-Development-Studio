@@ -9,9 +9,10 @@ import { randomUUID } from 'node:crypto';
 import { JobQueue } from '../runtime/jobs.js';
 import { createRecoverService } from '../runtime/recover-service.js';
 
+// Polls for a condition so tests wait on real state changes rather than fixed sleeps.
 async function waitFor(fn) {
-  const end = Date.now() + 10000;
-  while (Date.now() < end) {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
     if (fn()) {
       return;
     }
@@ -96,11 +97,14 @@ test(
       remote = 'a'.repeat(32);
     await fs.mkdir(project, { recursive: true });
     await fs.writeFile(path.join(project, '.forge-project.json'), JSON.stringify({ id }));
+    // Reserve a free loopback port, release it, then let the fake engine listen there once the
+    // recovery service restarts the worker.
     const socket = createServer();
     socket.listen(0, '127.0.0.1');
     await once(socket, 'listening');
     const port = socket.address().port;
     await new Promise((resolve) => socket.close(resolve));
+    // Submissions must stay at zero: recovery polls the accepted remote job, never resends it.
     let starts = 0,
       submissions = 0;
     resources.engine = createServer((req, res) => {
@@ -121,8 +125,8 @@ test(
     process.env.FORGE_HYMOTION_URL = `http://127.0.0.1:${port}`;
     const recoverService = createRecoverService({
       env: {},
-      startEngine: async (id) => {
-        assert.equal(id, 'motion-hy');
+      startEngine: async (engineId) => {
+        assert.equal(engineId, 'motion-hy');
         starts++;
         resources.engine.listen(port, '127.0.0.1');
         await once(resources.engine, 'listening');
@@ -207,11 +211,14 @@ test(
       remote = 'b'.repeat(32);
     await fs.mkdir(project, { recursive: true });
     await fs.writeFile(path.join(project, '.forge-project.json'), JSON.stringify({ id }));
+    // Reserve a free loopback port, release it, then let the fake engine listen there once the
+    // recovery service restarts the worker.
     const socket = createServer();
     socket.listen(0, '127.0.0.1');
     await once(socket, 'listening');
     const port = socket.address().port;
     await new Promise((resolve) => socket.close(resolve));
+    // Submissions must stay at zero: recovery polls the accepted remote job, never resends it.
     let starts = 0,
       submissions = 0;
     resources.engine = createServer((req, res) => {

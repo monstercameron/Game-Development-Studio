@@ -404,19 +404,19 @@ const monitoringLoads = new Set();
 let chatStartedHere = false;
 function chatPortClosed() {
   return new Promise((resolve) => {
-    const s = net.createConnection({ host: '127.0.0.1', port: 8098 });
+    const socket = net.createConnection({ host: '127.0.0.1', port: 8098 });
     let finished = false;
     const done = (value) => {
       if (finished) {
         return;
       }
       finished = true;
-      s.destroy();
+      socket.destroy();
       resolve(value);
     };
-    s.once('connect', () => done(false));
-    s.once('error', (error) => done(error.code === 'ECONNREFUSED'));
-    s.setTimeout(1500, () => done(false));
+    socket.once('connect', () => done(false));
+    socket.once('error', (error) => done(error.code === 'ECONNREFUSED'));
+    socket.setTimeout(1500, () => done(false));
   });
 }
 const modelInventory = new ModelInventory();
@@ -495,11 +495,11 @@ async function monitorModelLoad(engine) {
   while (!queue.stopped && queue.modelLoadInProgress && queue.modelLoadEngine === engine) {
     if (engine === 'chat') {
       try {
-        const r = await fetch('http://127.0.0.1:8098/health', {
+        const healthResponse = await fetch('http://127.0.0.1:8098/health', {
           signal: AbortSignal.timeout(2000),
           redirect: 'error',
         });
-        if (r.ok && queue.resumeAfterModelLoad('chat')) {
+        if (healthResponse.ok && queue.resumeAfterModelLoad('chat')) {
           return;
         }
       } catch (error) {

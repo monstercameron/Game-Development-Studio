@@ -16,6 +16,18 @@ export function compatibleAssets(assets, extensions, query = '') {
 // Each selection is read through the existing local project asset endpoint.
 // The caller passes the resulting File to the same validated queue/upload path
 // as a file chosen from the OS, preserving the queue-time input snapshot.
+/**
+ * Reads each selected library asset from the project asset endpoint into a File.
+ *
+ * @param {{ id: string }} project Project whose asset endpoint serves the files.
+ * @param {Array<{ id: string, name: string, size?: number }>} assets Library entries; `id` is
+ *   the project-relative path.
+ * @param {{ maxBytes?: number, totalBytes?: number, signal?: AbortSignal,
+ *   fetchImpl?: typeof fetch }} [options] Size limits in bytes and request controls.
+ * @returns {Promise<File[]>} Files in the same order as `assets`.
+ * @throws {Error} When a file or the combined selection exceeds its size limit, or when a
+ *   request fails (the error has a `cause`). An aborted request rethrows its AbortError.
+ */
 export async function readLibraryFiles(
   project,
   assets,

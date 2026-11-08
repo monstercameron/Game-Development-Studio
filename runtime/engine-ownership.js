@@ -74,7 +74,11 @@ async function invokeWindows(request) {
       }
       finished = true;
       clearTimeout(timer);
-      error ? reject(error) : resolve(value);
+      if (error) {
+        reject(error);
+      } else {
+        resolve(value);
+      }
     };
     const timer = setTimeout(() => {
       child.kill();
@@ -105,6 +109,8 @@ async function invokeWindows(request) {
       });
       finish(code === 0 ? null : Error('Windows ownership operation failed.'), stdout);
     });
+    // A helper that exits early makes the stdin write fail with EPIPE. The
+    // 'close' handler already reports the outcome, so the write error is ignored.
     child.stdin.on('error', () => {});
     child.stdin.end(input);
   });
@@ -349,6 +355,7 @@ export class EngineOwnershipJournal {
         };
         const timer = setTimeout(fail, 12000);
         child.stderr.resume();
+        // Same reasoning as the helper above: the 'close' or timeout path reports the failure.
         child.stdin.on('error', () => {});
         child.on('error', fail);
         child.stdout.on('data', (chunk) => {

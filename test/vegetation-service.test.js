@@ -31,7 +31,6 @@ function listen(handler) {
   return new Promise((resolve) =>
     server.listen(0, '127.0.0.1', () =>
       resolve({
-        server,
         url: `http://127.0.0.1:${server.address().port}`,
         close: () => new Promise((done) => server.close(done)),
       }),
@@ -172,9 +171,9 @@ test('Fetch runs once at a time and only when asked', async () => {
     assert.equal((await (await studio.get('/status')).json()).fetch.step, 'Downloading');
     release();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    const done = (await (await studio.get('/status')).json()).fetch;
-    assert.equal(done.running, false);
-    assert.equal(done.error, '');
+    const fetchState = (await (await studio.get('/status')).json()).fetch;
+    assert.equal(fetchState.running, false);
+    assert.equal(fetchState.error, '');
   } finally {
     await studio.close();
   }
@@ -226,7 +225,8 @@ test('Describe it sends only the description and the parameter list to OpenAI', 
     const { suggestion } = await reply.json();
     assert.equal(suggestion.species, 'fakeTree');
     assert.equal(suggestion.seed, 4242);
-    // Out-of-range numbers are clamped, labels become values, invented or unoffered names are dropped.
+    // Out-of-range numbers are clamped, labels become values, and invented or
+    // unoffered names are dropped.
     assert.deepEqual(suggestion.params, { height: 30, branches: 7, crown: 0 });
     assert.ok(suggestion.ignored.includes('evil'));
     assert.ok(suggestion.ignored.includes('barkTint'));
@@ -329,10 +329,10 @@ test('provider errors are shown with the provider message and no key', async () 
   try {
     const missing = await studio.post('/describe', { description: 'a tree' });
     assert.equal(missing.status, 404);
-    const text = (await missing.json()).error;
-    assert.match(text, /could not find the model gpt-6-luna/);
-    assert.match(text, /does not exist/);
-    assert.ok(!text.includes(FAKE_KEY));
+    const errorMessage = (await missing.json()).error;
+    assert.match(errorMessage, /could not find the model gpt-6-luna/);
+    assert.match(errorMessage, /does not exist/);
+    assert.ok(!errorMessage.includes(FAKE_KEY));
     for (const [status, pattern] of [
       [401, /rejected the saved API key/],
       [429, /rate limit/],

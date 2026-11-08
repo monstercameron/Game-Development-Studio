@@ -45,6 +45,8 @@ JOINTS = (
 )
 
 
+# Parsed BVH. Offsets are in centimeters. Each frames row holds the channel values of one
+# sampled frame in BVH column order, and stride converts 30 fps pose indices to frame rows.
 @dataclass
 class Clip:
     names: list
@@ -56,6 +58,11 @@ class Clip:
 
 
 def parse_bvh(text):
+    """Parse a SOMA BVH string into a Clip.
+
+    Raises ValueError with a user-facing message for an oversized, malformed or incomplete file,
+    including a missing SOMA joint and a frame rate other than 30, 60 or 120 fps.
+    """
     if not isinstance(text, str) or not text or len(text.encode("utf-8")) > 10 * 1024**2:
         raise ValueError("Provide a BVH file of at most 10 MiB.")
     source = io.StringIO(text)
@@ -188,6 +195,11 @@ def parse_bvh(text):
 
 
 def _heading(positions):
+    """Return the facing angle in radians about the Y axis.
+
+    The angle comes from the horizontal line between SOMA joints 22 (LeftLeg) and 26 (RightLeg).
+    Raises ValueError when those joints coincide horizontally.
+    """
     across = positions[26] - positions[22]
     across = across.copy()
     across[1] = 0
@@ -198,6 +210,7 @@ def _heading(positions):
     return np.arctan2(forward[0], forward[2])
 
 
+# Each MotionBricks token covers four consecutive 30 fps poses.
 POSES_PER_TOKEN = 4
 
 
@@ -219,6 +232,13 @@ def condition_masks(num_target_poses):
 def encode_pose_windows(
     clip, context_frame, target_frame, *, min_tokens=8, max_tokens=14, num_target_poses=4
 ):
+    """Encode one context window and one target window as MotionBricks input tensors.
+
+    context_frame and target_frame are indices of the first of four consecutive poses at 30 fps.
+    Returns (tensors, alignment), where alignment holds the matrix and origin that decode_bvh
+    needs to place the predicted motion back in the source BVH space. Raises ValueError for
+    invalid frame indices, token limits or a window that runs past the clip.
+    """
     if (
         isinstance(num_target_poses, bool)
         or not isinstance(num_target_poses, int)
@@ -268,25 +288,31 @@ def encode_pose_windows(
     rotations = rot[:, model_indices]
     align = Rotation.from_euler("y", _heading(positions[3]) - np.pi / 2)
     origin = np.array([positions[3, 0, 0], 0.0, positions[3, 0, 2]])
-    p = align.inv().apply((positions - origin).reshape(-1, 3)).reshape(8, 30, 3)
-    r = align.inv().as_matrix() @ rotations
+    aligned = align.inv().apply((positions - origin).reshape(-1, 3)).reshape(8, 30, 3)
+    aligned_rotations = align.inv().as_matrix() @ rotations
     global_root = np.zeros((1, 8, 5), np.float32)
     local_root = np.zeros((1, 8, 4), np.float32)
     local_pose = np.zeros((1, 8, 267), np.float32)
     for i in range(8):
-        nxt = i if i in (3, 7) else i + 1
-        angle = _heading(p[i])
-        angle_next = _heading(p[nxt])
+        # Slots 3 and 7 end a window with no following pose, so they are compared with themselves
+        # and get zero root velocity.
+        next_index = i if i in (3, 7) else i + 1
+        angle = _heading(aligned[i])
+        angle_next = _heading(aligned[next_index])
         delta = np.arctan2(np.sin(angle_next - angle), np.cos(angle_next - angle))
-        global_root[0, i] = [*p[i, 0], np.cos(angle), np.sin(angle)]
+        global_root[0, i] = [*aligned[i, 0], np.cos(angle), np.sin(angle)]
         local_root[0, i] = [
             delta * 30,
-            (p[nxt, 0, 0] - p[i, 0, 0]) * 30,
-            (p[nxt, 0, 2] - p[i, 0, 2]) * 30,
-            p[i, 0, 1],
+            (aligned[next_index, 0, 0] - aligned[i, 0, 0]) * 30,
+            (aligned[next_index, 0, 2] - aligned[i, 0, 2]) * 30,
+            aligned[i, 0, 1],
         ]
-        local_pose[0, i, :87] = (p[i, 1:] - [p[i, 0, 0], 0, p[i, 0, 2]]).reshape(-1)
-        local_pose[0, i, 87:] = np.concatenate([r[i, :, :, 0], r[i, :, :, 1]], axis=1).reshape(-1)
+        local_pose[0, i, :87] = (aligned[i, 1:] - [aligned[i, 0, 0], 0, aligned[i, 0, 2]]).reshape(
+            -1
+        )
+        local_pose[0, i, 87:] = np.concatenate(
+            [aligned_rotations[i, :, :, 0], aligned_rotations[i, :, :, 1]], axis=1
+        ).reshape(-1)
     allowed = np.zeros((1, 11), np.int32)
     allowed[0, min_tokens - 6 : max_tokens - 5] = 1
     given, local_root_known = condition_masks(num_target_poses)
@@ -303,6 +329,12 @@ def encode_pose_windows(
 
 
 def decode_bvh(clip, output, alignment):
+    """Convert MotionBricks output back to BVH text in the source clip's skeleton layout.
+
+    output holds pred_global_motions (1 x 64 x 366) and pred_num_tokens (1). alignment comes from
+    encode_pose_windows. Positions are written in centimeters and rotations in degrees.
+    Raises ValueError for a wrong shape, non-finite values or a degenerate rotation.
+    """
     values = np.asarray(output["pred_global_motions"], dtype=np.float64)
     tokens = np.asarray(output["pred_num_tokens"])
     if (
@@ -316,17 +348,18 @@ def decode_bvh(clip, output, alignment):
     frames = values[0, 3 : int(tokens[0]) * 4 - 3]
     n = len(frames)
     axes = frames[:, 92:272].reshape(n, 30, 6)
-    a = axes[..., :3]
-    b = axes[..., 3:]
-    length = np.linalg.norm(a, axis=-1, keepdims=True)
+    x_raw = axes[..., :3]
+    y_raw = axes[..., 3:]
+    length = np.linalg.norm(x_raw, axis=-1, keepdims=True)
     if (length < 1e-8).any():
         raise ValueError("Motion contains a degenerate rotation.")
-    x = a / length
-    b = b - (b * x).sum(axis=-1, keepdims=True) * x
-    length = np.linalg.norm(b, axis=-1, keepdims=True)
+    x = x_raw / length
+    # Gram-Schmidt: make the second axis orthogonal to the first before normalizing it.
+    y_raw = y_raw - (y_raw * x).sum(axis=-1, keepdims=True) * x
+    length = np.linalg.norm(y_raw, axis=-1, keepdims=True)
     if (length < 1e-8).any():
         raise ValueError("Motion contains a degenerate rotation.")
-    y = b / length
+    y = y_raw / length
     matrices = np.stack((x, y, np.cross(x, y)), axis=-1)
     align = np.asarray(alignment["alignment"], dtype=np.float64)
     origin = np.asarray(alignment["origin"], dtype=np.float64)
@@ -360,6 +393,7 @@ def decode_bvh(clip, output, alignment):
     for i in range(1, 30):
         local[:, i] = np.swapaxes(matrices[:, parents[i]], -1, -2) @ matrices[:, i]
     euler = Rotation.from_matrix(local.reshape(-1, 3, 3)).as_euler("XYZ").reshape(n, 30, 3)
+    # Unwrap across frames so a joint does not jump by a full turn in the exported channels.
     euler = np.rad2deg(np.unwrap(euler, axis=0))
     children = [[] for _ in JOINTS]
     for i, parent in enumerate(parents[1:], 1):

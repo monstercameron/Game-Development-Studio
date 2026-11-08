@@ -20,12 +20,17 @@ const imageSteps = { Balanced: 30, Draft: 12, 'High quality': 40 };
 const LARGE_IMAGE_PIXELS = 2.2e6;
 const hasText = (value) => value !== undefined && value !== null && String(value) !== '';
 
+/**
+ * Optional controls for the image or video panel. `section` is 'images' or 'video'; any other
+ * value renders nothing. `update` receives a partial draft patch, and `loras` lists the LoRA
+ * file names found in the LoRA folder.
+ */
 export default function ImageVideoSettings({ section, draft, update, loras = [] }) {
   const [tuneOpen, setTuneOpen] = useRouteToggle('tune');
   if (section !== 'images' && section !== 'video') {
     return null;
   }
-  const image = section === 'images';
+  const isImageSection = section === 'images';
   const [width, height] = dimensions[draft.options?.[0]] || [1024, 576];
   const steps = imageSteps[draft.options?.[1]] || 30;
   const numberError = (value, min, max, integer = true, multiple = 1) => {
@@ -51,8 +56,10 @@ export default function ImageVideoSettings({ section, draft, update, loras = [] 
   const heightError = numberError(draft.imageHeight, 32, IMAGE_MAX_SIZE, true, 32);
   const referenceCount = draft.refs?.length || 0;
   const matchReference = draft.imageMatchReference === true;
+  // The last reference image sets the size, so the manual width and height fields are disabled.
   const sizeFollowsReference = matchReference && referenceCount > 0;
   const sigmaError = sigmaScheduleError(draft.imageSigmas);
+  // A valid custom schedule sets the step count (its length), so the steps field is disabled.
   const sigmaActive = Boolean(draft.imageSigmas?.trim()) && !sigmaError;
   const stepsError = sigmaActive ? '' : numberError(draft.imageSteps, 1, 100);
   const variationCount = Math.min(
@@ -93,9 +100,9 @@ export default function ImageVideoSettings({ section, draft, update, loras = [] 
     !widthError &&
     !heightError &&
     pixelWidth * pixelHeight > LARGE_IMAGE_PIXELS;
-  const heading = image ? 'Fine-tune image' : 'Fine-tune video';
+  const heading = isImageSection ? 'Fine-tune image' : 'Fine-tune video';
   // Reused or saved values stay hidden while the panel is closed, so name what has been changed.
-  const changed = image
+  const changed = isImageSection
     ? [
         [customSize || sizeFollowsReference, sizeFollowsReference ? 'size from reference' : 'size'],
         [hasText(draft.imageSteps), 'steps'],
@@ -114,7 +121,7 @@ export default function ImageVideoSettings({ section, draft, update, loras = [] 
   const contentId = `image-video-settings-${section}`;
   return (
     <details
-      className={`image-video-settings ${image ? 'image-video-settings-images' : ''}`}
+      className={`image-video-settings ${isImageSection ? 'image-video-settings-images' : ''}`}
       {...routeDetails(tuneOpen, setTuneOpen)}
     >
       <summary aria-expanded={tuneOpen} aria-controls={contentId}>
@@ -127,7 +134,7 @@ export default function ImageVideoSettings({ section, draft, update, loras = [] 
               : 'Show optional controls'}
         </span>
       </summary>
-      {image ? (
+      {isImageSection ? (
         <div className="image-video-settings-body" id={contentId}>
           <p className="image-video-settings-intro">
             Optional overrides for the selected aspect ratio and quality. Leave a value blank to

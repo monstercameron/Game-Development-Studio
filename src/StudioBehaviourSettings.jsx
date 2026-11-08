@@ -58,6 +58,7 @@ const GROUP_LABELS = {
   },
 };
 
+// Throws an Error whose `problems` array carries per-key validation failures from the server.
 async function request(path, { method = 'GET', body } = {}) {
   // log-coverage: ignore -- failed /api calls are already logged by app-log-install (http.request.failed)
   const response = await fetch(path, {
@@ -91,6 +92,7 @@ function showValue(item, value) {
   return item.unit ? `${value} ${item.unit}` : String(value);
 }
 
+// Returns { value } for an acceptable draft, or { message } with the problem to show beside the field.
 function checkDraft(item, text) {
   if (item.type === 'integer') {
     const number = Number(text);
@@ -177,8 +179,8 @@ function SettingRow({ item, error, onApply, onReset }) {
           setEdited(null);
         }
       })
-      .catch((error) => {
-        log.warn('settings.value.apply.failed', { settingKey: item.key, errorClass: error?.name });
+      .catch((reason) => {
+        log.warn('settings.value.apply.failed', { settingKey: item.key, errorClass: reason?.name });
       });
   }
 
@@ -320,10 +322,10 @@ function SettingRow({ item, error, onApply, onReset }) {
                 setLocalError('');
                 onReset(item.key)
                   .then(() => control.current?.focus())
-                  .catch((error) => {
+                  .catch((reason) => {
                     log.warn('settings.value.reset.failed', {
                       settingKey: item.key,
-                      errorClass: error?.name,
+                      errorClass: reason?.name,
                     });
                   });
               }}

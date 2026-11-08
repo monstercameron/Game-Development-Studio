@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -11,7 +12,6 @@ import { forceStopWindows } from '../runtime/force-stop.js';
 import { inspectWindowsProcess } from '../runtime/engine-ownership.js';
 import { JobQueue } from '../runtime/jobs.js';
 import { EngineManager } from '../runtime/engines.js';
-import { createServer } from 'node:http';
 
 test(
   'Windows force-stop rejects a changed identity and terminates a verified owned tree',
@@ -41,11 +41,11 @@ test(
         unrelated.kill();
       }
     });
-    const info = await inspectWindowsProcess(parent.pid, 17654);
+    const processInfo = await inspectWindowsProcess(parent.pid, 17654);
     const identity = {
-      pid: info.pid,
-      creationTicks: info.creationTicks,
-      executable: info.executable,
+      pid: processInfo.pid,
+      creationTicks: processInfo.creationTicks,
+      executable: processInfo.executable,
     };
     await assert.rejects(
       forceStopWindows({
@@ -166,20 +166,20 @@ test(
       id = randomUUID();
     await fs.mkdir(path.join(project, 'music'), { recursive: true });
     await fs.writeFile(path.join(project, '.forge-project.json'), JSON.stringify({ id }));
-    const http = createServer((req, res) => {
-      res.setHeader('Content-Type', 'application/json');
-      if (req.url === '/api/v1/health') {
-        return res.end(JSON.stringify({ api_version: '1', model: { loaded: true } }));
+    const http = createServer((request, response) => {
+      response.setHeader('Content-Type', 'application/json');
+      if (request.url === '/api/v1/health') {
+        return response.end(JSON.stringify({ api_version: '1', model: { loaded: true } }));
       }
-      if (req.url === '/api/v1/jobs' && req.method === 'POST') {
-        req.resume();
-        return res.end(JSON.stringify({ id: 'running-job' }));
+      if (request.url === '/api/v1/jobs' && request.method === 'POST') {
+        request.resume();
+        return response.end(JSON.stringify({ id: 'running-job' }));
       }
-      if (req.url === '/api/v1/jobs/running-job') {
-        return res.end(JSON.stringify({ status: 'running' }));
+      if (request.url === '/api/v1/jobs/running-job') {
+        return response.end(JSON.stringify({ status: 'running' }));
       }
-      res.statusCode = 404;
-      res.end('{}');
+      response.statusCode = 404;
+      response.end('{}');
     });
     http.listen(0, '127.0.0.1');
     await once(http, 'listening');

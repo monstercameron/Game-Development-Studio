@@ -11,13 +11,15 @@ export default function AudioSettings({ section, draft, update, sourcePicker = n
   const field = (id, label, { min, max, step = 1, placeholder, help, integer = step === 1 }) => {
     const value = draft[id] ?? '';
     const number = value === '' ? null : Number(value);
-    const invalid =
+    const isInvalid =
       number !== null &&
       (!Number.isFinite(number) ||
         number < min ||
         number > max ||
         (integer && !Number.isSafeInteger(number)));
-    const describedBy = [help && `${id}-help`, invalid && `${id}-error`].filter(Boolean).join(' ');
+    const describedBy = [help && `${id}-help`, isInvalid && `${id}-error`]
+      .filter(Boolean)
+      .join(' ');
     return (
       <label className="audio-setting" htmlFor={id}>
         <span id={`${id}-label`}>{label}</span>
@@ -31,12 +33,12 @@ export default function AudioSettings({ section, draft, update, sourcePicker = n
           inputMode="decimal"
           value={value}
           placeholder={placeholder}
-          aria-invalid={invalid || undefined}
+          aria-invalid={isInvalid || undefined}
           aria-describedby={describedBy || undefined}
           onChange={(event) => update({ [id]: event.target.value })}
         />
         {help && <small id={`${id}-help`}>{help}</small>}
-        {invalid && (
+        {isInvalid && (
           <small className="audio-setting-error" id={`${id}-error`} role="alert">
             Enter {integer ? 'a whole number' : 'a number'} from {min} to {max}.
           </small>
@@ -73,6 +75,7 @@ export default function AudioSettings({ section, draft, update, sourcePicker = n
     </fieldset>
   );
 
+  // Fields that count toward the summary hint; a blank field uses the preset default.
   const customKeys = {
     music: [
       'musicDuration',
@@ -103,7 +106,7 @@ export default function AudioSettings({ section, draft, update, sourcePicker = n
     ],
   }[section];
   const customCount = customKeys.filter((key) => String(draft[key] ?? '').trim() !== '').length;
-  const planningOff = section === 'music' && draft.options?.[1] === 'Off';
+  const isPlanningOff = section === 'music' && draft.options?.[1] === 'Off';
   const seedField = field('seed', 'Seed', {
     min: 0,
     max: 2147483647,
@@ -208,7 +211,7 @@ export default function AudioSettings({ section, draft, update, sourcePicker = n
                     onChange={(event) => update({ musicScore: event.target.value })}
                     placeholder={'X:1\nM:4/4\nL:1/8\nQ:1/4=120\nK:C\n|: C2 E2 G2 c2 | ...'}
                     aria-invalid={
-                      (planningOff && String(draft.musicScore || '').trim()) || undefined
+                      (isPlanningOff && String(draft.musicScore || '').trim()) || undefined
                     }
                     aria-describedby="musicScore-help"
                   />
@@ -217,7 +220,7 @@ export default function AudioSettings({ section, draft, update, sourcePicker = n
                     (Vocal and Ins) and does not check the notation, so malformed ABC gives
                     unpredictable music. Up to 20000 characters.
                   </small>
-                  {planningOff && String(draft.musicScore || '').trim() && (
+                  {isPlanningOff && String(draft.musicScore || '').trim() && (
                     <small className="audio-setting-error" role="alert">
                       Planning is Off, so the score would be ignored. Change Planning above or clear
                       the score.

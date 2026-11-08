@@ -76,7 +76,7 @@ test('extractor writes sorted namespace catalogs and a manifest, and --check see
       'test/fixtures/i18n/Converted.jsx',
     ]);
 
-    // A default edited in code without regenerating is reported as stale.
+    // A catalog edited by hand without regenerating is reported as out of date.
     catalog['images.converted.title'] = 'Edited by hand';
     fs.writeFileSync(path.join(catalogDirectory, 'images.json'), JSON.stringify(catalog));
     assert.deepEqual(compareOutputs(outputs, { catalogDirectory, manifestFile }), [

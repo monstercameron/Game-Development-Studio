@@ -123,7 +123,7 @@ async function makeProject(t, holder) {
     projects,
     autoStart: false,
   });
-  return { root, projects, project, projectId, queue: holder.queue };
+  return { projectId, queue: holder.queue };
 }
 
 function completeMusic(queue, projectId, remoteId = 'yue-source') {
@@ -239,7 +239,12 @@ test('only finished tracks from this project can be extended', async (t) => {
   );
   assert.equal(queue.list().filter((job) => job.request.operation).length, 0);
   // A job from another project is not a valid source even with the right file name.
-  const other = { id: source.id, type: 'music', projectId: randomUUID(), status: 'completed' };
+  const foreignJob = {
+    id: source.id,
+    type: 'music',
+    projectId: randomUUID(),
+    status: 'completed',
+  };
   assert.throws(
     () =>
       resolveDerivedMusic(
@@ -248,7 +253,7 @@ test('only finished tracks from this project can be extended', async (t) => {
           projectId,
           request: { operation: 'extend', source: `music/forge-${source.id}.flac` },
         },
-        { projectFolder: os.tmpdir(), lookup: () => ({ ...other, remoteId: 'yue-x' }) },
+        { projectFolder: os.tmpdir(), lookup: () => ({ ...foreignJob, remoteId: 'yue-x' }) },
       ),
     /finished YuE2 track/,
   );

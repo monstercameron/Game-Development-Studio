@@ -63,11 +63,15 @@ test('durable queue validates and keeps the MotionBricks target pose count', asy
       projectId: id,
       request: { pose: pose.id, context_frame: 0, target_frame: 20 },
     };
-    for (const num_target_poses of [0, 5, 2.5, '2', true]) {
+    for (const numTargetPoses of [0, 5, 2.5, '2', true]) {
       assert.throws(
-        () => queue.enqueue({ ...base, request: { ...base.request, num_target_poses } }),
+        () =>
+          queue.enqueue({
+            ...base,
+            request: { ...base.request, num_target_poses: numTargetPoses },
+          }),
         /1 to 4/,
-        `rejects ${String(num_target_poses)}`,
+        `rejects ${String(numTargetPoses)}`,
       );
     }
     const defaulted = queue.enqueue(base);

@@ -56,6 +56,38 @@ function errorText(detail) {
   return '';
 }
 
+// Pure mapping from the runtime status to the one-line summary above the controls.
+// statusError is checked first so a failed poll is never shown as a stale service state.
+function describeServiceState(service, statusError) {
+  if (statusError) {
+    return 'Could not check Mammoth status.';
+  }
+  if (service?.status === 'unavailable') {
+    return 'Mammoth is stopped.';
+  }
+  if (service?.status === 'not_configured') {
+    return 'Mammoth is not configured.';
+  }
+  if (service?.status === 'unverified') {
+    return 'Mammoth status could not be verified.';
+  }
+  if (service?.status !== 'reachable') {
+    return 'Checking Mammoth status…';
+  }
+  if (service.state === 'error') {
+    return 'Mammoth reported a model error.';
+  }
+  if (service.modelLoaded === true) {
+    return 'Model loaded and ready.';
+  }
+  if (service.modelLoaded === false) {
+    return service.state === 'loading'
+      ? 'Model is loading…'
+      : 'Service running · model not loaded.';
+  }
+  return 'Service reachable · model status unknown.';
+}
+
 export default function GameDecision({ draft, project, onSaved }) {
   const [result, setResult] = useState(null),
     [summaries, setSummaries] = useState([]),
@@ -75,6 +107,7 @@ export default function GameDecision({ draft, project, onSaved }) {
   const runHintId = useId();
   const stopHintId = useId();
   const saveHintId = useId();
+  // A saved path refers to the project it was written to, so it is cleared on a project change.
   useEffect(() => setSavedPath(''), [project?.id]);
   const [loading, setLoading] = useState(false),
     [notice, setNotice] = useState(''),
@@ -237,13 +270,13 @@ export default function GameDecision({ draft, project, onSaved }) {
     let request;
     try {
       request = gameDecisionRequest(draft, extraQuestions);
-    } catch (error) {
+    } catch (validationError) {
       log.info('game.decision.rejected', {
         reason: 'invalid_request',
         questionCount: extraQuestions.length + 1,
-        ...errorFields(error),
+        ...errorFields(validationError),
       });
-      setError(error.message);
+      setError(validationError.message);
       return;
     }
     const startedAt = performance.now();
@@ -336,25 +369,7 @@ export default function GameDecision({ draft, project, onSaved }) {
   const isReady =
     service?.status === 'reachable' && service.modelLoaded === true && service.state !== 'error';
   const modelLoading = service?.state === 'loading';
-  const serviceState = statusError
-    ? 'Could not check Mammoth status.'
-    : service?.status === 'unavailable'
-      ? 'Mammoth is stopped.'
-      : service?.status === 'not_configured'
-        ? 'Mammoth is not configured.'
-        : service?.status === 'unverified'
-          ? 'Mammoth status could not be verified.'
-          : service?.status !== 'reachable'
-            ? 'Checking Mammoth status…'
-            : service.state === 'error'
-              ? 'Mammoth reported a model error.'
-              : service.modelLoaded === true
-                ? 'Model loaded and ready.'
-                : service.modelLoaded === false
-                  ? service.state === 'loading'
-                    ? 'Model is loading…'
-                    : 'Service running · model not loaded.'
-                  : 'Service reachable · model status unknown.';
+  const serviceState = describeServiceState(service, statusError);
   // Run stays enabled unless a load is in progress: observed status can be stale, so the
   // decision request is still sent. The hint says what to expect next to the button.
   const runHint = isReady
@@ -447,7 +462,7 @@ export default function GameDecision({ draft, project, onSaved }) {
         </p>
         {extraQuestions.map((item, index) => {
           const errorId = `${extraBaseId}-error-${item.id}`;
-          const errorText = extraErrors[index];
+          const extraErrorMessage = extraErrors[index];
           return (
             <div className="game-extra-question" key={item.id}>
               <label>
@@ -471,14 +486,14 @@ export default function GameDecision({ draft, project, onSaved }) {
                 <textarea
                   rows={3}
                   value={item.text}
-                  aria-invalid={errorText ? 'true' : undefined}
-                  aria-describedby={errorText ? errorId : undefined}
+                  aria-invalid={extraErrorMessage ? 'true' : undefined}
+                  aria-describedby={extraErrorMessage ? errorId : undefined}
                   onChange={(event) => updateExtraQuestion(item.id, { text: event.target.value })}
                 />
               </label>
-              {errorText && (
+              {extraErrorMessage && (
                 <p id={errorId} className="settings-error" role="alert">
-                  {errorText}
+                  {extraErrorMessage}
                 </p>
               )}
               <button

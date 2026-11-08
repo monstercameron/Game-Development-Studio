@@ -54,6 +54,7 @@ export function voiceModeFieldErrors(draft) {
 export function firstVoiceModeError(errors) {
   return errors.reference || errors.transcript || errors.consent || errors.description || '';
 }
+
 // Longest wait for the browser to report a clip's duration before the check is skipped.
 export const CLIP_DURATION_TIMEOUT_MS = 10000;
 

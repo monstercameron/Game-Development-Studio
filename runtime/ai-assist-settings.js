@@ -34,11 +34,16 @@ export function isValidAiModelId(model) {
   return typeof model === 'string' && MODEL_ID.test(model);
 }
 
-/** Throws a user-facing message when an entry is invalid; returns the normalized entry. */
-export function validateAiAssistEntry({ feature, provider, model }) {
+/** Throws the user-facing message when a feature id is not in AI_ASSIST_FEATURES. */
+function assertSupportedFeature(feature) {
   if (!Object.hasOwn(AI_ASSIST_FEATURES, feature)) {
     throw Error('Choose a supported AI assist feature.');
   }
+}
+
+/** Throws a user-facing message when an entry is invalid; returns the normalized entry. */
+export function validateAiAssistEntry({ feature, provider, model }) {
+  assertSupportedFeature(feature);
   if (!AI_ASSIST_PROVIDERS.includes(provider)) {
     throw Error('Choose OpenAI or a local provider.');
   }
@@ -87,6 +92,9 @@ export function writeAiAssistEntry(db, { feature, provider, model }, updatedAt) 
 /**
  * @param {{directory?: string, now?: () => Date}} options directory defaults to the Forge
  *   runtime folder. The database is created on the first write only.
+ * @returns {{get: Function, list: Function, set: Function}} `get` and `list` never create the
+ *   database and return defaults when it is absent. `set` throws the validation message from
+ *   validateAiAssistEntry for bad input; `get` throws for an unknown feature id.
  */
 export function createAiAssistSettings({
   directory = process.env.FORGE_RUNTIME_DIR || path.join(repositoryRoot, '.forge-runtime'),
@@ -110,9 +118,7 @@ export function createAiAssistSettings({
   const read = readAiAssistEntry;
   return {
     get(feature) {
-      if (!Object.hasOwn(AI_ASSIST_FEATURES, feature)) {
-        throw Error('Choose a supported AI assist feature.');
-      }
+      assertSupportedFeature(feature);
       const db = open(false);
       try {
         return read(db, feature);

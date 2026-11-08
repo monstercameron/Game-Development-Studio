@@ -40,6 +40,7 @@ export function localAsrUrl(value = 'http://127.0.0.1:8282') {
   }
   return url;
 }
+
 function pcmBytes(frame) {
   if (
     !(frame instanceof Uint8Array) ||
@@ -52,6 +53,7 @@ function pcmBytes(frame) {
   }
   return frame;
 }
+
 // Optional per-request recognition settings, validated here so every caller shares the same limits.
 // Word boosting is deliberately absent: the installed GGUF has no embedded tokenizer, so the engine
 // ignores boost phrases.
@@ -62,6 +64,12 @@ export function recognitionOptions({ punctuation = true, wordTimestamps = false 
   }
   return { punctuation, wordTimestamps };
 }
+
+/**
+ * Sends a RIFF/WAVE file to the local speech service and returns its transcript.
+ * `timeoutMs` covers the request and reading the response body. Rejects on invalid input,
+ * a non-2xx response, an invalid transcript, timeout or cancellation through `signal`.
+ */
 export async function transcribeWav(
   bytes,
   { baseUrl, timeoutMs = 120000, signal, fetcher = fetch, options } = {},
@@ -85,12 +93,12 @@ export async function transcribeWav(
   if (settings.wordTimestamps) {
     form.set('response_format', 'verbose_json');
   }
-  const timeout = AbortSignal.timeout(timeoutMs);
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
   const requestStartedMs = performance.now();
   const response = await fetcher(new URL(TRANSCRIPTION_ROUTE, localAsrUrl(baseUrl)), {
     method: 'POST',
     body: form,
-    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
     redirect: 'error',
   }).catch((error) => {
     log.warn('asr.request.failed', {

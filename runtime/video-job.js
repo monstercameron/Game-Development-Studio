@@ -23,7 +23,7 @@ async function saveMp4(projectFolder, jobId, webm) {
     folder = path.join(project, 'video'),
     name = `forge-${jobId}.mp4`,
     output = path.join(folder, name),
-    temp = path.join(folder, `.${name}.${randomUUID()}.part.mp4`);
+    stagingPath = path.join(folder, `.${name}.${randomUUID()}.part.mp4`);
   try {
     if ((await fs.stat(output)).size > 0) {
       return `video/${name}`;
@@ -35,23 +35,23 @@ async function saveMp4(projectFolder, jobId, webm) {
   try {
     await convertFile({
       source: path.join(project, ...webm.split('/')),
-      target: temp,
+      target: stagingPath,
       kind: 'video',
       format: 'mp4',
       quality: 90,
       background: '#ffffff',
     });
     // Flushed before the final name exists, like saveAsset.
-    await fsyncFile(temp);
+    await fsyncFile(stagingPath);
     try {
-      await fs.link(temp, output);
+      await fs.link(stagingPath, output);
     } catch (error) {
       if (error.code !== 'EEXIST') {
         throw error;
       }
     }
   } finally {
-    await fs.rm(temp, { force: true }).catch((error) => {
+    await fs.rm(stagingPath, { force: true }).catch((error) => {
       log.debug('video.temp.cleanup.failed', { jobId, error });
     });
   }

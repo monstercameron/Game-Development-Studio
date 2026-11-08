@@ -98,6 +98,7 @@ test('stream rejects stalled completion and applies backpressure', async () => {
   socket.bufferedAmount = 2 * 1024 * 1024;
   assert.throws(() => stream.send(Buffer.alloc(2)), /not consuming/);
   stream.commit();
+  // The stream's completion timer is unref'd, so hold the event loop open until it fires.
   const keepAlive = setTimeout(() => {}, 1000);
   try {
     await assert.rejects(stream.done, /did not finish/);

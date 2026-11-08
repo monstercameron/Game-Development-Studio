@@ -98,16 +98,18 @@ export async function run(argv, { fetchImpl = fetch, log = console.log } = {}) {
     log(`Could not reach the studio at ${origin}: ${error.cause?.code || error.name}.`);
     return 1;
   }
-  const data = await response.json().catch(() => ({}));
+  const responseData = await response.json().catch(() => ({}));
   if (!response.ok) {
     const hint =
       response.status === 404
         ? ' The studio has not loaded the error routes yet; restart it first.'
         : '';
-    log(`The studio answered HTTP ${response.status}: ${data.error || 'no message'}.${hint}`);
+    log(
+      `The studio answered HTTP ${response.status}: ${responseData.error || 'no message'}.${hint}`,
+    );
     return 1;
   }
-  log(`Sent ${options.kind} test error to ${origin}: ${JSON.stringify(data)}`);
+  log(`Sent ${options.kind} test error to ${origin}: ${JSON.stringify(responseData)}`);
   log('Open the Errors button in the studio (or /?dialog=errors) to review it.');
   return 0;
 }

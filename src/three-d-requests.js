@@ -29,7 +29,12 @@ function randomSeed() {
   return crypto.getRandomValues(new Uint32Array(1))[0] & 0x7fffffff;
 }
 
-// The model's own request (validated like a normal queue submission) without any reference.
+/**
+ * The model's own request (validated like a normal queue submission) without any reference.
+ * The chain adds the reference later, so `request` has no `references` field.
+ *
+ * @returns {{ model: 'hunyuan' | 'trellis', request: object }}
+ */
 export function threeDRequest(draft, fallbackModel) {
   const trellis = isTrellis(draft, fallbackModel);
   const seed = draft.seed !== '' && draft.seed !== undefined ? draft.seed : randomSeed();

@@ -10,6 +10,8 @@ const log = createLogger('segmentation');
 export const SAM31_HOST_LOAD_BYTES = 9 * 1024 ** 3;
 export const SAM31_GPU_LOAD_MIB = 12 * 1024;
 export const SAM31_GPU_RENDER_MIB = 8 * 1024;
+// Free host RAM (bytes) wanted before a render starts. Soft check, see model-load.js.
+const SAM31_RENDER_HOST_FLOOR_BYTES = 3 * 1024 ** 3;
 
 export function createSam31Loader({
   hardware,
@@ -18,6 +20,8 @@ export function createSam31Loader({
   freeMemory = os.freemem,
   fetcher = fetch,
 }) {
+  // Concurrent callers share one status check and load request, so two requests cannot
+  // both POST a load to the worker.
   let inFlight = null;
   return function loadSam31() {
     if (inFlight) {
@@ -138,6 +142,10 @@ export function createSam31Loader({
   };
 }
 
+/**
+ * Returns null when another caller already holds the model-load claim (claimLoad() is
+ * false); the caller then skips this tick instead of loading twice.
+ */
 export function createSam31Preparation({ startEngine, loadModel, autoStart = true }) {
   return async ({ health, reachable, claimLoad, retryModel = false }) => {
     if (!reachable) {
@@ -234,11 +242,13 @@ export function createSam31Preparation({ startEngine, loadModel, autoStart = tru
 export function createSam31RenderPreparation({ hardware, services, freeMemory = os.freemem }) {
   return async () => {
     const free = freeMemory();
-    if (hostMemoryShort(free, 3 * 1024 ** 3)) {
+    if (hostMemoryShort(free, SAM31_RENDER_HOST_FLOOR_BYTES)) {
       return {
         status: 'waiting_memory',
         stage: 'Waiting for system memory.',
-        details: hostMemoryConflict(free, 3 * 1024 ** 3, await services(), ['segmentation']),
+        details: hostMemoryConflict(free, SAM31_RENDER_HOST_FLOOR_BYTES, await services(), [
+          'segmentation',
+        ]),
       };
     }
     const snapshot = await hardware();

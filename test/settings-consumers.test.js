@@ -102,11 +102,11 @@ test('an environment variable still beats the saved setting for every consumer',
     /FORGE_TRELLIS_URL/,
   );
 
-  const opted = makeSettings(t, {
+  const optedIn = makeSettings(t, {
     FORGE_TRELLIS_URL: 'http://127.0.0.1:9',
     FORGE_AUTO_START_TRELLIS: '1',
   });
-  assert.equal(opted.get('engines.autoStart.trellis'), true);
+  assert.equal(optedIn.get('engines.autoStart.trellis'), true);
 });
 
 test('autoStartsService follows the live setting and keeps its legacy environment rule', async (t) => {
@@ -177,8 +177,8 @@ test('turning model auto-loading off sends music and sound renders down the wait
     ['loader', true],
     ['service', 'music'],
   ]);
-  const withEnv = makeSettings(t, { FORGE_AUTO_PREPARE_SOUND: '0' });
-  assert.equal(withEnv.get('engines.autoPrepare.sound'), false);
+  const fromEnvironment = makeSettings(t, { FORGE_AUTO_PREPARE_SOUND: '0' });
+  assert.equal(fromEnvironment.get('engines.autoPrepare.sound'), false);
 });
 
 test('crash recovery restarts a worker only while its auto-start setting is on', async (t) => {
@@ -197,14 +197,17 @@ test('crash recovery restarts a worker only while its auto-start setting is on',
   await recover('voices');
   assert.deepEqual(started, ['3d-trellis', 'tts']);
   // The environment-only form is unchanged.
-  const legacy = [];
-  const plain = createRecoverService({
+  const environmentStarts = [];
+  const environmentOnly = createRecoverService({
     env: { FORGE_TTS_URL: 'x' },
-    startEngine: async (id) => legacy.push(id) && { status: 'started' },
+    startEngine: async (id) => {
+      environmentStarts.push(id);
+      return { status: 'started' };
+    },
   });
-  await plain('voices');
-  await plain('trellis');
-  assert.deepEqual(legacy, ['3d-trellis']);
+  await environmentOnly('voices');
+  await environmentOnly('trellis');
+  assert.deepEqual(environmentStarts, ['3d-trellis']);
 });
 
 test('memory.hostPolicy changes the host memory check at once, and the environment wins', async (t) => {

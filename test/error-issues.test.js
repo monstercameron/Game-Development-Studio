@@ -79,6 +79,9 @@ test('issue content is capped and labels AI text as AI-generated', () => {
   assert.match(body, /````markdown\nUse ```code```/, 'the fence is longer than any backtick run');
 });
 
+// Each test gets its own temporary repo and state folder. The fake gh and git append every
+// argument array (and any --body-file contents) to state/calls.jsonl so assertions can check
+// what would have been sent to GitHub, without a network call or a real gh login.
 async function setup(t, scenario) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-errors-gh-'));
   const state = path.join(root, 'state');
@@ -129,6 +132,7 @@ async function setup(t, scenario) {
   });
   const id = report.data.id;
   const calls = async () =>
+    // calls.jsonl is created by the first fake call, so a missing file means no calls yet.
     (await fs.readFile(path.join(state, 'calls.jsonl'), 'utf8').catch(() => ''))
       .split('\n')
       .filter(Boolean)

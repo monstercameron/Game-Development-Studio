@@ -9,6 +9,7 @@ async function listen(app) {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   return server;
 }
+
 test('chat proxy streams structured requests and does not forward API keys to compatible servers', async () => {
   const upstream = express();
   upstream.use(express.json());
@@ -24,8 +25,8 @@ test('chat proxy streams structured requests and does not forward API keys to co
   const app = express();
   chatService().configureServer({ middlewares: app });
   const forge = await listen(app);
-  const origin = `http://127.0.0.1:${forge.address().port}`,
-    endpoint = `http://127.0.0.1:${server.address().port}/v1`;
+  const origin = `http://127.0.0.1:${forge.address().port}`;
+  const endpoint = `http://127.0.0.1:${server.address().port}/v1`;
   const post = (route, body, extra = {}) =>
     fetch(origin + '/api/chat/' + route, {
       method: 'POST',

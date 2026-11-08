@@ -46,7 +46,7 @@ export function hunyuanGuidance(value) {
   return number;
 }
 
-// '' and undefined both mean "automatic": the raw mesh, or 40,000 triangles when painting.
+// '', null and undefined all mean "automatic": the raw mesh, or 40,000 triangles when painting.
 export function hunyuanTriangles(value) {
   if (value === undefined || value === '' || value === null) {
     return null;
@@ -54,7 +54,17 @@ export function hunyuanTriangles(value) {
   return integer(value, 'Triangle target', ...HUNYUAN_TRIANGLE_RANGE);
 }
 
-// Used for both queue submissions and estimates so tuning is reflected in both.
+/**
+ * Builds the shape request for a Hunyuan job. Queue submissions and estimates both use it so
+ * tuning is reflected in both.
+ *
+ * @param {object} draft Form values; a missing field takes its default.
+ * @param {string[]} [referenceIds] Exactly one staged reference file name (a UUID with a
+ *   png, jpg or webp extension). Defaults to the placeholder used for estimates.
+ * @returns {object} The request body. Default guidance, triangles and view settings are
+ *   omitted so unchanged requests keep matching timing history.
+ * @throws {Error} When a value is out of range or the reference list is not exactly one file.
+ */
 export function hunyuanShapeRequest(
   draft,
   referenceIds = draft.referenceIds || [HUNYUAN_ESTIMATE_REFERENCE],

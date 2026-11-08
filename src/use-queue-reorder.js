@@ -405,16 +405,14 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
     move(job, { kind: target.edge, value: target.id });
   }
 
-  function cancelDrag(announceIt = true) {
+  function cancelDrag() {
     const current = dragRef.current;
     if (!current) {
       return;
     }
     setDragState(null);
     log.debug('queue.reorder.drag.cancelled');
-    if (announceIt) {
-      announce(`Move cancelled. ${nameOf(current.id)} stays where it was.`);
-    }
+    announce(`Move cancelled. ${nameOf(current.id)} stays where it was.`);
   }
 
   function handlePointerCancel(job) {

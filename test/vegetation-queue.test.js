@@ -305,13 +305,14 @@ test(
       await waitFor(project.queue, slow.id, ['running']);
       assert.equal(project.queue.cancel(waiting.id).status, 'cancelled');
       assert.equal(project.queue.cancel(slow.id).status, 'cancelled');
-      const after = project.queue.enqueue({
+      // Named apart from the imported `after` hook.
+      const followUp = project.queue.enqueue({
         type: 'vegetation',
         projectId: project.projectId,
         request: request({ seed: 10 }),
       });
       assert.equal(
-        (await waitFor(project.queue, after.id, ['completed', 'failed'])).status,
+        (await waitFor(project.queue, followUp.id, ['completed', 'failed'])).status,
         'completed',
       );
       assert.equal(project.queue.get(slow.id).status, 'cancelled');
@@ -340,12 +341,11 @@ test('a job left running by a stopped runtime is grown again after a restart', a
       request: request({ seed: 21 }),
     });
     first.stop();
-    const db = new DatabaseSync(database);
-    db.prepare("UPDATE jobs SET status='running',started_at=?,stage='Growing' WHERE id=?").run(
-      new Date().toISOString(),
-      queued.id,
-    );
-    db.close();
+    const jobsDatabase = new DatabaseSync(database);
+    jobsDatabase
+      .prepare("UPDATE jobs SET status='running',started_at=?,stage='Growing' WHERE id=?")
+      .run(new Date().toISOString(), queued.id);
+    jobsDatabase.close();
     const restarted = new JobQueue({
       directory: path.join(project.root, 'runtime'),
       projects: project.projects,
@@ -408,13 +408,13 @@ test('the estimate groups renders by species and budget', async () => {
       request: request(),
     });
     await waitFor(project.queue, queued.id, ['completed']);
-    const after = project.queue.estimate({
+    const estimateAfterRender = project.queue.estimate({
       type: 'vegetation',
       projectId: project.projectId,
       request: request({ seed: 99 }),
     });
-    assert.equal(after.available, true);
-    assert.equal(after.sampleCount, 1);
+    assert.equal(estimateAfterRender.available, true);
+    assert.equal(estimateAfterRender.sampleCount, 1);
     const other = project.queue.estimate({
       type: 'vegetation',
       projectId: project.projectId,

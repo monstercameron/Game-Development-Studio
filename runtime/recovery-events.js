@@ -102,7 +102,8 @@ export function recordRecoveryEvent(event, { directory = defaultRuntimeDirectory
 
 /**
  * Reads events, oldest first. `since` (ISO string or Date) drops older entries.
- * Damaged lines (a crash during an append) are skipped.
+ * `limit` keeps only the newest matching events, so a long journal cannot flood a report.
+ * Damaged lines (a crash during an append) are skipped. A missing journal returns [].
  */
 export function readRecoveryEvents({
   directory = defaultRuntimeDirectory(),

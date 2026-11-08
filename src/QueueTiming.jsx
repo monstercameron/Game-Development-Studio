@@ -23,6 +23,7 @@ const TimingContext = createContext(null);
 const MAX_ESTIMATED_JOBS = 50;
 const HIDDEN_QUEUE_KEY = 'forge-hidden-queue-ids-v1';
 const log = createLog('queue');
+
 function loadHidden() {
   try {
     const ids = JSON.parse(localStorage.getItem(HIDDEN_QUEUE_KEY));
@@ -43,8 +44,8 @@ export function QueueTimingProvider({ children }) {
   useEffect(() => {
     try {
       localStorage.setItem(HIDDEN_QUEUE_KEY, JSON.stringify(hiddenIds));
-    } catch (error) {
-      log.debug('queue.hidden.save.failed', { errorClass: error?.name });
+    } catch (storageError) {
+      log.debug('queue.hidden.save.failed', { errorClass: storageError?.name });
       // Browser storage may be unavailable; queue state remains in memory.
     }
   }, [hiddenIds]);
@@ -126,8 +127,11 @@ export function QueueTimingProvider({ children }) {
             if (history.current === signature) {
               cache.current.set(key, estimate);
             }
-          } catch (error) {
-            log.debug('queue.estimate.failed', { jobId: job.id, errorClass: error?.name });
+          } catch (estimateFailure) {
+            log.debug('queue.estimate.failed', {
+              jobId: job.id,
+              errorClass: estimateFailure?.name,
+            });
             estimate = estimateFromNearbyHistory(job.type, job.request, next);
           }
         }

@@ -7,11 +7,9 @@ import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-import { Client as ModernClient } from '@modelcontextprotocol/client';
-import { StdioClientTransport as ModernStdio } from '@modelcontextprotocol/client/stdio';
 
 test('catalog separates definitions, service state, storage and supporting checkpoints', () => {
-  const source = {
+  const inventorySnapshot = {
     state: 'ready',
     observedAt: '2026-01-01T00:00:00Z',
     entries: [
@@ -20,7 +18,7 @@ test('catalog separates definitions, service state, storage and supporting check
   };
   const result = buildModelCatalog({
     services: [{ id: 'tts', status: 'reachable', modelLoaded: false }],
-    inventory: source,
+    inventory: inventorySnapshot,
     managedIds: managedModels.map((m) => m.id),
   });
   assert.equal(result.runtimeAvailable, true);
@@ -68,7 +66,7 @@ test('stdio MCP exposes the catalog through the read-only forge_models tool', as
       stderr: 'pipe',
     }),
   );
-  const tool = (await client.listTools()).tools.find((tool) => tool.name === 'forge_models');
+  const tool = (await client.listTools()).tools.find((entry) => entry.name === 'forge_models');
   assert.ok(tool);
   assert.equal(tool.annotations.readOnlyHint, true);
   const result = await client.callTool({ name: 'forge_models', arguments: {} });
@@ -84,13 +82,13 @@ test('stdio supports the 2026-07-28 protocol and the model catalog', async (t) =
   http.listen(0, '127.0.0.1');
   await once(http, 'listening');
   t.after(() => http.close());
-  const client = new ModernClient(
+  const client = new Client(
     { name: 'modern-stdio-test', version: '1.0.0' },
     { versionNegotiation: { mode: { pin: '2026-07-28' } } },
   );
   t.after(() => client.close());
   await client.connect(
-    new ModernStdio({
+    new StdioClientTransport({
       command: process.execPath,
       args: [fileURLToPath(new URL('../runtime/mcp.js', import.meta.url))],
       env: { ...process.env, FORGE_STUDIO_URL: `http://127.0.0.1:${http.address().port}` },

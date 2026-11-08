@@ -24,21 +24,23 @@ const MODE_CHECKPOINT = Object.freeze({
   clone: 'base',
   design: 'voice_design',
 });
-// Limits for cloning. The Base model card describes a 3-second clone; the upper bound is Forge's own
-// choice to keep the prompt small and the request body bounded. The worker enforces the same range.
+// Limits for cloning. The Base model card describes a 3-second clone; the upper bound is Forge's
+// own choice to keep the prompt small and the request body bounded. The worker enforces the same
+// range.
 export const CLONE_REFERENCE_SECONDS = Object.freeze({ min: 3, max: 30 });
 export const CLONE_REFERENCE_EXTENSIONS = Object.freeze(['wav', 'flac', 'mp3']);
 export const CLONE_REFERENCE_PATTERN = /^[a-f0-9-]{36}\.(wav|flac|mp3)$/i;
 export const CLONE_TRANSCRIPT_MAX = 1000;
 export const VOICE_DESCRIPTION_MAX = 500;
 
-// The checkpoint a voice request needs. Requests without a mode are preset voices (the original shape).
+// The checkpoint a voice request needs. Requests without a mode are preset voices (the original
+// shape).
 export function checkpointForRequest(request) {
   return MODE_CHECKPOINT[request?.mode ?? 'preset'];
 }
 
-// The worker reports loaded_variant. Workers started before this change omit it and only ever loaded
-// the preset checkpoint, so a missing value means custom_voice.
+// The worker reports loaded_variant. Workers started before this change omit it and only ever
+// loaded the preset checkpoint, so a missing value means custom_voice.
 export function loadedCheckpoint(health) {
   if (health?.loaded !== true) {
     return null;
@@ -82,8 +84,9 @@ export function voiceModeFields(input) {
   if (input.clone_voice_only !== undefined && typeof input.clone_voice_only !== 'boolean') {
     throw Error('Voice-only cloning must be true or false.');
   }
-  // Voice-only cloning uses the speaker embedding alone, so the transcript is neither required nor
-  // kept: a transcript sent with it would be ignored by the worker and would misdescribe the render.
+  // Voice-only cloning uses the speaker embedding alone, so the transcript is neither required
+  // nor kept: a transcript sent with it would be ignored by the worker and would misdescribe the
+  // render.
   if (input.clone_voice_only === true) {
     return { mode, reference_audio: input.reference_audio, clone_voice_only: true };
   }

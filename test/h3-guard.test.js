@@ -13,7 +13,7 @@ import { EngineManager } from '../runtime/engines.js';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const python = path.join(root, '.forge-runtime', 'hunyuan3d-venv', 'Scripts', 'python.exe');
-const enabled = process.platform === 'win32' && existsSync(python);
+const canRunH3 = process.platform === 'win32' && existsSync(python);
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function waitFor(fn, timeout = 12000) {
   const end = Date.now() + timeout;
@@ -126,7 +126,7 @@ test(
 
 test(
   'H3 guard fences overlapping uploads and kills the owned renderer after a guard crash',
-  { skip: !enabled, timeout: 30000 },
+  { skip: !canRunH3, timeout: 30000 },
   async (t) => {
     const probe = createServer();
     probe.listen(0, '127.0.0.1');
@@ -154,8 +154,8 @@ test(
     let logs = '';
     guard.stdout.on('data', (chunk) => (logs += chunk));
     guard.stderr.on('data', (chunk) => (logs += chunk));
-    let serverPid = null,
-      rendererPid = null;
+    let serverPid = null;
+    let rendererPid = null;
     t.after(() => {
       if (guard.exitCode === null) {
         guard.kill();
@@ -215,7 +215,7 @@ const h3Node = path.join(h3, 'engine', 'node.exe');
 test(
   'the real H3 application starts behind the guard without loading a model',
   {
-    skip: !enabled || !existsSync(h3Node) || !existsSync(path.join(h3, 'server.js')),
+    skip: !canRunH3 || !existsSync(h3Node) || !existsSync(path.join(h3, 'server.js')),
     timeout: 20000,
   },
   async (t) => {
@@ -265,7 +265,7 @@ test(
 
 test(
   'the engine supervisor restarts a crashed video guard without reviving the old render',
-  { skip: !enabled, timeout: 30000 },
+  { skip: !canRunH3, timeout: 30000 },
   async (t) => {
     const probe = createServer();
     probe.listen(0, '127.0.0.1');

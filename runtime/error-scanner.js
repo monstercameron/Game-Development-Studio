@@ -63,7 +63,12 @@ async function readRange(file, start, length) {
   }
 }
 
-/** Reads new log bytes since the saved cursor and records each error found. */
+/**
+ * Reads new log bytes since the saved cursor and records each error found.
+ *
+ * @returns {Promise<{recorded: number, problems: string[]}>} problems holds one short entry per
+ *   file that could not be read (name and error code only, never the log text).
+ */
 export async function scanLogs(store, { runtimeDir, now = () => Date.now() } = {}) {
   let recorded = 0;
   const problems = [];
@@ -98,12 +103,14 @@ export async function scanLogs(store, { runtimeDir, now = () => Date.now() } = {
       }
       const lastNewline = buffer.lastIndexOf(10);
       const reachedEnd = start + length >= info.size;
+      // No complete line yet: keep the cursor and wait for the writer to finish the line.
       if (lastNewline < 0 && reachedEnd) {
         continue;
       }
       const complete = lastNewline < 0 ? buffer : buffer.subarray(0, lastNewline + 1);
       const text = complete.toString('utf8');
       const isStale = now() - info.mtimeMs > STALE_LOG_MS;
+      // An unfinished traceback is held back until the log has stopped growing.
       let { entries, safeLength } = extractLogErrors(text, { final: reachedEnd && isStale });
       if (safeLength === 0 && text.length && !reachedEnd) {
         // One traceback is larger than a read; keep what fits rather than stalling the cursor.
@@ -170,6 +177,7 @@ export function scanJobs(store, { jobsFile, retentionDays = 30, now = () => Date
   }
   let recorded = 0;
   try {
+    // Without a saved cursor, the first scan only looks back over the retention window.
     const since =
       store.getCursor('jobs') || new Date(now() - retentionDays * 86400000).toISOString();
     const rows = db

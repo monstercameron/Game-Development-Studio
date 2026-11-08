@@ -83,12 +83,12 @@ test('motion preview does not start moving when reduced motion is requested', as
 
 test('motion loading and the viewer style sheet honour reduced motion and focus visibility', async () => {
   const stylesheet = await readFile(path.join(repositoryRoot, 'src', 'ux-viewer.css'), 'utf8');
-  const engine = await readFile(path.join(repositoryRoot, 'src', 'viewer-engine.js'), 'utf8');
-  const viewer = await readFile(path.join(repositoryRoot, 'src', 'ThreeViewer.jsx'), 'utf8');
+  const engineSource = await readFile(path.join(repositoryRoot, 'src', 'viewer-engine.js'), 'utf8');
+  const viewerSource = await readFile(path.join(repositoryRoot, 'src', 'ThreeViewer.jsx'), 'utf8');
   assert.match(stylesheet, /\.vw :focus-visible/);
   assert.match(stylesheet, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(stylesheet, /@media \(forced-colors: active\)/);
-  assert.match(viewer, /prefers-reduced-motion: reduce/);
-  assert.match(engine, /reducedMotion/, 'camera transitions are skipped for reduced motion');
-  assert.match(engine, /document\.hidden/, 'rendering pauses in background tabs');
+  assert.match(viewerSource, /prefers-reduced-motion: reduce/);
+  assert.match(engineSource, /reducedMotion/, 'camera transitions are skipped for reduced motion');
+  assert.match(engineSource, /document\.hidden/, 'rendering pauses in background tabs');
 });

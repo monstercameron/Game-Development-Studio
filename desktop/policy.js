@@ -19,6 +19,15 @@ export function isExternalWebUrl(value) {
   }
 }
 
+/**
+ * Decides whether a renderer permission request may be granted.
+ * Only the Studio's own origin is allowed, and only for the listed permissions.
+ *
+ * @param {string} permission Electron permission name, such as 'media'.
+ * @param {string} requestingOrigin Origin that made the request.
+ * @param {string} origin Origin of the verified local Studio.
+ * @returns {boolean} true only when the origins match and the permission is allowlisted.
+ */
 export function isAllowedPermission(permission, requestingOrigin, origin) {
   return (
     requestingOrigin === origin &&

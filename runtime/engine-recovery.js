@@ -17,6 +17,7 @@ export class EngineRecovery {
     this.verify = verify;
     this.probe = probe;
   }
+
   async prepare(definition, nonce, token) {
     return this.journal.prepare({
       id: definition.id,
@@ -26,6 +27,7 @@ export class EngineRecovery {
       token,
     });
   }
+
   async check(definition, record) {
     return this.verify(record, {
       id: definition.id,
@@ -33,6 +35,12 @@ export class EngineRecovery {
       executable: definition.command,
     });
   }
+
+  /**
+   * Probes the journaled process. Returns 'alive', 'exited_or_reused' (the recorded
+   * PID is gone or reused, so the entry may be cleared), or 'indeterminate' (the entry
+   * is not in the running state, or no probe could decide).
+   */
   async alive(record) {
     if (record.state !== 'running') {
       return 'indeterminate';
@@ -49,6 +57,13 @@ export class EngineRecovery {
     }
     return 'indeterminate';
   }
+
+  /**
+   * Resolves the journal entry for an engine. Returns { state: 'none' } when no entry
+   * exists or a dead entry was cleared; { state: 'recovered', record, process } when the
+   * worker identity is verified; and { state: 'unresolved' } when the entry must stay
+   * for a later check or a person. It never stops a process.
+   */
   async reconcile(definition) {
     this.journal.assertHeld?.();
     const record = await this.journal.read(definition.id);
@@ -71,6 +86,7 @@ export class EngineRecovery {
     }
     return { state: 'unresolved' };
   }
+
   async clearIfExited(definition, record) {
     if ((await this.alive(record)) !== 'exited_or_reused') {
       return false;

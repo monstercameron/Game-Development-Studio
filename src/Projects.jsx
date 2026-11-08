@@ -20,16 +20,16 @@ import {
 const log = createLog('projects');
 
 function projectAssetIcon(category, size = 13) {
-  const Icon =
-    category === 'Audio'
-      ? AudioLines
-      : category === '3D'
-        ? Box
-        : category === 'Text'
-          ? FileText
-          : category === 'Video'
-            ? Clapperboard
-            : Image;
+  let Icon = Image;
+  if (category === 'Audio') {
+    Icon = AudioLines;
+  } else if (category === '3D') {
+    Icon = Box;
+  } else if (category === 'Text') {
+    Icon = FileText;
+  } else if (category === 'Video') {
+    Icon = Clapperboard;
+  }
   return <Icon size={size} />;
 }
 
@@ -128,6 +128,10 @@ export function RecentProjects({ projects, loading, onNew, onOpen, onViewAll }) 
   );
 }
 
+/**
+ * Create-project dialog. `onCreate(name)` may reject; its message is shown in the dialog
+ * and the dialog stays open so the name can be corrected.
+ */
 export function NewProjectDialog({ onClose, onCreate }) {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
@@ -140,7 +144,7 @@ export function NewProjectDialog({ onClose, onCreate }) {
     },
     initialFocus: '#project-name',
   });
-  async function submit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     if (!name.trim()) {
       setError('Enter a project name.');
@@ -183,7 +187,7 @@ export function NewProjectDialog({ onClose, onCreate }) {
             <X size={20} />
           </button>
         </div>
-        <form onSubmit={submit}>
+        <form onSubmit={handleSubmit}>
           <label className="field-label" htmlFor="project-name">
             Project name
           </label>

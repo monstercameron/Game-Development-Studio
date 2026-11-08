@@ -18,6 +18,8 @@ async function createInstallerFixture(t, model) {
     JSON.stringify({ schemaVersion: 1, models: [model] }),
   );
 
+  // Stands in for the Hugging Face CLI. It writes first.bin, and it fails the
+  // example/second repository with exit 7 so the partial-download test has a failure to hit.
   const fake = path.join(temp, 'fake-hf.ps1');
   await fs.writeFile(
     fake,
@@ -56,6 +58,7 @@ function runInstaller(temp, fake, staging, models, extraArgs = []) {
   );
 }
 
+// install.ps1 is a Windows PowerShell script, so these tests skip on other platforms.
 const windowsTest = { skip: process.platform !== 'win32', timeout: 30000 };
 
 test(

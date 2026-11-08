@@ -106,7 +106,7 @@ with (
         {"o_voxel": types.SimpleNamespace(postprocess=types.SimpleNamespace(to_glb=bake))},
     ),
     patch.object(backend.torch.cuda, "is_available", return_value=True),
-    patch.object(backend, "ensure_pipeline_models") as ensure,
+    patch.object(backend, "ensure_pipeline_models") as ensure_models,
 ):
     recorder = Recorder()
     output = Path(folder) / "test.glb"
@@ -114,7 +114,7 @@ with (
         recorder, image, output, seed=1, steps=3, texture_size=512, pipeline_type="1024_cascade"
     )
     assert recorder.types == ["1024_cascade"]
-    assert ensure.call_args.args[:2] == (recorder, "1024_cascade")
+    assert ensure_models.call_args.args[:2] == (recorder, "1024_cascade")
     for bad in ("2048", "", None):
         try:
             backend.generate_glb(recorder, image, output, texture_size=512, pipeline_type=bad)
@@ -122,7 +122,7 @@ with (
             continue
         raise AssertionError("Unsupported pipeline type was accepted.")
     # After a first-use checkpoint load the job message returns to the render message.
-    ensure.return_value = True
+    ensure_models.return_value = True
     notes = []
     backend.generate_glb(
         recorder, image, output, texture_size=512, pipeline_type="1024", report=notes.append
@@ -152,6 +152,7 @@ with patch.object(backend, "pipelines_available", return_value=["512"]):
         assert "not installed" in str(error)
     else:
         raise AssertionError("A pipeline without checkpoints was accepted.")
+
 loaded = []
 with (
     patch.object(
@@ -168,7 +169,7 @@ with (
         "tex_slat_flow_model_1024",
     }
     assert len(loaded) == 2 and messages
-    # Already loaded: nothing more to read.
+    # Checkpoints already loaded are not read again.
     assert backend.ensure_pipeline_models(pipeline, "1024") is False
     assert len(loaded) == 2
 print("TRELLIS.2 input validation and render controls passed with a substitute renderer.")

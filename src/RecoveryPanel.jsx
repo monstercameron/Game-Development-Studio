@@ -12,6 +12,61 @@ const POLL_MS = 20000;
 const RESOLVE_CONFIRMATION = 'engine-job-not-running';
 const QUARANTINE_CONFIRMATION = 'quarantine-orphans';
 
+// Says what the runtime knows about a job's outcome. An unknown outcome is never described as
+// safe to queue again, because the engine may already have accepted the render.
+function describeJobOutcome(job, t) {
+  if (job.kind === 'unknown_outcome') {
+    return job.hasRemoteId
+      ? t(
+          'diagnostics.recovery.unknownAccepted',
+          'The engine accepted this render before the studio stopped. Whether it finished is unknown.',
+        )
+      : t(
+          'diagnostics.recovery.unknownSubmitted',
+          'The studio stopped while submitting this render. Whether the engine accepted it is unknown.',
+        );
+  }
+  if (job.type === 'vegetation') {
+    return t(
+      'diagnostics.recovery.vegetation',
+      'Vegetation runs on this computer only and gives the same plant each time, so running it again is safe.',
+    );
+  }
+  if (job.safeToRetry) {
+    return t(
+      'diagnostics.recovery.preparedOnly',
+      'Preparation stopped before anything was submitted to an engine.',
+    );
+  }
+  return t(
+    'diagnostics.recovery.reconnectFailed',
+    'The engine could not be reconnected for a render it had accepted.',
+  );
+}
+
+// Describes an engine from the report. An unavailable engine is never shown as running.
+function describeEngineState(engine, t) {
+  if (engine.status === 'unavailable') {
+    if (engine.reason === 'timeout') {
+      return t(
+        'diagnostics.recovery.engineHung',
+        'accepts connections but does not answer; it may be hung.',
+      );
+    }
+    return t('diagnostics.recovery.engineDown', 'is not running.');
+  }
+  if (engine.ownership === 'unresolved') {
+    return t(
+      'diagnostics.recovery.engineUnresolved',
+      'is running, but the studio could not confirm it owns it.',
+    );
+  }
+  if (engine.ownership === 'recovered') {
+    return t('diagnostics.recovery.engineAdopted', 'was found running and re-adopted.');
+  }
+  return t('diagnostics.recovery.engineUnverified', 'answered, but is not verified.');
+}
+
 function JobItem({ job, busy, checked, onCheck, onResolve, onRetry }) {
   const { t } = useT();
   const canResolve = job.status === 'interrupted';
@@ -19,31 +74,7 @@ function JobItem({ job, busy, checked, onCheck, onResolve, onRetry }) {
     job.status === 'interrupted'
       ? t('diagnostics.recovery.statusInterrupted', 'Interrupted')
       : t('diagnostics.recovery.statusNeedsAttention', 'Needs attention');
-  const explanation =
-    job.kind === 'unknown_outcome'
-      ? job.hasRemoteId
-        ? t(
-            'diagnostics.recovery.unknownAccepted',
-            'The engine accepted this render before the studio stopped. Whether it finished is unknown.',
-          )
-        : t(
-            'diagnostics.recovery.unknownSubmitted',
-            'The studio stopped while submitting this render. Whether the engine accepted it is unknown.',
-          )
-      : job.type === 'vegetation'
-        ? t(
-            'diagnostics.recovery.vegetation',
-            'Vegetation runs on this computer only and gives the same plant each time, so running it again is safe.',
-          )
-        : job.safeToRetry
-          ? t(
-              'diagnostics.recovery.preparedOnly',
-              'Preparation stopped before anything was submitted to an engine.',
-            )
-          : t(
-              'diagnostics.recovery.reconnectFailed',
-              'The engine could not be reconnected for a render it had accepted.',
-            );
+  const explanation = describeJobOutcome(job, t);
   const details = [job.stage, job.error].filter(Boolean).join('\n');
   const [copyStatus, setCopyStatus] = useState('');
   const checkboxId = `recovery-confirm-${job.id}`;
@@ -244,7 +275,7 @@ export default function RecoveryPanel() {
   const lastAlive = report.previous?.lastAliveAt
     ? new Date(report.previous.lastAliveAt).toLocaleString()
     : null;
-  const needle = report.recoveryNeeded;
+  const crashLoop = report.recoveryNeeded;
 
   return (
     <section className="recovery-panel" aria-labelledby="recovery-title">
@@ -291,15 +322,15 @@ export default function RecoveryPanel() {
               'The studio found items that need a decision. Nothing was changed without a record.',
             )}
       </p>
-      {needle ? (
+      {crashLoop ? (
         <p className="recovery-alert" role="alert">
           {t(
             'diagnostics.recovery.crashLoop',
             'The {component} crashed {count} times in {minutes} minutes, so the studio stopped restarting it. Your queue and projects were not changed. Fix the cause shown in Diagnostics, then restart the studio.',
             {
-              component: needle.component,
-              count: needle.count,
-              minutes: Math.max(1, Math.round(needle.windowMs / 60000)),
+              component: crashLoop.component,
+              count: crashLoop.count,
+              minutes: Math.max(1, Math.round(crashLoop.windowMs / 60000)),
             },
           )}
         </p>
@@ -439,25 +470,7 @@ export default function RecoveryPanel() {
           <ul className="recovery-list">
             {engines.map((engine) => (
               <li key={engine.id}>
-                <strong>{engine.name || engine.id}</strong>{' '}
-                {engine.status === 'unavailable'
-                  ? engine.reason === 'timeout'
-                    ? t(
-                        'diagnostics.recovery.engineHung',
-                        'accepts connections but does not answer; it may be hung.',
-                      )
-                    : t('diagnostics.recovery.engineDown', 'is not running.')
-                  : engine.ownership === 'unresolved'
-                    ? t(
-                        'diagnostics.recovery.engineUnresolved',
-                        'is running, but the studio could not confirm it owns it.',
-                      )
-                    : engine.ownership === 'recovered'
-                      ? t('diagnostics.recovery.engineAdopted', 'was found running and re-adopted.')
-                      : t(
-                          'diagnostics.recovery.engineUnverified',
-                          'answered, but is not verified.',
-                        )}
+                <strong>{engine.name || engine.id}</strong> {describeEngineState(engine, t)}
               </li>
             ))}
           </ul>

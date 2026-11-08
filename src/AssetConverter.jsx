@@ -45,6 +45,11 @@ const modelNotes = {
 const modelExtensions = ['glb', 'gltf', 'obj', 'ply', 'stl'];
 const modelExtension = (id) => id.split('.').at(-1).toLowerCase();
 
+/**
+ * Whether the converter can offer this asset. Returns a falsy value when no asset is given.
+ * @param {{ id: string, category: string } | null | undefined} asset
+ * @returns {boolean | null | undefined}
+ */
 export function canConvert(asset) {
   return (
     asset &&
@@ -65,6 +70,44 @@ function defaultFormat(id, category) {
   }
   return id.toLowerCase().endsWith('.png') ? 'webp' : 'png';
 }
+
+// Lists the output formats offered for an asset. A 3D model never offers its own format.
+function formatChoicesFor(asset) {
+  if (asset.category === '3D') {
+    return modelFormats.filter(([value]) => value !== modelExtension(asset.id));
+  }
+  if (asset.category === 'Video') {
+    return videoFormats;
+  }
+  if (asset.category === 'Audio') {
+    return audioFormats;
+  }
+  return imageFormats;
+}
+
+// Describes what the chosen format does for non-model assets, shown under the controls.
+function formatNote(format) {
+  if (format === 'mp4') {
+    return 'Makes an H.264 + AAC MP4 that game engines, editors and phones play. The WebM stays unchanged; the MP4 keeps this video’s generation details.';
+  }
+  if (format === 'gif') {
+    return 'Makes a silent, looping GIF at about 12 frames per second and up to 480 pixels wide. Long clips are cut at about 25 seconds.';
+  }
+  if (format === 'jpeg') {
+    return 'JPEG can use NVIDIA nvJPEG when available. Forge reports the backend used after conversion. Transparency is filled with the chosen color.';
+  }
+  if (format === 'bmp') {
+    return 'Transparency is filled with the chosen color.';
+  }
+  if (format === 'tga') {
+    return 'TGA is useful for game textures; Forge creates a preview thumbnail.';
+  }
+  if (format === 'opus') {
+    return 'Opus is resampled to 48 kHz when needed.';
+  }
+  return 'The original file is kept unchanged.';
+}
+
 export default function AssetConverter({ asset, project, onSaved, onClose }) {
   const audio = asset.category === 'Audio';
   const video = asset.category === 'Video';
@@ -93,29 +136,29 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'project' },
         body: JSON.stringify({ path: asset.id, format, quality, background }),
       });
-      let data;
+      let conversion;
       try {
-        data = await response.json();
+        conversion = await response.json();
       } catch {
         throw Error('The conversion service returned an unreadable response.');
       }
       if (!response.ok) {
-        throw Error(data?.error || 'Could not convert this asset.');
+        throw Error(conversion?.error || 'Could not convert this asset.');
       }
       if (
-        !data ||
-        typeof data.name !== 'string' ||
-        typeof data.path !== 'string' ||
-        typeof data.backend !== 'string' ||
-        typeof data.url !== 'string'
+        !conversion ||
+        typeof conversion.name !== 'string' ||
+        typeof conversion.path !== 'string' ||
+        typeof conversion.backend !== 'string' ||
+        typeof conversion.url !== 'string'
       ) {
         throw Error('The conversion service returned an incomplete result.');
       }
-      setResult(data);
+      setResult(conversion);
       log.info('assets.asset.converted', {
         kind: asset.category,
         format,
-        backend: data.backend,
+        backend: conversion.backend,
         outcome: 'converted',
       });
       await onSaved?.();
@@ -167,14 +210,7 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
             setResult(null);
           }}
         >
-          {(model
-            ? modelFormats.filter(([value]) => value !== modelExtension(asset.id))
-            : video
-              ? videoFormats
-              : audio
-                ? audioFormats
-                : imageFormats
-          ).map(([value, label]) => (
+          {formatChoicesFor(asset).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
@@ -208,19 +244,7 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
       <p className="converter-note">
         {model
           ? `${modelNotes[format] || ''} The original file is kept unchanged. Point clouds and Gaussian splats cannot be converted.`
-          : format === 'mp4'
-            ? 'Makes an H.264 + AAC MP4 that game engines, editors and phones play. The WebM stays unchanged; the MP4 keeps this video’s generation details.'
-            : format === 'gif'
-              ? 'Makes a silent, looping GIF at about 12 frames per second and up to 480 pixels wide. Long clips are cut at about 25 seconds.'
-              : format === 'jpeg'
-                ? 'JPEG can use NVIDIA nvJPEG when available. Forge reports the backend used after conversion. Transparency is filled with the chosen color.'
-                : format === 'bmp'
-                  ? 'Transparency is filled with the chosen color.'
-                  : format === 'tga'
-                    ? 'TGA is useful for game textures; Forge creates a preview thumbnail.'
-                    : format === 'opus'
-                      ? 'Opus is resampled to 48 kHz when needed.'
-                      : 'The original file is kept unchanged.'}
+          : formatNote(format)}
       </p>
       <button className="primary" disabled={busy}>
         {busy ? 'Converting…' : 'Convert & save copy'}

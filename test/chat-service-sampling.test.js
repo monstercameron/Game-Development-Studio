@@ -29,6 +29,7 @@ async function harness() {
       headers: { 'Content-Type': 'application/json', Origin: origin, 'X-Forge-Request': 'chat' },
       body: JSON.stringify(body),
     });
+  // Callers read each response body before close(): an unread body keeps the socket open.
   return { sent, complete, close: () => forge.close() };
 }
 
@@ -42,7 +43,7 @@ const local = {
 test('sampling options reach a compatible server under OpenAI field names', async () => {
   const h = await harness();
   try {
-    const r = await h.complete({
+    const response = await h.complete({
       ...local,
       topP: 0.9,
       topK: 40,
@@ -52,8 +53,8 @@ test('sampling options reach a compatible server under OpenAI field names', asyn
       seed: 42,
       stop: ['END'],
     });
-    assert.equal(r.status, 200);
-    await r.text();
+    assert.equal(response.status, 200);
+    await response.text();
     const body = h.sent[0].body;
     assert.equal(body.top_p, 0.9);
     assert.equal(body.top_k, 40);
@@ -70,9 +71,9 @@ test('sampling options reach a compatible server under OpenAI field names', asyn
 test('out-of-range sampling is refused before anything is sent upstream', async () => {
   const h = await harness();
   try {
-    const r = await h.complete({ ...local, topP: 3 });
-    assert.equal(r.status, 400);
-    assert.match((await r.json()).error, /Top-p must be above 0 up to 1/);
+    const response = await h.complete({ ...local, topP: 3 });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /Top-p must be above 0 up to 1/);
     assert.equal(h.sent.length, 0);
   } finally {
     h.close();
@@ -82,14 +83,14 @@ test('out-of-range sampling is refused before anything is sent upstream', async 
 test('top-k is refused for the OpenAI provider', async () => {
   const h = await harness();
   try {
-    const r = await h.complete({
+    const response = await h.complete({
       provider: 'openai',
       apiKey: 'test-key-not-real',
       model: 'gpt-4.1-mini',
       messages: [{ role: 'user', content: 'hi' }],
       topK: 40,
     });
-    assert.equal(r.status, 400);
+    assert.equal(response.status, 400);
     assert.equal(h.sent.length, 0);
   } finally {
     h.close();
@@ -99,9 +100,9 @@ test('top-k is refused for the OpenAI provider', async () => {
 test('a non-numeric temperature is refused instead of silently becoming 0', async () => {
   const h = await harness();
   try {
-    const r = await h.complete({ ...local, temperature: 'warm' });
-    assert.equal(r.status, 400);
-    assert.match((await r.json()).error, /Temperature must be a number from 0 to 2/);
+    const response = await h.complete({ ...local, temperature: 'warm' });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /Temperature must be a number from 0 to 2/);
     assert.equal(h.sent.length, 0);
   } finally {
     h.close();

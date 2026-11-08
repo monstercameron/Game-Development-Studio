@@ -49,13 +49,16 @@ export default function ErrorsButton({ onOpen, isOpen = false }) {
     };
   }, [isOpen]);
   const count = unread || 0;
-  const label = isUnavailable
-    ? t('errors.button.unavailable', 'Errors: count unavailable')
-    : unread === null
-      ? t('errors.button.checking', 'Errors: checking')
-      : count
-        ? t('errors.button.unread', 'Errors: {count} new since last opened', { count })
-        : t('errors.button.noneNew', 'Errors: none new');
+  let label;
+  if (isUnavailable) {
+    label = t('errors.button.unavailable', 'Errors: count unavailable');
+  } else if (unread === null) {
+    label = t('errors.button.checking', 'Errors: checking');
+  } else if (count) {
+    label = t('errors.button.unread', 'Errors: {count} new since last opened', { count });
+  } else {
+    label = t('errors.button.noneNew', 'Errors: none new');
+  }
   const description = t('errors.button.description', '{label}. Open error review.', { label });
   return (
     <button

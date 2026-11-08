@@ -11,19 +11,26 @@ function numberSetting(value, fallback, { name, min, max, integer = false }) {
   if (isBlank(value)) {
     return fallback;
   }
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < min || n > max || (integer && !Number.isSafeInteger(n))) {
+  const numericValue = Number(value);
+  if (
+    !Number.isFinite(numericValue) ||
+    numericValue < min ||
+    numericValue > max ||
+    (integer && !Number.isSafeInteger(numericValue))
+  ) {
     throw Error(
       `${name} must be ${integer ? 'a whole number' : 'a number'} from ${min} to ${max}.`,
     );
   }
-  return n;
+  return numericValue;
 }
+// Only 'on' and 'off' are choices; any other value returns null so no switch is sent.
 const sampleSwitch = (value) => (value === 'on' ? true : value === 'off' ? false : null);
 function randomSeed() {
   if (!globalThis.crypto?.getRandomValues) {
     throw Error('Secure random seeds are unavailable in this browser.');
   }
+  // Mask to 31 bits so the seed is a non-negative integer the engines accept (max 2147483647).
   return globalThis.crypto.getRandomValues(new Uint32Array(1))[0] & 0x7fffffff;
 }
 // Starting from an existing sound. The source was staged when it was chosen, so the draft holds
@@ -63,6 +70,19 @@ export function soundSourceFields(draft, duration) {
   }
   return { source_audio: source, edit_mode: mode, inpaint_start: start, inpaint_end: end };
 }
+/**
+ * Builds the durable queue request for one audio workflow (music, sfx or voices).
+ * Blank optional fields take the defaults in each branch, and sampling overrides are
+ * left out when blank so the engine keeps its own values.
+ *
+ * @param {string} type Workflow id: 'music', 'sfx' or 'voices'.
+ * @param {string} projectId Project the job belongs to.
+ * @param {object} draft Form values from the audio panel.
+ * @param {{ seedGenerator?: () => number }} [options] Replaces the random seed source.
+ * @returns {{ type: string, projectId: string, request: object }}
+ * @throws {Error} With a creator-facing message when a value is out of range, or when an
+ *   unsupported workflow or an incomplete voice mode is requested.
+ */
 export function audioPayload(type, projectId, draft, { seedGenerator = randomSeed } = {}) {
   const options = draft.options || [];
   if (type === 'music') {

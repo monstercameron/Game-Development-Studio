@@ -5,7 +5,12 @@ import { isTrellis, removeBackgroundSteps, textTo3dSteps } from './three-d-reque
 
 const tenMiB = 10 * 1024 * 1024;
 
-// Result: { jobs: [...], chained: boolean }.
+/**
+ * Queues one 3D recipe. Resolves to { jobs, chained }: a single job when the picture is
+ * queued directly, or the chain jobs when background removal runs first.
+ * Throws Error when background removal is requested for a missing, oversized or
+ * unsupported picture; this check runs before anything is staged or queued.
+ */
 export async function enqueueThreeD(projectId, draft, file, { fallbackModel, alphaStatus } = {}) {
   const trellis = isTrellis(draft, fallbackModel);
   // A picture that already has a transparent background has nothing to remove.

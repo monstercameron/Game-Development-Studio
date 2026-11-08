@@ -1,5 +1,6 @@
 """Run with the Forge SAM Python runtime; the full checkpoint test is opt-in."""
 
+import importlib.util
 import json
 import os
 import sys
@@ -73,6 +74,10 @@ class Sam31LoaderTests(unittest.TestCase):
         self.assertEqual(result["incompatible"], [prefix + "freqs_cis"])
         self.assertEqual(result["unexpected"], ["unknown"])
 
+    @unittest.skipUnless(
+        importlib.util.find_spec("sam3"),
+        "needs the sam3 package from the SAM 3.1 environment, which is not installed here",
+    )
     def test_loader_assigns_mapped_checkpoint_and_rebuilds_buffers_on_cpu(self):
         source = FakeDetector()
         state = {
@@ -327,9 +332,9 @@ class Sam31ExtraOutputTests(unittest.TestCase):
         self.assertEqual(cropped.size, (18, 18))
         self.assertEqual(cropped.getpixel((0, 0))[3], 0)
         self.assertEqual(cropped.getpixel((4, 4)), (10, 20, 30, 255))
-        everything, wide = segment_image(processor, source, "tree", output="cropped")
-        self.assertEqual(wide["cropBox"], [6, 6, 39, 39])
-        self.assertEqual(everything.size, (33, 33))
+        wide_cutout, wide_metadata = segment_image(processor, source, "tree", output="cropped")
+        self.assertEqual(wide_metadata["cropBox"], [6, 6, 39, 39])
+        self.assertEqual(wide_cutout.size, (33, 33))
 
     def test_cropped_cutout_padding_stays_inside_the_image(self):
         masks = torch.zeros((1, 1, 8, 8), dtype=torch.bool)

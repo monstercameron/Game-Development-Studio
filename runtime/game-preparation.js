@@ -8,7 +8,15 @@ const BYTES_PER_MIB = 1024 ** 2;
 // A conservative initial estimate for Q4_K_M plus its CUDA working buffers.
 // This is not a reservation; concurrent applications may still consume memory.
 export const GAME_GPU_BUDGET_MIB = 24 * 1024;
+// Host RAM budget estimate in bytes for the game worker. Like other engines it is a soft check:
+// only the shared floor in model-load.js blocks by default.
 export const GAME_HOST_REQUIRED_BYTES = 6 * 1024 ** 3;
+
+// The worker reports a load as accepted through one of these flags. Any of them means the
+// engine has begun loading, so the barrier must be kept.
+function isLoadAcknowledged(body) {
+  return body?.accepted === true || body?.loading === true || body?.loaded === true;
+}
 
 export function createGameLoader({
   hardware,
@@ -130,6 +138,7 @@ export function createGameLoader({
       }
       const stopWorkerWait = log.time('game.worker.wait.completed');
       let state = null;
+      // Polls up to 30 times, 250 ms apart (about 7.5 s), for the worker to answer status.
       for (let i = 0; i < 30; i++) {
         state = await activity();
         if (state) {
@@ -203,13 +212,8 @@ export function createGameLoader({
             },
           };
         }
-        if (
-          response.status >= 200 &&
-          response.status < 300 &&
-          (response.body?.accepted === true ||
-            response.body?.loading === true ||
-            response.body?.loaded === true)
-        ) {
+        const isAcceptedStatus = response.status >= 200 && response.status < 300;
+        if (isAcceptedStatus && isLoadAcknowledged(response.body)) {
           return {
             status: 202,
             keepBarrier: true,

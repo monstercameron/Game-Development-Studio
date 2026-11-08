@@ -2,6 +2,8 @@ import { createLogger } from './app-log.js';
 import { credentialErrorFields, credentialStore } from './credentials.js';
 
 const log = createLogger('credentials');
+// Provider ids are the keys the credential store uses; keep them in step with credentials.js.
+const SUPPORTED_PROVIDERS = ['openai', 'huggingface'];
 const json = (res, status, data) => {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -9,6 +11,7 @@ const json = (res, status, data) => {
   });
   res.end(JSON.stringify(data));
 };
+
 // Names the first failed guard so a rejection can be logged without echoing Host or Origin.
 function forbiddenReason(req, host) {
   if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(host || '')) {
@@ -22,6 +25,14 @@ function forbiddenReason(req, host) {
   }
   return 'bad_method';
 }
+
+/**
+ * Serves the local credential API under /api/credentials. Keys are handed to `store` and are
+ * never echoed in a response or a log line. `store` can be replaced in tests.
+ *
+ * @param {{ store?: object }} [options]
+ * @returns {{ name: string, configureServer: Function, configurePreviewServer: Function }}
+ */
 export function credentialService({ store = credentialStore } = {}) {
   function attach(server) {
     server.middlewares.use('/api/credentials', async (req, res) => {
@@ -38,8 +49,8 @@ export function credentialService({ store = credentialStore } = {}) {
         });
         return json(res, 403, { error: 'Local studio requests only.' });
       }
-      let raw = '',
-        input;
+      let raw = '';
+      let input;
       try {
         for await (const chunk of req) {
           raw += chunk;
@@ -68,14 +79,14 @@ export function credentialService({ store = credentialStore } = {}) {
         }
         if (route === '/save') {
           if (
-            !['openai', 'huggingface'].includes(input.provider) ||
+            !SUPPORTED_PROVIDERS.includes(input.provider) ||
             typeof input.secret !== 'string' ||
             input.secret.length < 1 ||
             input.secret.length > 4096 ||
             !/^[\x21-\x7e]+$/.test(input.secret)
           ) {
             log.warn('credentials.request.rejected', {
-              reason: ['openai', 'huggingface'].includes(input.provider)
+              reason: SUPPORTED_PROVIDERS.includes(input.provider)
                 ? 'invalid_secret'
                 : 'unknown_provider',
               route: '/api/credentials',
@@ -88,7 +99,7 @@ export function credentialService({ store = credentialStore } = {}) {
           return json(res, 200, { saved: true });
         }
         if (route === '/remove') {
-          if (!['openai', 'huggingface'].includes(input.provider)) {
+          if (!SUPPORTED_PROVIDERS.includes(input.provider)) {
             log.warn('credentials.request.rejected', {
               reason: 'unknown_provider',
               route: '/api/credentials',

@@ -19,9 +19,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app_log import get_logger  # noqa: E402
 
+# Output frame rate in frames per second; the reference clip is sampled at this rate.
 FPS = 24
+# Output audio sample rate in hertz.
 SAMPLE_RATE = 32000
+# Shortest clip the model accepts, in frames (the first usable count of 17 * k + 5).
 MIN_FRAMES = 5
+# Shortest audio clip accepted, in seconds.
 MIN_AUDIO_SECONDS = 0.5
 
 log = get_logger("video")
@@ -47,6 +51,10 @@ def flatten(image):
 
 
 def frame(task):
+    """Write one reference still to task["target"] at task["width"] x task["height"] pixels.
+
+    Returns the output size. Unreadable or unsupported images raise the Pillow error.
+    """
     from PIL import Image, ImageOps
 
     Image.MAX_IMAGE_PIXELS = 100_000_000
@@ -64,6 +72,12 @@ def usable_frames(count):
 
 
 def clip_frames(task):
+    """Decode up to task["max_frames"] PNG frames into task["directory"].
+
+    Returns the kept frame count (trimmed to the 17 * k + 5 rule), its duration in seconds and
+    whether the video has a soundtrack. Raises ValueError when there is no picture track or
+    fewer than MIN_FRAMES frames can be kept.
+    """
     import av
 
     directory = task["directory"]
@@ -109,6 +123,12 @@ def clip_frames(task):
 
 
 def clip_audio(task):
+    """Write up to task["max_seconds"] of audio to task["target"] as 32 kHz stereo 16-bit WAV.
+
+    Returns has_audio false when the source has no audio track (no file is kept in that case).
+    Otherwise returns has_audio true and the written duration. Raises ValueError when the clip
+    is shorter than MIN_AUDIO_SECONDS.
+    """
     import av
 
     limit = int(task["max_seconds"] * SAMPLE_RATE)
@@ -128,9 +148,9 @@ def clip_audio(task):
                 for item in frames:
                     if samples >= limit:
                         return
-                    data = item.to_ndarray().tobytes()
-                    count = min(len(data) // 4, limit - samples)
-                    out.writeframes(data[: count * 4])
+                    pcm_bytes = item.to_ndarray().tobytes()
+                    count = min(len(pcm_bytes) // 4, limit - samples)
+                    out.writeframes(pcm_bytes[: count * 4])
                     samples += count
 
             for decoded in container.decode(stream):

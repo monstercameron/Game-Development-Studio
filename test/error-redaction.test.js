@@ -9,6 +9,8 @@ import {
   truncateMiddle,
 } from '../runtime/error-redaction.js';
 
+// A fake Windows user layout. Redaction must work from these roots alone, so the
+// fixtures never contain a real user name or a real local path.
 const ROOTS = {
   repo: String.raw`C:\Users\alice\Desktop\Game Development Studio`,
   projects: String.raw`C:\Users\alice\Desktop\Game Development Studio\projects`,
@@ -106,25 +108,25 @@ test('fingerprints ignore ids, numbers, hashes and line numbers', () => {
     ),
     'Job <id> failed after <n>s at <hex>',
   );
-  const one = fingerprintSource({
+  const firstFingerprint = fingerprintSource({
     source: 'browser',
     message: 'TypeError: x is undefined (id 12)',
     stack:
       'TypeError\n    at render (<studio>/assets/index-AbC123xy.js:10:5)\n    at go (<studio>/assets/index-AbC123xy.js:1:1)',
   });
-  const two = fingerprintSource({
+  const secondFingerprint = fingerprintSource({
     source: 'browser',
     message: 'TypeError: x is undefined (id 99)',
     stack:
       'TypeError\n    at render (<studio>/assets/index-ZZZ999qq.js:77:2)\n    at go (<studio>/assets/index-ZZZ999qq.js:5:9)',
   });
-  assert.equal(one, two);
+  assert.equal(firstFingerprint, secondFingerprint);
   assert.notEqual(
-    one,
+    firstFingerprint,
     fingerprintSource({ source: 'server', message: 'TypeError: x is undefined (id 1)' }),
   );
-  const python = topFrames(
+  const pythonFrames = topFrames(
     'Traceback (most recent call last):\n  File "<repo>/a.py", line 1, in outer\n  File "<repo>/b.py", line 9, in inner\nValueError: x',
   );
-  assert.deepEqual(python, ['<repo>/a.py:outer', '<repo>/b.py:inner']);
+  assert.deepEqual(pythonFrames, ['<repo>/a.py:outer', '<repo>/b.py:inner']);
 });

@@ -128,6 +128,25 @@ export function ThreeDModeSwitch({ draft, onChange, trellis, descriptionError = 
   );
 }
 
+// Help text under "Remove the background first" for each picture state. TRELLIS.2 rejects an
+// opaque picture outright, so its warning is stronger than the Hunyuan3D one.
+function backgroundHelpText({ alreadyTransparent, checked, alpha, trellis }) {
+  if (alreadyTransparent) {
+    return 'This picture already has a transparent background, so there is nothing to remove. Forge uses it as it is.';
+  }
+  if (checked) {
+    return 'Queues two renders: SAM 3.1 cuts out what you describe (saved as a transparent PNG in your project), then the 3D model is built from the cutout. Forge frees SAM 3.1 before loading the 3D model when it can. If SAM 3.1 finds nothing, the 3D render stops with that message.';
+  }
+  if (alpha === 'opaque') {
+    return trellis
+      ? 'This picture has no transparent background, and TRELLIS.2 rejects it. Tick this box to cut the object out first.'
+      : 'This picture has no transparent background. Hunyuan3D treats an opaque picture as all object, so the background becomes part of the model unless you remove it.';
+  }
+  return trellis
+    ? 'Cuts the object out of an ordinary picture before the 3D step. Tick it before choosing a JPEG: TRELLIS.2 only lists PNG and WebP files until then. Skip it when the picture already has a transparent background.'
+    : 'Cuts the object out of an ordinary picture before the 3D step. Skip it when the picture already has a transparent background.';
+}
+
 // "Remove the background first": SAM 3.1 cuts the object out, then the 3D render uses the cutout.
 export function ThreeDBackgroundOption({ draft, onChange, file, trellis }) {
   const onChangeRef = useRef(onChange);
@@ -174,17 +193,7 @@ export function ThreeDBackgroundOption({ draft, onChange, file, trellis }) {
         <span className="field-label">Remove the background first (uses SAM 3.1)</span>
       </label>
       <p id="three-d-background-help" className="three-d-inputs__hint" aria-live="polite">
-        {alreadyTransparent
-          ? 'This picture already has a transparent background, so there is nothing to remove. Forge uses it as it is.'
-          : checked
-            ? 'Queues two renders: SAM 3.1 cuts out what you describe (saved as a transparent PNG in your project), then the 3D model is built from the cutout. Forge frees SAM 3.1 before loading the 3D model when it can. If SAM 3.1 finds nothing, the 3D render stops with that message.'
-            : alpha === 'opaque'
-              ? trellis
-                ? 'This picture has no transparent background, and TRELLIS.2 rejects it. Tick this box to cut the object out first.'
-                : 'This picture has no transparent background. Hunyuan3D treats an opaque picture as all object, so the background becomes part of the model unless you remove it.'
-              : trellis
-                ? 'Cuts the object out of an ordinary picture before the 3D step. Tick it before choosing a JPEG: TRELLIS.2 only lists PNG and WebP files until then. Skip it when the picture already has a transparent background.'
-                : 'Cuts the object out of an ordinary picture before the 3D step. Skip it when the picture already has a transparent background.'}
+        {backgroundHelpText({ alreadyTransparent, checked, alpha, trellis })}
       </p>
       {checked && (
         <div className="three-d-background__prompt">

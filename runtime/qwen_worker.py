@@ -22,6 +22,12 @@ log = get_logger("image")
 
 
 def load_engine(directory):
+    """Imports the Qwen app's app.py from directory and returns the module.
+
+    Raises RuntimeError when the module lacks the app, jobs or lock interfaces that the
+    guard relies on. The module is registered in sys.modules under its spec name before it
+    executes, so code inside the engine can look it up by name.
+    """
     source = Path(directory) / "app.py"
     spec = importlib.util.spec_from_file_location("forge_qwen_engine", source)
     module = importlib.util.module_from_spec(spec)
@@ -55,6 +61,13 @@ def log_upstream_submission(status, started_at):
 
 
 class GuardedApp:
+    """ASGI wrapper that adds the Forge stop/resume handshake in front of the Qwen app.
+
+    A stop is accepted only while no submission, lock or unfinished job is active. Once
+    accepted, new submissions get 503 and the process exits one second later unless a
+    resume arrives first. The gate lock serializes the flag and submission counter.
+    """
+
     def __init__(self, engine, token):
         if not token:
             raise RuntimeError("Forge image worker control token is required.")

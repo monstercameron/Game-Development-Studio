@@ -13,6 +13,8 @@ test('managed removal rejects dot path components before touching their targets'
   await fs.mkdir(root);
   await fs.writeFile(path.join(directory, 'outside.txt'), 'preserve');
 
+  // A catalog folder of '.' or '..' would resolve to the models root or its parent, so a
+  // managed removal of either must be refused before any file under them is touched.
   for (const folder of ['.', '..']) {
     const removal = new ModelRemoval({
       root,

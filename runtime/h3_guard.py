@@ -137,10 +137,10 @@ class VideoProxy:
         return await self.reply(writer, "200 OK", {"stopping": True})
 
     async def reply(self, writer, status, body):
-        data = json.dumps(body, separators=(",", ":")).encode()
+        payload = json.dumps(body, separators=(",", ":")).encode()
         writer.write(
-            f"HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {len(data)}\r\nConnection: close\r\n\r\n".encode()
-            + data
+            f"HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {len(payload)}\r\nConnection: close\r\n\r\n".encode()
+            + payload
         )
         await writer.drain()
 
@@ -152,16 +152,17 @@ class VideoProxy:
             if len(header) > MAX_HEADER:
                 raise ValueError("Header too large")
             lines = header[:-4].split(b"\r\n")
-            request = lines[0].decode("ascii", "strict").split(" ")
-            if len(request) != 3:
+            request_parts = lines[0].decode("ascii", "strict").split(" ")
+            if len(request_parts) != 3:
                 raise ValueError("Invalid HTTP request")
             headers = []
             for line in lines[1:]:
                 name, value = line.split(b":", 1)
                 headers.append((name.strip().lower(), value.strip()))
-            if request[1].startswith("/api/forge/"):
-                return await self.control(writer, request[0], request[1], headers)
-            idle_read = request[0] == "GET" and request[1].split("?")[0] in IDLE_READS
+            method, path = request_parts[0], request_parts[1]
+            if path.startswith("/api/forge/"):
+                return await self.control(writer, method, path, headers)
+            idle_read = method == "GET" and path.split("?")[0] in IDLE_READS
             if self.closing and not idle_read:
                 log.warn("video.request.rejected", {"reason": "stopping"})
                 return await self.reply(
@@ -237,6 +238,11 @@ class VideoProxy:
 
 
 async def run(args):
+    """Start H3 and serve the proxy until stop is accepted or H3 exits.
+
+    Returns normally only after an accepted Forge stop. Raises RuntimeError when the H3
+    server exits on its own, so the caller reports a failed guard instead of a clean stop.
+    """
     job = WindowsJob()
     process = None
     server = None

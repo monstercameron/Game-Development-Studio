@@ -18,6 +18,13 @@ const executable = path.join(
 export const credentialProviders = ['openai', 'huggingface'];
 // Only the error class and code reach the log. Crypto, DPAPI and SQLite error messages can
 // echo their input, so the message and stack are never passed on.
+/**
+ * Builds log-safe fields for a thrown error.
+ * Returns { errorClass, errorCode? }. errorClass falls back to 'Error' when the name is not a
+ * plain identifier, and errorCode is present only for an upper-case code such as SQLITE_BUSY.
+ * @param {unknown} error
+ * @returns {{ errorClass: string, errorCode?: string }}
+ */
 export function credentialErrorFields(error) {
   const name = typeof error?.name === 'string' ? error.name : '';
   const code = typeof error?.code === 'string' ? error.code : '';
@@ -55,8 +62,8 @@ function crypt(operation, value) {
       ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper],
       { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true },
     );
-    let output = '',
-      settled = false;
+    let output = '';
+    let settled = false;
     const startedAt = Date.now();
     log.debug('credentials.process.spawned', {
       kind: 'dpapi_helper',
@@ -69,7 +76,11 @@ function crypt(operation, value) {
       }
       settled = true;
       clearTimeout(timer);
-      error ? reject(error) : resolve(value);
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(value);
     };
     const timer = setTimeout(() => {
       log.warn('credentials.crypt.failed', {
@@ -114,6 +125,8 @@ function crypt(operation, value) {
       }
       finish(Error('Windows credential encryption failed.'));
     });
+    // The helper can exit before it reads stdin, which reports an EPIPE here. Its outcome
+    // is already handled by the 'close' listener, so this error is ignored on purpose.
     child.stdin.on('error', () => {});
     child.stdin.end(JSON.stringify({ operation, value }));
   });
@@ -127,11 +140,11 @@ export function createCredentialStore({
   unprotect = (value) => crypt('unprotect', value),
 } = {}) {
   const file = path.join(directory, 'keys.sqlite');
-  function open(create) {
-    if (!create && !fs.existsSync(file)) {
+  function open(shouldCreate) {
+    if (!shouldCreate && !fs.existsSync(file)) {
       return null;
     }
-    if (create) {
+    if (shouldCreate) {
       fs.mkdirSync(directory, { recursive: true });
     }
     // The file holds DPAPI ciphertext only. A damaged store is set aside, never deleted.
@@ -188,10 +201,10 @@ export function createCredentialStore({
       if (!row) {
         return '';
       }
-      const result = await unprotect(row.ciphertext);
-      validateSecret(result);
+      const secret = await unprotect(row.ciphertext);
+      validateSecret(secret);
       log.debug('credentials.key.read', { provider });
-      return result;
+      return secret;
     },
     status() {
       const db = open(false);

@@ -40,11 +40,12 @@ import {
 import { createLog } from './app-log.js';
 import './ux-miniplayer.css';
 
+// Arrow-key nudge of the dock in CSS pixels. Shift uses BIG_STEP.
 const STEP = 16;
 const BIG_STEP = 64;
 const log = createLog('ui');
 
-// A refused or failed play() ends in the failed state; only the error class is recorded.
+// Logs a refused or failed play() with only the error class, never the message or the URL.
 function logPlayFailure(error) {
   log.warn('ui.mini-player.play.failed', { errorClass: error?.name });
 }
@@ -273,6 +274,8 @@ function Dock({ item, minimized }) {
   const [position, setPosition] = useState(loadPosition);
   const isVideo = item.kind === 'video';
   const KindIcon = isVideo ? Clapperboard : AudioLines;
+  const kindClassName = isVideo ? 'is-video' : 'is-audio';
+  const dockClassName = `mini-player ${kindClassName}${minimized ? ' is-minimized' : ''}`;
 
   // A refused or failed play() ends in the failed state.
   function reportPlayFailure(error) {
@@ -546,7 +549,7 @@ function Dock({ item, minimized }) {
       ref={dockRef}
       role="region"
       aria-label="Mini player"
-      className={`mini-player ${isVideo ? 'is-video' : 'is-audio'}${minimized ? ' is-minimized' : ''}`}
+      className={dockClassName}
       style={style}
     >
       <div className="mini-player-head">

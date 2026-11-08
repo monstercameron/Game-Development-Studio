@@ -57,7 +57,8 @@ export function chainHint(job, jobs) {
   const parent = parentOf(job, jobs);
   const from = job.request?.referenceFrom;
   if (!isWaitingForReference(job)) {
-    return `Built from the finished ${parent ? jobLabel(parent) : (from?.output ?? 'earlier render')}.`;
+    const sourceLabel = parent ? jobLabel(parent) : (from?.output ?? 'earlier render');
+    return `Built from the finished ${sourceLabel}.`;
   }
   if (!parent) {
     return 'Depends on an earlier render that is no longer in the list.';

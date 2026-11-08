@@ -105,7 +105,8 @@ export function matchSummary(job) {
   const shown = kept.slice(0, 5).map((score) => score.toFixed(2));
   const more = kept.length > shown.length ? ', …' : '';
   const used = result.used === result.found ? 'all used' : `${result.used} used`;
+  const scoreList = shown.join(', ');
   return shown.length
-    ? `Found ${plural(result.found)}, ${used}. Scores of the kept matches: ${shown.join(', ')}${more}.`
+    ? `Found ${plural(result.found)}, ${used}. Scores of the kept matches: ${scoreList}${more}.`
     : `Found ${plural(result.found)}, ${used}.`;
 }

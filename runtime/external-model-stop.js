@@ -4,6 +4,18 @@ import { inspectService } from './catalog.js';
 
 // The service must still answer its expected health endpoint and own the
 // loopback listener. Recheck the PID and creation time before terminating it.
+/**
+ * Closes a locally running external model service after verifying its identity.
+ *
+ * @param {{ host?: string, port: number }} service Loopback endpoint of the service. Only
+ *   127.0.0.1, localhost or an omitted host is accepted.
+ * @param {object} [options]
+ * @param {boolean} [options.force=false] Allow closing a busy or unverifiable service, which
+ *   may interrupt active work.
+ * @returns {Promise<object>} The result of `stop`, plus a user-facing `message`.
+ * @throws {Error} When the endpoint is unsupported, the service cannot be identified, the
+ *   listener is not uniquely owned by one process, or the service changes during the check.
+ */
 export async function stopExternalModel(
   service,
   {

@@ -8,7 +8,7 @@
 // A later step takes its reference from an earlier one with request.referenceFrom = { step }.
 
 // SAM 3.1 grounds concrete nouns. In a check on four pictures "main object" found the subject in
-// three, while "the main object", "object" and "subject" found nothing, so name the thing when you can.
+// three, while "the main object", "object" and "subject" found nothing. Name the thing when you can.
 export const REMOVE_BACKGROUND_DEFAULT_PROMPT = 'main object';
 export const TEXT_TO_3D_IMAGE_SIZE = 1024;
 export const TEXT_TO_3D_IMAGE_STEPS = 25;
@@ -33,6 +33,8 @@ function dependent(type, projectId, request) {
  * @param {object} input.request the 3D request without references
  * @param {string} [input.prompt] what SAM 3.1 should isolate
  * @param {number} [input.confidence] SAM 3.1 detection confidence, 0 to 1
+ * @returns {object[]} the segmentation step followed by the 3D step that depends on it
+ * @throws {Error} when the model is not Hunyuan3D or TRELLIS.2, or the prompt is blank or too long
  */
 export function removeBackgroundChain({
   projectId,
@@ -46,15 +48,20 @@ export function removeBackgroundChain({
   if (!type) {
     throw Error('Choose Hunyuan3D or TRELLIS.2.');
   }
-  const what = typeof prompt === 'string' ? prompt.trim() : '';
-  if (!what || what.length > 1000) {
+  const isolatedPrompt = typeof prompt === 'string' ? prompt.trim() : '';
+  if (!isolatedPrompt || isolatedPrompt.length > 1000) {
     throw Error('Describe what to isolate in 1 to 1000 characters.');
   }
   return [
     {
       type: 'segmentation',
       projectId,
-      request: { prompt: what, references: [referenceId], output: 'transparent', confidence },
+      request: {
+        prompt: isolatedPrompt,
+        references: [referenceId],
+        output: 'transparent',
+        confidence,
+      },
     },
     dependent(type, projectId, request),
   ];
@@ -66,6 +73,8 @@ export function removeBackgroundChain({
  * @param {'hunyuan'|'trellis'} input.model
  * @param {object} input.image the Qwen image request (see imageRequest in imageVideoInputs.js)
  * @param {object} input.request the 3D request without references
+ * @returns {object[]} the Qwen image step followed by the 3D step that depends on it
+ * @throws {Error} when the model is not Hunyuan3D or TRELLIS.2, or the image prompt is blank
  */
 export function textTo3dChain({ projectId, model, image, request }) {
   const type = THREE_D_TYPES[model];

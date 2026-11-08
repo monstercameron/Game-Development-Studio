@@ -13,6 +13,7 @@ import { recoveryService } from '../runtime/recovery-service.js';
 import { recordRecoveryEvent } from '../runtime/recovery-events.js';
 import { markRecoveryNeeded } from '../runtime/crash-loop.js';
 
+// Sentinel: the report reads job rows but must never copy the request payload into its output.
 const SECRET_PROMPT = 'a private prompt that must never appear in a report';
 const REMOTE = 'b'.repeat(32);
 
@@ -84,12 +85,14 @@ test('the report lists what the crash left, with evidence and without prompts or
   const accepted = insert({ type: 'sfx', status: 'interrupted', remoteId: REMOTE });
   const savedId = randomUUID();
   const glb = Buffer.alloc(64);
+  // A minimal GLB header (magic, version 2, total length) so the file looks whole to the check.
   glb.write('glTF', 0, 'latin1');
   glb.writeUInt32LE(2, 4);
   glb.writeUInt32LE(64, 8);
   await fs.writeFile(path.join(project, '3d', `forge-${savedId}.glb`), glb);
   insert({ id: savedId, type: '3d', status: 'interrupted', remoteId: REMOTE });
   insert({ type: 'images', status: 'completed', remoteId: REMOTE });
+  // Backdated far past any staging-file age limit, so the startup sweep is expected to remove it.
   const stale = path.join(project, `.forge-assets.json.${randomUUID()}.tmp`);
   await fs.writeFile(stale, 'x');
   await fs.utimes(
@@ -194,8 +197,8 @@ test('a crash loop stop is surfaced and dismissing hides only what was shown', a
   if (!queue.stopped) {
     queue.stop();
   }
-  const again = await manager.report();
-  assert.equal(again.needsAttention, true, 'a new problem brings the panel back');
+  const afterNewProblem = await manager.report();
+  assert.equal(afterNewProblem.needsAttention, true, 'a new problem brings the panel back');
 });
 
 test('actions are confirmed, re-checked against the job table, and limited to what is safe', async (t) => {
@@ -306,10 +309,10 @@ test('the HTTP route serves the report to anyone local and acts only for the stu
   const accepted = await post({ Origin: base, 'X-Forge-Request': 'recovery' });
   assert.equal(accepted.status, 200);
   assert.deepEqual(runtimeCalls, [{ origin: base, tag: 'runtime' }]);
-  const bad = await fetch(`${base}/api/recovery`, {
+  const nonObjectBody = await fetch(`${base}/api/recovery`, {
     method: 'POST',
     headers: { Origin: base, 'X-Forge-Request': 'recovery', 'Content-Type': 'application/json' },
     body: '[1,2]',
   });
-  assert.equal(bad.status, 400);
+  assert.equal(nonObjectBody.status, 400);
 });

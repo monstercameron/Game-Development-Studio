@@ -28,7 +28,7 @@ test('inventory invalidation refreshes a completed snapshot immediately', async 
 });
 
 test('inventory ignores an obsolete scan that finishes after invalidation', async () => {
-  const results = [];
+  const resolveScans = [];
   let scans = 0;
   const inventory = new ModelInventory({
     root: 'fixture',
@@ -36,19 +36,20 @@ test('inventory ignores an obsolete scan that finishes after invalidation', asyn
     ttlMs: 60_000,
     scan: () => {
       scans++;
-      return new Promise((resolve) => results.push(resolve));
+      return new Promise((resolve) => resolveScans.push(resolve));
     },
   });
 
   assert.equal(inventory.snapshot().state, 'scanning');
+  // The first scan is still pending when invalidation starts; its late result must be dropped.
   inventory.invalidate();
-  results[0]({ root: 'fixture', entries: [{ version: 'stale' }] });
+  resolveScans[0]({ root: 'fixture', entries: [{ version: 'stale' }] });
   await inventory.pending;
 
   assert.equal(inventory.value, null);
   assert.equal(inventory.snapshot().state, 'scanning');
   assert.equal(scans, 2);
-  results[1]({ root: 'fixture', entries: [{ version: 'current' }] });
+  resolveScans[1]({ root: 'fixture', entries: [{ version: 'current' }] });
   await inventory.pending;
   assert.equal(inventory.snapshot().entries[0].version, 'current');
 });
@@ -62,6 +63,7 @@ test('managed removal rejects a model-folder link and preserves its target', asy
   await fs.mkdir(root);
   await fs.mkdir(external);
   await fs.writeFile(path.join(external, 'weights.bin'), 'preserve');
+  // A 'junction' link needs no elevated rights on Windows; on other platforms the type is ignored.
   try {
     await fs.symlink(external, path.join(root, 'fixture-model'), 'junction');
   } catch (error) {

@@ -14,6 +14,11 @@ const log = createLogger('megascans');
 
 export const MEGASCANS_DB_NAME = 'megascans.sqlite';
 
+/**
+ * Folder holding the Megascans database. `FORGE_RUNTIME_DIR` overrides the default
+ * `.forge-runtime` folder beside the application root.
+ * @returns {string} Absolute or environment-provided runtime folder path.
+ */
 export function runtimeDirectory() {
   return process.env.FORGE_RUNTIME_DIR || path.join(appRoot, '.forge-runtime');
 }

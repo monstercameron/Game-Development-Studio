@@ -4,11 +4,15 @@ import { derivedSubmission, sourceTrack, submission } from './music-request.js';
 
 const log = createLogger('music');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// The studio may have disconnected; sending to a closed channel would throw, so the
+// message is dropped. The studio recovers the job state from YuE2 on its side.
 function send(jobId, type, values = {}) {
   if (process.connected) {
     process.send({ jobId, type, ...values });
   }
 }
+// This worker is forked for one job. When the studio disconnects, exit so an orphaned
+// worker does not keep polling YuE2.
 process.on('disconnect', () => {
   log.info('music.process.disconnected');
   process.exit(0);
@@ -63,9 +67,10 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
         return;
       }
       if (!response.ok) {
+        const isServerError = response.status >= 500;
         jobLog.warn('music.submit.rejected', { httpStatus: response.status });
-        send(job.id, response.status >= 500 ? 'interrupted' : 'failed', {
-          error: `YuE2 returned ${response.status}: ${JSON.stringify(body).slice(0, 1000)}. ${response.status >= 500 ? 'Check the engine before resolving this job.' : ''}`,
+        send(job.id, isServerError ? 'interrupted' : 'failed', {
+          error: `YuE2 returned ${response.status}: ${JSON.stringify(body).slice(0, 1000)}. ${isServerError ? 'Check the engine before resolving this job.' : ''}`,
         });
         return;
       }

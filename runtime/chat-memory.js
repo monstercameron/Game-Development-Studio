@@ -11,8 +11,17 @@ export function validateChatContext(value) {
   }
   return value;
 }
-// projectorMiB is the multimodal projector (about 0.93 GB BF16 file) loaded on the GPU for image
-// input; pass 0 when it will not be loaded. Its real GPU use has not been calibrated here.
+/**
+ * Estimates GPU memory for a Qwen chat context. All values are MiB estimates, not measurements.
+ *
+ * @param {number} [contextSize] A value from CHAT_CONTEXT_SIZES; other values throw.
+ * @param {{ projectorMiB?: number }} [options] projectorMiB is the multimodal projector (about
+ *   0.93 GB BF16 file) loaded on the GPU for image input. Pass 0 when it will not be loaded. Its
+ *   real GPU use has not been calibrated here.
+ * @returns {{ contextSize: number, contextMiB: number, projectorMiB: number,
+ *   estimatedGpuMiB: number, gpuBudgetMiB: number }}
+ * @throws {Error} When contextSize is not a supported Qwen context size.
+ */
 export function estimateChatMemory(contextSize = DEFAULT_CHAT_CONTEXT, { projectorMiB = 0 } = {}) {
   validateChatContext(contextSize);
   const extraMiB = ((contextSize - 4096) * 65) / 1024;

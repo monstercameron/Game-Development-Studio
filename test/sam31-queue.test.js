@@ -93,9 +93,12 @@ test(
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-sam31-test-')),
       projects = path.join(dir, 'projects'),
       project = path.join(projects, 'Game'),
-      id = randomUUID();
+      projectId = randomUUID();
     await fs.mkdir(path.join(project, 'images'), { recursive: true });
-    await fs.writeFile(path.join(project, '.forge-project.json'), JSON.stringify({ id }));
+    await fs.writeFile(
+      path.join(project, '.forge-project.json'),
+      JSON.stringify({ id: projectId }),
+    );
     const png = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.from('snapshot')]);
     await fs.writeFile(path.join(project, 'images', 'source.png'), png);
     const ref = await stageProjectAsset(project, 'images/source.png');
@@ -143,7 +146,7 @@ test(
     try {
       const input = {
         type: 'segmentation',
-        projectId: id,
+        projectId,
         request: { prompt: 'truck', references: [ref.id], output: 'transparent', confidence: 0.7 },
       };
       assert.throws(

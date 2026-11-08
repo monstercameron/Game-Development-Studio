@@ -19,6 +19,16 @@ function whole(value, name, min, max) {
   return number;
 }
 
+/**
+ * Builds the queue request body for an Extend or Re-synthesize job on a project music asset.
+ * Blank optional fields fall back to server defaults and are omitted from the result.
+ *
+ * @param {'extend'|'resynth'} operation
+ * @param {{ id: string, category: string }} asset Must pass canDeriveMusic.
+ * @param {object} [values] Raw form values; numbers arrive as strings.
+ * @returns {object} Request body with `operation`, `source` and the operation's fields.
+ * @throws {Error} With a user-facing message when the asset, a value or the operation is invalid.
+ */
 export function deriveMusicRequest(operation, asset, values = {}) {
   if (!canDeriveMusic(asset)) {
     throw Error('Choose a music file from this project.');

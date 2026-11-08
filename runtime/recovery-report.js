@@ -44,6 +44,7 @@ function readJson(file) {
   }
 }
 
+// Redacts sensitive text, then truncates it to `limit` characters for display in the report.
 function clean(text, limit = 300) {
   return redactText(typeof text === 'string' ? text : '').slice(0, limit);
 }
@@ -114,15 +115,19 @@ function readAttentionJobs(runtimeDirectory) {
 
 function databaseSummary(runtimeDirectory, events) {
   return KNOWN_DATABASES.map((name) => {
-    const own = events.filter((event) => event.kind === 'database' && event.id === name);
+    const eventsForDatabase = events.filter(
+      (event) => event.kind === 'database' && event.id === name,
+    );
     const backups = listBackups(backupDirectoryFor(name, runtimeDirectory));
-    const last = [...own].reverse().find((event) => event.code.startsWith('database.'));
+    const last = [...eventsForDatabase]
+      .reverse()
+      .find((event) => event.code.startsWith('database.'));
     let state = 'ok';
-    if (own.some((event) => event.code === 'database.started_fresh')) {
+    if (eventsForDatabase.some((event) => event.code === 'database.started_fresh')) {
       state = 'started_fresh';
-    } else if (own.some((event) => event.code === 'database.restored')) {
+    } else if (eventsForDatabase.some((event) => event.code === 'database.restored')) {
       state = 'restored';
-    } else if (own.some((event) => event.code === 'database.quarantined')) {
+    } else if (eventsForDatabase.some((event) => event.code === 'database.quarantined')) {
       state = 'quarantined';
     }
     return {
@@ -163,7 +168,10 @@ export function createRecoveryManager({
     );
   }
 
-  /** Runs the staging sweep once (deleting only stale staging files) and keeps the result. */
+  /**
+   * Runs the staging sweep and keeps the result. With `apply: false` it only reports what
+   * would be removed; with `apply: true` it deletes stale staging files.
+   */
   function runStartupSweep({ apply = true } = {}) {
     sweep = runSweep({ runtimeDirectory, projectsRoot, apply, now });
     return sweep;
@@ -222,6 +230,9 @@ export function createRecoveryManager({
     return { available, items };
   }
 
+  // Only fields that describe what needs a person are hashed. generatedAt is left out so a
+  // dismissed report stays dismissed until new evidence appears; recoveryNeeded.at is kept
+  // because it marks a distinct recovery event.
   function fingerprint(report) {
     return createHash('sha1')
       .update(

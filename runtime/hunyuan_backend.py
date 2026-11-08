@@ -88,6 +88,12 @@ def _load_shape_modules(source_dir):
 
 
 def load_shape(source_dir, model_dir, *, device="cuda"):
+    """Load the Hunyuan3D 2.1 shape pipeline from upstream source and local weights.
+
+    Raises RuntimeError when CUDA is requested but unavailable, or when a component's
+    state dict does not match its configuration. The caller must pass GPU and host-memory
+    admission before calling this function.
+    """
     import yaml
     from accelerate import init_empty_weights
 
@@ -141,6 +147,11 @@ def generate_shape(
     guidance_scale=DEFAULT_GUIDANCE,
     num_chunks=10000,
 ):
+    """Run shape inference and return the first generated mesh.
+
+    Raises ValueError for out-of-range steps, resolution or guidance scale, and RuntimeError
+    when the pipeline produces no mesh surface.
+    """
     if not isinstance(steps, int) or not 1 <= steps <= 100:
         raise ValueError("Steps must be between 1 and 100.")
     if resolution not in (128, 256, 384):

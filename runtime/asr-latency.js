@@ -78,11 +78,12 @@ export function asrLatencyArgs(file = asrLatencyFile()) {
     : ['--right-context', String(ASR_LATENCY_MODES[latency])];
 }
 
-// Saves the chosen mode and, when Forge owns a running idle engine, restarts it so the mode takes
-// effect. The stop goes through the engine's own guard, which refuses while a transcription session
-// is connected; that refusal leaves the engine running and the mode saved for its next start.
-// A running engine is restarted even when the value is unchanged. The saved value can differ from the
-// mode the engine was started with (for example after a refused change), so it cannot prove the mode.
+// Saves the chosen mode and, when Forge owns a running idle engine, restarts it so the mode
+// takes effect. The stop goes through the engine's own guard, which refuses while a transcription
+// session is connected; that refusal leaves the engine running and the mode saved for its next
+// start. A running engine is restarted even when the value is unchanged. The saved value can
+// differ from the mode the engine was started with (for example after a refused change), so it
+// cannot prove the mode.
 export async function applyAsrLatency(latencyMs, { write, probe, managed, stop, start }) {
   validateAsrLatency(latencyMs);
   write(latencyMs);

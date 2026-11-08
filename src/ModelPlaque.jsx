@@ -34,6 +34,23 @@ const models = {
   'Mammoth-1 · OneJev': { icon: Cpu, budget: '~24 GiB load' },
 };
 
+// Badge text is chosen in priority order: a selector action wins over the
+// render or decision-service status, which wins over the preview label.
+function getBadgeLabel({ hasModelSelector, supportsRender, isGame }) {
+  if (hasModelSelector) {
+    return 'Change model';
+  }
+  if (supportsRender) {
+    return 'Render workflow';
+  }
+  if (isGame) {
+    return 'Decision API';
+  }
+  return 'Preview';
+}
+
+// The budget prop replaces the catalog string when the caller has a runtime
+// estimate (the video page computes it from the draft settings).
 export default function ModelPlaque({
   model,
   supportsRender,
@@ -44,7 +61,10 @@ export default function ModelPlaque({
   const info = models[model];
   const Icon = info?.icon || Cpu;
   const explanation =
-    'Configured GPU admission budget, not measured model usage. Forge keeps a 2 GiB GPU reserve; actual usage and rendering needs vary.';
+    'Configured GPU admission budget, not measured model usage. ' +
+    'Forge keeps a 2 GiB GPU reserve; actual usage and rendering needs vary.';
+  const badgeTone = supportsRender || isGame ? 'integration-badge' : 'integration-badge preview';
+  const badgeClassName = hasModelSelector ? `${badgeTone} model-plaque-action` : badgeTone;
   const handleOpenModelSelector = () => {
     const selector = document.querySelector('#model3d, #motion-model');
     selector?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -72,16 +92,8 @@ export default function ModelPlaque({
           </span>
         )}
       </span>
-      <span
-        className={`${supportsRender || isGame ? 'integration-badge' : 'integration-badge preview'}${hasModelSelector ? ' model-plaque-action' : ''}`}
-      >
-        {hasModelSelector
-          ? 'Change model'
-          : supportsRender
-            ? 'Render workflow'
-            : isGame
-              ? 'Decision API'
-              : 'Preview'}
+      <span className={badgeClassName}>
+        {getBadgeLabel({ hasModelSelector, supportsRender, isGame })}
       </span>
     </Plaque>
   );

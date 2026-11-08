@@ -46,7 +46,7 @@ def log_lifecycle_event(model_id, event, job_id, started_at, error=None):
         "engine": model_id,
         "event": event,
         "job_id": job_id,
-        "elapsed_ms": round((time.monotonic() - started_at) * 1000),
+        "elapsed_ms": elapsed_ms(started_at),
         "exception_class": type(error).__name__ if error else None,
     }
     if error:
@@ -138,7 +138,11 @@ class WorldRequest(BaseModel):
 
 
 def result_path(work, require_data=True):
-    """The finished world file: a PLY, or a GLB mesh."""
+    """The finished world file: a PLY, or a GLB mesh.
+
+    With require_data, a zero-byte file does not count as a result. Symlinks
+    are rejected either way so a job folder cannot expose files outside it.
+    """
     for extension in ("ply", "glb"):
         candidate = work / f"result.{extension}"
         if (
@@ -156,13 +160,8 @@ def run_job(job_id, request, work):
     startup_succeeded = False
     render_started_at = None
     try:
-        python = (
-            DESKTOP
-            / ("WorldGen" if request.model == "worldgen" else "HY-World-2.0")
-            / ".venv"
-            / "Scripts"
-            / "python.exe"
-        )
+        model_folder = "WorldGen" if request.model == "worldgen" else "HY-World-2.0"
+        python = DESKTOP / model_folder / ".venv" / "Scripts" / "python.exe"
         if not python.is_file():
             raise RuntimeError(f"Python environment is missing: {python}")
         args = [
@@ -172,7 +171,7 @@ def run_job(job_id, request, work):
             "--request",
             str(work / "request.json"),
         ]
-        cwd = DESKTOP / ("WorldGen" if request.model == "worldgen" else "HY-World-2.0")
+        cwd = DESKTOP / model_folder
         with lock:
             jobs[job_id].update(status="running", message="Loading the CUDA world generator.")
         # A guard owns the complete model process tree; a service crash closes
@@ -289,14 +288,14 @@ def generate(request: WorldRequest):
     decoded = []
     try:
         for image in request.images:
-            prefix, data = image.split(",", 1)
+            prefix, encoded = image.split(",", 1)
             if prefix not in (
                 "data:image/png;base64",
                 "data:image/jpeg;base64",
                 "data:image/webp;base64",
             ):
                 raise ValueError("Unsupported image.")
-            raw = base64.b64decode(data, validate=True)
+            raw = base64.b64decode(encoded, validate=True)
             if not 12 <= len(raw) <= 10 * 1024 * 1024:
                 raise ValueError("Each image must be at most 10 MiB.")
             decoded.append(raw)

@@ -269,6 +269,34 @@ export function planArchive(entries, overrides = {}) {
   return { files, skipped, totalBytes };
 }
 
+/**
+ * Checks the first bytes of a model against its format's signature.
+ * @param {string} extension Lower-case extension including the dot.
+ * @param {Buffer} head The first bytes of the file (at most 512).
+ * @param {number} size Full file size in bytes.
+ * @returns {boolean}
+ */
+function hasModelSignature(extension, head, size) {
+  const text = head.toString('latin1');
+  const hasNul = head.includes(0);
+  switch (extension) {
+    case '.glb':
+      return text.startsWith('glTF');
+    case '.ply':
+      return text.startsWith('ply');
+    case '.fbx':
+      return text.startsWith('Kaydara FBX Binary') || /^\s*;\s*FBX/.test(text);
+    case '.gltf':
+      return !hasNul && /^\s*\{/.test(text);
+    case '.obj':
+      return !hasNul;
+    case '.stl':
+      return size >= 84 || /^\s*solid/i.test(text);
+    default:
+      return false;
+  }
+}
+
 /** Checks the first bytes of a single model file. Throws ImportError on a mismatch. */
 export async function checkModelFile(file, extension) {
   const handle = await fs.open(file, 'r');
@@ -279,23 +307,7 @@ export async function checkModelFile(file, extension) {
     }
     const head = Buffer.alloc(Math.min(size, 512));
     await handle.read(head, 0, head.length, 0);
-    const text = head.toString('latin1');
-    const hasNul = head.includes(0);
-    const valid =
-      extension === '.glb'
-        ? text.startsWith('glTF')
-        : extension === '.ply'
-          ? text.startsWith('ply')
-          : extension === '.fbx'
-            ? text.startsWith('Kaydara FBX Binary') || /^\s*;\s*FBX/.test(text)
-            : extension === '.gltf'
-              ? !hasNul && /^\s*\{/.test(text)
-              : extension === '.obj'
-                ? !hasNul
-                : extension === '.stl'
-                  ? size >= 84 || /^\s*solid/i.test(text)
-                  : false;
-    if (!valid) {
+    if (!hasModelSignature(extension, head, size)) {
       throw new ImportError(
         `This file does not look like a valid ${extension} model.`,
         'wrong_type',
@@ -307,6 +319,13 @@ export async function checkModelFile(file, extension) {
   }
 }
 
+/**
+ * Lower-case ASCII slug of at most 48 characters, safe in Windows file names.
+ * Returns `fallback` when nothing usable remains, for example for a name made only of symbols.
+ * @param {unknown} value
+ * @param {string} [fallback]
+ * @returns {string}
+ */
 export function slugify(value, fallback = 'model') {
   const slug = String(value ?? '')
     .normalize('NFKD')
@@ -470,7 +489,8 @@ export async function runImport(job) {
     });
     throwIfAborted(signal);
     const suggested = await readMegascansMetadata(output, plan);
-    const folderName = `megascans-${slugify(job.title || suggested.title || path.basename(filename, extension))}-${shortId}`;
+    const titleSource = job.title || suggested.title || path.basename(filename, extension);
+    const folderName = `megascans-${slugify(titleSource)}-${shortId}`;
     const target = path.join(modelsReal, folderName);
     if (!inside(modelsReal, target)) {
       throw new ImportError('The output folder name is not usable.', 'invalid_name');
@@ -527,6 +547,11 @@ async function moveIntoProject(source, target) {
   }
 }
 
+/**
+ * Throws ImportError when `bytes` plus the safety margin do not fit on the folder's drive.
+ * @param {string} folder
+ * @param {number} bytes Bytes the import is about to write.
+ */
 export async function ensureFreeSpace(folder, bytes) {
   if (bytes + IMPORT_LIMITS.freeSpaceMarginBytes > (await freeBytes(folder))) {
     throw new ImportError(

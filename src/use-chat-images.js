@@ -71,9 +71,9 @@ export function useChatVision({ provider, endpoint, serverStatus }) {
           body: JSON.stringify({ provider, endpoint }),
           signal: controller.signal,
         });
-        const data = await response.json();
-        if (alive && response.ok && typeof data.available === 'boolean') {
-          setVision(data);
+        const answer = await response.json();
+        if (alive && response.ok && typeof answer.available === 'boolean') {
+          setVision(answer);
           isRefreshFailing = false;
         }
       } catch (error) {

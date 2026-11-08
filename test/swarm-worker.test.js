@@ -68,6 +68,7 @@ test('worker recovery keeps a model-load barrier while health still reports load
     supervisor.call('clearMusicLoadBarrier', { confirmNotLoading: true }),
     /still loading/,
   );
+  // Let several health polls run; the barrier must not clear while the engine still loads.
   await new Promise((resolve) => setTimeout(resolve, 250));
   assert.equal((await supervisor.call('health')).modelLoadBarrier, 'loading');
 

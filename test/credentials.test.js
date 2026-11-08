@@ -108,11 +108,11 @@ test('credential API requires local origin and never returns stored secrets', as
 });
 
 test('saved OpenAI key is used only for OpenAI, with a temporary key taking precedence', async (t) => {
-  let read = 0;
+  let storeReads = 0;
   const observed = [];
   const store = {
     get: async (provider) => {
-      read++;
+      storeReads++;
       assert.equal(provider, 'openai');
       return fakeSecret;
     },
@@ -144,7 +144,7 @@ test('saved OpenAI key is used only for OpenAI, with a temporary key taking prec
     200,
   );
   assert.equal(observed[2].auth, undefined);
-  assert.equal(read, 1);
+  assert.equal(storeReads, 1);
 });
 
 test('saved Hugging Face key is preferred and only provided to a managed sound worker', async () => {

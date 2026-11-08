@@ -47,7 +47,8 @@ async function makeQueue(t) {
   return { queue: holder.queue, projectId };
 }
 
-// A stand-in for fetch: routes is { 'GET /api/status': body, 'POST /api/model/load': body }.
+// A stand-in for fetch: GET /api/status answers with `status`, and model load posts answer with
+// `loadStatus`. Every call is recorded so a test can assert that no load request was sent.
 function fakeWorker(status, { loadStatus = 202 } = {}) {
   const calls = [];
   const fetcher = async (url, options = {}) => {
@@ -569,9 +570,9 @@ test('the clip duration is read in the browser and never blocks when unreadable'
   const long = await readWith({ duration: 45 });
   assert.equal(cloneReferenceLengthProblem(long.seconds), LENGTH_MESSAGE);
 
-  const ok = await readWith({ duration: 7.5 });
-  assert.equal(ok.seconds, 7.5);
-  assert.equal(cloneReferenceLengthProblem(ok.seconds), '');
+  const inRange = await readWith({ duration: 7.5 });
+  assert.equal(inRange.seconds, 7.5);
+  assert.equal(cloneReferenceLengthProblem(inRange.seconds), '');
 
   assert.equal((await readWith({ duration: Number.POSITIVE_INFINITY })).seconds, null);
   assert.equal((await readWith({ error: true })).seconds, null, 'a decode error is not a verdict');
@@ -584,7 +585,7 @@ test('the clip duration is read in the browser and never blocks when unreadable'
   const stub = stubAudio({ duration: 9 });
   t.after(() => stub.restore());
   URL.createObjectURL = () => {
-    throw Error('object URLs are unavailable');
+    throw new Error('object URLs are unavailable');
   };
   assert.equal(await readClipDurationSeconds(clip), null, 'a browser refusal resolves to null');
 });

@@ -44,14 +44,17 @@ export async function i18nRequest(path, { method = 'GET', body, signal, fetchImp
     }
     throw new I18nApiError('The studio translation service could not be reached.');
   }
-  const data = await response.json().catch(() => ({}));
+  const responseBody = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new I18nApiError(data.error || `The translation service returned ${response.status}.`, {
-      status: response.status,
-      code: data.code || '',
-    });
+    throw new I18nApiError(
+      responseBody.error || `The translation service returned ${response.status}.`,
+      {
+        status: response.status,
+        code: responseBody.code || '',
+      },
+    );
   }
-  return data;
+  return responseBody;
 }
 
 async function* readLines(response) {
@@ -107,11 +110,14 @@ export async function streamTranslation({
     throw new I18nApiError('The studio translation service could not be reached.');
   }
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new I18nApiError(data.error || `The translation service returned ${response.status}.`, {
-      status: response.status,
-      code: data.code || '',
-    });
+    const responseBody = await response.json().catch(() => ({}));
+    throw new I18nApiError(
+      responseBody.error || `The translation service returned ${response.status}.`,
+      {
+        status: response.status,
+        code: responseBody.code || '',
+      },
+    );
   }
   let report = null;
   for await (const line of readLines(response)) {

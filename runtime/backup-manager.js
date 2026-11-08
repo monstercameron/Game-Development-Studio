@@ -89,19 +89,21 @@ export function createBackupManager({
   backup = backupDatabase,
 }) {
   let timer = null;
-  let running = false;
-  let stopped = false;
+  // Set while a snapshot pass is writing, so two passes never copy the same database at once.
+  let isRunning = false;
+  // Set by stop(). It is checked between databases, so shutdown never waits for a full pass.
+  let isStopped = false;
 
   async function runOnce() {
-    if (running) {
+    if (isRunning) {
       log.debug('backup.run.skipped', { reason: 'busy' });
       return [];
     }
-    running = true;
+    isRunning = true;
     const results = [];
     try {
       for (const target of backupTargets({ runtimeDirectory, projectsRoot })) {
-        if (stopped) {
+        if (isStopped) {
           break;
         }
         const startedAt = performance.now();
@@ -128,13 +130,13 @@ export function createBackupManager({
         await yieldToEventLoop();
       }
     } finally {
-      running = false;
+      isRunning = false;
     }
     return results;
   }
 
   function schedule(delay) {
-    if (stopped) {
+    if (isStopped) {
       return;
     }
     timer = setTimeout(() => {
@@ -151,13 +153,13 @@ export function createBackupManager({
   return {
     runOnce,
     start() {
-      stopped = false;
+      isStopped = false;
       if (!timer) {
         schedule(firstDelayMs);
       }
     },
     stop() {
-      stopped = true;
+      isStopped = true;
       clearTimeout(timer);
       timer = null;
     },

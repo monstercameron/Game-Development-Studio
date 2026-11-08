@@ -27,7 +27,8 @@ export function normalizeRepeatMode(mode) {
   return REPEAT_MODES.includes(mode) ? mode : 'never';
 }
 export function nextRepeatMode(mode) {
-  return REPEAT_MODES[(REPEAT_MODES.indexOf(normalizeRepeatMode(mode)) + 1) % REPEAT_MODES.length];
+  const currentIndex = REPEAT_MODES.indexOf(normalizeRepeatMode(mode));
+  return REPEAT_MODES[(currentIndex + 1) % REPEAT_MODES.length];
 }
 export function repeatName(mode) {
   return REPEAT_NAMES[normalizeRepeatMode(mode)];

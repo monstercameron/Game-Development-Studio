@@ -20,6 +20,8 @@ export const ACTIVE_QUEUE_STATES = new Set([
 ]);
 const BLOCKED_STATES = new Set(['needs_attention', 'interrupted', 'waiting_memory']);
 
+// Formats a whole-second estimate for display. Returns 'Unknown' for a missing, negative or
+// non-finite value so an unknown estimate is never shown as zero seconds.
 export function formatDuration(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) {
     return 'Unknown';
@@ -38,12 +40,15 @@ export function formatDuration(seconds) {
   return remaining ? `${hours}h ${remaining}m` : `${hours}h`;
 }
 
+// Returns the relative amount of work for one request, in units that only compare within the same
+// job type. Returns null for an unknown type so callers can skip the estimate.
 export function work(type, request) {
   const number = (value, fallback = 1) =>
     Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
   switch (type) {
     case 'images':
-      // A size matched to the last reference is about one megapixel (Qwen's output_resolution of 1024).
+      // A size matched to the last reference is about one megapixel
+      // (Qwen's output_resolution of 1024).
       return (
         (request.size_from_reference
           ? 1024 * 1024
@@ -91,6 +96,7 @@ function referenceCount(request) {
 
 // When there are no exact matches, use nearby completed settings only. This is
 // deliberately labeled rough and is omitted if the workloads differ too much.
+// Returns { available, typicalSeconds, sampleCount, confidence, note } or null when no sample fits.
 export function estimateFromNearbyHistory(type, request, jobs) {
   const target = work(type, request || {});
   if (!Number.isFinite(target) || target <= 0) {
@@ -193,6 +199,9 @@ function progressEta(stage) {
   return parts.reduce((total, part) => total * 60 + part, 0);
 }
 
+// Sums known remaining render time across active jobs. `seconds` is null when any active job has
+// unknown timing. `knownWorkSeconds` is only a partial total of the jobs that could be estimated.
+// Jobs beyond `limit` are not estimated and make the total unknown.
 export function forecastQueue(jobs, estimates, now = Date.now(), limit = 50) {
   const active = (jobs || []).filter((job) => ACTIVE_QUEUE_STATES.has(job.status));
   const perJob = {};

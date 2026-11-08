@@ -39,7 +39,8 @@ function integer(value, fallback, label, min, max, divisor = 1) {
 // Qwen Image 2.1's published sizes go up to 2752 px (16:9 at 2752 × 1536).
 export const IMAGE_MAX_SIZE = 2752;
 export const IMAGE_MAX_VARIATIONS = 4;
-// With "match the last reference's shape", the model sizes the render to about this many pixels square.
+// With "match the last reference's shape", the model sizes the render to about this many
+// pixels square.
 export const REFERENCE_TARGET = { min: 256, max: 2048, step: 32, fallback: 1024 };
 export const LORA_MAX_SCALE = 2;
 
@@ -116,6 +117,7 @@ export function variationRequests(request, count, { randomSeed, makeGroup } = {}
   });
 }
 
+// Throws an Error carrying the user-facing message for the first invalid field.
 export function imageRequest(draft) {
   const [defaultWidth, defaultHeight] = imageSizes[draft.options?.[0]] || [1024, 576];
   const matchReference = draft.imageMatchReference === true;
@@ -193,7 +195,13 @@ export function videoRequest(draft) {
   const seed = hasValue(draft.seed) ? integer(draft.seed, 0, 'Seed', 0, 2147483647) : undefined;
   // The turbo adapter is made for unguided rendering, so guidance is ignored with it.
   const negative = turbo ? '' : (draft.videoNegative || '').trim();
-  const guidance = turbo ? 1 : hasValue(draft.videoCfg) ? Number(draft.videoCfg) : negative ? 2 : 1;
+  // Blank guidance means 2 when there is a negative prompt and off (1) otherwise.
+  let guidance = negative ? 2 : 1;
+  if (turbo) {
+    guidance = 1;
+  } else if (hasValue(draft.videoCfg)) {
+    guidance = Number(draft.videoCfg);
+  }
   if (
     !Number.isFinite(guidance) ||
     guidance < 1 ||

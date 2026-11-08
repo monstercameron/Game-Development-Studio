@@ -52,9 +52,9 @@ export function matchesMeta(summary, needle) {
   if (!summary || !needle) {
     return false;
   }
-  const value = needle.toLowerCase();
+  const lowerNeedle = needle.toLowerCase();
   return (
-    (summary.model || '').toLowerCase().includes(value) ||
-    (summary.prompt || '').toLowerCase().includes(value)
+    (summary.model || '').toLowerCase().includes(lowerNeedle) ||
+    (summary.prompt || '').toLowerCase().includes(lowerNeedle)
   );
 }

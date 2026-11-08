@@ -238,14 +238,14 @@ test('the summary and time estimates follow the picture size and guidance', () =
   assert.ok(work('video', { ...base, resolution: 'hd' }) > work('video', base) * 4.5);
   assert.equal(work('video', { ...base, aspect: 'portrait' }), work('video', base));
   // Renders at another size or with guidance never share timing history with the default.
-  const done = (request) => ({
+  const completedJob = (request) => ({
     type: 'video',
     status: 'completed',
     request,
     startedAt: '2026-01-01T00:00:00Z',
     finishedAt: '2026-01-01T00:05:00Z',
   });
-  const history = [done({ ...base, references: ['a'] })];
+  const history = [completedJob({ ...base, references: ['a'] })];
   assert.equal(
     estimateFromJobs(history, { type: 'video', request: { ...base, references: ['a'] } })
       .sampleCount,

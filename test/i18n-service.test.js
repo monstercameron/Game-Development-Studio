@@ -116,7 +116,7 @@ async function startService(t, options = {}) {
     await new Promise((resolve) => server.close(resolve));
     await fs.rm(root, { recursive: true, force: true });
   });
-  const call = async (method, route, body, { headers = {}, signal } = {}) => {
+  const call = async (method, route, body, { headers = {} } = {}) => {
     const response = await fetch(`${origin}/api/i18n${route}`, {
       method,
       headers:
@@ -129,7 +129,6 @@ async function startService(t, options = {}) {
               ...headers,
             },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal,
     });
     const text = await response.text();
     seen.push(text);
@@ -154,7 +153,7 @@ async function startService(t, options = {}) {
     });
     return { preview: preview.data, result };
   };
-  return { call, translate, origin, runtimeDir, catalogDirectory, seen, service };
+  return { call, translate, origin, runtimeDir, catalogDirectory, seen };
 }
 
 const finalReport = (events) => events.find((event) => event.type === 'done')?.report;
@@ -282,9 +281,9 @@ test('clients cannot submit text: hostile fields, keys and languages are rejecte
     http
       .get(
         { host: url.hostname, port: url.port, path: url.pathname, headers: { Host: 'evil.test' } },
-        (res) => {
-          res.resume();
-          resolve(res.statusCode);
+        (response) => {
+          response.resume();
+          resolve(response.statusCode);
         },
       )
       .on('error', () => resolve(0));

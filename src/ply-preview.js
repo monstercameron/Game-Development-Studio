@@ -3,14 +3,24 @@ import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 
 // Gaussian PLY is shown as a colored point cloud; a point preview does not
 // reproduce the opacity, orientation, or spherical-harmonic splat renderer.
+
+/**
+ * Builds a three.js preview object from PLY bytes.
+ *
+ * @param {ArrayBuffer} bytes Raw PLY file contents.
+ * @returns {THREE.Mesh|THREE.Points} A Mesh when the file has faces, otherwise Points.
+ * Throws when PLYLoader rejects the bytes.
+ */
 export function parsePlyPreview(bytes) {
   const loader = new PLYLoader();
   loader.setCustomPropertyNameMapping({ sh: ['f_dc_0', 'f_dc_1', 'f_dc_2'] });
-  const geometry = loader.parse(bytes),
-    sh = geometry.getAttribute('sh');
+  const geometry = loader.parse(bytes);
+  const sh = geometry.getAttribute('sh');
   if (!geometry.getAttribute('color') && sh) {
     const colors = new Float32Array(sh.count * 3);
     for (let i = 0; i < colors.length; i++) {
+      // 1 / (2 * sqrt(pi)) is the degree-0 spherical-harmonic basis; it maps the
+      // f_dc_* coefficient to a color offset around mid-gray (0.5).
       colors[i] = Math.max(0, Math.min(1, 0.5 + 0.28209479177387814 * sh.array[i]));
     }
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));

@@ -46,27 +46,27 @@ export function ListingFormDialog({ listing, onClose, onSaved }) {
 
   async function submit(event) {
     event.preventDefault();
-    const next = {};
+    const fieldErrors = {};
     if (!editing && !/fab\.com\/listings\/[0-9a-f-]{36}|^[0-9a-f-]{36}$/i.test(url.trim())) {
-      next.url = 'Paste a Fab listing address such as https://www.fab.com/listings/…';
+      fieldErrors.url = 'Paste a Fab listing address such as https://www.fab.com/listings/…';
     }
     if (!title.trim()) {
-      next.title = 'Enter a title for this listing.';
+      fieldErrors.title = 'Enter a title for this listing.';
     }
-    setErrors(next);
+    setErrors(fieldErrors);
     setFormError('');
-    if (Object.keys(next).length) {
+    if (Object.keys(fieldErrors).length) {
       return;
     }
     setBusy(true);
     try {
-      const data = await postMegascans('/listings', {
+      const saved = await postMegascans('/listings', {
         url: url.trim(),
         title: title.trim(),
         tags: splitTags(tags),
         notes,
       });
-      onSaved(data.listing);
+      onSaved(saved.listing);
     } catch (error) {
       log.warn('megascans.listing.save.failed', requestFailureFields(error));
       setFormError(error.message);
@@ -306,7 +306,7 @@ function FileChoices({ listing, project, consent, onQueued }) {
           <p className="settings-error">
             Warning: these files are very large (up to{' '}
             {formatBytes(
-              Math.max(...advanced.flatMap((group) => group.files.map((f) => f.size || 0))),
+              Math.max(...advanced.flatMap((group) => group.files.map((file) => file.size || 0))),
             )}
             ) and hold textures only, no model. Forge cannot import them; download them on Fab if
             you need them.
@@ -355,9 +355,9 @@ export function ListingDialog({
   useEffect(() => {
     const controller = new AbortController();
     getMegascans(`/listings/${listingId}`, { signal: controller.signal })
-      .then(async (data) => {
-        setState({ status: 'ready', listing: data.listing, imports: data.imports, error: '' });
-        if (data.listing.source !== 'fab' || data.listing.detailFetchedAt) {
+      .then(async (loaded) => {
+        setState({ status: 'ready', listing: loaded.listing, imports: loaded.imports, error: '' });
+        if (loaded.listing.source !== 'fab' || loaded.listing.detailFetchedAt) {
           return;
         }
         // The cache lacks this listing's description and file list: read them once (slowly).

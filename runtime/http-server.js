@@ -44,6 +44,8 @@ const logger = {
   warn: console.warn.bind(console),
   error: console.error.bind(console),
 };
+// Only loopback Host headers are accepted. This blocks DNS-rebinding requests from
+// web pages that resolve a public name to 127.0.0.1.
 app.use((req, res, next) => {
   if (!/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(req.headers.host || '')) {
     return res.status(403).json({ error: 'Local studio requests only.' });
@@ -122,16 +124,18 @@ httpServer.listen(port, '127.0.0.1', () => {
   logger.info(`Forge Studio is running at http://127.0.0.1:${port}`);
   process.send?.({ type: 'ready', pid: process.pid });
 });
-let closing = false;
+let isClosing = false;
 function shutdown() {
-  if (closing) {
+  if (isClosing) {
     return;
   }
-  closing = true;
+  isClosing = true;
   recovery.dispose();
   mcpHandler.close().catch(() => {});
   httpServer.close(() => process.exit(0));
   httpServer.closeAllConnections?.();
+  // Forced exit after 4 s if close callbacks never fire. unref() keeps this
+  // timer from holding the process open on its own.
   setTimeout(() => process.exit(0), 4000).unref();
 }
 process.on('message', (message) => {

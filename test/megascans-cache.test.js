@@ -15,8 +15,8 @@ import { FILE_UIDS, PNG, fakeId, startFakeFab } from './fixtures/fake-fab.js';
 
 const quiet = { info() {}, warn() {}, error() {} };
 
-async function setup(t, fabOptions = {}) {
-  const fab = await startFakeFab({ total: 3, pageSize: 3, ...fabOptions });
+async function setup(t) {
+  const fab = await startFakeFab({ total: 3, pageSize: 3 });
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-megascans-cache-'));
   const handle = openMegascansDb(directory);
   const clock = { time: Date.parse('2026-06-01T12:00:00Z') };

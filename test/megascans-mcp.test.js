@@ -95,6 +95,7 @@ test('Megascans MCP tools use only local routes and offer no download tool', asy
   await client.callTool({ name: 'forge_megascans_scan', arguments: { action: 'resume' } });
   assert.equal(calls[7].path, '/api/megascans/scan');
   assert.deepEqual(calls[8].body, { action: 'resume' });
+  // The download assertions below index from call 5, so drop the calls already checked.
   calls.length = 5;
 
   const queued = await client.callTool({
@@ -112,10 +113,11 @@ test('Megascans MCP tools use only local routes and offer no download tool', asy
     quality: 'mid',
     confirmLarge: false,
   });
-  const noConfirmTool = tools
+  const confirmingToolNames = tools
     .map((tool) => tool.name)
     .filter((name) => /confirm|accept|eula/i.test(name));
-  assert.deepEqual(noConfirmTool, [], 'agents cannot confirm the license agreement');
+  assert.deepEqual(confirmingToolNames, [], 'agents cannot confirm the license agreement');
+  // Drop the download request so the length check at the end sees only new calls.
   calls.length = 5;
 
   const rejected = await client.callTool({

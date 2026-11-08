@@ -41,6 +41,20 @@ const phaseLabels = {
   finishing: 'Finishing the transcript.',
   starting: 'Starting speech service. This can take up to two minutes while the model loads.',
 };
+// Label for the start button while no session is recording. Any phase other than the ones
+// listed (for example finishing) shows the finishing label.
+function getStartButtonLabel(phase) {
+  if (phase === 'idle') {
+    return 'Start microphone';
+  }
+  if (phase === 'starting') {
+    return 'Starting speech service…';
+  }
+  if (phase === 'transcribing') {
+    return 'Transcribing file…';
+  }
+  return 'Finishing transcript…';
+}
 function readFileRates() {
   try {
     const value = JSON.parse(localStorage.getItem(timingKey) || '[]');
@@ -119,7 +133,8 @@ export default function SpeechTranscriber({
       })
       .catch((error) => {
         log.debug('asr.microphone.permission.unsupported', errorFields(error));
-        // Some browsers do not expose microphone permission state; the start error still explains denial.
+        // Some browsers do not expose microphone permission state; the start error still explains
+        // a denial.
       });
     return () => {
       cancelled = true;
@@ -244,8 +259,8 @@ export default function SpeechTranscriber({
           return;
         }
       }
-      const status = await fetch('/api/runtime/services');
-      const services = status.ok ? (await status.json()).services : [];
+      const servicesResponse = await fetch('/api/runtime/services');
+      const services = servicesResponse.ok ? (await servicesResponse.json()).services : [];
       if (!active(run)) {
         return;
       }
@@ -285,9 +300,9 @@ export default function SpeechTranscriber({
         if (ready) {
           break;
         }
-        const status = await fetch('/api/runtime/services');
-        if (status.ok) {
-          const data = await status.json();
+        const servicesResponse = await fetch('/api/runtime/services');
+        if (servicesResponse.ok) {
+          const data = await servicesResponse.json();
           ready = data.services?.some(
             (service) =>
               service.id === 'asr' &&
@@ -760,13 +775,7 @@ export default function SpeechTranscriber({
             ) : (
               <LoaderCircle size={16} className="motion-spinner" />
             )}
-            {phase === 'idle'
-              ? 'Start microphone'
-              : phase === 'starting'
-                ? 'Starting speech service…'
-                : phase === 'transcribing'
-                  ? 'Transcribing file…'
-                  : 'Finishing transcript…'}
+            {getStartButtonLabel(phase)}
           </button>
         )}
         <label className={'outline-button speech-file ' + (phase !== 'idle' ? 'disabled' : '')}>

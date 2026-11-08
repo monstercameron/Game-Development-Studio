@@ -62,18 +62,21 @@ const writeOptions = (body) => ({
   body: JSON.stringify(body),
 });
 
-// "None" is not a number, so a typed value that is not valid yet is kept as text.
+// Label of a choice or boolean control's default, shown in the hint line.
+function defaultLabel(control) {
+  if (control.type === 'boolean') {
+    return control.default ? 'on' : 'off';
+  }
+  return control.options.find((option) => option.value === control.default)?.label;
+}
+
+// A typed value that is not a valid number yet is kept as text, so the field does not
+// snap back to the last valid value while the user is still typing.
 function ControlRow({ control, value, typedText, onValue, onTyped }) {
   const id = `vegetation-control-${control.id}`;
   const hint =
     control.type === 'choice' || control.type === 'boolean'
-      ? `Default ${
-          control.type === 'boolean'
-            ? control.default
-              ? 'on'
-              : 'off'
-            : control.options.find((option) => option.value === control.default)?.label
-        }`
+      ? `Default ${defaultLabel(control)}`
       : `${control.min} to ${control.max} · default ${control.default}`;
   const invalid = typedText !== undefined;
   const hintId = `${id}-hint`;
@@ -530,7 +533,7 @@ export default function Vegetation({ project, projects, onRefresh, onOpenLibrary
     );
     if (
       Object.keys(suggestion.params).some(
-        (id) => species.controls.find((c) => c.id === id)?.group === 'advanced',
+        (id) => species.controls.find((control) => control.id === id)?.group === 'advanced',
       )
     ) {
       setTuneOpen(true);
@@ -693,6 +696,7 @@ export default function Vegetation({ project, projects, onRefresh, onOpenLibrary
     }
     return groups;
   }, [speciesEntry]);
+  const advancedControls = grouped.get('advanced');
 
   const problem = state && schema && attempted ? firstProblem(state, schema, typed) : null;
   const biomes = useMemo(() => {
@@ -914,20 +918,20 @@ export default function Vegetation({ project, projects, onRefresh, onOpenLibrary
                       </div>
                     </div>
                   ))}
-                {grouped.get('advanced') && (
+                {advancedControls && (
                   <details className="vegetation-advanced" {...routeDetails(tuneOpen, setTuneOpen)}>
                     <summary>
                       <span className="vegetation-advanced-heading">{GROUP_TITLES.advanced}</span>
                       <span className="vegetation-advanced-hint">
                         {Object.keys(state.params).filter((id) =>
-                          grouped.get('advanced').some((c) => c.id === id),
+                          advancedControls.some((control) => control.id === id),
                         ).length
                           ? 'Some changed'
                           : 'SeedThree’s per-level controls'}
                       </span>
                     </summary>
                     <div className="vegetation-advanced-body vegetation-controls">
-                      {grouped.get('advanced').map((control) => (
+                      {advancedControls.map((control) => (
                         <ControlRow
                           key={`${state.species}-${control.id}`}
                           control={control}

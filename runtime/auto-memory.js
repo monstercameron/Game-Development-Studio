@@ -15,7 +15,19 @@ const guarded = new Set([
   'motion-bricks',
 ]);
 
+/**
+ * Builds the function that frees GPU memory by stopping one idle, Forge-owned engine.
+ *
+ * `services()` returns the current engine states. `offload(id)` must resolve with
+ * `{ stopped: true }` only after the engine confirmed it stopped. `now` (epoch ms) and
+ * `cooldownMs` (ms) are injected so tests control the retry cooldown after a failed stop.
+ *
+ * The returned `makeRoom` resolves to `stopped` (with `service`), `unavailable` (no eligible
+ * idle engine), `cancelled` (the job is no longer current, or `announce` refused) or `failed`
+ * (the stop did not confirm; that engine is skipped until the cooldown ends).
+ */
 export function createAutoMemoryManager({ services, offload, now = Date.now, cooldownMs = 60000 }) {
+  // Engine id -> epoch ms before which a failed stop is not retried.
   const failures = new Map();
   // `only` limits the choice to one engine: a chained render frees the model it just finished with.
   return async function makeRoom({
@@ -45,9 +57,12 @@ export function createAutoMemoryManager({ services, offload, now = Date.now, coo
     );
     // Keep models that the next jobs will need; try an otherwise unused model first.
     choices.sort((a, b) => {
-      const ai = upcoming.indexOf(a.id),
-        bi = upcoming.indexOf(b.id);
-      return (bi < 0 ? Infinity : bi) - (ai < 0 ? Infinity : ai);
+      const aUpcomingIndex = upcoming.indexOf(a.id);
+      const bUpcomingIndex = upcoming.indexOf(b.id);
+      return (
+        (bUpcomingIndex < 0 ? Infinity : bUpcomingIndex) -
+        (aUpcomingIndex < 0 ? Infinity : aUpcomingIndex)
+      );
     });
     if (!choices.length) {
       log.debug('memory.room.unavailable', { target, reason: 'no_idle_engine' });

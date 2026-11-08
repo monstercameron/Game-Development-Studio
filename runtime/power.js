@@ -4,6 +4,11 @@ import { createLogger } from './app-log.js';
 
 const log = createLogger('power');
 
+// How long the helper may take to print READY before the start is treated as failed.
+const HELPER_READY_TIMEOUT_MS = 10000;
+// Upper bound on the JSON body of POST /api/power, in characters. The body only carries a boolean.
+const MAX_REQUEST_BODY_CHARS = 1000;
+
 let activeControl = null;
 
 /**
@@ -14,6 +19,15 @@ export function powerControl() {
   return activeControl;
 }
 
+/**
+ * Creates the keep-awake service. It runs keep-awake.ps1 in a child PowerShell process that holds
+ * the system awake until setAwake(false), dispose, or this process's exit stops it.
+ * spawnProcess and platform are injected so tests run without Windows or a real helper. On a
+ * platform other than win32, start rejects; status requests still answer with awake false.
+ *
+ * @param {{ spawnProcess?: typeof spawn, platform?: string }} [options]
+ * @returns {{ name: string, configureServer: Function, configurePreviewServer: Function }}
+ */
 export function powerService({ spawnProcess = spawn, platform = process.platform } = {}) {
   let child = null,
     starting = null,
@@ -63,7 +77,7 @@ export function powerService({ spawnProcess = spawn, platform = process.platform
         errors = '';
       const timer = setTimeout(
         () => fail('The keep-awake helper did not respond.', 'no_response'),
-        10000,
+        HELPER_READY_TIMEOUT_MS,
       );
       function fail(message, reason) {
         if (settled) {
@@ -72,6 +86,7 @@ export function powerService({ spawnProcess = spawn, platform = process.platform
         settled = true;
         log.warn('power.helper.failed', { reason });
         clearTimeout(timer);
+        // The helper may still hold the awake request; killing it releases that request.
         helper.kill();
         lastError = message;
         reject(new Error(message));
@@ -149,7 +164,7 @@ export function powerService({ spawnProcess = spawn, platform = process.platform
         let body = '';
         for await (const chunk of req) {
           body += chunk;
-          if (body.length > 1000) {
+          if (body.length > MAX_REQUEST_BODY_CHARS) {
             throw new Error('Request too large.');
           }
         }

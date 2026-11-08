@@ -15,11 +15,17 @@ CUDA = Path(r"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.5")
 
 
 def configure_toolchain():
+    """Import the MSVC ARM64 and CUDA environment into this process.
+
+    Mutates os.environ for the whole process, so call it once before Triton compiles.
+    Raises RuntimeError when the tools are missing, vcvarsall fails or its output lacks
+    PATH, INCLUDE or LIB. Captured vcvars output is never logged because it holds secrets.
+    """
     if os.name != "nt" or not VCVARS.is_file() or not (CUDA / "bin" / "nvcc.exe").is_file():
         log.warn("three-d.toolchain.check.failed", {"reason": "toolchain_unavailable"})
         raise RuntimeError("The Windows ARM64 compiler or CUDA toolkit is unavailable.")
     log.info("three-d.process.spawned", {"kind": "vcvars"})
-    stop = log.time("three-d.process.exited", {"kind": "vcvars"})
+    finish_timing = log.time("three-d.process.exited", {"kind": "vcvars"})
     result = subprocess.run(
         f'cmd.exe /d /s /c ""{VCVARS}" arm64 >nul && set"',
         capture_output=True,
@@ -29,7 +35,7 @@ def configure_toolchain():
         errors="replace",
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
-    stop({"exitCode": result.returncode})
+    finish_timing({"exitCode": result.returncode})
     if result.returncode:
         log.warn(
             "three-d.toolchain.check.failed",
@@ -49,5 +55,6 @@ def configure_toolchain():
     os.environ.update(variables)
     os.environ["CUDA_HOME"] = str(CUDA)
     os.environ["CUDA_PATH"] = str(CUDA)
+    # CUDA goes first so nvcc and its DLLs win over any other CUDA install on PATH.
     os.environ["PATH"] = str(CUDA / "bin") + os.pathsep + os.environ["PATH"]
     os.environ["LIB"] = str(CUDA / "lib" / "arm64") + os.pathsep + os.environ["LIB"]

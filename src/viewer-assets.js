@@ -15,7 +15,18 @@ import { SHELL_SAMPLE_LIMIT, detectPanoramaShell } from './viewer-panorama';
 // requestAnimationFrame is avoided because it never fires in a background tab.
 export const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 30));
 
-// Downloads a file, reporting progress when the server announces its length.
+/**
+ * Downloads a studio file and returns its bytes as an ArrayBuffer.
+ *
+ * @param {string} url Studio URL. Redirects are refused (redirect: "error").
+ * @param {object} [options]
+ * @param {AbortSignal} [options.signal] Aborts the download; the AbortError is rethrown as is.
+ * @param {number} [options.max] Byte limit. Defaults to the limit for the type of `name`.
+ * @param {string} [options.name] File name, used to pick the default byte limit.
+ * @param {(fraction: number) => void} [options.onProgress] Called with 0..1 only when the
+ *   server sends Content-Length, and with 1 when the download completes.
+ * @throws {ViewerError} NETWORK, HTTP (including 404) or TOO_LARGE.
+ */
 export async function fetchAssetBytes(url, { signal, max, name, onProgress } = {}) {
   const limit = max || byteLimitFor(name);
   let response;

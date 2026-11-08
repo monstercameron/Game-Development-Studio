@@ -43,14 +43,18 @@ import {
 const log = createLog('assets');
 
 const categories = ['All', 'Images', '3D', 'Motion', 'Video', 'Audio', 'Masks', 'Text'];
-const filesize = (size) =>
-  typeof size === 'number'
-    ? size < 1024
-      ? `${size} B`
-      : size < 1024 ** 2
-        ? `${(size / 1024).toFixed(1)} KB`
-        : `${(size / 1024 ** 2).toFixed(1)} MB`
-    : '—';
+const filesize = (size) => {
+  if (typeof size !== 'number') {
+    return '—';
+  }
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 ** 2) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / 1024 ** 2).toFixed(1)} MB`;
+};
 const date = (value) =>
   value
     ? new Date(value).toLocaleString(undefined, {
@@ -62,17 +66,22 @@ const date = (value) =>
       })
     : '—';
 function iconFor(category) {
-  return category === 'Audio'
-    ? AudioLines
-    : category === 'Video'
-      ? Clapperboard
-      : category === '3D'
-        ? Box
-        : category === 'Text'
-          ? FileText
-          : Image;
+  if (category === 'Audio') {
+    return AudioLines;
+  }
+  if (category === 'Video') {
+    return Clapperboard;
+  }
+  if (category === '3D') {
+    return Box;
+  }
+  if (category === 'Text') {
+    return FileText;
+  }
+  return Image;
 }
-// Browsers can draw these directly, so cards show the original file instead of a generated thumbnail.
+// Browsers can draw these directly, so cards show the original file instead of a generated
+// thumbnail.
 const nativeImageExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'];
 function extensionOf(name = '') {
   return name.includes('.') ? name.split('.').pop().toLowerCase() : '';
@@ -158,8 +167,8 @@ function AssetPreview({
   const [newName, setNewName] = useState(asset.sample ? asset.file.split('/').pop() : asset.title);
   const [confirmDelete, setConfirmDelete] = useRouteToggle('trashAsset');
   const [busy, setBusy] = useState(false);
-  const closeRef = useRef(null),
-    ratingStarsRef = useRef(null);
+  const closeRef = useRef(null);
+  const ratingStarsRef = useRef(null);
   // Set after a rating change so focus returns to the star group once the save finishes.
   const [ratingFocus, setRatingFocus] = useState(null);
   const dialog = useDialogFocus({
@@ -560,6 +569,11 @@ function AssetPreview({
     </div>
   );
 }
+/**
+ * Asset library page. `sampleAssets` fills the sample collection, `projects` lists the selectable
+ * collections, and `project` is the active project record. `onReuse(meta, projectId)` is optional
+ * and reopens a generation's settings. `loading` only affects project collections.
+ */
 export default function Gallery({
   project,
   projects,
@@ -702,11 +716,11 @@ export default function Gallery({
       headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'project' },
       body: JSON.stringify(body),
     });
-    const data = await response.json();
+    const responseBody = await response.json();
     if (!response.ok) {
-      throw Error(data.error || 'Could not update asset.');
+      throw Error(responseBody.error || 'Could not update asset.');
     }
-    return data;
+    return responseBody;
   }
   async function reloadProject() {
     const requestedScope = scope;
@@ -716,9 +730,9 @@ export default function Gallery({
     if (!response.ok) {
       return;
     }
-    const data = await response.json();
+    const projectsResponse = await response.json();
     if (request === projectRequestRef.current && requestedScope === scopeRef.current) {
-      setLocalProject(data.projects.find((item) => item.id === requestedScope) || null);
+      setLocalProject(projectsResponse.projects.find((item) => item.id === requestedScope) || null);
     }
   }
   async function changeAsset(action, asset, extra = {}) {
@@ -778,9 +792,9 @@ export default function Gallery({
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'project' },
         body: JSON.stringify({ trashId: trashUndo.trashId }),
       });
-      const data = await response.json();
+      const responseBody = await response.json();
       if (!response.ok) {
-        throw Error(data.error || 'Could not restore asset.');
+        throw Error(responseBody.error || 'Could not restore asset.');
       }
       setTrashUndo(null);
       setTrashMessage('Asset restored.');

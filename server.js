@@ -13,13 +13,13 @@ import { createLogger } from './runtime/app-log.js';
 
 const appLog = createLogger('supervisor');
 
-const args = process.argv.slice(2);
-if (args.length && (args.length !== 2 || args[0] !== '--port')) {
+const cliArgs = process.argv.slice(2);
+if (cliArgs.length && (cliArgs.length !== 2 || cliArgs[0] !== '--port')) {
   console.error('Usage: node server.js [--port PORT]');
   appLog.warn('supervisor.config.rejected', { reason: 'usage' });
   process.exit(2);
 }
-const port = args.length ? Number(args[1]) : 5173;
+const port = cliArgs.length ? Number(cliArgs[1]) : 5173;
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
   console.error('Port must be between 1 and 65535.');
   appLog.warn('supervisor.config.rejected', { reason: 'port_invalid' });
@@ -28,6 +28,8 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 const logDir =
   process.env.FORGE_RUNTIME_DIR ||
   path.join(path.dirname(fileURLToPath(import.meta.url)), '.forge-runtime');
+// Writes to stderr and the supervisor log file. A failed file write is only debug-logged, so a
+// broken log directory can never stop the supervisor.
 function log(message) {
   console.error(message);
   try {

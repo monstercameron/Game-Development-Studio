@@ -15,7 +15,8 @@ test(
     await fs.mkdir(path.join(folder, 'images'), { recursive: true });
     await fs.mkdir(trash);
 
-    for (const [index, rel] of [
+    // A rejected restore must leave the trashed bytes in place so the item stays recoverable.
+    for (const [index, originalPath] of [
       'images/CON.txt',
       'images/trailing.',
       'images/bad\u0001.png',
@@ -25,7 +26,7 @@ test(
       await fs.writeFile(source, 'recoverable');
       await fs.writeFile(
         path.join(trash, `${id}.json`),
-        JSON.stringify({ path: rel, deletedAt: new Date().toISOString() }),
+        JSON.stringify({ path: originalPath, deletedAt: new Date().toISOString() }),
       );
 
       await assert.rejects(restoreAsset({ folder }, id), /Invalid original asset path/);

@@ -34,6 +34,7 @@ test('library picker filters by the actual supported file extensions', () => {
     ['idle.bvh'],
   );
 });
+
 test('library assets become files through their source project and enforce limits', async () => {
   const project = { id: 'source-project' },
     asset = {

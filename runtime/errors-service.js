@@ -185,6 +185,15 @@ const ESCAPE = String.fromCharCode(27);
 const ANSI_COLORS = new RegExp(`${ESCAPE}\\[[0-9;]*m`, 'g');
 const STACK_FRAME = /^\s+at\s\S/;
 
+/**
+ * Splits a logged console error into a short message and a stack. Vite often puts the stack
+ * inside the text, so the text is cut at the first stack frame. When the text has no frame, the
+ * stack of the attached Error (options.error) is used if there is one.
+ *
+ * @param {string} message Text passed to the logger.
+ * @param {unknown} options The logger second argument; options.error may hold an Error.
+ * @returns {{ message: string, stack?: string }}
+ */
 export function describeLoggedError(message, options) {
   const lines = message.replace(ANSI_COLORS, '').slice(0, 4000).split('\n');
   const firstFrame = lines.findIndex((line) => STACK_FRAME.test(line));
@@ -616,13 +625,13 @@ export function errorsService({
       return json(res, 404, { error: 'Not found.' });
     }
     const id = Number(action[1]);
-    const name = action[2];
-    if (name === 'viewed') {
+    const actionName = action[2];
+    if (actionName === 'viewed') {
       requireError(id);
       errorStore.markReviewed(id);
       return json(res, 200, { error: present(errorStore.get(id)) });
     }
-    if (name === 'status') {
+    if (actionName === 'status') {
       requireError(id);
       if (!ERROR_STATUSES.includes(input.status)) {
         throw new RequestError(400, 'Choose a valid status.');
@@ -640,21 +649,21 @@ export function errorsService({
       });
       return json(res, 200, { error: present(errorStore.get(id)) });
     }
-    if (name === 'note') {
+    if (actionName === 'note') {
       requireError(id);
       errorStore.setNote(id, optionalString(input.note, 'note', 4000));
       return json(res, 200, { error: present(errorStore.get(id)) });
     }
-    if (name === 'delete') {
+    if (actionName === 'delete') {
       if (input.confirm !== 'delete') {
         throw new RequestError(400, 'Confirm the deletion.');
       }
       return json(res, 200, { removed: errorStore.remove(id) });
     }
-    if (name === 'fix-preview') {
+    if (actionName === 'fix-preview') {
       return json(res, 200, { ...fixPreview(id), hasKey: hasSavedKey() });
     }
-    if (name === 'suggest-fix') {
+    if (actionName === 'suggest-fix') {
       const preview = fixPreview(id);
       if (input.digest !== preview.digest) {
         throw new RequestError(
@@ -698,10 +707,10 @@ export function errorsService({
         throw failure;
       }
     }
-    if (name === 'issue-preview') {
+    if (actionName === 'issue-preview') {
       return json(res, 200, await issuePreview(id));
     }
-    if (name === 'issue') {
+    if (actionName === 'issue') {
       const preview = await issuePreview(id);
       if (!preview.available) {
         throw new RequestError(409, preview.message, preview.code);

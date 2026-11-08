@@ -150,7 +150,10 @@ export function parseTargetLanguage(input) {
   return canonical;
 }
 
-/** The canonical language preference for a BCP 47 code, 'en' or the pseudo-locale; throws if not. */
+/**
+ * The canonical language preference for a BCP 47 code, 'en' or the pseudo-locale.
+ * Throws a 400 RequestError when the input is not a known language.
+ */
 export function parsePreference(input) {
   if (input === 'en' || input === PSEUDO_LOCALE) {
     return input;
@@ -665,7 +668,7 @@ export function i18nService({
         key: input.key,
         namespace,
         sourceHash: entry.hash,
-        value: input.value === null ? null : input.value,
+        value: input.value,
       });
       return json(res, 200, { key: input.key, value: input.value });
     }

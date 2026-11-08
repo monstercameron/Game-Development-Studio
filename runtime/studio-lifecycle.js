@@ -137,9 +137,14 @@ export function createStudioLifecycle({
       fs.mkdirSync(runtimeDirectory, { recursive: true });
       session = beginSession({ directory: runtimeDirectory, now });
       const { previous } = session;
+      const startupRecord = {
+        sessionId: session.sessionId,
+        startedAt: session.startedAt,
+        previous,
+      };
       atomicWriteFileSync(
         path.join(runtimeDirectory, STARTUP_FILE),
-        `${JSON.stringify({ sessionId: session.sessionId, startedAt: session.startedAt, previous })}\n`,
+        `${JSON.stringify(startupRecord)}\n`,
       );
       if (previous.state === 'unclean') {
         // Child processes read this: a resumed download repeats its last megabytes, for example.

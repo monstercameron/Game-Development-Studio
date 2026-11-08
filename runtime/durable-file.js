@@ -77,10 +77,13 @@ export async function fsyncDirectory(directory) {
     }
     throw error;
   } finally {
-    await handle?.close().catch(() => {});
+    await handle?.close().catch(() => {
+      // The sync result, or its error, is what the caller sees; a failed close adds nothing.
+    });
   }
 }
 
+/** Synchronous counterpart of fsyncDirectory, with the same return value and error rules. */
 export function fsyncDirectorySync(directory) {
   let descriptor;
   try {
@@ -135,6 +138,7 @@ export async function atomicWriteFile(file, data, { mode } = {}) {
   }
 }
 
+/** Synchronous counterpart of atomicWriteFile, with the same protocol and error behaviour. */
 export function atomicWriteFileSync(file, data, { mode } = {}) {
   const staging = stagingName(file);
   try {
@@ -191,7 +195,9 @@ export async function copyFileExclusive(source, target) {
     }
     await fsyncDirectory(path.dirname(target));
   } finally {
-    await fsp.rm(staging, { force: true }).catch(() => {});
+    await fsp.rm(staging, { force: true }).catch(() => {
+      // A leftover staging name is removed by the startup sweep; the copy result is what matters.
+    });
   }
 }
 
@@ -218,14 +224,14 @@ export async function renameWithRetry(from, to) {
 export async function moveAside(file, label = 'corrupt') {
   const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
   let target = `${file}.${label}-${stamp}`;
-  for (let n = 2; ; n++) {
+  for (let suffixNumber = 2; ; suffixNumber++) {
     try {
       await fsp.access(target);
       // log-coverage: ignore -- probing for a free name; a missing name is the normal outcome.
     } catch {
       break;
     }
-    target = `${file}.${label}-${stamp}-${n}`;
+    target = `${file}.${label}-${stamp}-${suffixNumber}`;
   }
   await fsp.rename(file, target);
   log.warn('file.moved_aside.completed', { kind: label });
@@ -378,6 +384,8 @@ export async function verifyOutputFile(file, extension) {
       size: 0,
     };
   } finally {
-    await handle?.close().catch(() => {});
+    await handle?.close().catch(() => {
+      // The verdict above is already decided; a failed close must not replace it.
+    });
   }
 }

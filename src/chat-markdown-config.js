@@ -4,6 +4,7 @@ import { safeChatMarkdownHref } from './chat-output.js';
 
 const log = createLog('chat');
 
+// Unsafe destinations (javascript:, mailto:, etc.) keep their text but lose the link.
 function ChatMarkdownLink({ href, children }) {
   const safeHref = safeChatMarkdownHref(href);
   return safeHref
@@ -52,6 +53,7 @@ function ChatMarkdownPre({ children }) {
       { type: 'button', className: 'chat-code-copy', 'aria-label': 'Copy code', onClick: copy },
       label,
     ),
+    // The visible label changes without being announced; this live region reports the result.
     React.createElement(
       'span',
       { className: 'sr-only', role: 'status' },

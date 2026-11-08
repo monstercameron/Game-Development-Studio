@@ -10,10 +10,10 @@ const prepared = {
   executables: ['C:\\studio\\python.exe'],
 };
 const running = { ...prepared, state: 'running', pid: 42, creationTicks: '1234567890123456' };
-function fixture(record, { verified = { verified: false }, process = 'indeterminate' } = {}) {
-  let current = record,
-    cleared = 0,
-    bound = 0;
+function fixture(record, { verified = { verified: false }, processState = 'indeterminate' } = {}) {
+  let current = record;
+  let cleared = 0;
+  let bound = 0;
   const journal = {
     read: async () => current,
     bind: async (_id, _nonce, found) => {
@@ -34,7 +34,7 @@ function fixture(record, { verified = { verified: false }, process = 'indetermin
   const recovery = new EngineRecovery({
     journal,
     verify: async () => verified,
-    probe: async () => ({ state: process }),
+    probe: async () => ({ state: processState }),
   });
   return { recovery, stats: () => ({ current, cleared, bound }) };
 }
@@ -49,6 +49,7 @@ test('recovery binds a challenged prepared instance', async () => {
   assert.equal(stats().bound, 1);
 });
 
+// A prepared record has no OS process yet, and an indeterminate probe proves nothing either way.
 test('uncertain processes and prepared records are never cleared', async () => {
   for (const record of [prepared, running]) {
     const { recovery, stats } = fixture(record);
@@ -57,11 +58,12 @@ test('uncertain processes and prepared records are never cleared', async () => {
   }
 });
 
+// Clearing is allowed only after the OS confirms the bound PID exited or was reused.
 test('only an OS-confirmed exited or reused process clears its bound record', async () => {
-  const { recovery, stats } = fixture(running, { process: 'exited_or_reused' });
+  const { recovery, stats } = fixture(running, { processState: 'exited_or_reused' });
   assert.equal((await recovery.reconcile(definition)).state, 'none');
   assert.equal(stats().cleared, 1);
-  const unknown = fixture(running, { process: 'indeterminate' });
-  assert.equal(await unknown.recovery.clearIfExited(definition, running), false);
-  assert.equal(unknown.stats().cleared, 0);
+  const indeterminate = fixture(running, { processState: 'indeterminate' });
+  assert.equal(await indeterminate.recovery.clearIfExited(definition, running), false);
+  assert.equal(indeterminate.stats().cleared, 0);
 });

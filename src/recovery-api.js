@@ -9,6 +9,7 @@ export class RecoveryApiError extends Error {
 }
 
 async function parse(response) {
+  // A non-JSON error body (for example from a proxy) falls back to the status message.
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new RecoveryApiError(data.error || `The recovery service returned ${response.status}.`, {

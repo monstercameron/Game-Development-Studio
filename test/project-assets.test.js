@@ -155,10 +155,10 @@ test('incomplete trash records cannot hide recoverable assets and are preserved 
   await fs.mkdir(path.join(folder, 'images'));
   await fs.writeFile(path.join(folder, 'images', 'valid.png'), 'recover me');
   const project = { folder, assets: [{ id: 'images/valid.png' }] };
-  const { trashId } = await trashAsset(project, 'images/valid.png'),
-    trash = path.join(folder, '.forge-trash');
-  const orphan = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    unpaired = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+  const { trashId } = await trashAsset(project, 'images/valid.png');
+  const trash = path.join(folder, '.forge-trash');
+  const orphan = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  const unpaired = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
   await fs.writeFile(
     path.join(trash, `${orphan}.json`),
     JSON.stringify({ path: 'images/interrupted.png' }),

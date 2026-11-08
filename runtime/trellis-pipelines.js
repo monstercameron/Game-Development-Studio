@@ -9,7 +9,7 @@ const log = createLogger('three-d');
 // trellis_manifest.pipelines_available() so the studio can offer (or hide) a pipeline while the
 // worker is stopped. The 512 pipeline's files are the base set; the others add the 1024 flow
 // models, which sit in the same repository folder. The worker re-checks before every render.
-const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const EXTRA_CHECKPOINTS = [
   'slat_flow_img2shape_dit_1_3B_1024_bf16',
   'slat_flow_imgshape2tex_dit_1_3B_1024_bf16',
@@ -27,14 +27,23 @@ function present(file) {
   }
 }
 
-export function installedTrellisPipelines(modelRoot = path.join(appRoot, 'models')) {
+/**
+ * Lists the TRELLIS.2 pipelines whose checkpoints are on disk. The 512 pipeline is always
+ * listed. The 1024 family is listed only when both extra flow checkpoints are present.
+ *
+ * @param {string} [modelRoot] Folder that holds `TRELLIS.2-4B/ckpts`. Defaults to the studio's
+ *   `models/` folder.
+ * @returns {string[]} Pipeline ids with `'512'` first. A missing or unreadable file counts as
+ *   absent, so the function never throws.
+ */
+export function installedTrellisPipelines(modelRoot = path.join(APP_ROOT, 'models')) {
   const folder = path.join(modelRoot, 'TRELLIS.2-4B', 'ckpts');
-  const higher = EXTRA_CHECKPOINTS.every(
+  const hasHigherPipelines = EXTRA_CHECKPOINTS.every(
     (name) =>
       present(path.join(folder, `${name}.json`)) &&
       present(path.join(folder, `${name}.safetensors`)),
   );
   // The 512 pipeline stays listed: whether the base checkpoints exist is reported separately
   // as model_downloaded, and a missing base disables the whole engine.
-  return higher ? ['512', '1024', '1024_cascade', '1536_cascade'] : ['512'];
+  return hasHigherPipelines ? ['512', '1024', '1024_cascade', '1536_cascade'] : ['512'];
 }

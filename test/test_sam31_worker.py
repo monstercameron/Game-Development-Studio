@@ -138,7 +138,7 @@ class Sam31WorkerTests(unittest.TestCase):
         image = "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode()
         received = []
 
-        def fake_segment(model, picture, request):
+        def fake_segment(_model, _picture, request):
             received.append((request.output, request.select, request.max_instances))
             return Image.new("RGBA", (2, 2)), {"instances": 3, "used": 2, "matches": []}
 
@@ -172,7 +172,7 @@ class Sam31WorkerTests(unittest.TestCase):
     def test_load_segment_and_guard_active_work(self):
         entered, release = threading.Event(), threading.Event()
 
-        def fake_segment(model, image, request):
+        def fake_segment(_model, image, request):
             entered.set()
             if not release.wait(8):
                 raise RuntimeError("Test timed out.")
@@ -221,11 +221,7 @@ class Sam31WorkerTests(unittest.TestCase):
             finally:
                 release.set()
 
-            def completed_job():
-                value = json.loads(http(self.base, "/api/jobs/" + job_id)[1])
-                return value if value.get("status") == "completed" else None
-
-            job = wait_for(completed_job)
+            job = wait_for_completed(self.base, job_id)
             self.assertEqual(job["metadata"]["selectedPixels"], 4)
             status, data = http(self.base, "/api/jobs/" + job_id + "/image")
             self.assertEqual(status, 200)

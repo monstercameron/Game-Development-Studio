@@ -158,6 +158,8 @@
     ];
   };
 
+  // An unknown sort key falls back to the size column (COLUMNS[2]). Share is a fixed fraction of
+  // the total, so it sorts by bytes.
   const sortRows = (rows, sort) => {
     const column = COLUMNS.find((item) => item.key === sort.key) || COLUMNS[2];
     const factor = sort.direction === 'ascending' ? 1 : -1;
@@ -232,7 +234,14 @@
     data.method.map((paragraph) => `        <p>${escapeHtml(paragraph)}</p>\n`).join('') +
     '      </details>';
 
-  // The same markup serves the static fallback (isInteractive false) and the browser.
+  /**
+   * Builds the capacity section markup. With isInteractive false it is the no-JavaScript fallback
+   * that tools/model-capacity.mjs writes into index.html; with true it adds the sort buttons and
+   * the status region used in the browser. Callers must check data with isUsableData first.
+   * @param {object} data Parsed model-capacity.json.
+   * @param {{ sort?: { key: string, direction: string }, isInteractive?: boolean }} [options]
+   * @returns {string} HTML for the section, without the wrapping element.
+   */
   const sectionMarkup = (data, { sort = DEFAULT_SORT, isInteractive = false } = {}) => {
     const summary = summarize(data);
     const tiles = tilesFor(data, summary)

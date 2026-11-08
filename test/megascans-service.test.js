@@ -93,7 +93,7 @@ async function startService(t, serviceOptions = {}) {
       `/imports?project=${project}&filename=${encodeURIComponent(filename)}${listing ? `&listing=${listing}` : ''}`,
       { raw: bytes },
     );
-  return { call, waitFor, upload, folder, root, service, origin };
+  return { call, waitFor, upload, folder, root, origin };
 }
 
 test('status reports what is automated: Fab metadata yes, downloads only after confirmation', async (t) => {
@@ -181,12 +181,13 @@ test('an uploaded archive is imported into the project with recorded provenance'
   const finished = await waitFor(queued.data.import.id, ['completed', 'failed']);
   assert.equal(finished.status, 'completed', finished.error);
   assert.equal(finished.output.skipped, 1);
-  const rel = finished.output.files[0];
-  assert.match(rel, /^3d\/megascans-old-wooden-crate-[0-9a-f]{8}\/crate\.fbx$/);
-  assert.equal((await fs.stat(path.join(folder, ...rel.split('/')))).isFile(), true);
+  const projectRelativePath = finished.output.files[0];
+  assert.match(projectRelativePath, /^3d\/megascans-old-wooden-crate-[0-9a-f]{8}\/crate\.fbx$/);
+  const absoluteOutputPath = path.join(folder, ...projectRelativePath.split('/'));
+  assert.equal((await fs.stat(absoluteOutputPath)).isFile(), true);
   assert.deepEqual(await fs.readdir(path.join(folder, '.forge-staging', 'megascans')), []);
 
-  const meta = readAssetMeta(await fs.realpath(folder), rel);
+  const meta = readAssetMeta(await fs.realpath(folder), projectRelativePath);
   assert.equal(meta.source, 'import');
   assert.equal(meta.prompt.title, 'Old Wooden Crate');
   assert.equal(meta.settings.seller, 'Quixel Megascans');
@@ -202,7 +203,7 @@ test('an uploaded archive is imported into the project with recorded provenance'
   // Dismissing removes the record only; the project file stays.
   assert.equal((await call('POST', `/imports/${finished.id}/dismiss`, { body: {} })).status, 200);
   assert.equal((await call('GET', `/imports/${finished.id}`)).status, 404);
-  await fs.stat(path.join(folder, ...rel.split('/')));
+  await fs.stat(absoluteOutputPath);
 });
 
 test('a single GLB file is imported without a listing', async (t) => {
@@ -333,16 +334,16 @@ test('imports left running by a stopped studio come back interrupted and stay st
     projectsRoot: path.join(root, 'p'),
     logger: quiet,
   });
-  const { queue: restarted, runner } = service.state;
+  const { queue: restartedQueue, runner } = service.state;
   t.after(async () => {
     runner.stop();
     service.state.handle.close();
     await fs.rm(root, { recursive: true, force: true });
   });
-  assert.equal(restarted.get(PROJECT_ID).status, 'interrupted');
+  assert.equal(restartedQueue.get(PROJECT_ID).status, 'interrupted');
   runner.pump();
   await runner.idle();
-  assert.equal(restarted.get(PROJECT_ID).status, 'interrupted', 'no automatic retry');
+  assert.equal(restartedQueue.get(PROJECT_ID).status, 'interrupted', 'no automatic retry');
 });
 
 test('the orphan sweep removes only old staging folders that no import owns', async (t) => {

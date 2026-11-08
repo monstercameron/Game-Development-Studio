@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runtime"))
-from world_views import Tee, normalize_views, skip_reason
+from world_views import Tee, normalize_views, skip_reason  # noqa: E402 - runtime is added above.
 
 
 def save(directory, name, size, color):

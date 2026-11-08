@@ -46,12 +46,12 @@ test('statsFromGltf counts triangles, vertices, materials and textures', () => {
     hasUvs: true,
   });
   // Without indices the vertex count is the draw count.
-  const plain = statsFromGltf({
+  const plainStats = statsFromGltf({
     accessors: [{ count: 9 }],
     meshes: [{ primitives: [{ attributes: { POSITION: 0 } }] }],
   });
-  assert.equal(plain.triangles, 3);
-  assert.equal(plain.hasUvs, false);
+  assert.equal(plainStats.triangles, 3);
+  assert.equal(plainStats.hasUvs, false);
   assert.equal(statsFromGltf({}).triangles, 0);
 });
 
@@ -64,9 +64,9 @@ test('readGlbStats reads a GLB header and rejects other files', () => {
     const stats = readGlbStats(file);
     assert.equal(stats.bytes, bytes.length);
     assert.equal(stats.triangles, 398);
-    const text = path.join(folder, 'b.glb');
-    fs.writeFileSync(text, 'not a glb at all, just text that is long enough to read');
-    assert.equal(readGlbStats(text), null);
+    const textFile = path.join(folder, 'b.glb');
+    fs.writeFileSync(textFile, 'not a glb at all, just text that is long enough to read');
+    assert.equal(readGlbStats(textFile), null);
     assert.equal(readGlbStats(path.join(folder, 'missing.glb')), null);
     const truncated = path.join(folder, 'c.glb');
     fs.writeFileSync(truncated, bytes.subarray(0, 40));

@@ -10,13 +10,13 @@ import { randomUUID } from 'node:crypto';
 test('thumbnail API caches visual assets, rejects stale updates and refreshes when source changes', async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-thumbnails-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
-  const before = process.env.FORGE_PROJECTS_DIR;
+  const previousProjectsDir = process.env.FORGE_PROJECTS_DIR;
   process.env.FORGE_PROJECTS_DIR = root;
   t.after(() => {
-    if (before === undefined) {
+    if (previousProjectsDir === undefined) {
       delete process.env.FORGE_PROJECTS_DIR;
     } else {
-      process.env.FORGE_PROJECTS_DIR = before;
+      process.env.FORGE_PROJECTS_DIR = previousProjectsDir;
     }
   });
   const { projectsService } = await import(`../runtime/projects.js?thumbnail-test=${randomUUID()}`);
@@ -48,6 +48,8 @@ test('thumbnail API caches visual assets, rejects stale updates and refreshes wh
   const listing = await (await fetch(`${origin}/api/projects`)).json(),
     asset = listing.projects[0].assets[0];
   const endpoint = `${origin}/api/projects/${id}/thumbnail?path=${encodeURIComponent(asset.id)}`;
+  // A 1x1 PNG keeps the cached payload tiny. The server accepts an upload only when its size and
+  // modified time match the source asset it describes.
   const image =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
   const post = (body, source = origin) =>
@@ -81,6 +83,8 @@ test('thumbnail API caches visual assets, rejects stale updates and refreshes wh
     Buffer.from(await cached.arrayBuffer()),
     Buffer.from(image.split(',')[1], 'base64'),
   );
+  // Changing the source alters its size and modified time, so the cached thumbnail must stop
+  // being served and the old client values must be refused.
   await fs.writeFile(file, 'changed and longer');
   assert.equal((await fetch(endpoint)).status, 404);
   assert.equal((await post({ image, size: asset.size, modified: asset.modified })).status, 400);

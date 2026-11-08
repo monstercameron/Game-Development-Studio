@@ -68,7 +68,6 @@ async function startService(t, options = {}) {
     environment: ENVIRONMENT,
     scanIntervalMs: 0,
     aiAssistSettings: createAiAssistSettings({ directory: runtimeDir }),
-    github: options.github,
     ...options.service,
   });
   service.configureServer({ middlewares: app, httpServer: server, config: { logger } });
@@ -258,9 +257,9 @@ test('the sent request equals the preview, and the key never leaves the server',
 });
 
 test('provider errors become actionable messages without echoing the key', async (t) => {
-  let status = 401;
+  let providerStatus = 401;
   const fake = await startFakeOpenAI(t, (_req, res) => {
-    res.statusCode = status;
+    res.statusCode = providerStatus;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ error: { message: `Incorrect API key provided: ${FAKE_KEY}` } }));
   });
@@ -278,9 +277,9 @@ test('provider errors become actionable messages without echoing the key', async
     503: /server problem/,
   };
   for (const [code, pattern] of Object.entries(expectations)) {
-    status = Number(code);
+    providerStatus = Number(code);
     const result = await call('POST', `/${id}/suggest-fix`, { digest: data.digest });
-    assert.equal(result.status, status);
+    assert.equal(result.status, providerStatus);
     assert.match(result.data.error, pattern);
     assert.ok(!result.text.includes(FAKE_KEY));
   }

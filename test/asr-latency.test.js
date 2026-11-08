@@ -113,8 +113,8 @@ test('latency is saved without a restart when the engine is stopped', async () =
 });
 
 test('an unchanged value restarts a running engine, which may still hold another mode', async () => {
-  // Regression: after a refused change the saved value (160) differed from the running engine (1120),
-  // so an early return reported a mode the engine did not use.
+  // Regression: after a refused change the saved value (160) differed from the running
+  // engine (1120), so an early return reported a mode the engine did not use.
   const run = harness();
   const reapplied = await applyAsrLatency(160, run.deps);
   assert.deepEqual(run.calls, ['write 160', 'stop', 'start']);

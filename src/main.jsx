@@ -463,8 +463,8 @@ const initialDrafts = Object.fromEntries(
 );
 function load(key, fallback) {
   try {
-    const v = localStorage.getItem(key);
-    return v ? JSON.parse(v) : fallback;
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : fallback;
   } catch (error) {
     log.debug('ui.storage.read.failed', { settingKey: key, error });
     return fallback;
@@ -489,8 +489,8 @@ function App() {
   });
   const [renderQueueVersion, setRenderQueueVersion] = useState(0);
   const [submittingMusic, setSubmittingMusic] = useState(false);
-  const [renderEstimate, setRenderEstimate] = useState(null),
-    [estimateError, setEstimateError] = useState('');
+  const [renderEstimate, setRenderEstimate] = useState(null);
+  const [estimateError, setEstimateError] = useState('');
   // Scope and request keys keep the last estimate on screen while a new one loads.
   const estimateScope = useRef('');
   const estimateRequestKey = useRef('');
@@ -611,9 +611,9 @@ function App() {
       if (!response.ok) {
         throw Error('Project service unavailable.');
       }
-      const data = await response.json();
+      const projectsResponse = await response.json();
       if (request === latestProjectsRequest.current) {
-        setProjects(data.projects);
+        setProjects(projectsResponse.projects);
         setProjectsError('');
         setProjectsLoading(false);
         if (isProjectsRefreshFailing.current) {
@@ -623,7 +623,7 @@ function App() {
       } else {
         log.debug('ui.projects.refresh.stale', { outcome: 'completed' });
       }
-      return data.projects;
+      return projectsResponse.projects;
     } catch (error) {
       if (request === latestProjectsRequest.current) {
         // Logged once when the poll starts failing, not on every 5 second retry.
@@ -651,8 +651,8 @@ function App() {
   }, []);
   useEffect(() => {
     if (notice) {
-      const t = setTimeout(() => setNotice(''), 2800);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => setNotice(''), 2800);
+      return () => clearTimeout(timer);
     }
   }, [notice]);
   // Error toasts are also kept in the Errors review (src/error-capture.js decides which are errors).
@@ -699,8 +699,8 @@ function App() {
             'button:not([disabled]), select:not([disabled]), a[href], input:not([disabled])',
           ),
         ];
-        const first = items[0],
-          last = items.at(-1);
+        const first = items[0];
+        const last = items.at(-1);
         if (e.shiftKey && document.activeElement === first) {
           e.preventDefault();
           last?.focus();
@@ -892,8 +892,9 @@ function App() {
       ...d,
       [section]: { ...initialDrafts[section], ...d[section], ...values },
     }));
-  // Reset to defaults is gated twice: it stays disabled while the page already matches its defaults,
-  // and an enabled click only arms an inline confirmation instead of discarding work immediately.
+  // Reset to defaults is gated twice: it stays disabled while the page already matches its
+  // defaults, and an enabled click only arms an inline confirmation instead of discarding work
+  // immediately.
   const [resetArmed, setResetArmed] = useState(false);
   useEffect(() => setResetArmed(false), [section]);
   const pageIsDirty = (() => {
@@ -938,7 +939,8 @@ function App() {
     }
     setResetArmed(false);
     setNotice(`${current.title} settings were reset to their defaults.`);
-    // The confirm buttons just unmounted; give keyboard focus back to the first field instead of losing it.
+    // The confirm buttons just unmounted; give keyboard focus back to the first field
+    // instead of losing it.
     setTimeout(() => {
       document
         .querySelector('.editor-page .form-panel :is(textarea, select, input:not([type=hidden]))')
@@ -1041,8 +1043,8 @@ function App() {
   };
   const addReferenceFiles = (files) => {
     const refs = files.map((f) => ({ name: f.name, size: f.size }));
-    let skippedNote = '',
-      addedNothing = false;
+    let skippedNote = '';
+    let addedNothing = false;
     if (files.length) {
       if (section === 'video' || section === 'images') {
         const isVideo = section === 'video',
@@ -2129,9 +2131,9 @@ function App() {
                                 type="button"
                                 aria-label={'Remove ' + ref.name}
                                 onClick={() => {
-                                  // Match by name and size rather than by the rendered index: two quick
-                                  // clicks can arrive before React re-renders, and a stale index would
-                                  // remove the wrong file and desync the list from the staged files.
+                                  // Match by name and size, not by rendered index: two quick clicks
+                                  // can arrive before React re-renders, and a stale index would
+                                  // remove the wrong file and desync the list from staged files.
                                   const dropFirst = (list) => {
                                     const at = list.findIndex(
                                       (item) => item.name === ref.name && item.size === ref.size,
@@ -2342,7 +2344,10 @@ function App() {
                         </p>
                       </div>
                     )}
-                  {/* The submit bar comes last in the DOM so keyboard users reach it after the fields (CSS keeps it visually pinned). */}
+                  {/*
+                    The submit bar comes last in the DOM so keyboard users reach it
+                    after the fields. CSS keeps it visually pinned.
+                  */}
                   {section !== 'game' && (
                     <div className="form-bottom">
                       <div>

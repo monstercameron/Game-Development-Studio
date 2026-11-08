@@ -68,7 +68,7 @@ async function setup(t) {
     }
     await fs.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
-  return { dir, projects, projectId, queue, open, state, records };
+  return { projectId, queue, open, records };
 }
 
 const sfx = (projectId, prompt) => ({ type: 'sfx', projectId, request: { prompt } });
@@ -297,7 +297,7 @@ test('only waiting renders without an engine job can be moved', async (t) => {
     queue.db.exec(`UPDATE jobs SET status='queued',remote_id=NULL WHERE id='${mover.id}'`);
   }
   assert.throws(() => queue.move(randomUUID(), { to: 'end' }), refused(404, 'not_found'));
-  // Waiting renders in the other waiting states move fine.
+  // waiting_engine and waiting_memory are the only movable states besides queued.
   for (const status of ['waiting_engine', 'waiting_memory']) {
     queue.db.exec(`UPDATE jobs SET status='${status}' WHERE id='${mover.id}'`);
     assert.equal(queue.move(mover.id, { to: 'end' }).moved, true, status);

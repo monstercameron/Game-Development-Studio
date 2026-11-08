@@ -40,6 +40,7 @@ const folders = {
   vegetation: ['3d/'],
   motion: ['motion/', 'animations/'],
 };
+
 async function post(url, body, kind = 'project') {
   // log-coverage: ignore -- /api requests are logged by the browser capture (http.request.failed).
   const response = await fetch(url, {
@@ -53,6 +54,7 @@ async function post(url, body, kind = 'project') {
   }
   return result;
 }
+
 function matches(asset, section) {
   const id = asset.id.toLowerCase();
   if (section === 'game') {
@@ -64,9 +66,18 @@ function matches(asset, section) {
   );
 }
 
+// Only these job types take a new random seed on rerun. World jobs do so in worldgen mode only.
+function supportsNewSeed(job) {
+  return (
+    ['images', 'music', 'sfx', 'voices', '3d', 'trellis', 'motion'].includes(job.type) ||
+    (job.type === 'world' && job.request.model === 'worldgen' && job.request.mode !== 'panorama')
+  );
+}
+
 // The large preview: a skeleton until the picture arrives, and a plain message if it cannot load.
 function PreviewImage({ src, alt }) {
   const [state, setState] = useState('loading');
+  // A new source starts a new load, so the skeleton shows until onLoad or onError fires.
   useEffect(() => setState('loading'), [src]);
   if (state === 'failed') {
     return (
@@ -116,13 +127,13 @@ export default function PreviewArea({
   const [confirmDelete, setConfirmDelete] = useRouteToggle('trashPreview');
   const [refining, setRefining] = useRouteToggle('refine');
   const [loadedMediaAspect, setLoadedMediaAspect] = useState(null);
-  const [jobs, setJobs] = useState([]),
-    [message, setMessage] = useState(''),
-    [busy, setBusy] = useState(false),
-    [undo, setUndo] = useState(null),
-    [prompt, setPrompt] = useState(''),
-    [newSeed, setNewSeed] = useState(true),
-    [useImage, setUseImage] = useState(false);
+  const [jobs, setJobs] = useState([]);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [undo, setUndo] = useState(null);
+  const [prompt, setPrompt] = useState('');
+  const [newSeed, setNewSeed] = useState(true);
+  const [useImage, setUseImage] = useState(false);
   const assets = useMemo(
     () =>
       project?.assets.filter(
@@ -147,6 +158,7 @@ export default function PreviewArea({
       ) || [],
     [project, section, jobs],
   );
+  // Falls back to the first asset when the ?preview= id is missing or no longer in the project.
   const asset = assets.find((item) => item.id === selected) || assets[0];
   // Generated files are named forge-<id>; the stored prompt gives them a readable caption.
   const metaIndex = useAssetMetaIndex(
@@ -204,9 +216,9 @@ export default function PreviewArea({
         if (!response.ok) {
           throw Error();
         }
-        const data = await response.json();
+        const jobsResponse = await response.json();
         if (active && request === latestRequest) {
-          setJobs(data.jobs || []);
+          setJobs(jobsResponse.jobs || []);
         }
       } catch (error) {
         log.debug('ui.jobs.load.failed', { error });
@@ -270,12 +282,9 @@ export default function PreviewArea({
     setBusy(true);
     setMessage('');
     try {
+      // Masked to 31 bits so the seed is a non-negative 32-bit integer.
       const seed =
-        newSeed &&
-        (['images', 'music', 'sfx', 'voices', '3d', 'trellis', 'motion'].includes(job.type) ||
-          (job.type === 'world' &&
-            job.request.model === 'worldgen' &&
-            job.request.mode !== 'panorama'))
+        newSeed && supportsNewSeed(job)
           ? crypto.getRandomValues(new Uint32Array(1))[0] & 0x7fffffff
           : undefined;
       let reference;
@@ -525,12 +534,7 @@ export default function PreviewArea({
                     />
                   </>
                 )}
-              {(['images', 'music', 'sfx', 'voices', '3d', 'trellis', 'motion'].includes(
-                job.type,
-              ) ||
-                (job.type === 'world' &&
-                  job.request.model === 'worldgen' &&
-                  job.request.mode !== 'panorama')) && (
+              {supportsNewSeed(job) && (
                 <label className="iteration-check">
                   <input
                     type="checkbox"

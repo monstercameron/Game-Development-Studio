@@ -10,14 +10,19 @@ export class ErrorsApiError extends Error {
 }
 
 async function parse(response) {
-  const data = await response.json().catch(() => ({}));
+  // A non-JSON body (for example a proxy error page) is treated as empty so the
+  // status-based message below still applies.
+  const responseBody = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new ErrorsApiError(data.error || `The errors service returned ${response.status}.`, {
-      status: response.status,
-      code: data.code,
-    });
+    throw new ErrorsApiError(
+      responseBody.error || `The errors service returned ${response.status}.`,
+      {
+        status: response.status,
+        code: responseBody.code,
+      },
+    );
   }
-  return data;
+  return responseBody;
 }
 
 export async function getErrors(path, { signal } = {}) {

@@ -42,8 +42,9 @@ export function isRtlLocale(locale) {
     return true;
   }
   try {
-    const info = new Intl.Locale(canonical);
-    const textInfo = typeof info.getTextInfo === 'function' ? info.getTextInfo() : info.textInfo;
+    const intlLocale = new Intl.Locale(canonical);
+    const textInfo =
+      typeof intlLocale.getTextInfo === 'function' ? intlLocale.getTextInfo() : intlLocale.textInfo;
     return textInfo?.direction === 'rtl';
     // log-coverage: ignore -- runs on every render through directionFor(); unsupported runtimes read LTR.
   } catch {
@@ -122,19 +123,19 @@ function pickForm(forms, category) {
 }
 
 /**
- * A catalog loader resolves `{ entries, machine? }` for (locale, namespace). An entry is either
- * the translated value (string, or plural forms object) or `{ value, source?, kind?, model? }`
- * where `source` is the English text it was translated from; an entry whose source differs from
- * the current English default is ignored.
+ * A catalog loader (set with setLoaders) resolves `{ entries, machine? }` for (locale, namespace).
+ * An entry is either the translated value (string, or plural forms object) or
+ * `{ value, source?, kind?, model? }` where `source` is the English text it was translated from;
+ * an entry whose source differs from the current English default is ignored.
  *
- * @param {{ locale?: string }} options
+ * @param {{ locale?: string }} [options] Initial locale. An invalid tag falls back to 'en'.
  */
 export function createI18nStore({ locale = DEFAULT_LOCALE } = {}) {
   let activeLocale = normalizeLocale(locale) || DEFAULT_LOCALE;
   let showOriginal = false;
   let version = 0;
   let loaders = [];
-  // locale -> namespace -> { status, entries: Map, machine }
+  // locale -> namespace -> { status, entries: Map, machine, promise? } (promise while loading)
   const catalogs = new Map();
   const listeners = new Set();
   const reverse = new Map();
@@ -215,11 +216,11 @@ export function createI18nStore({ locale = DEFAULT_LOCALE } = {}) {
 
   function flush() {
     flushScheduled = false;
-    const work = [...pending];
+    const pendingWork = [...pending];
     pending.clear();
-    Promise.all(work.map((item) => item.promise))
+    Promise.all(pendingWork.map((item) => item.promise))
       .then(() => {
-        if (work.some((item) => item.locale === activeLocale)) {
+        if (pendingWork.some((item) => item.locale === activeLocale)) {
           emit();
         }
       })
@@ -296,13 +297,13 @@ export function createI18nStore({ locale = DEFAULT_LOCALE } = {}) {
    */
   function tp(key, count, forms, params) {
     const values = { count, ...params };
-    const englishText = interpolate(pickForm(forms, pluralCategory(DEFAULT_LOCALE, count)), values);
+    const englishForm = pickForm(forms, pluralCategory(DEFAULT_LOCALE, count));
+    const englishText = interpolate(englishForm, values);
     if (!isTranslating()) {
       return englishText;
     }
     if (activeLocale === PSEUDO_LOCALE) {
-      const form = pickForm(forms, pluralCategory(DEFAULT_LOCALE, count));
-      const shown = interpolate(pseudoLocalize(form), values);
+      const shown = interpolate(pseudoLocalize(englishForm), values);
       remember(shown, englishText);
       return shown;
     }

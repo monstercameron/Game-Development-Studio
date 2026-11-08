@@ -48,6 +48,18 @@ const definitions = {
 
 // With `readSetting` (the worker passes getSetting) the engines.autoStart.<engine> setting decides,
 // so turning automatic starts off also stops this restart. It applies the same environment rule.
+/**
+ * Builds the handler that restarts one of Forge's own engines after an interrupted render.
+ *
+ * @param {object} options
+ * @param {(engineId: string) => Promise<{ status: string, message?: string }>} options.startEngine
+ *   Errors thrown here propagate to the caller; they are not converted to a result.
+ * @param {Record<string, string | undefined>} [options.env] Used only when `readSetting` is null.
+ * @param {((key: string) => unknown) | null} [options.readSetting] Reads engines.autoStart.<engine>.
+ * @returns {(type: string) => Promise<null | { status: string, stage: string, error: string }>}
+ *   Null when the type is unknown, the restart is not permitted, or the engine started. Returns
+ *   a needs_attention result only when the engine could not be reconnected.
+ */
 export function createRecoverService({ startEngine, env = process.env, readSetting = null }) {
   return async (type) => {
     const definition = definitions[type];

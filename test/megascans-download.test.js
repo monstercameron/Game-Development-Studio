@@ -94,7 +94,7 @@ async function setup(t, { fab: fabOptions, service: serviceOptions = {}, confirm
   }
   const download = (choice = { fileUid: FILE_UIDS.glbMid }) =>
     call('POST', '/downloads', { project: PROJECT_ID, listing: LISTING, ...choice });
-  return { fab, call, download, waitFor, folder, logged, service, root, origin };
+  return { fab, call, download, waitFor, folder, logged, service, origin };
 }
 
 test('files are grouped GLB first, with a recommended mid-quality GLB and the extras hidden', async () => {
@@ -217,9 +217,9 @@ test('a GLB is downloaded, size-checked and saved with its source recorded', asy
   assert.equal(queued.data.import.fileUid, FILE_UIDS.glbMid);
   const done = await waitFor(queued.data.import.id, ['completed', 'failed']);
   assert.equal(done.status, 'completed', done.error);
-  const rel = done.output.files[0];
-  assert.match(rel, /^3d\/historic-crate-01-[0-9a-f]{8}\.glb$/);
-  const saved = await fs.readFile(path.join(folder, ...rel.split('/')));
+  const relativePath = done.output.files[0];
+  assert.match(relativePath, /^3d\/historic-crate-01-[0-9a-f]{8}\.glb$/);
+  const saved = await fs.readFile(path.join(folder, ...relativePath.split('/')));
   assert.deepEqual(saved, fab.state.files[FILE_UIDS.glbMid].bytes);
   assert.deepEqual(await fs.readdir(path.join(folder, '.forge-staging', 'megascans')), []);
 
@@ -234,7 +234,7 @@ test('a GLB is downloaded, size-checked and saved with its source recorded', asy
   assert.equal(JSON.stringify(done).includes('SECRET-SIGNED-TOKEN'), false);
   assert.equal(logged.join('\n').includes('SECRET-SIGNED-TOKEN'), false);
 
-  const meta = readAssetMeta(await fs.realpath(folder), rel);
+  const meta = readAssetMeta(await fs.realpath(folder), relativePath);
   assert.equal(meta.source, 'import');
   assert.equal(meta.prompt.title, 'Historic Crate 01');
   assert.equal(meta.settings.seller, 'Quixel Megascans');
@@ -362,16 +362,16 @@ test('a download that ends early keeps its partial file and resumes with a Range
   const failed = await waitFor(id, ['failed', 'completed']);
   assert.equal(failed.status, 'failed');
   assert.match(failed.error, /ended early|interrupted/);
-  const part = path.join(folder, '.forge-staging', 'megascans', id, 'upload.glb.part');
-  const partial = (await fs.stat(part)).size;
-  assert.ok(partial > 0 && partial < fab.state.files[FILE_UIDS.glbMid].bytes.length);
+  const partPath = path.join(folder, '.forge-staging', 'megascans', id, 'upload.glb.part');
+  const partialBytes = (await fs.stat(partPath)).size;
+  assert.ok(partialBytes > 0 && partialBytes < fab.state.files[FILE_UIDS.glbMid].bytes.length);
 
   fab.state.cdnMode = 'ok';
   assert.equal((await call('POST', `/imports/${id}/retry`, {})).status, 200);
   const done = await waitFor(id, ['completed', 'failed']);
   assert.equal(done.status, 'completed', done.error);
   assert.equal(fab.state.infoLog.length, 2, 'a fresh signed address for the resume');
-  assert.equal(fab.state.cdnLog[1].range, `bytes=${partial}-`);
+  assert.equal(fab.state.cdnLog[1].range, `bytes=${partialBytes}-`);
   const saved = await fs.readFile(path.join(folder, ...done.output.files[0].split('/')));
   assert.deepEqual(saved, fab.state.files[FILE_UIDS.glbMid].bytes);
 });

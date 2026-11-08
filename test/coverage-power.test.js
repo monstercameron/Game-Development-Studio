@@ -32,6 +32,8 @@ function createService(spawnProcess) {
   return {
     close() {
       httpServer.emit('close');
+      // powerService registers a process exit hook. Remove it so each test
+      // leaves no process listener behind.
       for (const listener of process.listeners('exit')) {
         if (!originalExitListeners.includes(listener)) {
           process.removeListener('exit', listener);

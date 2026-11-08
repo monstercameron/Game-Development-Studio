@@ -14,6 +14,8 @@ from motionbricks_bvh import (
 )
 
 
+# A 30-joint skeleton in JOINTS order, written as BVH text. The two legs (joints 22 and 26)
+# are offset to opposite sides so that the left and right legs are not interchangeable.
 def fixture():
     parents = [
         -1,
@@ -53,9 +55,15 @@ def fixture():
     lines = ["HIERARCHY"]
     order = []
 
+    # Depth-first order. Each motion row has 6 root channels and 3 channels per other joint,
+    # so the row width below is taken from len(order).
     def emit(i):
         order.append(i)
-        offset = (-10, -5, 0) if i == 22 else (10, -5, 0) if i == 26 else (0, 5, 0)
+        offset = (0, 5, 0)
+        if i == 22:
+            offset = (-10, -5, 0)
+        elif i == 26:
+            offset = (10, -5, 0)
         lines.extend(
             [
                 f"{'ROOT' if i == 0 else 'JOINT'} {JOINTS[i]}",
@@ -74,6 +82,8 @@ def fixture():
 
     emit(0)
     lines.extend(["MOTION", "Frames: 12", "Frame Time: 0.033333333"])
+    # Root Xposition carries the frame index and Yposition stays at 100, so a test can follow
+    # the root channels through the encode and decode round trip.
     for frame in range(12):
         lines.append(" ".join(map(str, [frame, 100, 0, 0, 0, 0] + [0] * (3 * (len(order) - 1)))))
     return "\n".join(lines) + "\n"
@@ -90,10 +100,10 @@ class MotionBricksBvhTests(unittest.TestCase):
         raw = np.zeros((1, 64, 366))
         raw[0, :, :3] = inputs["global_root_values"][0, 3, :3]
         raw[0, :, 92:272] = inputs["local_poses"][0, 3, 87:]
-        result = decode_bvh(
+        decoded_bvh = decode_bvh(
             clip, {"pred_global_motions": raw, "pred_num_tokens": np.array([8])}, align
         )
-        saved = parse_bvh(result)
+        saved = parse_bvh(decoded_bvh)
         self.assertEqual(len(saved.frames), 26)
         self.assertEqual(saved.stride, 1)
         np.testing.assert_allclose(saved.frames[:, 0], 3.0, atol=1e-5)
@@ -119,16 +129,16 @@ class MotionBricksBvhTests(unittest.TestCase):
                 encode_pose_windows(clip, 0, 6, num_target_poses=invalid)
 
     def test_rejects_incompatible_and_malformed_input(self):
-        text = fixture()
+        bvh_text = fixture()
         for invalid in [
-            text.replace("LeftEye", "MissingEye"),
-            text.replace("Frame Time: 0.033333333", "Frame Time: 0.04"),
-            text.replace("Frames: 12", "Frames: 99999"),
-            text.replace("Xrotation Yrotation Zrotation", "Xrotation Xrotation Zrotation", 1),
+            bvh_text.replace("LeftEye", "MissingEye"),
+            bvh_text.replace("Frame Time: 0.033333333", "Frame Time: 0.04"),
+            bvh_text.replace("Frames: 12", "Frames: 99999"),
+            bvh_text.replace("Xrotation Yrotation Zrotation", "Xrotation Xrotation Zrotation", 1),
         ]:
             with self.subTest(invalid=invalid[:80]), self.assertRaises(ValueError):
                 parse_bvh(invalid)
-        clip = parse_bvh(text)
+        clip = parse_bvh(bvh_text)
         for args in [(-1, 1), (0, 10)]:
             with self.assertRaises(ValueError):
                 encode_pose_windows(clip, *args)

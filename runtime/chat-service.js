@@ -19,6 +19,7 @@ const json = (res, status, data) => {
   });
   res.end(JSON.stringify(data));
 };
+
 function destination(input) {
   if (input.provider === 'openai') {
     return new URL('https://api.openai.com/v1/');
@@ -35,8 +36,8 @@ function destination(input) {
   } catch {
     throw Error('Enter a valid compatible server URL.');
   }
-  const h = u.hostname.toLowerCase(),
-    parts = h.split('.').map(Number);
+  const h = u.hostname.toLowerCase();
+  const parts = h.split('.').map(Number);
   const privateV4 =
     parts.length === 4 &&
     parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 255) &&
@@ -57,26 +58,39 @@ function destination(input) {
   u.pathname = u.pathname.replace(/\/+$/, '') + '/';
   return u;
 }
+
 // The studio's own llama.cpp server. Only it receives pictures and llama.cpp-only fields.
 function isStudioEngine(input, target) {
   return (
     input.provider === 'compatible' && target.hostname === '127.0.0.1' && target.port === '8098'
   );
 }
+
 function hasImages(input) {
   return (
     Array.isArray(input.messages) &&
     input.messages.some((m) => m !== null && typeof m === 'object' && m.images !== undefined)
   );
 }
+
 function sanitize(message, key) {
   return String(message || 'Request failed.')
     .slice(0, 1600)
     .split(key || '\u0000')
     .join('[redacted]');
 }
+
 // Picture input exists only on the studio's own server, and only when that running server
 // reports a vision projector through llama.cpp's /props.
+/**
+ * Builds the chat HTTP service mounted at /api/chat by both hosts.
+ *
+ * @param {object} [options] Dependencies that tests replace with fakes.
+ * @param {object} [options.store] Saved API key store with a get(provider) method.
+ * @param {Function} [options.fetchImpl] Fetch used for upstream model requests.
+ * @param {Function} [options.projectorExists] Reports whether the vision projector file exists.
+ * @returns {{ name: string, configureServer: Function, configurePreviewServer: Function }}
+ */
 export function chatService({
   store = credentialStore,
   fetchImpl = fetch,
@@ -177,13 +191,13 @@ export function chatService({
       let target;
       try {
         target = destination(input);
-      } catch (e) {
+      } catch (error) {
         log.warn('chat.request.rejected', {
           route: '/api/chat/:action',
           reason: 'invalid_connection',
-          errorClass: e?.name,
+          errorClass: error?.name,
         });
-        return json(res, 400, { error: e.message });
+        return json(res, 400, { error: error.message });
       }
       if (route === '/vision') {
         return json(res, 200, await describeVision(input, target));
@@ -241,7 +255,7 @@ export function chatService({
             signal: abort.signal,
           });
           stopModelsUpstream({ status: upstream.status });
-          const data = await upstream.json().catch((error) => {
+          const upstreamBody = await upstream.json().catch((error) => {
             log.debug('chat.upstream.body.unreadable', { errorClass: error?.name });
             return {};
           });
@@ -255,11 +269,14 @@ export function chatService({
               durationMs: Date.now() - startedAt,
             });
             return json(res, upstream.status, {
-              error: sanitize(data?.error?.message || `Server returned ${upstream.status}.`, key),
+              error: sanitize(
+                upstreamBody?.error?.message || `Server returned ${upstream.status}.`,
+                key,
+              ),
             });
           }
-          const models = Array.isArray(data.data)
-            ? data.data
+          const models = Array.isArray(upstreamBody.data)
+            ? upstreamBody.data
                 .filter((x) => x !== null && typeof x === 'object' && typeof x.id === 'string')
                 .map((x) => x.id)
                 .slice(0, 1000)
@@ -453,7 +470,7 @@ export function chatService({
         });
         stopCompletionUpstream({ status: upstream.status });
         if (!upstream.ok) {
-          const data = await upstream.json().catch((error) => {
+          const upstreamBody = await upstream.json().catch((error) => {
             log.debug('chat.upstream.body.unreadable', { errorClass: error?.name });
             return {};
           });
@@ -466,7 +483,10 @@ export function chatService({
             durationMs: Date.now() - startedAt,
           });
           return json(res, upstream.status, {
-            error: sanitize(data?.error?.message || `Server returned ${upstream.status}.`, key),
+            error: sanitize(
+              upstreamBody?.error?.message || `Server returned ${upstream.status}.`,
+              key,
+            ),
           });
         }
         if (!upstream.body) {

@@ -18,7 +18,12 @@ log = get_logger("runtime")
 
 
 def ensure_hidden_console():
-    """Attach a hidden console when the process has none; return True if created."""
+    """Attach a hidden console when the process has none; return True if created.
+
+    Returns False when no console was needed (non-Windows, FORGE_ALLOW_CONSOLE_WINDOWS=1,
+    or a console already exists) and when attaching fails. A failure is logged and never raised,
+    because a missing hidden console only means extra windows, not a broken engine.
+    """
     if sys.platform != "win32" or os.environ.get("FORGE_ALLOW_CONSOLE_WINDOWS") == "1":
         return False
     try:

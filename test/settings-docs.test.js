@@ -21,10 +21,10 @@ test('docs/SETTINGS.md lists every registered key and every environment variable
 });
 
 test('the MCP guide and the test guide mention the settings tools and tests', () => {
-  const mcp = read('docs/MCP.md');
+  const mcpGuide = read('docs/MCP.md');
   for (const tool of ['forge_settings_list', 'forge_settings_set', 'forge_settings_reset']) {
-    assert.ok(mcp.includes(tool), `${tool} is missing from MCP.md`);
+    assert.ok(mcpGuide.includes(tool), `${tool} is missing from MCP.md`);
   }
-  const tests = read('test/README.md');
-  assert.ok(tests.includes('core-settings.test.js'));
+  const testGuide = read('test/README.md');
+  assert.ok(testGuide.includes('core-settings.test.js'));
 });

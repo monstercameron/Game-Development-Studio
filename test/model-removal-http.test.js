@@ -8,8 +8,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Client } from '@modelcontextprotocol/client';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import {
   Client as ModernClient,
   StreamableHTTPClientTransport as ModernHTTP,
@@ -74,6 +73,7 @@ test(
     await fs.writeFile(path.join(folder, 'weights.bin'), 'disposable model');
     const sentinel = path.join(root, 'preserved.txt');
     await fs.writeFile(sentinel, 'keep');
+    // Ask the OS for a free loopback port, then release it for the studio server to bind.
     const probe = createServer();
     probe.listen(0, '127.0.0.1');
     await once(probe, 'listening');
@@ -116,9 +116,9 @@ test(
       const wrongHost = await new Promise((resolve, reject) => {
         const req = request(
           { host: '127.0.0.1', port, path: '/api/models', headers: { Host: 'example.com' } },
-          (res) => {
-            res.resume();
-            resolve(res.statusCode);
+          (response) => {
+            response.resume();
+            resolve(response.statusCode);
           },
         );
         req.on('error', reject);

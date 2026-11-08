@@ -50,22 +50,26 @@ def _load_component(base):
     config = json.loads(Path(f"{base}.json").read_text(encoding="utf-8"))
     with init_empty_weights():
         model = getattr(models, config["name"])(**config["args"])
-    # assign=True adopts the checkpoint tensors as they are, including their stored dtype (bf16/fp16).
-    # The model declares its own dtypes (the input and output layers stay float32 while the torso is
-    # converted), so remember them and restore them after assignment. Without this the float32 noise
-    # meets bfloat16 weights ("mat1 and mat2 must have the same dtype").
-    declared = {name: value.dtype for name, value in model.named_parameters()}
-    declared_buffers = {name: value.dtype for name, value in model.named_buffers()}
+    # assign=True adopts the checkpoint tensors as they are, including their stored dtype
+    # (bf16/fp16). The model declares its own dtypes (the input and output layers stay float32
+    # while the torso is converted), so remember them and restore them after assignment. Without
+    # this the float32 noise meets bfloat16 weights ("mat1 and mat2 must have the same dtype").
+    declared_dtypes = {name: value.dtype for name, value in model.named_parameters()}
+    declared_buffer_dtypes = {name: value.dtype for name, value in model.named_buffers()}
     state = load_file(f"{base}.safetensors", device="cpu")
-    mismatch = model.load_state_dict(state, strict=False, assign=True)
+    load_result = model.load_state_dict(state, strict=False, assign=True)
     for name, value in model.named_parameters():
-        if name in declared and value.dtype != declared[name] and value.device.type != "meta":
-            value.data = value.data.to(declared[name])
+        if (
+            name in declared_dtypes
+            and value.dtype != declared_dtypes[name]
+            and value.device.type != "meta"
+        ):
+            value.data = value.data.to(declared_dtypes[name])
     for name, value in model.named_buffers():
-        if name in declared_buffers and value.dtype != declared_buffers[name]:
+        if name in declared_buffer_dtypes and value.dtype != declared_buffer_dtypes[name]:
             if value.device.type != "meta" and value.is_floating_point():
-                value.data = value.data.to(declared_buffers[name])
-    missing = set(mismatch.missing_keys)
+                value.data = value.data.to(declared_buffer_dtypes[name])
+    missing = set(load_result.missing_keys)
     # This deterministic buffer is absent from the upstream checkpoint.
     if config["name"] == "SparseStructureFlowModel" and missing == {"rope_phases"}:
         from trellis2.modules.attention import RotaryPositionEmbedder
@@ -81,7 +85,7 @@ def _load_component(base):
         missing.clear()
     if (
         missing
-        or mismatch.unexpected_keys
+        or load_result.unexpected_keys
         or any(
             value.device.type == "meta"
             for value in list(model.parameters()) + list(model.buffers())
@@ -92,6 +96,8 @@ def _load_component(base):
     return model
 
 
+# Stands in for the gated background remover, which is not installed. Calling it raises, so
+# opaque images are rejected instead of having their background removed.
 class TransparentOnly:
     def to(self, _device):
         return self
@@ -106,6 +112,11 @@ class TransparentOnly:
 
 
 def load_trellis():
+    """Load the 512 pipeline on CUDA with its base checkpoints.
+
+    Raises RuntimeError when CUDA, a required file or an expected component configuration is
+    missing. The caller checks host and GPU memory before calling this.
+    """
     if not torch.cuda.is_available():
         raise RuntimeError("TRELLIS.2 requires CUDA; CPU inference is disabled.")
     missing = missing_files()
@@ -225,6 +236,11 @@ def generate_glb(
     pipeline_type="512",
     report=None,
 ):
+    """Render a transparent-background image to a GLB file at destination.
+
+    Raises ValueError for an unsupported image or parameter and RuntimeError when CUDA is
+    unavailable or the pipeline returns no mesh. report, when given, receives progress text.
+    """
     if not torch.cuda.is_available():
         raise RuntimeError("TRELLIS.2 requires CUDA; CPU inference is disabled.")
     if pipeline_type not in PIPELINE_TYPES:

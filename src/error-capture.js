@@ -177,17 +177,17 @@ export function wrapFetch(originalFetch, win) {
       if (tracked && response && response.status >= 500) {
         let detail = '';
         try {
-          const type = response.headers?.get?.('content-type') || '';
-          if (type.includes('json') && typeof response.clone === 'function') {
-            const data = await response.clone().json();
-            detail = typeof data?.error === 'string' ? `: ${data.error.slice(0, 500)}` : '';
+          const contentType = response.headers?.get?.('content-type') || '';
+          if (contentType.includes('json') && typeof response.clone === 'function') {
+            const errorBody = await response.clone().json();
+            detail =
+              typeof errorBody?.error === 'string' ? `: ${errorBody.error.slice(0, 500)}` : '';
           }
         } catch (error) {
           log.debug('errors.detail.unreadable', {
             status: response.status,
             errorClass: error?.name,
           });
-          detail = '';
         }
         reportClientError({
           kind: 'fetch',

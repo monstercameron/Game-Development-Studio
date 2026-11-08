@@ -19,6 +19,8 @@ test('inventory measures only managed folders and reports missing folders and li
   const external = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-model-external-'));
   t.after(() => fs.rm(external, { recursive: true, force: true }));
   await fs.writeFile(path.join(external, 'outside'), 'outside must not be counted');
+  // Directory junctions need no elevation on Windows. Hosts that still deny links skip
+  // only the link assertion; the byte and file counts are checked either way.
   let linked = false;
   try {
     await fs.symlink(external, path.join(root, 'model', 'linked'), 'junction');
@@ -43,8 +45,8 @@ test('inventory measures only managed folders and reports missing folders and li
 });
 
 test('inventory returns immediately, deduplicates scans, and retains the last snapshot during refresh', async () => {
-  let resolve,
-    scans = 0;
+  let resolve;
+  let scans = 0;
   const scan = () => {
     scans++;
     return new Promise((r) => (resolve = r));
@@ -83,6 +85,7 @@ test('TRELLIS checkpoints are inventoried but cannot be removed until safe lifec
       ['trellis-encoder', 5, false],
     ],
   );
+  // Checkpoints stay on disk: removal must refuse them until lifecycle management exists.
   const removal = new ModelRemoval({
     root,
     stateDir: path.join(root, 'state'),

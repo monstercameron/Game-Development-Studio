@@ -65,20 +65,22 @@ const advancedControls = [
   },
 ];
 
+// A blank field is valid because the caller substitutes the control's fallback value.
+// The step check allows a small float error, since 0.1-based steps are not exact in binary.
 function isValidValue(value, { min, max, step, integer }) {
   if (value === '' || value === undefined || value === null) {
     return true;
   }
 
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < min || number > max) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue < min || numericValue > max) {
     return false;
   }
-  if (integer && !Number.isInteger(number)) {
+  if (integer && !Number.isInteger(numericValue)) {
     return false;
   }
 
-  const stepCount = (number - min) / step;
+  const stepCount = (numericValue - min) / step;
   return Math.abs(stepCount - Math.round(stepCount)) < 1e-8;
 }
 
@@ -121,6 +123,7 @@ export default function HyMotionControls({ draft, onChange }) {
     (control) => !isValidValue(draft[control.key] ?? control.fallback, control),
   );
 
+  // Open the advanced group when a value in it is invalid, so the error is never hidden.
   useEffect(() => {
     if (advancedInvalid) {
       setAdvancedOpen(true);

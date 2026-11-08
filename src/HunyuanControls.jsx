@@ -12,6 +12,7 @@ const SUPPORTED_RESOLUTIONS = [128, 256, 384];
 const TRIANGLE_CHOICES = [10000, 20000, 40000, 80000, 150000, 300000];
 const count = (value) => Number(value).toLocaleString('en-US');
 
+// Returns the validator's message, or '' when the value is accepted.
 function validation(read, value) {
   try {
     read(value);
@@ -22,13 +23,25 @@ function validation(read, value) {
   }
 }
 
+// Hint for the triangle budget when the value is valid. Automatic depends on painting,
+// because painting simplifies the mesh before it paints.
+function triangleBudgetHint(triangles, isTextureEnabled) {
+  if (triangles !== '') {
+    return `Simplifies the mesh to about ${count(triangles)} triangles. Fewer triangles suit game engines but lose fine detail; a mesh already below the target is left alone.`;
+  }
+  if (isTextureEnabled) {
+    return `Automatic simplifies the mesh to ${count(HUNYUAN_PAINT_DEFAULT_TRIANGLES)} triangles before painting.`;
+  }
+  return 'Automatic keeps the raw mesh, about 90,000 triangles at 128 and several times more at higher octree resolutions. Use a budget for game-ready meshes.';
+}
+
 // This exposes only parameters accepted by the connected Hunyuan backend.
 export default function HunyuanControls({ draft, onChange }) {
   const steps = draft.shapeSteps === undefined ? 30 : (draft.shapeSteps ?? '');
   const guidance = draft.shapeGuidance === undefined ? 5 : (draft.shapeGuidance ?? '');
   const triangles = draft.shapeTriangles ?? '';
   const resolution = draft.resolution ?? 128;
-  const texture = draft.texture === true;
+  const isTextureEnabled = draft.texture === true;
   const textureSize = draft.textureSize ?? 2048;
   const textureSizeError = [1024, 2048].includes(Number(textureSize))
     ? ''
@@ -41,7 +54,7 @@ export default function HunyuanControls({ draft, onChange }) {
   const resolutionError = SUPPORTED_RESOLUTIONS.includes(Number(resolution))
     ? ''
     : 'Choose 128, 256, or 384 samples per axis.';
-  const customTriangles =
+  const hasCustomTriangles =
     triangles !== '' && !TRIANGLE_CHOICES.includes(Number(triangles)) && !trianglesError;
 
   return (
@@ -135,7 +148,7 @@ export default function HunyuanControls({ draft, onChange }) {
             onChange={(event) => onChange({ shapeTriangles: event.target.value })}
           >
             <option value="">Automatic</option>
-            {customTriangles && <option value={triangles}>{count(triangles)} (custom)</option>}
+            {hasCustomTriangles && <option value={triangles}>{count(triangles)} (custom)</option>}
             {TRIANGLE_CHOICES.map((choice) => (
               <option key={choice} value={choice}>
                 {count(choice)} triangles
@@ -147,12 +160,7 @@ export default function HunyuanControls({ draft, onChange }) {
             id="hunyuan-triangles-help"
             role={trianglesError ? 'alert' : undefined}
           >
-            {trianglesError ||
-              (triangles !== ''
-                ? `Simplifies the mesh to about ${count(triangles)} triangles. Fewer triangles suit game engines but lose fine detail; a mesh already below the target is left alone.`
-                : texture
-                  ? `Automatic simplifies the mesh to ${count(HUNYUAN_PAINT_DEFAULT_TRIANGLES)} triangles before painting.`
-                  : 'Automatic keeps the raw mesh, about 90,000 triangles at 128 and several times more at higher octree resolutions. Use a budget for game-ready meshes.')}
+            {trianglesError || triangleBudgetHint(triangles, isTextureEnabled)}
           </p>
         </div>
       </div>
@@ -162,7 +170,7 @@ export default function HunyuanControls({ draft, onChange }) {
             id="hunyuan-texture"
             type="checkbox"
             role="switch"
-            checked={texture}
+            checked={isTextureEnabled}
             aria-describedby="hunyuan-texture-help"
             onChange={(event) => onChange({ texture: event.target.checked })}
           />
@@ -174,7 +182,7 @@ export default function HunyuanControls({ draft, onChange }) {
           Visible seams and soft detail can remain; there is no normal map. Untextured is the
           default and the tested path.
         </p>
-        {texture && (
+        {isTextureEnabled && (
           <div className="hunyuan-controls__fields hunyuan-controls__paint">
             <div className="hunyuan-controls__field">
               <label className="field-label" htmlFor="hunyuan-texture-size">

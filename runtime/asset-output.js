@@ -6,6 +6,8 @@ import { createLogger } from './app-log.js';
 
 const log = createLogger('assets');
 
+// Accepts only plain forward-slash relative paths from project metadata: no drive letters,
+// backslashes, empty, dot or hidden segments.
 function safeRelative(value) {
   return (
     typeof value === 'string' &&
@@ -15,6 +17,8 @@ function safeRelative(value) {
     !value.split('/').some((part) => !part || part === '.' || part === '..' || part.startsWith('.'))
   );
 }
+
+// True only for a strict descendant of root; the root itself and escapes are rejected.
 function inside(root, target) {
   const relative = path.relative(root, target);
   return (
@@ -25,8 +29,15 @@ function inside(root, target) {
   );
 }
 
-// Resolve display locations without changing the queue's durable engine record.
-// Project metadata retains the original output when an asset is renamed.
+/**
+ * Resolve display locations without changing the queue's durable engine record.
+ * Project metadata retains the original output when an asset is renamed.
+ *
+ * @param {Array<object>} jobs Queue jobs; only completed jobs with an output are resolved.
+ * @param {{ root?: string }} [options] Projects root, defaults to projectsRoot.
+ * @returns {Promise<Array<object>>} Copies of the jobs. A resolved job gets its alias as `output`
+ *   and the durable path as `originalOutput`. Other jobs are returned unchanged.
+ */
 export async function resolveAssetOutputs(jobs, { root = projectsRoot } = {}) {
   const ids = [
     ...new Set(

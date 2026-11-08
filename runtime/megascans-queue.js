@@ -261,6 +261,11 @@ export class ImportQueue {
       );
   }
 
+  /**
+   * Moves a running import to a final status. Only a row still `running` changes, so a late
+   * result from a runner that lost its row (or was cancelled) is ignored.
+   * @returns {boolean} True when this call made the change.
+   */
   finish(id, status, { error = null, output = null, stage = null } = {}) {
     const stamp = this.stamp();
     const before = this.row(id);
@@ -300,6 +305,7 @@ export class ImportQueue {
   }
 
   fail(id, message) {
+    // The stored error is capped at 500 characters so one message cannot bloat the row.
     return this.finish(id, 'failed', { error: String(message).slice(0, 500), stage: 'Failed' });
   }
 

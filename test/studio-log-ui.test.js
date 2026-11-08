@@ -67,7 +67,7 @@ test('studio log view: rows, grouping, filters, detail drawer, trace link, tail 
     fetch: globalThis.fetch,
     setInterval: globalThis.setInterval,
     clearInterval: globalThis.clearInterval,
-    act: globalThis.IS_REACT_ACT_ENVIRONMENT,
+    reactActEnvironment: globalThis.IS_REACT_ACT_ENVIRONMENT,
   };
   const requests = [];
   let pageRows = [
@@ -79,7 +79,7 @@ test('studio log view: rows, grouping, filters, detail drawer, trace link, tail 
   let tailRows = [];
   let failNext = false;
   let copied = '';
-  let tick = null;
+  let tailTick = null;
   let root;
   try {
     globalThis.window = dom.window;
@@ -94,11 +94,11 @@ test('studio log view: rows, grouping, filters, detail drawer, trace link, tail 
     });
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     globalThis.setInterval = (callback) => {
-      tick = callback;
+      tailTick = callback;
       return 1;
     };
     globalThis.clearInterval = () => {
-      tick = null;
+      tailTick = null;
     };
     globalThis.fetch = async (url, init = {}) => {
       requests.push({ url, headers: init.headers });
@@ -191,7 +191,7 @@ test('studio log view: rows, grouping, filters, detail drawer, trace link, tail 
     assert.equal(liveButton.getAttribute('aria-pressed'), 'true');
     tailRows = [row(9, { event: 'job.state.changed', traceId: 'trace-abc-123' })];
     await act(async () => {
-      await tick();
+      await tailTick();
     });
     assert.match(container.querySelector('.studio-log-row').textContent, /job-9/);
 
@@ -219,7 +219,7 @@ test('studio log view: rows, grouping, filters, detail drawer, trace link, tail 
     globalThis.fetch = saved.fetch;
     globalThis.setInterval = saved.setInterval;
     globalThis.clearInterval = saved.clearInterval;
-    globalThis.IS_REACT_ACT_ENVIRONMENT = saved.act;
+    globalThis.IS_REACT_ACT_ENVIRONMENT = saved.reactActEnvironment;
     dom.window.close();
     await rm(temporaryDirectory, { recursive: true, force: true });
   }

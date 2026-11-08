@@ -14,7 +14,8 @@ import { videoAspectId, videoChangedLabels, videoFramesFor } from './imageVideoI
 export { videoChangedLabels };
 
 const hasText = (value) => value !== undefined && value !== null && String(value) !== '';
-const rangeError = (value, min, max, whole) => {
+// Returns the inline error for a field, or '' when the value is blank or in range.
+const rangeError = (value, min, max, isWholeNumber) => {
   if (!hasText(value)) {
     return '';
   }
@@ -22,10 +23,17 @@ const rangeError = (value, min, max, whole) => {
   return Number.isFinite(number) &&
     number >= min &&
     number <= max &&
-    (!whole || Number.isInteger(number))
+    (!isWholeNumber || Number.isInteger(number))
     ? ''
-    : `Enter ${whole ? 'a whole number' : 'a number'} from ${min} to ${max}.`;
+    : `Enter ${isWholeNumber ? 'a whole number' : 'a number'} from ${min} to ${max}.`;
 };
+
+/**
+ * Video controls inside the image/video settings panel.
+ * `draft` holds the panel's unsaved settings and `update(changes)` merges changed keys into it.
+ * `contentId` is the id given to the panel body. Invalid numbers show an inline error and are
+ * still written to the draft as typed.
+ */
 export default function VideoSettings({ draft, update, contentId }) {
   const aspect = videoAspectId(draft.options?.[0]);
   const resolution = draft.videoResolution || 'standard';

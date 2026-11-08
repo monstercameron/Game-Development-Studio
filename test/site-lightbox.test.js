@@ -47,7 +47,6 @@ const loadSite = ({ stubDialog = true, beforeScript } = {}) => {
   const { document } = dom.window;
   const pick = (id) => document.getElementById(id);
   return {
-    dom,
     window: dom.window,
     document,
     errors,

@@ -191,7 +191,12 @@ export function vegetationService({
     const startedAt = Date.now();
     fetching = (async () => {
       try {
-        await fetchCheckout({ root, onStep: (step) => (fetchState.step = step) });
+        await fetchCheckout({
+          root,
+          onStep: (step) => {
+            fetchState.step = step;
+          },
+        });
         fetchState.step = 'Done';
         log.info('vegetation.checkout.fetch.completed', { durationMs: Date.now() - startedAt });
       } catch (failure) {

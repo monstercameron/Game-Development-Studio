@@ -37,6 +37,7 @@ test('log stream remains open after the GET request completes and closes with re
     await new Promise((resolve) => setTimeout(resolve, 40));
     assert.equal(writes.length, writesAfterClose);
   } finally {
+    // Close both ends even when an assertion fails, so the stream stops writing.
     response.emit('close');
     httpServer.emit('close');
   }

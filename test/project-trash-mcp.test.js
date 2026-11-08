@@ -39,8 +39,8 @@ test('trash MCP tools forward operations and require explicit permanent-clear co
       stderr: 'pipe',
     }),
   );
-  const projectId = randomUUID(),
-    trashId = randomUUID();
+  const projectId = randomUUID();
+  const trashId = randomUUID();
   for (const [name, args] of [
     ['forge_project_trash', { projectId }],
     ['forge_trash_asset', { projectId, path: 'images/example.png' }],
@@ -57,6 +57,8 @@ test('trash MCP tools forward operations and require explicit permanent-clear co
   );
   assert.equal(requests[3].origin, origin);
   assert.deepEqual(requests[3].body, { confirmation: 'permanently-delete-trash' });
+  // A clear request without confirmation is rejected before it reaches the studio,
+  // so the studio request count stays at four.
   assert.equal(
     (await client.callTool({ name: 'forge_clear_project_trash', arguments: { projectId } }))
       .isError,

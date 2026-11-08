@@ -38,7 +38,13 @@ const GEOMETRY_GLOBAL_KEYS = ['showLeaves', 'leafAngle', 'leafStart', 'leafSizeV
 // Verified by hand: these have no effect on the spray-cluster shrubs.
 const NO_EFFECT_ON_SPRAY_CLUSTERS = new Set(['leafSizeVar', 'leafQuads']);
 
-/** Imports SeedThree's headless API from a checkout. */
+/**
+ * Imports SeedThree's headless API from a checkout.
+ *
+ * @param {string} directory the SeedThree checkout (contains src/api/seedthree.js)
+ * @returns {Promise<object>} the module namespace, with every function the adapter calls
+ * @throws {Error} when the module lacks one of the required exports
+ */
 export async function loadSeedThree(directory) {
   const entry = path.join(directory, 'src', 'api', 'seedthree.js');
   const api = await import(pathToFileURL(entry).href);
@@ -50,6 +56,12 @@ export async function loadSeedThree(directory) {
   return api;
 }
 
+/**
+ * Reads the version field of the checkout's package.json.
+ *
+ * @param {string} directory the SeedThree checkout
+ * @returns {string} the version, or 'unknown' when package.json is missing or unreadable
+ */
 export function readSeedThreeVersion(directory) {
   try {
     return String(
@@ -90,15 +102,15 @@ function controlFrom(entry, group) {
 /** Forge's schema, built from SeedThree's getSchema() for every species. */
 export function buildSchema(api, { version = 'unknown', commit = null } = {}) {
   const species = api.listSpecies().map((descriptor) => {
-    const source = api.getSchema(descriptor.key);
-    const isSprayCluster = source.foliageType === 'sprayClusters';
+    const speciesSchema = api.getSchema(descriptor.key);
+    const isSprayCluster = speciesSchema.foliageType === 'sprayClusters';
     const controls = [
-      ...source.shape.map((entry) => controlFrom(entry, 'shape')),
-      ...source.global
+      ...speciesSchema.shape.map((entry) => controlFrom(entry, 'shape')),
+      ...speciesSchema.global
         .filter((entry) => GEOMETRY_GLOBAL_KEYS.includes(entry.key))
         .filter((entry) => !(isSprayCluster && NO_EFFECT_ON_SPRAY_CLUSTERS.has(entry.key)))
         .map((entry) => controlFrom(entry, 'leaves')),
-      ...source.advanced.map((entry) => controlFrom(entry, 'advanced')),
+      ...speciesSchema.advanced.map((entry) => controlFrom(entry, 'advanced')),
     ].filter(Boolean);
     return {
       key: descriptor.key,

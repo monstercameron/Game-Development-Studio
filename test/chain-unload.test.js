@@ -318,7 +318,7 @@ async function finishedParent(t, { services, queueOptions = {}, extraJobs = () =
   queue.db
     .prepare("UPDATE jobs SET status='completed',output='images/made.png' WHERE id=?")
     .run(parent.id);
-  return { ...context, events, fake, parent, child, trellis };
+  return { ...context, events, fake, child };
 }
 
 test('Qwen Image stays loaded while another queued render still needs it', async (t) => {
@@ -386,7 +386,7 @@ test('a failed offload does not fail the chained render and is reported in its s
   assert.ok(
     logged.some((record) => record.event === 'chain_unload' && record.outcome === 'failed'),
   );
-  // The warning shows until the job's own preparation reports its stage.
+  // A failed offload leaves the engine's model loaded, so the fake must still report it.
   assert.equal(failing.state.services[0].modelLoaded, true);
 });
 

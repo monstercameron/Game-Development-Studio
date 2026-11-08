@@ -326,7 +326,8 @@ function validateType(input, root = projectsRoot) {
         steps,
         texture_size,
         target_faces,
-        // The default 512 pipeline is omitted so earlier requests, history and timing keep matching.
+        // The default 512 pipeline is omitted so earlier requests, history and timing keep
+        // matching.
         ...(pipeline !== '512' ? { pipeline } : {}),
       },
     };
@@ -646,7 +647,8 @@ function validateType(input, root = projectsRoot) {
           clone_voice_only,
           voice_description,
         }),
-        // Pick the random seed here so the render is reproducible and the seed lands in the asset's details.
+        // Pick the random seed here so the render is reproducible and the seed lands in the
+        // asset's details.
         seed: seed === null ? randomInt(0, 2147483648) : seed,
         ...(temperature === null ? {} : { temperature }),
         ...(top_p === null ? {} : { top_p }),
@@ -688,7 +690,8 @@ function validateType(input, root = projectsRoot) {
       throw Error('Matching the reference size needs at least one reference image.');
     }
     if (
-      // Qwen's published sizes reach 2752 px (16:9 at 2752 × 1536). A matched size is chosen by the model.
+      // Qwen's published sizes reach 2752 px (16:9 at 2752 × 1536). A matched size is chosen
+      // by the model.
       (!size_from_reference &&
         ![width, height].every(
           (n) => Number.isInteger(n) && n >= 32 && n <= 2752 && n % 32 === 0,
@@ -738,7 +741,8 @@ function validateType(input, root = projectsRoot) {
         references,
         ...(transparent ? { transparent: true } : {}),
         ...extras,
-        // Pick the random seed here so the render is reproducible and the seed lands in the asset's details.
+        // Pick the random seed here so the render is reproducible and the seed lands in the
+        // asset's details.
         seed: seed === null ? randomInt(0, 2147483648) : seed,
         ...(true_cfg_scale > 1 ? { negative_prompt: negative_prompt.trim(), true_cfg_scale } : {}),
       },
@@ -938,7 +942,8 @@ function profile(type, request) {
   }[type];
   const values = keys.map((key) => request[key]);
   if (['images', 'video', 'world'].includes(type)) {
-    // A reference still to come from an earlier render counts, so the profile matches the finished one.
+    // A reference still to come from an earlier render counts, so the profile matches the
+    // finished one.
     values.push(
       (Array.isArray(request.references) ? request.references.length : 0) +
         (isPendingChain(request) ? 1 : 0),
@@ -951,7 +956,8 @@ function profile(type, request) {
     values.push((request.true_cfg_scale || 1) > 1);
   }
   if (type === 'video') {
-    // Larger pictures, guidance, reference clips and the turbo adapter change the render time a lot.
+    // Larger pictures, guidance, reference clips and the turbo adapter change the render time
+    // a lot.
     values.push(
       request.resolution || 'standard',
       request.source || 'references',
@@ -981,7 +987,8 @@ function profile(type, request) {
   }
   if (type === 'voices') {
     values.push(Math.ceil((request.text?.length || 0) / 50));
-    // Cloned and designed voices run on other checkpoints, so they never share preset timing history.
+    // Cloned and designed voices run on other checkpoints, so they never share preset timing
+    // history.
     if (request.mode && request.mode !== 'preset') {
       values.push(request.mode);
     }
@@ -1002,6 +1009,10 @@ function profile(type, request) {
   }
   return JSON.stringify(values);
 }
+/**
+ * Typical, low and high seconds for a render, measured from completed renders with the same
+ * profile. Returns available: false when no completed render matches.
+ */
 export function estimateFromJobs(jobs, configuration) {
   const key = profile(configuration.type, configuration.request);
   const samples = jobs
@@ -1023,17 +1034,62 @@ export function estimateFromJobs(jobs, configuration) {
       note: 'No completed renders with these settings yet.',
     };
   }
-  const at = (fraction) => Math.round(samples[Math.floor((samples.length - 1) * fraction)]);
+  const sampleAt = (fraction) => Math.round(samples[Math.floor((samples.length - 1) * fraction)]);
   return {
     available: true,
     sampleCount: samples.length,
-    typicalSeconds: at(0.5),
-    lowSeconds: at(0.25),
-    highSeconds: at(0.75),
+    typicalSeconds: sampleAt(0.5),
+    lowSeconds: sampleAt(0.25),
+    highSeconds: sampleAt(0.75),
     confidence: samples.length >= 3 ? 'calibrated' : 'limited',
     note: 'Measured from engine acceptance to project save; engine queue time is included. Actual times vary.',
   };
 }
+
+// The events, job types and statuses that logLifecycle() may report to onQueueLog. Anything
+// else is dropped, so the log only ever carries known vocabulary.
+const LIFECYCLE_EVENT_CODES = new Set([
+  'enqueued',
+  'cancelled',
+  'retry_queued',
+  'retry_recheck',
+  'resolved',
+  'accepted',
+  'completed',
+  'failed',
+  'interrupted',
+  'uncertain_recovery',
+  'remote_recheck',
+  'status_transition',
+]);
+const LIFECYCLE_JOB_TYPES = new Set([
+  'music',
+  'sfx',
+  'images',
+  'video',
+  'voices',
+  '3d',
+  'trellis',
+  'segmentation',
+  'motion',
+  'motion-bricks',
+  'world',
+  'vegetation',
+]);
+const LIFECYCLE_STATUSES = new Set([
+  'queued',
+  'waiting_engine',
+  'waiting_memory',
+  'preparing',
+  'needs_attention',
+  'submitting',
+  'running',
+  'finalizing',
+  'completed',
+  'failed',
+  'interrupted',
+  'cancelled',
+]);
 
 export class JobQueue {
   constructor({
@@ -1235,49 +1291,11 @@ export class JobQueue {
     if (typeof this.onQueueLog !== 'function') {
       return;
     }
-    const eventCodes = new Set([
-      'enqueued',
-      'cancelled',
-      'retry_queued',
-      'retry_recheck',
-      'resolved',
-      'accepted',
-      'completed',
-      'failed',
-      'interrupted',
-      'uncertain_recovery',
-      'remote_recheck',
-      'status_transition',
-    ]);
-    const types = new Set([
-      'music',
-      'sfx',
-      'images',
-      'video',
-      'voices',
-      '3d',
-      'trellis',
-      'segmentation',
-      'motion',
-      'motion-bricks',
-      'world',
-      'vegetation',
-    ]);
-    const statuses = new Set([
-      'queued',
-      'waiting_engine',
-      'waiting_memory',
-      'preparing',
-      'needs_attention',
-      'submitting',
-      'running',
-      'finalizing',
-      'completed',
-      'failed',
-      'interrupted',
-      'cancelled',
-    ]);
-    if (!eventCodes.has(event) || !types.has(job?.type) || !statuses.has(status)) {
+    if (
+      !LIFECYCLE_EVENT_CODES.has(event) ||
+      !LIFECYCLE_JOB_TYPES.has(job?.type) ||
+      !LIFECYCLE_STATUSES.has(status)
+    ) {
       return;
     }
     const record = { event, type: job.type, status };
@@ -2464,6 +2482,34 @@ export class JobQueue {
     });
     return changed.changes ? this.get(job.id) : null;
   }
+  // The model preparer for a job type whose engine is not ready, or null when the type has none.
+  preparerFor(type) {
+    if (type === 'music') {
+      return this.prepareMusic;
+    }
+    if (type === 'sfx') {
+      return this.prepareSound;
+    }
+    if (type === 'voices') {
+      return this.prepareTts;
+    }
+    if (type === '3d') {
+      return this.prepareHunyuan;
+    }
+    if (type === 'trellis') {
+      return this.prepareTrellis;
+    }
+    if (type === 'segmentation') {
+      return this.prepareSam31;
+    }
+    if (type === 'motion') {
+      return this.prepareHyMotion;
+    }
+    if (type === 'motion-bricks') {
+      return this.prepareMotionBricks;
+    }
+    return null;
+  }
   async tick() {
     if (this.stopped || this.polling || this.modelLoadInProgress) {
       return;
@@ -2548,44 +2594,7 @@ export class JobQueue {
             status: response.status,
             durationMs: Date.now() - healthStartedMs,
           });
-          reachable =
-            response.ok &&
-            (job.type === 'music'
-              ? health.api_version === '1' && typeof health.model?.loaded === 'boolean'
-              : job.type === 'sfx'
-                ? typeof health.phase === 'string' && typeof health.loaded === 'boolean'
-                : job.type === 'voices'
-                  ? health.engine === 'forge-qwen3-tts-v1' &&
-                    typeof health.loaded === 'boolean' &&
-                    typeof health.model_downloaded === 'boolean'
-                  : job.type === 'trellis'
-                    ? health.engine === 'forge-trellis2-512-experimental-v1' &&
-                      typeof health.loaded === 'boolean' &&
-                      typeof health.model_downloaded === 'boolean'
-                    : job.type === '3d'
-                      ? health.engine === 'forge-hunyuan-shape-v1' &&
-                        typeof health.loaded === 'boolean' &&
-                        typeof health.model_downloaded === 'boolean'
-                      : job.type === 'segmentation'
-                        ? health.engine === 'forge-sam31-image-experimental-v1' &&
-                          typeof health.loaded === 'boolean' &&
-                          typeof health.model_downloaded === 'boolean'
-                        : job.type === 'motion-bricks'
-                          ? health.engine === 'forge-motionbricks-cuda-experimental-v1' &&
-                            typeof health.loaded === 'boolean' &&
-                            typeof health.model_downloaded === 'boolean'
-                          : job.type === 'motion'
-                            ? health.engine === 'forge-hy-motion-v1' &&
-                              typeof health.loaded === 'boolean' &&
-                              typeof health.model_downloaded === 'boolean'
-                            : job.type === 'video'
-                              ? typeof health.ready === 'boolean' && Array.isArray(health.files)
-                              : job.type === 'world'
-                                ? health.engine === 'forge-world-v1' &&
-                                  typeof health.ready === 'boolean' &&
-                                  typeof health.busy === 'boolean'
-                                : typeof health.status === 'string' &&
-                                  typeof health.model_downloaded === 'boolean');
+          reachable = response.ok && isEngineHealthValid(job.type, health);
           ready =
             reachable &&
             (job.type === 'music'
@@ -2634,24 +2643,7 @@ export class JobQueue {
           return;
         }
         if (!ready) {
-          const preparationFunction =
-            job.type === 'music'
-              ? this.prepareMusic
-              : job.type === 'sfx'
-                ? this.prepareSound
-                : job.type === 'voices'
-                  ? this.prepareTts
-                  : job.type === '3d'
-                    ? this.prepareHunyuan
-                    : job.type === 'trellis'
-                      ? this.prepareTrellis
-                      : job.type === 'segmentation'
-                        ? this.prepareSam31
-                        : job.type === 'motion'
-                          ? this.prepareHyMotion
-                          : job.type === 'motion-bricks'
-                            ? this.prepareMotionBricks
-                            : null;
+          const preparationFunction = this.preparerFor(job.type);
           if (preparationFunction) {
             let loadClaimed = false;
             try {
@@ -3326,30 +3318,47 @@ export class JobQueue {
     log.info('queue.process.stopped', { reason: 'stop_requested' });
   }
 }
+// Default engine addresses. Each one can be moved by its FORGE_*_URL variable.
+function engineBaseUrl(type) {
+  if (type === 'music') {
+    return process.env.FORGE_MUSIC_URL || 'http://127.0.0.1:8765';
+  }
+  if (type === 'sfx') {
+    return process.env.FORGE_SFX_URL || 'http://127.0.0.1:7863';
+  }
+  if (['voices', 'tts'].includes(type)) {
+    return process.env.FORGE_TTS_URL || 'http://127.0.0.1:8281';
+  }
+  if (['trellis', '3d-trellis'].includes(type)) {
+    return process.env.FORGE_TRELLIS_URL || 'http://127.0.0.1:8285';
+  }
+  if (['3d', '3d-hunyuan'].includes(type)) {
+    return process.env.FORGE_HUNYUAN_URL || 'http://127.0.0.1:8283';
+  }
+  if (type === 'segmentation') {
+    return process.env.FORGE_SAM31_URL || 'http://127.0.0.1:8284';
+  }
+  if (type === 'motion-bricks') {
+    return process.env.FORGE_MOTIONBRICKS_URL || 'http://127.0.0.1:8287';
+  }
+  if (['motion', 'motion-hy'].includes(type)) {
+    return process.env.FORGE_HYMOTION_URL || 'http://127.0.0.1:8286';
+  }
+  if (type === 'world') {
+    return process.env.FORGE_WORLD_URL || 'http://127.0.0.1:8288';
+  }
+  if (type === 'video') {
+    return process.env.FORGE_VIDEO_URL || 'http://127.0.0.1:8274';
+  }
+  return process.env.FORGE_IMAGE_URL || 'http://127.0.0.1:8189';
+}
+
+/**
+ * Local origin of the engine that serves a job type. Throws when the configured URL is not a
+ * loopback http origin, so a job never reaches a remote host.
+ */
 export function engineUrl(type) {
-  const base = new URL(
-    type === 'music'
-      ? process.env.FORGE_MUSIC_URL || 'http://127.0.0.1:8765'
-      : type === 'sfx'
-        ? process.env.FORGE_SFX_URL || 'http://127.0.0.1:7863'
-        : ['voices', 'tts'].includes(type)
-          ? process.env.FORGE_TTS_URL || 'http://127.0.0.1:8281'
-          : ['trellis', '3d-trellis'].includes(type)
-            ? process.env.FORGE_TRELLIS_URL || 'http://127.0.0.1:8285'
-            : ['3d', '3d-hunyuan'].includes(type)
-              ? process.env.FORGE_HUNYUAN_URL || 'http://127.0.0.1:8283'
-              : type === 'segmentation'
-                ? process.env.FORGE_SAM31_URL || 'http://127.0.0.1:8284'
-                : type === 'motion-bricks'
-                  ? process.env.FORGE_MOTIONBRICKS_URL || 'http://127.0.0.1:8287'
-                  : ['motion', 'motion-hy'].includes(type)
-                    ? process.env.FORGE_HYMOTION_URL || 'http://127.0.0.1:8286'
-                    : type === 'world'
-                      ? process.env.FORGE_WORLD_URL || 'http://127.0.0.1:8288'
-                      : type === 'video'
-                        ? process.env.FORGE_VIDEO_URL || 'http://127.0.0.1:8274'
-                        : process.env.FORGE_IMAGE_URL || 'http://127.0.0.1:8189',
-  );
+  const base = new URL(engineBaseUrl(type));
   if (
     base.protocol !== 'http:' ||
     !['127.0.0.1', 'localhost'].includes(base.hostname) ||
@@ -3363,17 +3372,72 @@ export function engineUrl(type) {
   }
   return base.origin;
 }
-function engineId(type) {
-  return type === 'voices'
-    ? 'tts'
-    : type === '3d'
-      ? '3d-hunyuan'
-      : type === 'trellis'
-        ? '3d-trellis'
-        : type === 'motion'
-          ? 'motion-hy'
-          : type;
+// Engines identify themselves by the identity string in their health response, never by port.
+// Each check requires the fields the queue reads before it treats the engine as reachable.
+function isEngineHealthValid(type, health) {
+  if (type === 'music') {
+    return health.api_version === '1' && typeof health.model?.loaded === 'boolean';
+  }
+  if (type === 'sfx') {
+    return typeof health.phase === 'string' && typeof health.loaded === 'boolean';
+  }
+  if (type === 'voices') {
+    return isModelEngineHealth(health, 'forge-qwen3-tts-v1');
+  }
+  if (type === 'trellis') {
+    return isModelEngineHealth(health, 'forge-trellis2-512-experimental-v1');
+  }
+  if (type === '3d') {
+    return isModelEngineHealth(health, 'forge-hunyuan-shape-v1');
+  }
+  if (type === 'segmentation') {
+    return isModelEngineHealth(health, 'forge-sam31-image-experimental-v1');
+  }
+  if (type === 'motion-bricks') {
+    return isModelEngineHealth(health, 'forge-motionbricks-cuda-experimental-v1');
+  }
+  if (type === 'motion') {
+    return isModelEngineHealth(health, 'forge-hy-motion-v1');
+  }
+  if (type === 'video') {
+    return typeof health.ready === 'boolean' && Array.isArray(health.files);
+  }
+  if (type === 'world') {
+    return (
+      health.engine === 'forge-world-v1' &&
+      typeof health.ready === 'boolean' &&
+      typeof health.busy === 'boolean'
+    );
+  }
+  return typeof health.status === 'string' && typeof health.model_downloaded === 'boolean';
 }
+
+// A model engine that reports its identity, whether its model is loaded and whether it is
+// downloaded.
+function isModelEngineHealth(health, engineIdentity) {
+  return (
+    health.engine === engineIdentity &&
+    typeof health.loaded === 'boolean' &&
+    typeof health.model_downloaded === 'boolean'
+  );
+}
+
+function engineId(type) {
+  if (type === 'voices') {
+    return 'tts';
+  }
+  if (type === '3d') {
+    return '3d-hunyuan';
+  }
+  if (type === 'trellis') {
+    return '3d-trellis';
+  }
+  if (type === 'motion') {
+    return 'motion-hy';
+  }
+  return type;
+}
+
 function engineName(type) {
   return (
     {

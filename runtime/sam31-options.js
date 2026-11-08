@@ -9,6 +9,8 @@ export const SEGMENTATION_MAX_INSTANCES = 50;
 // Features the worker lists in /api/status once it understands the options above.
 export const SAM31_OPTION_FEATURE = 'match-selection';
 
+// Same cap as MAX_REPORTED_MATCHES in sam31_backend.py. The host applies it again so a stored
+// job cannot grow with a larger worker report.
 const MAX_REPORTED_MATCHES = 20;
 
 /**
@@ -73,6 +75,8 @@ export function cleanMatchReport(report) {
 /**
  * Builds the report from the `metadata` the SAM worker attaches to a finished job. Jobs that
  * the worker recovered after a restart have no metadata, so this returns null for them.
+ * @param {unknown} metadata The worker's metadata object, or anything else.
+ * @returns {ReturnType<typeof cleanMatchReport>} A cleaned report, or null when it is unusable.
  */
 export function reportFromWorkerMetadata(metadata) {
   if (!metadata || typeof metadata !== 'object' || !Array.isArray(metadata.matches)) {

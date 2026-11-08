@@ -6,6 +6,7 @@ import {
   imageBudgetMiB,
 } from '../runtime/image-preparation.js';
 
+// Budgets in this file are MiB; one GiB is 1024 MiB.
 const GiB = 1024;
 
 test('image GPU budget grows with the requested size', () => {

@@ -16,6 +16,7 @@ test('page error boundary contains thrown values and lets a failed page retry', 
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
     pretendToBeVisual: true,
   });
+  let copiedDetails = '';
   const browserGlobals = {
     window: dom.window,
     document: dom.window.document,
@@ -32,7 +33,6 @@ test('page error boundary contains thrown values and lets a failed page retry', 
     MutationObserver: dom.window.MutationObserver,
     IS_REACT_ACT_ENVIRONMENT: true,
   };
-  let copiedDetails = '';
   const previousDescriptors = new Map(
     Object.keys(browserGlobals).map((key) => [
       key,
@@ -66,6 +66,8 @@ test('page error boundary contains thrown values and lets a failed page retry', 
     const { default: PageErrorBoundary } = await import(pathToFileURL(outputPath).href);
     const { createRoot } = await import('react-dom/client');
 
+    // React reports every error a boundary catches through console.error. Silence those
+    // logs here; the finally block restores the original logger.
     console.error = () => {};
     const container = document.getElementById('root');
     const thrownValues = [
@@ -123,7 +125,7 @@ test('page error boundary contains thrown values and lets a failed page retry', 
       await React.act(() => root.unmount());
     }
 
-    const root = createRoot(container);
+    const recoveryRoot = createRoot(container);
     let shouldFail = true;
     function RecoverablePage() {
       if (shouldFail) {
@@ -133,7 +135,7 @@ test('page error boundary contains thrown values and lets a failed page retry', 
     }
 
     await React.act(() => {
-      root.render(
+      recoveryRoot.render(
         React.createElement(PageErrorBoundary, null, React.createElement(RecoverablePage)),
       );
     });
@@ -148,7 +150,7 @@ test('page error boundary contains thrown values and lets a failed page retry', 
         (paragraph) => paragraph.textContent === 'Workspace recovered',
       ),
     );
-    await React.act(() => root.unmount());
+    await React.act(() => recoveryRoot.unmount());
   } finally {
     console.error = previousConsoleError;
     for (const [key, descriptor] of previousDescriptors) {

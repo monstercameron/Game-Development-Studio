@@ -14,6 +14,13 @@ import { createLog } from './app-log.js';
 
 const log = createLog('three-d');
 
+/**
+ * Loads the saved viewer preferences and exposes them with their setters.
+ *
+ * @returns {[object, (key: string, value: unknown) => void, () => void]} The current
+ *   preferences, a setter for one key, and a reset to defaults. The reset keeps the
+ *   inspector layout choices so a reset does not move the panels.
+ */
 export function useViewerPrefs() {
   const [prefs, setPrefs] = useState(() => loadPrefs());
   useEffect(() => {
@@ -70,6 +77,8 @@ export default function ThreeViewer({
   const [reducedMotion, setReducedMotion] = useState(() => !!motionQuery()?.matches);
   const [motionOptIn, setMotionOptIn] = useState(false);
   const engineRef = useRef(null);
+  // Holds the newest values for the async loader and the event callbacks, so they can
+  // read them without re-creating the engine when a preference or playback flag changes.
   const latest = useRef({});
   const effectivePrefs = useMemo(
     () => (reducedMotion && !motionOptIn ? { ...prefs, autoRotate: false } : prefs),
@@ -121,8 +130,8 @@ export default function ThreeViewer({
     }
     setState({ status: 'loading', stage: 'Preparing viewer…', progress: null });
     const controller = new AbortController();
-    let engine = null,
-      ready = false;
+    let engine = null;
+    let ready = false;
     (async () => {
       try {
         const current = latest.current;

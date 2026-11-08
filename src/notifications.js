@@ -11,6 +11,12 @@ export function announceCompletion(detail) {
   window.dispatchEvent(new CustomEvent('forge:completion', { detail }));
 }
 
+/**
+ * Shows a desktop notification for a completed render or queue, if the user allowed it.
+ * @param {{ type: 'render' | 'queue', id?: string, name?: string }} detail
+ * @returns {boolean} true when a notification was shown; false when permission, the
+ *   per-type setting or the event type skipped it. Does not report whether the OS displayed it.
+ */
 export function showCompletionNotification(detail) {
   if (!('Notification' in window) || Notification.permission !== 'granted') {
     log.debug('ui.notification.skipped', {

@@ -11,7 +11,15 @@ const forgeJobName =
 const remoteIdPattern = /^[A-Za-z0-9_-]{1,128}$/;
 const isSeed = (value) => Number.isSafeInteger(value) && value >= 0 && value <= 2147483647;
 
-// Shape checks only. The source asset is resolved by resolveDerivedMusic when the job is queued.
+/**
+ * Shape checks only. The source asset is resolved by resolveDerivedMusic when the job is queued.
+ *
+ * @param {object} request The client request: operation, source, and optional seed, title,
+ *   add_seconds, lyrics_addition and ode_steps.
+ * @returns {object} A copy with a seed (random when omitted) and only the fields that apply to the
+ *   operation.
+ * @throws {Error} When the operation, source path, seed, title, length or steps are invalid.
+ */
 export function normalizeDerivedMusic(request) {
   const {
     operation,

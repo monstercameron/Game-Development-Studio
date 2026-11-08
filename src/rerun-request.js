@@ -2,6 +2,15 @@ export function isDerivedMusic(job) {
   return job?.type === 'music' && Boolean(job.request?.operation);
 }
 
+// Job types whose generator accepts a seed. A world render takes one only in worldgen mode
+// (not panorama).
+function supportsSeedOverride(job) {
+  return (
+    ['images', 'music', 'sfx', 'voices', '3d', 'trellis', 'motion'].includes(job.type) ||
+    (job.type === 'world' && job.request.model === 'worldgen' && job.request.mode !== 'panorama')
+  );
+}
+
 // Keep every model setting from the original render unless the creator changes it.
 export function rerunRequest(job, prompt, { seed, reference } = {}) {
   const key = job.type === 'music' ? 'style' : job.type === 'voices' ? 'text' : 'prompt';
@@ -11,11 +20,7 @@ export function rerunRequest(job, prompt, { seed, reference } = {}) {
     ['3d', 'trellis', 'motion-bricks'].includes(job.type) || isDerivedMusic(job)
       ? { ...job.request }
       : { ...job.request, [key]: prompt };
-  if (
-    seed !== undefined &&
-    (['images', 'music', 'sfx', 'voices', '3d', 'trellis', 'motion'].includes(job.type) ||
-      (job.type === 'world' && job.request.model === 'worldgen' && job.request.mode !== 'panorama'))
-  ) {
+  if (seed !== undefined && supportsSeedOverride(job)) {
     request.seed = seed;
   }
   if (reference !== undefined) {

@@ -121,7 +121,15 @@ export function niceStep(target) {
   }
   const power = 10 ** Math.floor(Math.log10(target));
   const fraction = target / power;
-  return (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10) * power;
+  let multiplier = 10;
+  if (fraction <= 1) {
+    multiplier = 1;
+  } else if (fraction <= 2) {
+    multiplier = 2;
+  } else if (fraction <= 5) {
+    multiplier = 5;
+  }
+  return multiplier * power;
 }
 export const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 1.5, 2];
 
@@ -198,6 +206,7 @@ export function sanitizePrefs(input) {
   return prefs;
 }
 
+// Session copy used when localStorage is blocked, empty or unparsable.
 let memoryPrefs = null;
 
 export function loadPrefs(storage = globalThis.localStorage) {
@@ -277,7 +286,14 @@ export function formatNumber(value) {
     return '—';
   }
   const abs = Math.abs(value);
-  const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : abs >= 1 ? 2 : 3;
+  let digits = 3;
+  if (abs >= 100) {
+    digits = 0;
+  } else if (abs >= 10) {
+    digits = 1;
+  } else if (abs >= 1) {
+    digits = 2;
+  }
   return String(Number(value.toFixed(digits)));
 }
 
@@ -398,17 +414,21 @@ export function resolveShortcut(event, target = {}) {
       return null;
     }
     if (event.shiftKey) {
-      return key === 'arrowleft'
-        ? { type: 'orbit', azimuth: 1, polar: 0 }
-        : key === 'arrowright'
-          ? { type: 'orbit', azimuth: -1, polar: 0 }
-          : { type: 'orbit', azimuth: 0, polar: key === 'arrowup' ? 1 : -1 };
+      if (key === 'arrowleft') {
+        return { type: 'orbit', azimuth: 1, polar: 0 };
+      }
+      if (key === 'arrowright') {
+        return { type: 'orbit', azimuth: -1, polar: 0 };
+      }
+      return { type: 'orbit', azimuth: 0, polar: key === 'arrowup' ? 1 : -1 };
     }
-    return key === 'arrowleft'
-      ? { type: 'step', offset: -1 }
-      : key === 'arrowright'
-        ? { type: 'step', offset: 1 }
-        : { type: 'zoom', direction: key === 'arrowup' ? 1 : -1 };
+    if (key === 'arrowleft') {
+      return { type: 'step', offset: -1 };
+    }
+    if (key === 'arrowright') {
+      return { type: 'step', offset: 1 };
+    }
+    return { type: 'zoom', direction: key === 'arrowup' ? 1 : -1 };
   }
   if (key === ' ' || key === 'spacebar') {
     return target.native || target.button ? null : { type: 'playPause' };

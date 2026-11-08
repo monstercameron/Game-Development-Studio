@@ -17,7 +17,7 @@ async function renderSettings(section, draft, search = '', props = {}) {
     pretendToBeVisual: true,
     url: `http://localhost/${section}${search}`,
   });
-  const globals = {
+  const previousGlobals = {
     window: Object.getOwnPropertyDescriptor(globalThis, 'window'),
     document: Object.getOwnPropertyDescriptor(globalThis, 'document'),
     navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'),
@@ -51,7 +51,7 @@ async function renderSettings(section, draft, search = '', props = {}) {
       .replace("from './useNav'", `from '${navModule}'`)
       .replace("from './imageVideoInputs'", `from '${inputsModule}'`)
       .replace("from './VideoSettings'", "from './VideoSettings.mjs'");
-    const transformed = await transformWithEsbuild(preparedSource, sourcePath, {
+    const transformedImageSettings = await transformWithEsbuild(preparedSource, sourcePath, {
       loader: 'jsx',
       jsx: 'automatic',
     });
@@ -73,7 +73,7 @@ async function renderSettings(section, draft, search = '', props = {}) {
       'utf8',
     );
     const modulePath = path.join(temporaryDirectory, 'ImageVideoSettings.mjs');
-    await writeFile(modulePath, transformed.code, 'utf8');
+    await writeFile(modulePath, transformedImageSettings.code, 'utf8');
     const { default: ImageVideoSettings } = await import(pathToFileURL(modulePath).href);
 
     root = createRoot(document.getElementById('root'));
@@ -95,7 +95,7 @@ async function renderSettings(section, draft, search = '', props = {}) {
     return {
       container: document.getElementById('root'),
       dom,
-      globals,
+      previousGlobals,
       root,
       temporaryDirectory,
     };
@@ -103,7 +103,7 @@ async function renderSettings(section, draft, search = '', props = {}) {
     if (root) {
       await act(async () => root.unmount());
     }
-    for (const [key, descriptor] of Object.entries(globals)) {
+    for (const [key, descriptor] of Object.entries(previousGlobals)) {
       if (descriptor === undefined) {
         delete globalThis[key];
       } else {
@@ -118,7 +118,7 @@ async function renderSettings(section, draft, search = '', props = {}) {
 
 async function cleanup(rendered) {
   await act(async () => rendered.root.unmount());
-  for (const [key, descriptor] of Object.entries(rendered.globals)) {
+  for (const [key, descriptor] of Object.entries(rendered.previousGlobals)) {
     if (descriptor === undefined) {
       delete globalThis[key];
     } else {

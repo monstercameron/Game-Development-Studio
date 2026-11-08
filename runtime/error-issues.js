@@ -260,6 +260,11 @@ export function createGitHubClient({
         return false;
       }
     },
+    /**
+     * Creates an issue and resolves to `{ url, number }` parsed from the link `gh` prints.
+     * Throws GitHubError on any failure; this function never retries, because the caller must
+     * decide whether a second submission is safe.
+     */
     async createIssue(repo, { title, body, labels }) {
       const startedMs = performance.now();
       log.info('errors.issue.create.requested', {

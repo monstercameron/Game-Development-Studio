@@ -21,8 +21,8 @@ export function sniffImageType(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
     return 'image/jpeg';
   }
-  const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  if (png.every((value, index) => bytes[index] === value)) {
+  const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (pngSignature.every((value, index) => bytes[index] === value)) {
     return 'image/png';
   }
   const text = (start, end) => String.fromCharCode(...bytes.slice(start, end));
@@ -32,7 +32,11 @@ export function sniffImageType(bytes) {
   return null;
 }
 
-/** @returns {{ width: number, height: number, scale: number }} Fit inside maxEdge, never enlarge. */
+/**
+ * Fits a picture inside a square of maxEdge pixels and never enlarges it.
+ * @returns {{ width: number, height: number, scale: number }} `scale` is 1 when no shrinking
+ *   is needed.
+ */
 export function fitWithin(width, height, maxEdge = CHAT_IMAGE_MAX_EDGE_PX) {
   const scale = Math.min(1, maxEdge / Math.max(width, height));
   return {
@@ -87,8 +91,8 @@ export async function prepareChatImage(file) {
       `${file.name} is larger than ${CHAT_IMAGE_SOURCE_MAX_BYTES / 1024 / 1024} MiB. Choose a smaller picture.`,
     );
   }
-  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-  const type = sniffImageType(head);
+  const headBytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const type = sniffImageType(headBytes);
   if (!type) {
     throw Error(`${file.name} is not a PNG, JPEG or WebP picture (checked by its contents).`);
   }
@@ -111,6 +115,8 @@ export async function prepareChatImage(file) {
         mimeType,
         0.9,
       );
+      // A PNG that is still too large is retried as a lower-quality JPEG. JPEG has no alpha
+      // channel, which is why this pass paints a white background.
       if (blob.size > MAX_CHAT_IMAGE_BYTES) {
         mimeType = 'image/jpeg';
         blob = await canvasToBlob(drawn(bitmap, fit.width, fit.height, '#ffffff'), mimeType, 0.8);
@@ -144,7 +150,9 @@ export async function prepareChatImage(file) {
   }
 }
 
-/** Throws when adding `incoming` pictures would pass the per-message count or total size limit. */
+/**
+ * Throws when adding `incoming` pictures would pass the per-message count or total size limit.
+ */
 export function checkAttachmentRoom(current, incoming) {
   if (current.length + incoming.length > MAX_CHAT_IMAGES) {
     throw Error(`Attach up to ${MAX_CHAT_IMAGES} images per message.`);
@@ -157,7 +165,9 @@ export function checkAttachmentRoom(current, incoming) {
   }
 }
 
-/** The small, savable form of an attachment: a thumbnail and where it came from, never the data. */
+/**
+ * The small, savable form of an attachment: a thumbnail and where it came from, never the data.
+ */
 export function savedImageRecord(image) {
   return {
     name: String(image.name || 'image').slice(0, 200),

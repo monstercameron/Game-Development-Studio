@@ -17,6 +17,9 @@ import { getErrors, postErrors } from './errors-api.js';
 
 const log = createLog('errors');
 
+// Engine errors are recorded with the source "engine:<engineId>".
+const ENGINE_SOURCE_PREFIX = 'engine:';
+
 function formatTime(iso) {
   const date = new Date(iso);
   return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString();
@@ -33,24 +36,25 @@ export default function ErrorDetail({ errorId, onChanged, onBack, onOpenSettings
   const [fixNote, setFixNote] = useState('');
   const [fixSource, setFixSource] = useState('self');
   const [actionError, setActionError] = useState('');
-  const latest = useRef(0);
+  const latestRequest = useRef(0);
+  // Read through a ref so the load effect does not re-run when the parent passes a new callback.
   const onChangedRef = useRef(onChanged);
   onChangedRef.current = onChanged;
 
   useEffect(() => {
-    const request = ++latest.current;
+    const request = ++latestRequest.current;
     const controller = new AbortController();
     setLoadError('');
     getErrors(`/${errorId}${includePaths ? '?includePaths=1' : ''}`, { signal: controller.signal })
-      .then(async (data) => {
-        if (request !== latest.current) {
+      .then(async (response) => {
+        if (request !== latestRequest.current) {
           return;
         }
-        setError(data.error);
-        setNote(data.error.note);
-        if (data.error.status === 'new' && !includePaths) {
+        setError(response.error);
+        setNote(response.error.note);
+        if (response.error.status === 'new' && !includePaths) {
           const viewed = await postErrors(`/${errorId}/viewed`);
-          if (request === latest.current) {
+          if (request === latestRequest.current) {
             log.debug('errors.status.viewed', { errorId, from: 'new', to: viewed.error.status });
             setError(viewed.error);
             onChangedRef.current?.(viewed.error);
@@ -58,7 +62,7 @@ export default function ErrorDetail({ errorId, onChanged, onBack, onOpenSettings
         }
       })
       .catch((reason) => {
-        if (reason.name !== 'AbortError' && request === latest.current) {
+        if (reason.name !== 'AbortError' && request === latestRequest.current) {
           log.warn('errors.detail.load.failed', { errorId, errorClass: reason?.name });
           setLoadError(reason.message);
         }
@@ -84,9 +88,9 @@ export default function ErrorDetail({ errorId, onChanged, onBack, onOpenSettings
   async function changeStatus(next, extra = {}) {
     setActionError('');
     try {
-      const data = await postErrors(`/${errorId}/status`, { status: next, ...extra });
+      const response = await postErrors(`/${errorId}/status`, { status: next, ...extra });
       log.info('errors.status.changed', { errorId, from: error.status, to: next });
-      applyUpdate(data.error);
+      applyUpdate(response.error);
       setIsVerifying(false);
       setStatus(`Marked ${STATUS_LABELS[next].toLowerCase()}.`);
     } catch (reason) {
@@ -103,8 +107,8 @@ export default function ErrorDetail({ errorId, onChanged, onBack, onOpenSettings
   async function saveNote() {
     setActionError('');
     try {
-      const data = await postErrors(`/${errorId}/note`, { note });
-      applyUpdate(data.error);
+      const response = await postErrors(`/${errorId}/note`, { note });
+      applyUpdate(response.error);
       log.info('errors.note.saved', { errorId });
       setStatus('Note saved.');
     } catch (reason) {
@@ -139,7 +143,9 @@ export default function ErrorDetail({ errorId, onChanged, onBack, onOpenSettings
       </div>
     );
   }
-  const engineId = error.source.startsWith('engine:') ? error.source.slice(7) : null;
+  const engineId = error.source.startsWith(ENGINE_SOURCE_PREFIX)
+    ? error.source.slice(ENGINE_SOURCE_PREFIX.length)
+    : null;
   const stackLines = (error.stack || '').split('\n');
   return (
     <article className="errors-detail" aria-labelledby="error-detail-title">

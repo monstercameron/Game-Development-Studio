@@ -7,6 +7,22 @@ const log = createLogger('sfx');
 // The cached fp16 model is approximately 10 GiB. This working-memory budget
 // is conservative and uncalibrated; generation duration can change usage.
 export const SOUND_BUDGET_MIB = 20 * 1024;
+
+/**
+ * Creates a loader that asks the Stable Audio worker to load its model.
+ * Concurrent calls share one in-flight load. The returned function resolves to
+ * { status, body } and never throws for engine failures; it throws only when
+ * the supplied token is malformed. A 'load_unknown' result means the worker may
+ * still be loading, so the caller must not clear its queue barrier blindly.
+ *
+ * @param {object} options
+ * @param {() => Promise<object>} options.hardware Returns a GPU memory snapshot.
+ * @param {() => Promise<object[]>} options.services Returns services that hold GPU memory.
+ * @param {string} options.baseUrl Loopback origin of the Stable Audio worker.
+ * @param {typeof fetch} [options.fetcher] Injected fetch for tests.
+ * @param {() => Promise<string>} [options.getToken] Supplies the access token when none is passed.
+ * @returns {(token?: string) => Promise<{ status: number, body: object }>}
+ */
 export function createSoundLoader({
   hardware,
   services,
@@ -85,11 +101,15 @@ export function createSoundLoader({
           signal: AbortSignal.timeout(3000),
           redirect: 'error',
         });
-        const data = await response.json();
-        if (!response.ok || typeof data.session !== 'string' || data.session.length > 512) {
+        const sessionBody = await response.json();
+        if (
+          !response.ok ||
+          typeof sessionBody.session !== 'string' ||
+          sessionBody.session.length > 512
+        ) {
           throw Error('Invalid session');
         }
-        session = data.session;
+        session = sessionBody.session;
       } catch (error) {
         log.warn('sfx.session.failed', { error });
         return {
@@ -161,6 +181,16 @@ export function createSoundLoader({
   };
 }
 
+/**
+ * Creates the queue-facing step that brings Stable Audio to a ready state.
+ * The returned function resolves to a stage object ({ status, stage, error?,
+ * loadBarrier?, details? }) or null when another caller holds the load claim.
+ *
+ * @param {object} options
+ * @param {(key: string) => Promise<object>} options.startEngine Starts the worker process.
+ * @param {() => Promise<object>} options.loadModel Calls the loader from createSoundLoader.
+ * @param {boolean} [options.autoStart] Whether an unreachable worker may be started.
+ */
 export function createSoundPreparation({ startEngine, loadModel, autoStart = true }) {
   return async function prepareSound({ health, reachable, claimLoad, retryModel = false }) {
     if (!reachable) {

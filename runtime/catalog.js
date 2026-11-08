@@ -126,6 +126,10 @@ const configuredOrigins = {
   asr: 'FORGE_ASR_URL',
   segmentation: 'FORGE_SAM31_URL',
 };
+/**
+ * Applies the FORGE_*_URL overrides from `env`. A rejected override keeps the service listed with
+ * `port: null` and a `configurationError` instead of silently using the default loopback port.
+ */
 export function configuredServices(env = process.env) {
   return services.map((service) => {
     const key = configuredOrigins[service.id];
@@ -137,9 +141,9 @@ export function configuredServices(env = process.env) {
       return service;
     }
     try {
-      const url = new URL(value),
-        allowed =
-          service.id === 'asr' ? ['127.0.0.1', 'localhost', '[::1]'] : ['127.0.0.1', 'localhost'];
+      const url = new URL(value);
+      const allowed =
+        service.id === 'asr' ? ['127.0.0.1', 'localhost', '[::1]'] : ['127.0.0.1', 'localhost'];
       if (
         url.protocol !== 'http:' ||
         !allowed.includes(url.hostname) ||
@@ -168,6 +172,23 @@ export function configuredServices(env = process.env) {
   });
 }
 
+// Order matters: a load in progress is reported before an earlier error, and an error before a
+// loaded model.
+function yueModelState(model) {
+  if (model.loading) {
+    return 'loading';
+  }
+  if (model.error) {
+    return 'error';
+  }
+  return model.loaded ? 'ready' : 'not loaded';
+}
+
+/**
+ * Maps one engine's status body to `{ modelLoaded, state, busy }`. Returns null when the body does
+ * not carry the engine's identity and expected fields, so an unknown response is never reported
+ * as ready. `modelLoaded` and `busy` may be null when the engine does not report them.
+ */
 export function interpretStatus(kind, body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return null;
@@ -225,13 +246,7 @@ export function interpretStatus(kind, body) {
       }
       return {
         modelLoaded: body.model.loaded,
-        state: body.model.loading
-          ? 'loading'
-          : body.model.error
-            ? 'error'
-            : body.model.loaded
-              ? 'ready'
-              : 'not loaded',
+        state: yueModelState(body.model),
         busy: !!body.model.loading,
       };
     case 'tts':
@@ -340,6 +355,7 @@ export async function inspectService(service) {
   // TRELLIS.2 pipelines are read from disk so they are known while the worker is stopped.
   return service.kind === 'trellis' ? { ...state, pipelines: installedTrellisPipelines() } : state;
 }
+
 async function inspectServiceStatus(service) {
   const { kind, endpoint, ...visible } = service;
   if (!service.port) {

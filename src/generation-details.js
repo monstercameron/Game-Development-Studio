@@ -149,15 +149,16 @@ export function modelLabel(meta) {
 }
 export function secondaryLabel(meta) {
   const type = meta?.type || meta?.asset?.kind;
-  return type === 'music'
-    ? 'Lyrics'
-    : type === 'voices'
-      ? meta?.settings?.mode === 'design'
-        ? 'Voice description'
-        : 'Voice direction'
-      : type === 'chat'
-        ? 'System prompt'
-        : 'Notes';
+  if (type === 'music') {
+    return 'Lyrics';
+  }
+  if (type === 'voices') {
+    return meta?.settings?.mode === 'design' ? 'Voice description' : 'Voice direction';
+  }
+  if (type === 'chat') {
+    return 'System prompt';
+  }
+  return 'Notes';
 }
 export function negativeLabel(meta) {
   return meta?.type === 'music' ? 'Style to avoid' : 'Negative prompt';
@@ -345,7 +346,6 @@ const videoFrames = (frames) => {
   );
   return Number.isFinite(Number(frames)) ? VIDEO_FRAME_PRESETS[nearest] : 'About 5 seconds';
 };
-const planning = { full: 'Full arrangement', melody: 'Melody', off: 'Off' };
 const text = (value) => (typeof value === 'string' ? value : '');
 const str = (value) => (value === null || value === undefined ? '' : String(value));
 const sampleChoice = (value) => (value === true ? 'on' : value === false ? 'off' : '');
@@ -421,7 +421,7 @@ export function reusePlan(meta) {
         second: text(meta.prompt.secondary),
         options: [
           [15, 30, 60].includes(duration) ? `${duration} seconds` : '15 seconds',
-          planning[s.cot] || 'Full arrangement',
+          planningNames[s.cot] || 'Full arrangement',
         ],
         musicDuration: derived ? '' : str(s.duration_seconds),
         musicSteps: str(s.ode_steps),

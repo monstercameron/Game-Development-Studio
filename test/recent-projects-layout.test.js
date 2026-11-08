@@ -13,7 +13,6 @@ test('recent projects select a compact layout for one, two, or many cards', asyn
   const temporaryDirectory = await mkdtemp(path.join(repositoryRoot, 'test', '.recent-projects-'));
   const sourcePath = path.join(repositoryRoot, 'src', 'Projects.jsx');
   const outputPath = path.join(temporaryDirectory, 'Projects.mjs');
-  let projectsModule;
 
   try {
     const source = await readFile(sourcePath, 'utf8');
@@ -21,6 +20,8 @@ test('recent projects select a compact layout for one, two, or many cards', asyn
     const componentEnd = source.indexOf('export function NewProjectDialog');
     assert.ok(componentStart >= 0 && componentEnd > componentStart);
 
+    // Only the one component is extracted from src/Projects.jsx, so its icon imports and
+    // thumbnail helpers are stubbed to let the extracted markup render without the app.
     const prelude = `
       const AssetThumbnail = () => null;
       const isVisualAsset = () => false;
@@ -41,7 +42,7 @@ test('recent projects select a compact layout for one, two, or many cards', asyn
       jsx: 'automatic',
     });
     await writeFile(outputPath, transformed.code, 'utf8');
-    projectsModule = await import(pathToFileURL(outputPath).href);
+    const projectsModule = await import(pathToFileURL(outputPath).href);
 
     const project = (index) => ({
       id: `project-${index}`,

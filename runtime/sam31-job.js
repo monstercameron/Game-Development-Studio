@@ -19,6 +19,8 @@ function send(jobId, type, values = {}) {
     process.send({ jobId, type, ...values });
   }
 }
+// The studio host forks this worker and holds the IPC channel. Losing the channel means the host
+// is gone, so exit rather than keep polling for nobody.
 process.on('disconnect', () => {
   log.info('segmentation.process.disconnected', { exitCode: 0 });
   process.exit(0);
@@ -141,6 +143,8 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
         }
         state = await response.json();
       } catch (error) {
+        // A failed poll does not prove the remote job stopped. The job stays open and polling
+        // resumes; it is never resubmitted.
         log.debug('segmentation.poll.failed', {
           jobId: job.id,
           route: '/api/jobs/:id',

@@ -18,7 +18,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { createLogger } from './app-log.js';
 import { defaultRuntimeDirectory, errorLogFields, recordRecoveryEvent } from './recovery-events.js';
 
+// A staging file younger than this may belong to a write that is still running.
 export const SWEEP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+// Folder depth below each scanned root, and entries visited per root, so one scan is bounded.
 const MAX_DEPTH = 2;
 const MAX_ENTRIES = 20000;
 const JOB_ID = /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i;
@@ -37,7 +39,8 @@ const SKIPPED_DIRECTORIES = new Set(['.forge-staging', 'node_modules', '.forge-t
 const log = createLogger('runtime');
 
 // Hidden staging names written by Forge: `.<name>.<token>.tmp`, `.<name>.<token>.part`,
-// `.<name>.part.mp4`. The leading dot keeps them out of asset listings.
+// `.<name>.part.mp4` and `.forge-convert-<uuid>.<ext>`. The leading dot keeps them out of asset
+// listings.
 const STAGING_FILE = /^(?:\..+\.(?:tmp|part|part\.mp4)|\.forge-convert-[0-9a-f-]{36}\.\w+)$/i;
 const REPORT_ONLY = [
   { pattern: /^\..+\.conflict$/i, kind: 'output_conflict' },
@@ -50,7 +53,10 @@ function entryId(scope, project, relative) {
   return createHash('sha1').update(`${scope}|${project}|${relative}`).digest('hex').slice(0, 16);
 }
 
-/** Ids of render jobs that are not finished, read-only. Returns null when unavailable. */
+/**
+ * Ids of render jobs that are not finished, read-only. Returns an empty set when there is no jobs
+ * database, and null when it exists but cannot be read (callers then keep job-named staging files).
+ */
 export function readOpenJobIds(runtimeDirectory) {
   const file = path.join(runtimeDirectory, 'jobs.sqlite');
   if (!fs.existsSync(file)) {
@@ -96,6 +102,7 @@ function classify(name, { ageMs, maxAgeMs, openJobIds }) {
     return null;
   }
   const referencedJob = JOB_ID.exec(name)?.[0].toLowerCase();
+  // A null job list means the jobs table could not be read, so a job-named file is kept.
   if (referencedJob && (!openJobIds || openJobIds.has(referencedJob))) {
     return { kind: 'staging_in_use', deletable: false, skip: true };
   }

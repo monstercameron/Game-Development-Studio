@@ -32,13 +32,13 @@ class WorldRequestTests(unittest.TestCase):
                 WorldRequest(**base, **bad)
 
     def test_generators_only_accept_their_own_outputs_and_sizes(self):
-        views = {"model": "hy-world", "mode": "image", "images": [PNG]}
+        image_request = {"model": "hy-world", "mode": "image", "images": [PNG]}
         for bad in (
-            {**views, "resolution": 518, "output": "glb"},
-            {**views, "resolution": 518, "output": "mesh"},
-            {**views, "resolution": 1024},
-            {**views, "mode": "panorama", "resolution": 518, "images": [PNG, PNG]},
-            {**views, "mode": "text", "resolution": 518},
+            {**image_request, "resolution": 518, "output": "glb"},
+            {**image_request, "resolution": 518, "output": "mesh"},
+            {**image_request, "resolution": 1024},
+            {**image_request, "mode": "panorama", "resolution": 518, "images": [PNG, PNG]},
+            {**image_request, "mode": "text", "resolution": 518},
             {"model": "worldgen", "mode": "text", "prompt": "a", "resolution": 952},
             {
                 "model": "worldgen",

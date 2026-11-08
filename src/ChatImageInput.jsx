@@ -10,6 +10,8 @@ import {
 import './chat-images.css';
 
 const ACCEPTED_TYPES = 'image/png,image/jpeg,image/webp';
+// Both attach buttons point aria-describedby at this one reason paragraph.
+const REASON_ID = 'chat-image-reason';
 
 /** Thumbnails of the pictures that will be sent with the next message. */
 export function ChatImageTray({ attachments, onRemove, disabled }) {
@@ -68,7 +70,6 @@ export function ChatImageButtons({
       ? `A message can carry up to ${MAX_CHAT_IMAGES} pictures. Remove one to add another.`
       : '');
   const isDisabled = Boolean(reason) || busy || preparing;
-  const reasonId = 'chat-image-reason';
   return (
     <div className="chat-image-buttons">
       <input
@@ -81,6 +82,7 @@ export function ChatImageButtons({
         aria-hidden="true"
         onChange={(event) => {
           const files = [...event.target.files];
+          // Clear the input so choosing the same file again still fires onChange.
           event.target.value = '';
           onFiles(files);
         }}
@@ -89,7 +91,7 @@ export function ChatImageButtons({
         type="button"
         className="chat-image-attach"
         disabled={isDisabled}
-        aria-describedby={reason ? reasonId : undefined}
+        aria-describedby={reason ? REASON_ID : undefined}
         title={reason || 'Attach pictures from this computer (PNG, JPEG or WebP)'}
         onClick={() => fileInput.current?.click()}
       >
@@ -100,7 +102,7 @@ export function ChatImageButtons({
         type="button"
         className="chat-image-attach"
         disabled={isDisabled || !project}
-        aria-describedby={reason ? reasonId : undefined}
+        aria-describedby={reason ? REASON_ID : undefined}
         title={
           reason ||
           (project ? 'Choose a picture from the project assets' : 'Choose a project first')
@@ -111,7 +113,7 @@ export function ChatImageButtons({
         <span>From project</span>
       </button>
       {reason && !busy && (
-        <p id={reasonId} className="chat-image-reason">
+        <p id={REASON_ID} className="chat-image-reason">
           {reason}
         </p>
       )}

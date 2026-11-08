@@ -13,8 +13,15 @@ log = get_logger("transcode")
 
 
 def image(source, target, fmt, quality, background):
+    """Convert an image to jpeg, png, webp, bmp or tga and return the label of the encoder used.
+
+    background is the flatten color for jpeg and bmp output; transparency is composited onto it.
+    quality applies to jpeg only, because webp is always written losslessly.
+    """
     from PIL import Image, ImageOps
 
+    # Pillow's default decompression-bomb limit is about 89 megapixels. Raise it to 100
+    # megapixels for large source images.
     Image.MAX_IMAGE_PIXELS = 100_000_000
     with Image.open(source) as opened:
         opened.seek(0)
@@ -40,8 +47,8 @@ def image(source, target, fmt, quality, background):
                     pixels = np.array(picture.convert("RGB"), copy=True)
                     tensor = torch.from_numpy(pixels).permute(2, 0, 1).contiguous().to("cuda")
                     encoded = encode_jpeg(tensor, quality=quality).cpu().numpy().tobytes()
-                    with open(target, "wb") as out:
-                        out.write(encoded)
+                    with open(target, "wb") as output_file:
+                        output_file.write(encoded)
                     return "NVIDIA GPU (nvJPEG)"
             except Exception as exc:
                 log.info("transcode.gpu.unavailable", {"error": exc, "format": fmt})
@@ -59,6 +66,11 @@ def image(source, target, fmt, quality, background):
 
 
 def audio(source, target, fmt, quality):
+    """Convert an audio file and return the label of the encoder used.
+
+    quality is the request's 0-100 setting; higher means better quality. It applies to mp3,
+    ogg and opus only. Opus at a sample rate outside Opus's set is resampled to 48 kHz.
+    """
     import soundfile as sf
 
     specs = {
@@ -143,6 +155,8 @@ def video(source, target, fmt, quality):
             stream = src.streams.video[0]
             step = max(1, round(float(stream.average_rate or 24) / 12))
             for index, decoded in enumerate(src.decode(stream)):
+                # About 12 frames per second, capped at 300 frames, which bounds both the GIF
+                # size and the frame list held in memory.
                 if index % step or len(frames) >= 300:
                     continue
                 picture = decoded.to_image().convert("RGB")

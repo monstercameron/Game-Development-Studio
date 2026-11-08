@@ -99,7 +99,7 @@ export default function LanguageMenu({ section, allowPseudo = false }) {
     }
   }
 
-  function openTranslateDialog() {
+  function handleOpenTranslateDialog() {
     setIsOpen(false);
     log.info('i18n.translate.opened', { namespaceCount: namespaces.length });
     updateSearch(setParams, { dialog: 'translate' });
@@ -189,7 +189,7 @@ export default function LanguageMenu({ section, allowPseudo = false }) {
               {error}
             </p>
           )}
-          <button type="button" className="outline-button" onClick={openTranslateDialog}>
+          <button type="button" className="outline-button" onClick={handleOpenTranslateDialog}>
             {t('i18n.menu.translate', 'Translate this page with ChatGPT…')}
           </button>
           <p className="language-menu-hint">

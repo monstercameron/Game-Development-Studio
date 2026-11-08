@@ -339,11 +339,11 @@ test('a lost ownership lock during verification prevents the stop request', asyn
     throw Error('Must not send');
   };
   try {
-    const result = assert.rejects(manager.offload('3d-trellis'), /ownership/i);
+    const rejection = assert.rejects(manager.offload('3d-trellis'), /ownership/i);
     await new Promise((resolve) => setImmediate(resolve));
     manager.recoveryLock.held = false;
     release();
-    await result;
+    await rejection;
     assert.equal(stops, 0);
   } finally {
     release();

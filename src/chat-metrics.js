@@ -1,10 +1,15 @@
 // TTFT measures from submitting the completion request to the first text or
 // reasoning delta; model startup happens before the request and is excluded.
+/**
+ * Tracks one streamed chat response. `startedAt` is a `performance.now()`
+ * timestamp in milliseconds; `observe(part, at)` takes the same clock.
+ * `finish()` returns null for any value that the stream did not provide.
+ */
 export function createResponseMetrics(startedAt) {
-  let first = null,
-    last = null,
-    tokens = null,
-    serverRate = null;
+  let first = null;
+  let last = null;
+  let tokens = null;
+  let serverRate = null;
   return {
     observe(part, at) {
       const delta = part?.choices?.[0]?.delta;

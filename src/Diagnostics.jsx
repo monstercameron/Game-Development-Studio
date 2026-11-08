@@ -63,11 +63,11 @@ export default function Diagnostics() {
   const setErrorsOnly = (value) => updateSearch(setParams, { errors: value ? '1' : null });
   async function refreshMetadata() {
     try {
-      const res = await fetch('/api/diagnostics');
-      if (!res.ok) {
+      const response = await fetch('/api/diagnostics');
+      if (!response.ok) {
         throw Error('Diagnostics unavailable.');
       }
-      setMetadata(await res.json());
+      setMetadata(await response.json());
       setMetadataError('');
       if (isMetadataFailing.current) {
         isMetadataFailing.current = false;
@@ -145,8 +145,8 @@ export default function Diagnostics() {
   }, [paused, streamAttempt]);
   useEffect(() => {
     if (copyMessage) {
-      const t = setTimeout(() => setCopyMessage(''), 3000);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => setCopyMessage(''), 3000);
+      return () => clearTimeout(timer);
     }
   }, [copyMessage]);
   const visible = useMemo(
@@ -185,7 +185,11 @@ export default function Diagnostics() {
     return logSources
       .map((source) => {
         const lines = filtered ? filterLogLines(source.lines, { errorsOnly, query }) : source.lines;
-        return `[${source.label}]${source.file ? `\n${source.file}` : ''}\n${source.available ? lines.join('\n') || '(No matching log lines)' : source.unavailable || 'Unavailable'}`;
+        const header = `[${source.label}]${source.file ? `\n${source.file}` : ''}`;
+        const body = source.available
+          ? lines.join('\n') || '(No matching log lines)'
+          : source.unavailable || 'Unavailable';
+        return `${header}\n${body}`;
       })
       .join('\n\n');
   }

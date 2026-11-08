@@ -8,8 +8,9 @@ import { useInstalledTrellisPipelines } from './useInstalledTrellisPipelines';
 import './trellis-controls.css';
 
 const validationReference = '00000000-0000-0000-0000-000000000000.png';
+// Triangle budgets offered in the menu. Any other saved count is shown as a custom option.
 const TRIANGLE_CHOICES = [20000, 50000, 100000, 250000, 500000, 1000000];
-const count = (value) => Number(value).toLocaleString('en-US');
+const formatCount = (value) => Number(value).toLocaleString('en-US');
 
 // Checks one control at a time, with every other control held at a valid value.
 function fieldError(overrides) {
@@ -113,10 +114,12 @@ export default function TrellisControls({ draft, onChange, installedPipelines })
               aria-describedby={`trellis-triangles-help${trianglesError ? ' trellis-triangles-error' : ''}`}
               onChange={(event) => onChange({ trellisTriangles: Number(event.target.value) })}
             >
-              {customTriangles && <option value={triangles}>{count(triangles)} (custom)</option>}
+              {customTriangles && (
+                <option value={triangles}>{formatCount(triangles)} (custom)</option>
+              )}
               {TRIANGLE_CHOICES.map((choice) => (
                 <option key={choice} value={choice}>
-                  {count(choice)} triangles
+                  {formatCount(choice)} triangles
                   {choice === TRELLIS_DEFAULT_TRIANGLES ? ' · default' : ''}
                   {choice === 1000000 ? ' · upstream default' : ''}
                 </option>

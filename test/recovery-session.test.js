@@ -132,6 +132,7 @@ test('a shutdown that does not finish is cut off at the deadline and marked forc
 
 test('a start after an unclean exit tells children and writes the recovery event', async (t) => {
   const directory = await temp(t);
+  // Never ended, so the next start reads it as the crashed session.
   const crashed = beginSession({ directory });
   assert.equal(crashed.previous.state, 'none');
   const { proc, lifecycle } = lifecycleFixture(directory);
@@ -147,16 +148,16 @@ test('a start after an unclean exit tells children and writes the recovery event
   lifecycle.stopped();
   lifecycle.dispose();
 
-  const again = lifecycleFixture(directory);
-  again.proc.env.FORGE_PREVIOUS_UNCLEAN = '1';
-  again.lifecycle.start();
+  const restarted = lifecycleFixture(directory);
+  restarted.proc.env.FORGE_PREVIOUS_UNCLEAN = '1';
+  restarted.lifecycle.start();
   assert.equal(
-    again.proc.env.FORGE_PREVIOUS_UNCLEAN,
+    restarted.proc.env.FORGE_PREVIOUS_UNCLEAN,
     undefined,
     'a clean previous session clears it',
   );
-  again.lifecycle.stopped();
-  again.lifecycle.dispose();
+  restarted.lifecycle.stopped();
+  restarted.lifecycle.dispose();
 });
 
 test('a stop request file stops the studio only for this process and only when fresh', async (t) => {

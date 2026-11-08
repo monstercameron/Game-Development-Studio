@@ -29,7 +29,7 @@ function waitFor(queue, id, statuses) {
       if (statuses.includes(job.status)) {
         resolve(job);
       } else if (Date.now() >= deadline) {
-        reject(Error(`World job stayed ${job.status}: ${job.stage}`));
+        reject(new Error(`World job stayed ${job.status}: ${job.stage}`));
       } else {
         setTimeout(check, 20);
       }
@@ -117,10 +117,10 @@ test('world jobs route selected project assets and retry an accepted remote job 
     statusChecks = 0,
     submittedPayload;
   const remoteId = '1234567890abcdef1234567890abcdef';
-  const server = createServer(async (req, res) => {
+  const server = createServer(async (req, response) => {
     const json = (value) => {
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify(value));
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify(value));
     };
     if (req.url === '/api/status') {
       return json({ engine: 'forge-world-v1', ready: true, busy: false });
@@ -134,16 +134,18 @@ test('world jobs route selected project assets and retry an accepted remote job 
       submittedPayload = JSON.parse(body);
       return json({ id: remoteId });
     }
+    // The first status poll reports failure, so retry must recheck the accepted job rather
+    // than submit it again.
     if (req.url === `/api/jobs/${remoteId}`) {
       statusChecks += 1;
       return json({ status: statusChecks === 1 ? 'failed' : 'completed' });
     }
     if (req.url === `/api/jobs/${remoteId}/world`) {
-      res.end(ply);
+      response.end(ply);
       return;
     }
-    res.statusCode = 404;
-    res.end();
+    response.statusCode = 404;
+    response.end();
   });
   const oldUrl = process.env.FORGE_WORLD_URL;
   process.env.FORGE_WORLD_URL = await listen(server);

@@ -77,7 +77,8 @@ test('image request validation rejects malformed options without persisting jobs
       true_cfg_scale: 2,
     },
   });
-  // A blank seed is chosen when the job is queued, so the render is reproducible and its seed is recorded.
+  // A blank seed is chosen when the job is queued so the render is reproducible and its seed is
+  // recorded on the job.
   const { seed, ...rest } = queued.request;
   assert.ok(Number.isSafeInteger(seed) && seed >= 0 && seed <= 2147483647);
   assert.deepEqual(rest, {
@@ -141,18 +142,18 @@ test(
     const { root, projects, project, projectId } = await makeProject(t, 'forge-image-recovery-');
     const remoteId = 'already-accepted-image';
     let submissions = 0;
-    const server = createServer((req, res) => {
-      res.setHeader('Content-Type', 'application/json');
-      if (req.url === '/api/generate') {
+    const server = createServer((request, response) => {
+      response.setHeader('Content-Type', 'application/json');
+      if (request.url === '/api/generate') {
         submissions++;
-        res.end(JSON.stringify({ id: 'unexpected-new-job' }));
-      } else if (req.url === `/api/jobs/${remoteId}`) {
-        res.end(JSON.stringify({ status: 'completed', images: ['/outputs/recovered.png'] }));
-      } else if (req.url === '/outputs/recovered.png') {
-        res.end('recovered image fixture');
+        response.end(JSON.stringify({ id: 'unexpected-new-job' }));
+      } else if (request.url === `/api/jobs/${remoteId}`) {
+        response.end(JSON.stringify({ status: 'completed', images: ['/outputs/recovered.png'] }));
+      } else if (request.url === '/outputs/recovered.png') {
+        response.end('recovered image fixture');
       } else {
-        res.statusCode = 404;
-        res.end('{}');
+        response.statusCode = 404;
+        response.end('{}');
       }
     });
     server.listen(0, '127.0.0.1');

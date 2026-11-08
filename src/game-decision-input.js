@@ -1,7 +1,15 @@
 // Mammoth System One allows up to 16 named questions per request; each question shares one prefill.
 export const MAX_GAME_QUESTIONS = 16;
 
-// Builds one System One question from a question type and its text (first line is the question).
+/**
+ * Builds one System One question from a question type and its text (first line is the question).
+ *
+ * @param {'Yes / No' | 'Choice' | 'Score'} mode Question type as shown in the UI.
+ * @param {string} text Question on the first line, then one choice or score level per line.
+ * @returns {{ type: string, instructions: string, criteria?: object }} Request question shape.
+ * @throws {Error} When the text is empty, the mode is unsupported, or the choice or score
+ *   count is outside the limits the Mammoth service accepts.
+ */
 export function gameQuestion(mode, text) {
   if (mode === 'Yes / No') {
     if (typeof text !== 'string' || !text.trim()) {
@@ -57,10 +65,10 @@ export function gameDecisionRequest(draft, extraQuestions = []) {
   if (extraQuestions.length + 1 > MAX_GAME_QUESTIONS) {
     throw Error(`Use at most ${MAX_GAME_QUESTIONS} questions per request.`);
   }
-  extraQuestions.forEach((item, index) => {
+  extraQuestions.forEach((extraQuestion, index) => {
     const name = `decision_${index + 2}`;
     try {
-      questions[name] = gameQuestion(item?.mode, item?.text);
+      questions[name] = gameQuestion(extraQuestion?.mode, extraQuestion?.text);
     } catch (error) {
       throw Error(`Question ${index + 2}: ${error.message}`, { cause: error });
     }

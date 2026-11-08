@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import fs from 'node:fs/promises';
 import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { randomUUID } from 'node:crypto';
 import { buildJobMetadata } from '../runtime/asset-metadata.js';
 import { DEPENDENCY_FAILED_STAGE, ENGINE_FAILED_OUTCOME, JobQueue } from '../runtime/jobs.js';
 import { stageProjectAsset } from '../runtime/references.js';
@@ -20,7 +20,8 @@ import {
 // Retrying a segmentation that failed with a known engine result, and the SAM match options.
 // Every test uses temporary projects and a loopback fake SAM worker; no model is loaded.
 
-// Never reach a real engine on this computer unless a test points a variable at its own fake.
+// Point every engine URL at a closed port, so a test that forgets its fake fails instead of
+// reaching a real engine.
 for (const name of ['FORGE_HUNYUAN_URL', 'FORGE_TRELLIS_URL', 'FORGE_SAM31_URL']) {
   process.env[name] = 'http://127.0.0.1:1';
 }
@@ -68,7 +69,7 @@ async function setup(t, { autoStart = false } = {}) {
     projectId,
     request: { prompt: 'the dragon', references: [reference.id], ...extra },
   });
-  return { dir, folder, projectId, queue, segmentation };
+  return { folder, projectId, queue, segmentation };
 }
 
 // Puts a job into the state the job worker leaves behind, without running anything.
@@ -114,7 +115,7 @@ test('retrying a failure with an unknown outcome only rechecks the existing engi
   assert.equal(rechecked.status, 'running');
   assert.equal(rechecked.remoteId, REMOTE_ID);
   assert.equal(rechecked.stage, 'Rechecking the existing engine job.');
-  // The marker means nothing on a job that is not failed with a remote id.
+  // A job that needs attention after a lost reconnect is rechecked when it still has a remote id.
   const reconnect = queue.enqueue(segmentation());
   mark(queue, reconnect.id, {
     status: 'needs_attention',
@@ -481,6 +482,9 @@ test('asset details record the match counts and the scores of the kept matches',
   assert.equal(settings.matches_found, 4);
   assert.equal(settings.matches_used, 2);
   assert.equal(settings.match_scores, '0.90, 0.80');
-  const old = buildJobMetadata({ ...job, details: null }, 'masks/forge-example.png').settings;
-  assert.equal('matches_found' in old, false);
+  const { settings: withoutDetails } = buildJobMetadata(
+    { ...job, details: null },
+    'masks/forge-example.png',
+  );
+  assert.equal('matches_found' in withoutDetails, false);
 });

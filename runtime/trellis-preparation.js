@@ -10,21 +10,25 @@ const HOST_LOAD = 8 * 1024 ** 3,
   HOST_RENDER = 12 * 1024 ** 3,
   GPU_LOAD = 4 * 1024,
   GPU_RENDER = 24 * 1024;
-const engine = 'forge-trellis2-512-experimental-v1';
+const TRELLIS_ENGINE_IDENTITY = 'forge-trellis2-512-experimental-v1';
 // Per-pipeline render budgets. Only the 512 budget has any measurement behind it; the
 // higher-resolution values are deliberately generous guesses for a large GPU. The first render
 // that needs the 1024 checkpoints also reads about 5 GiB of them into host memory, which is why
-// the host figure is higher. Host memory is only a soft floor unless FORGE_HOST_MEMORY_POLICY=strict.
+// the host figure is higher. Host memory is only a soft floor unless
+// FORGE_HOST_MEMORY_POLICY=strict.
 export const TRELLIS_RENDER_BUDGETS = {
   512: { hostBytes: HOST_RENDER, gpuMiB: GPU_RENDER },
   1024: { hostBytes: 18 * 1024 ** 3, gpuMiB: 40 * 1024 },
   '1024_cascade': { hostBytes: 18 * 1024 ** 3, gpuMiB: 48 * 1024 },
   '1536_cascade': { hostBytes: 20 * 1024 ** 3, gpuMiB: 64 * 1024 },
 };
+// Unknown or missing pipeline names fall back to the 512 budget rather than rejecting the request.
 export function trellisRenderBudget(request) {
   return TRELLIS_RENDER_BUDGETS[request?.pipeline ?? '512'] || TRELLIS_RENDER_BUDGETS[512];
 }
 
+// Returns a load function that coalesces concurrent calls into one in-flight request, so a second
+// click while the first is checking the worker reuses that result instead of issuing another load.
 export function createTrellisLoader({
   hardware,
   services,
@@ -45,7 +49,11 @@ export function createTrellisLoader({
           redirect: 'error',
         });
         status = await response.json();
-        if (!response.ok || status.engine !== engine || typeof status.loaded !== 'boolean') {
+        if (
+          !response.ok ||
+          status.engine !== TRELLIS_ENGINE_IDENTITY ||
+          typeof status.loaded !== 'boolean'
+        ) {
           throw Error('Unexpected response');
         }
       } catch (error) {
@@ -176,7 +184,7 @@ export function createTrellisPreparation({
           loadBarrier: true,
         };
       }
-      if (['missing', 'failed', 'port_in_use', 'recovery_unresolved'].includes(result.status)) {
+      if (['missing', 'failed', 'port_in_use'].includes(result.status)) {
         log.warn('three-d.start.rejected', { reason: 'start_failed', status: result.status });
         return {
           status: 'needs_attention',
@@ -256,6 +264,7 @@ export function createTrellisPreparation({
   };
 }
 
+// Resolves to null when the render may proceed; otherwise to a waiting or needs-attention status.
 export function createTrellisRenderPreparation({ hardware, services, freeMemory = os.freemem }) {
   return async (request = {}) => {
     const budget = trellisRenderBudget(request);

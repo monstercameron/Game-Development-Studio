@@ -156,7 +156,7 @@ class SplitFusedGateUpTest(unittest.TestCase):
             self.skipTest("the camera-angle LoRA file is not present")
         with safe_open(str(REAL_LORA), framework="pt") as handle:
             shapes = {key: tuple(handle.get_slice(key).get_shape()) for key in handle.keys()}
-        # Only block 0 is needed; the split is per block and the shapes are identical in every block.
+        # Only block 0 is needed: the split runs per block, and every block has the same shapes.
         block_zero = {
             key: torch.empty(shape, dtype=torch.float16)
             for key, shape in shapes.items()

@@ -15,6 +15,8 @@ test('configured Vite renders JSX that does not import React', async () => {
   const outputPath = path.join(fixtureDirectory, 'component.mjs');
 
   try {
+    // The fixture deliberately omits a React import: the test proves the project's Vite/esbuild
+    // config injects the JSX runtime itself, which the app's components rely on.
     const source =
       'export default function Component() { return <main data-kind="automatic">Ready</main>; }';
     const loadedConfig = await loadConfigFromFile(

@@ -265,9 +265,11 @@ test('a valid change is applied, audited and returned with the new list', async 
       ['engines.autoStart.trellis', 'ui'],
     ],
   );
-  const lines = api.logs.map((line) => JSON.parse(line));
-  assert.ok(lines.every((line) => line.source === 'settings' && line.event === 'settings_changed'));
-  assert.equal(lines.length, 2);
+  const logEntries = api.logs.map((line) => JSON.parse(line));
+  assert.ok(
+    logEntries.every((entry) => entry.source === 'settings' && entry.event === 'settings_changed'),
+  );
+  assert.equal(logEntries.length, 2);
 });
 
 test('a batch with one bad item changes nothing and names every problem', async (t) => {
@@ -377,7 +379,7 @@ test('an unexpected failure returns a generic message without internals', async 
   const api = await startService(t, {
     settings: {
       list() {
-        throw Error('C:\\Users\\secret\\path exploded');
+        throw new Error('C:\\Users\\secret\\path exploded');
       },
       recentChanges: () => [],
     },

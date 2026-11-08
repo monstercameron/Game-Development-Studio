@@ -11,6 +11,10 @@ export const sourceRoot = path.join(repositoryRoot, 'src');
 const I18N_IMPORT = /(^|\/)i18n\/index\.js$|(^|\/)i18n-(core|react)\.js$/;
 const SKIP_KEYS = new Set(['loc', 'start', 'end', 'extra', 'leadingComments', 'trailingComments']);
 
+/**
+ * Parses a module with JSX. Throws on syntax errors (errorRecovery is off) so the caller
+ * reports the file instead of walking a partial AST.
+ */
 export function parseSource(source, file) {
   return parse(source, {
     sourceType: 'module',
@@ -20,7 +24,7 @@ export function parseSource(source, file) {
   });
 }
 
-/** Depth-first walk calling visit(node, parent, ancestors); ancestors excludes node. */
+/** Depth-first walk calling visit(node, ancestors); ancestors excludes node. */
 export function walk(node, visit, ancestors = []) {
   if (!node || typeof node.type !== 'string') {
     return;
@@ -45,7 +49,7 @@ export function walk(node, visit, ancestors = []) {
 
 /** Top-level `const NAME = 'text'` bindings, so t('key', NAME) can be resolved statically. */
 export function topLevelStrings(program) {
-  const values = new Map();
+  const stringsByName = new Map();
   for (const statement of program.body) {
     const declaration =
       statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement;
@@ -54,14 +58,14 @@ export function topLevelStrings(program) {
     }
     for (const declarator of declaration.declarations) {
       if (declarator.id.type === 'Identifier') {
-        const value = staticString(declarator.init, values);
+        const value = staticString(declarator.init, stringsByName);
         if (value !== null) {
-          values.set(declarator.id.name, value);
+          stringsByName.set(declarator.id.name, value);
         }
       }
     }
   }
-  return values;
+  return stringsByName;
 }
 
 /** The string value of a static expression, or null when it depends on runtime values. */

@@ -196,10 +196,10 @@ test('a stale jobs poll cannot replace results from a newer overlapping poll', a
     });
     assert.equal(requests.length, 1, 'mount starts the first jobs request');
 
-    const [interval] = intervalCallbacks.values();
-    assert.equal(interval.delay, 5000, 'jobs are polled every five seconds');
+    const [pollInterval] = intervalCallbacks.values();
+    assert.equal(pollInterval.delay, 5000, 'jobs are polled every five seconds');
     await act(async () => {
-      interval.callback();
+      pollInterval.callback();
     });
     assert.equal(
       requests.length,

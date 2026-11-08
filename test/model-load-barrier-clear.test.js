@@ -8,6 +8,8 @@ import path from 'node:path';
 import { RuntimeSupervisor } from '../runtime/supervisor.js';
 import { JobQueue } from '../runtime/jobs.js';
 
+// The queue starts with this engine's load barrier set and autoStart off, so no job runs and
+// only the barrier clearing path is under test.
 async function withBarrier(t, engine, serviceEnv, response, callback) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-barrier-clear-'));
   const queue = new JobQueue({ directory, autoStart: false });
@@ -19,17 +21,14 @@ async function withBarrier(t, engine, serviceEnv, response, callback) {
   let url;
   if (response !== null) {
     server = createServer((_request, res) => {
-      if (response.delay) {
-        setTimeout(() => send(res, response), response.delay);
-      } else {
-        send(res, response);
-      }
+      send(res, response);
     });
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     url = `http://127.0.0.1:${server.address().port}`;
   }
 
+  // Port 1 is not served, so a null response exercises the unreachable-worker path.
   const env = {
     ...process.env,
     FORGE_RUNTIME_DIR: directory,

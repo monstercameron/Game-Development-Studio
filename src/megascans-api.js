@@ -82,6 +82,12 @@ export function describeSpeed(item) {
 }
 
 /** Reads the file's extension and says whether the page will offer to upload it. */
+/**
+ * Validates a file before upload. Returns the message to show, or an empty string when the
+ * file can be uploaded. Checks run in order: extension, empty file, then size limit.
+ * @param {File | null | undefined} file
+ * @returns {string}
+ */
 export function checkChosenFile(file) {
   if (!file) {
     return 'Choose a file to import.';
@@ -126,7 +132,7 @@ export function requestFailureFields(error) {
 }
 
 async function readResponse(response) {
-  const data = await response.json().catch((error) => {
+  const responseBody = await response.json().catch((error) => {
     log.debug('megascans.response.unparsed', {
       httpStatus: response.status,
       errorClass: error?.name || 'Error',
@@ -135,14 +141,22 @@ async function readResponse(response) {
   });
   if (!response.ok) {
     throw new MegascansRequestError(
-      data?.error || `The studio returned an error (${response.status}).`,
+      responseBody?.error || `The studio returned an error (${response.status}).`,
       response.status,
-      data || {},
+      responseBody || {},
     );
   }
-  return data;
+  return responseBody;
 }
 
+/**
+ * GET a studio Megascans route. Resolves with the parsed JSON body.
+ * Throws MegascansRequestError when the studio is unreachable or answers with a non-OK status,
+ * and rethrows the AbortError when `signal` cancels the request.
+ * @param {string} path route below /api/megascans, such as "/status" or "/imports"
+ * @param {{ signal?: AbortSignal }} [options]
+ * @returns {Promise<any>}
+ */
 export async function getMegascans(path, { signal } = {}) {
   let response;
   try {
@@ -195,22 +209,22 @@ export function uploadImportFile({ file, projectId, listingId, onProgress }) {
     request.onabort = () =>
       reject(Object.assign(new Error('Upload cancelled.'), { name: 'AbortError' }));
     request.onload = () => {
-      let data;
+      let responseBody;
       try {
-        data = JSON.parse(request.responseText);
+        responseBody = JSON.parse(request.responseText);
       } catch (error) {
         log.debug('megascans.upload.response.unparsed', {
           httpStatus: request.status,
           errorClass: error?.name || 'Error',
         });
-        data = null;
+        responseBody = null;
       }
-      if (request.status >= 200 && request.status < 300 && data?.import) {
-        resolve(data.import);
+      if (request.status >= 200 && request.status < 300 && responseBody?.import) {
+        resolve(responseBody.import);
       } else {
         reject(
           new MegascansRequestError(
-            data?.error || `The studio returned an error (${request.status}).`,
+            responseBody?.error || `The studio returned an error (${request.status}).`,
             request.status,
           ),
         );
@@ -274,7 +288,10 @@ export function describeScan(scan) {
   return states[scan.status] || '';
 }
 
-/** Fab's format names for a card or dialog. The bundled "additional files" are not a model format. */
+/**
+ * Fab's format names for a card or dialog. The bundled "additional files" are not a model
+ * format, so they are left out.
+ */
 export function describeFormats(listing) {
   return listing.formats
     .filter((format) => format.code !== 'additional-files')

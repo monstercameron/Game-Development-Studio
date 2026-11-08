@@ -115,7 +115,8 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
   const message = notice.text,
     messageKind = notice.kind;
   const setMessage = (text, kind = 'error') => setNotice(text ? { text, kind } : NO_NOTICE);
-  // Gated reset: disabled while everything is at its default, and an enabled click only arms a confirmation.
+  // Gated reset: disabled while everything is at its default. An enabled click only arms a
+  // confirmation, so an accidental click cannot discard the settings.
   const isDirty =
     prompt !== '' ||
     output !== 'splat' ||
@@ -408,11 +409,11 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
           },
           body: file,
         });
-        const data = await response.json();
+        const uploadResult = await response.json();
         if (!response.ok) {
-          throw Error(data.error || 'Could not save reference.');
+          throw Error(uploadResult.error || 'Could not save reference.');
         }
-        ids.push(data.reference.id);
+        ids.push(uploadResult.reference.id);
       }
       submittingJob = true;
       await post('/api/runtime/jobs', {
@@ -432,7 +433,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
         error,
       });
       setMessage(
-        submittingJob && error.status === undefined
+        isOutcomeUnknown
           ? 'The connection ended before Forge could confirm the queue result. Check the render queue before submitting again.'
           : error.message,
       );

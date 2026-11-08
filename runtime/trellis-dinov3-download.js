@@ -43,5 +43,7 @@ child.once('exit', (code, signal) => {
     process.exitCode = 1;
   }
 });
+// The child can exit before it reads the token; that write error is reported by the
+// exit handler above, so the stdin error itself is intentionally ignored.
 child.stdin.on('error', () => {});
 child.stdin.end(`${token}\n`);

@@ -150,7 +150,7 @@ test('a GLB mesh and the generated panorama are saved and described in the proje
     res.end();
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const old = process.env.FORGE_WORLD_URL;
+  const previousWorldUrl = process.env.FORGE_WORLD_URL;
   process.env.FORGE_WORLD_URL = `http://127.0.0.1:${server.address().port}`;
   const queue = new JobQueue({ directory: path.join(root, 'runtime'), projects, intervalMs: 100 });
   try {
@@ -208,10 +208,10 @@ test('a GLB mesh and the generated panorama are saved and described in the proje
     queue.stop();
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
-    if (old === undefined) {
+    if (previousWorldUrl === undefined) {
       delete process.env.FORGE_WORLD_URL;
     } else {
-      process.env.FORGE_WORLD_URL = old;
+      process.env.FORGE_WORLD_URL = previousWorldUrl;
     }
     await fs.rm(root, { recursive: true, force: true });
   }

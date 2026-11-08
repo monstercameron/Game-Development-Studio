@@ -31,7 +31,7 @@ const SCHEMA = {
 
 async function connect(t, { failJobAt = 0 } = {}) {
   const calls = [];
-  const server = createServer(async (req, res) => {
+  const server = createServer(async (req, response) => {
     let body = '';
     for await (const chunk of req) {
       body += chunk;
@@ -44,15 +44,15 @@ async function connect(t, { failJobAt = 0 } = {}) {
     });
     const jobCalls = calls.filter((call) => call.path === '/api/runtime/jobs').length;
     if (req.url === '/api/vegetation/schema') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify(SCHEMA));
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      return response.end(JSON.stringify(SCHEMA));
     }
     if (req.url === '/api/runtime/jobs' && jobCalls === failJobAt) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Seed must be a whole number from 1 to 9999.' }));
+      response.writeHead(400, { 'Content-Type': 'application/json' });
+      return response.end(JSON.stringify({ error: 'Seed must be a whole number from 1 to 9999.' }));
     }
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ id: `job-${jobCalls}` }));
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    return response.end(JSON.stringify({ id: `job-${jobCalls}` }));
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

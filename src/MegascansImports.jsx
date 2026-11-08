@@ -26,6 +26,7 @@ export function useImportQueue() {
   const refresh = useCallback(() => setReload((value) => value + 1), []);
   const hasActive = state.imports.some((item) => ACTIVE_STATUSES.includes(item.status));
 
+  // Set while polls keep failing so one outage logs once, not every poll interval.
   const hasLoggedFailure = useRef(false);
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export function useImportQueue() {
         hasLoggedFailure.current = false;
         setState({ imports: data.imports, summary: data.summary, error: '', loaded: true });
       } catch (error) {
+        // Aborts come from the effect cleanup (a newer poll or unmount), not from a real failure.
         if (error?.name !== 'AbortError') {
           if (!hasLoggedFailure.current) {
             hasLoggedFailure.current = true;
@@ -57,7 +59,7 @@ export function useImportQueue() {
   return { ...state, refresh };
 }
 
-function ImportRow({ item, projectName, onAction, busy, onOpenLibrary }) {
+function ImportRow({ item, projectName, onAction, isBusy, onOpenLibrary }) {
   const percent = percentDone(item);
   const active = ACTIVE_STATUSES.includes(item.status);
   const canRetry = ['failed', 'interrupted', 'cancelled'].includes(item.status);
@@ -118,7 +120,7 @@ function ImportRow({ item, projectName, onAction, busy, onOpenLibrary }) {
           <button
             type="button"
             className="outline-button"
-            disabled={busy || item.cancelRequested}
+            disabled={isBusy || item.cancelRequested}
             onClick={() => onAction(item, 'cancel')}
           >
             <X size={14} aria-hidden="true" /> {item.cancelRequested ? 'Cancelling…' : 'Cancel'}
@@ -128,7 +130,7 @@ function ImportRow({ item, projectName, onAction, busy, onOpenLibrary }) {
           <button
             type="button"
             className="outline-button"
-            disabled={busy}
+            disabled={isBusy}
             onClick={() => onAction(item, 'retry')}
           >
             <RotateCcw size={14} aria-hidden="true" /> Retry
@@ -143,7 +145,7 @@ function ImportRow({ item, projectName, onAction, busy, onOpenLibrary }) {
           <button
             type="button"
             className="ghost-button"
-            disabled={busy}
+            disabled={isBusy}
             onClick={() => onAction(item, 'dismiss')}
           >
             Dismiss
@@ -169,6 +171,7 @@ export function ImportsPanel({
   const [busyId, setBusyId] = useState('');
   const [actionError, setActionError] = useState('');
   const [dragging, setDragging] = useState(false);
+  // Guards state updates from actions that finish after the panel unmounts.
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -179,7 +182,7 @@ export function ImportsPanel({
   const { imports, summary, error, loaded, refresh } = queue;
   const names = Object.fromEntries((projects || []).map((item) => [item.id, item.name]));
 
-  async function act(item, action) {
+  async function handleItemAction(item, action) {
     setBusyId(item.id);
     setActionError('');
     try {
@@ -311,8 +314,8 @@ export function ImportsPanel({
             key={item.id}
             item={item}
             projectName={names[item.projectId]}
-            busy={busyId === item.id}
-            onAction={act}
+            isBusy={busyId === item.id}
+            onAction={handleItemAction}
             onOpenLibrary={onOpenLibrary}
           />
         ))}

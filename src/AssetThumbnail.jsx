@@ -3,11 +3,14 @@ import { Box, Clapperboard, Image as ImageIcon, ImageOff } from 'lucide-react';
 import './asset-thumbnail.css';
 import './ux-viewer.css';
 
+// Shared in-flight and settled thumbnail work, keyed by request URL or asset identity.
 const tasks = new Map();
+// Renders run one at a time; each new render waits for the previous one to settle.
 let tail = Promise.resolve();
 const visual = (asset) => ['Images', 'Masks', 'Video', '3D'].includes(asset.category);
 function thumbnailUrl(project, asset) {
-  return `/api/projects/${project.id}/thumbnail?path=${encodeURIComponent(asset.id)}&v=${encodeURIComponent(`${asset.modified}:${asset.size}`)}`;
+  const version = encodeURIComponent(`${asset.modified}:${asset.size}`);
+  return `/api/projects/${project.id}/thumbnail?path=${encodeURIComponent(asset.id)}&v=${version}`;
 }
 function loadThumbnail(project, asset) {
   const key = project
@@ -53,9 +56,9 @@ function loadThumbnail(project, asset) {
   return work;
 }
 export default function AssetThumbnail({ asset, project, className = '' }) {
-  const node = useRef(null),
-    [source, setSource] = useState(null),
-    [failed, setFailed] = useState(false);
+  const node = useRef(null);
+  const [source, setSource] = useState(null);
+  const [failed, setFailed] = useState(false);
   const projectId = project?.id;
   const { id, category, modified, size, url, file, name, title } = asset;
   useEffect(() => {
@@ -88,7 +91,7 @@ export default function AssetThumbnail({ asset, project, className = '' }) {
     }
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
+        if (entries.some((entry) => entry.isIntersecting)) {
           observer.disconnect();
           start();
         }
@@ -101,6 +104,9 @@ export default function AssetThumbnail({ asset, project, className = '' }) {
       observer.disconnect();
     };
   }, [projectId, id, category, modified, size, url, file, name, title]);
+  const isThreeD = asset.category === '3D';
+  const loadingLabel = isThreeD ? 'Rendering 3D preview…' : 'Preparing preview';
+  const failedLabel = isThreeD ? 'Preview unavailable · open to inspect' : 'Preview unavailable';
   const Icon =
     asset.category === '3D' ? Box : asset.category === 'Video' ? Clapperboard : ImageIcon;
   return (
@@ -120,15 +126,7 @@ export default function AssetThumbnail({ asset, project, className = '' }) {
           title={failed ? 'Preview unavailable' : undefined}
         >
           {failed ? <ImageOff size={30} /> : <Icon size={30} />}
-          <small>
-            {failed
-              ? asset.category === '3D'
-                ? 'Preview unavailable · open to inspect'
-                : 'Preview unavailable'
-              : asset.category === '3D'
-                ? 'Rendering 3D preview…'
-                : 'Preparing preview'}
-          </small>
+          <small>{failed ? failedLabel : loadingLabel}</small>
         </span>
       )}
     </span>

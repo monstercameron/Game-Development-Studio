@@ -9,6 +9,8 @@ import { randomUUID } from 'node:crypto';
 import { fork } from 'node:child_process';
 import { saveAsset } from '../runtime/job-io.js';
 
+// Each test gets its own temporary root and a loopback server on an OS-assigned port,
+// so tests can run without sharing files or fixed ports.
 async function setup(t, handler) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-asset-commit-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -28,9 +30,9 @@ test('committed assets survive a retry without another download', async (t) => {
     res.end('complete image');
   });
   const id = randomUUID(),
-    rel = await saveAsset(root, 'images', id, 'png', url);
+    relativePath = await saveAsset(root, 'images', id, 'png', url);
   assert.equal(await fs.readFile(path.join(folder, `forge-${id}.png`), 'utf8'), 'complete image');
-  assert.equal(await saveAsset(root, 'images', id, 'png', url), rel);
+  assert.equal(await saveAsset(root, 'images', id, 'png', url), relativePath);
   assert.equal(requests, 1);
   assert.deepEqual(await fs.readdir(folder), [`forge-${id}.png`]);
 });
@@ -138,6 +140,7 @@ test(
 
 test('the downloaded bytes are flushed before the final name exists', async (t) => {
   const { root, folder, url } = await setup(t, (_req, res) => res.end('complete image'));
+  // The probe handle exposes FileHandle.prototype, so sync() can be wrapped to record order.
   const probe = await fs.open(path.join(folder, 'probe'), 'w');
   const prototype = Object.getPrototypeOf(probe);
   await probe.close();

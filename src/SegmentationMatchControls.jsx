@@ -6,7 +6,15 @@ import {
   maxInstancesProblem,
 } from './segmentation-settings.js';
 
-// Which of the matches SAM finds become the result, plus the limit for "best-scoring matches".
+/**
+ * Chooses which of the matches SAM finds become the result, and the limit for "top" matches.
+ *
+ * @param {object} props
+ * @param {object} props.draft Segmentation settings; `matches` is a choice id and `maxInstances`
+ *   may be a raw string from the input, validated by `maxInstancesProblem`.
+ * @param {(patch: object) => void} props.onChange Receives only the changed field, e.g.
+ *   `{ matches }` or `{ maxInstances }`, and stores the raw input value.
+ */
 export default function SegmentationMatchControls({ draft, onChange }) {
   const choice = matchChoice(draft.matches);
   const limit = draft.maxInstances ?? SEGMENTATION_MAX_INSTANCES_DEFAULT;

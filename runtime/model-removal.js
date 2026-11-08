@@ -20,6 +20,7 @@ async function checkedDirectory(directory) {
     throw Error('Model storage contains a link or unexpected directory.');
   }
 }
+
 async function ensureNoLinks(directory) {
   const stack = [directory];
   let fileCount = 0;
@@ -46,6 +47,7 @@ async function ensureNoLinks(directory) {
   }
   return { fileCount, bytes };
 }
+
 async function exists(target) {
   try {
     await fs.lstat(target);

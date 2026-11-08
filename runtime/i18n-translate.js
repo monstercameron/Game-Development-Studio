@@ -128,6 +128,8 @@ function hasControlCharacter(text) {
     return (code < 32 && code !== 9 && code !== 10) || code === 127;
   });
 }
+// Patterns that suggest an injected tag, script URL, event handler or entity. Runs after the
+// known rich-text tags are removed, so a tag the English source had is not a hit.
 const MARKUP = /<\s*\/?\s*[A-Za-z!?]|javascript:|\bon[a-z]+\s*=|&#|&[a-z]+;/i;
 
 function sortedTags(text) {
@@ -168,6 +170,7 @@ export function checkText(english, translated, { allowMissingCount = false } = {
   if (MARKUP.test(plain.join(' '))) {
     return 'markup';
   }
+  // Plural forms other than "other" may omit {count}; every other placeholder must still match.
   if (allowMissingCount) {
     const expected = new Set(placeholdersOf(english).filter((name) => name !== 'count'));
     const actual = placeholdersOf(translated).filter((name) => name !== 'count');
@@ -226,14 +229,30 @@ function keepEdges(english, translated) {
   return core ? `${lead}${core}${trail}` : core;
 }
 
+/** Applies keepEdges to a string or to each string plural form; other values pass through. */
+function normalizeTranslatedValue(modelValue, englishEdge) {
+  if (typeof modelValue === 'string') {
+    return keepEdges(englishEdge, modelValue);
+  }
+  if (modelValue && typeof modelValue === 'object' && !Array.isArray(modelValue)) {
+    return Object.fromEntries(
+      Object.entries(modelValue).map(([category, form]) => [
+        category,
+        typeof form === 'string' ? keepEdges(englishEdge, form) : form,
+      ]),
+    );
+  }
+  return modelValue;
+}
+
 /**
  * Parses the model's JSON and validates every requested key. Extra keys are ignored and
  * reported; each invalid string is rejected on its own and the others are kept.
  */
 export function parseTranslationOutput(text, items, locale) {
-  let data;
+  let parsedOutput;
   try {
-    data = JSON.parse(text);
+    parsedOutput = JSON.parse(text);
   } catch (failure) {
     // The caller rejects every key as missing; log the cause without the model output.
     log.warn('i18n.output.parse.failed', {
@@ -241,31 +260,23 @@ export function parseTranslationOutput(text, items, locale) {
       reason: 'invalid_json',
       errorClass: failure?.name,
     });
-    data = null;
+    parsedOutput = null;
   }
   const accepted = new Map();
   const rejected = [];
   const wanted = new Set(items.map((item) => item.key));
-  const extraKeys =
-    data && typeof data === 'object' ? Object.keys(data).filter((key) => !wanted.has(key)) : [];
+  const isObjectOutput = Boolean(parsedOutput) && typeof parsedOutput === 'object';
+  const extraKeys = isObjectOutput
+    ? Object.keys(parsedOutput).filter((key) => !wanted.has(key))
+    : [];
   for (const item of items) {
-    if (!data || typeof data !== 'object' || !Object.hasOwn(data, item.key)) {
+    if (!isObjectOutput || !Object.hasOwn(parsedOutput, item.key)) {
       rejected.push({ key: item.key, reason: 'missing' });
       continue;
     }
-    const raw = data[item.key];
+    const modelValue = parsedOutput[item.key];
     const englishEdge = typeof item.value === 'string' ? item.value : item.value.other;
-    const value =
-      typeof raw === 'string'
-        ? keepEdges(englishEdge, raw)
-        : raw && typeof raw === 'object' && !Array.isArray(raw)
-          ? Object.fromEntries(
-              Object.entries(raw).map(([category, form]) => [
-                category,
-                typeof form === 'string' ? keepEdges(englishEdge, form) : form,
-              ]),
-            )
-          : raw;
+    const value = normalizeTranslatedValue(modelValue, englishEdge);
     const reason = validateTranslation(item.value, value, locale);
     if (reason) {
       rejected.push({ key: item.key, reason });
@@ -273,5 +284,5 @@ export function parseTranslationOutput(text, items, locale) {
       accepted.set(item.key, value);
     }
   }
-  return { accepted, rejected, extraKeys, isJson: Boolean(data) };
+  return { accepted, rejected, extraKeys, isJson: Boolean(parsedOutput) };
 }

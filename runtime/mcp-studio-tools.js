@@ -203,14 +203,14 @@ async function completeChat(base, input) {
           if (!line.startsWith('data:')) {
             continue;
           }
-          const data = line.slice(5).trim();
-          if (data === '[DONE]') {
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') {
             done = true;
             continue;
           }
           let event;
           try {
-            event = JSON.parse(data);
+            event = JSON.parse(payload);
           } catch {
             throw Error('Chat returned malformed stream data.');
           }
@@ -307,7 +307,7 @@ export function registerExtendedTools(server, { base, read, write, readonly }) {
               }
             } catch (error) {
               log.debug('mcp.estimate.parse.failed', { errorClass: error.name });
-              /* Fall back to nearby completed jobs. */
+              // Fall back to nearby completed jobs.
             }
             if (!estimate?.available) {
               estimate = estimateFromNearbyHistory(job.type, job.request, jobs) || estimate;

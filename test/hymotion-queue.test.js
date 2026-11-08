@@ -58,8 +58,8 @@ test('motion settings and reruns preserve the supported controls', () => {
 });
 
 test('motion admission checks host and GPU memory and preserves uncertain-load barriers', async () => {
-  let free = 1000,
-    host = 1000,
+  let freeGpuMiB = 1000,
+    freeHostBytes = 1000,
     posts = 0;
   const fetcher = async (url, options = {}) => {
     if (url.endsWith('/api/status')) {
@@ -73,6 +73,7 @@ test('motion admission checks host and GPU memory and preserves uncertain-load b
         }),
       };
     }
+    // A lost POST response leaves the load outcome unknown, so the loader must not resubmit.
     if (options.method === 'POST') {
       posts++;
       throw Error('Response lost');
@@ -80,22 +81,22 @@ test('motion admission checks host and GPU memory and preserves uncertain-load b
     throw Error('Unexpected');
   };
   const services = async () => [{ id: 'tts', name: 'Voice', modelLoaded: true, canUnload: true }];
-  const hardware = async () => ({ devices: [{ freeMiB: free }] });
+  const hardware = async () => ({ devices: [{ freeMiB: freeGpuMiB }] });
   const load = createHyMotionLoader({
     hardware,
     services,
     baseUrl: 'http://127.0.0.1:8286',
-    freeMemory: () => host,
+    freeMemory: () => freeHostBytes,
     fetcher,
   });
   assert.equal((await load()).body.code, 'insufficient_host_memory');
   assert.equal(posts, 0);
-  host = 16 * 1024 ** 3;
-  const low = await load();
-  assert.equal(low.body.code, 'insufficient_gpu_memory');
-  assert.equal(low.body.candidates[0].id, 'tts');
+  freeHostBytes = 16 * 1024 ** 3;
+  const gpuResult = await load();
+  assert.equal(gpuResult.body.code, 'insufficient_gpu_memory');
+  assert.equal(gpuResult.body.candidates[0].id, 'tts');
   assert.equal(posts, 0);
-  free = 40000;
+  freeGpuMiB = 40000;
   assert.equal((await load()).body.code, 'load_unknown');
   assert.equal(posts, 1);
   const prepare = createHyMotionPreparation({
@@ -112,9 +113,13 @@ test('motion admission checks host and GPU memory and preserves uncertain-load b
     ).loadBarrier,
     true,
   );
-  const render = createHyMotionRenderPreparation({ hardware, services, freeMemory: () => host });
+  const render = createHyMotionRenderPreparation({
+    hardware,
+    services,
+    freeMemory: () => freeHostBytes,
+  });
   assert.equal(await render({ duration: 3 }), null);
-  free = 12000;
+  freeGpuMiB = 12000;
   assert.equal((await render({ duration: 10 })).status, 'waiting_memory');
 });
 
@@ -125,9 +130,12 @@ test(
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-hymotion-test-')),
       projects = path.join(dir, 'projects'),
       project = path.join(projects, 'Game'),
-      id = randomUUID();
+      projectId = randomUUID();
     await fs.mkdir(project, { recursive: true });
-    await fs.writeFile(path.join(project, '.forge-project.json'), JSON.stringify({ id }));
+    await fs.writeFile(
+      path.join(project, '.forge-project.json'),
+      JSON.stringify({ id: projectId }),
+    );
     let submissions = 0;
     const remoteId = 'c'.repeat(32);
     const server = createServer(async (req, res) => {
@@ -169,7 +177,7 @@ test(
     try {
       const input = {
         type: 'motion',
-        projectId: id,
+        projectId,
         request: {
           model: 'hy-motion',
           prompt: 'walk',

@@ -9,7 +9,7 @@ const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 const projectId = '11111111-1111-4111-8111-111111111111';
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Mounts the whole studio at /3d in jsdom with a substitute API, then drives the new controls:
+// Mounts the whole studio at /3d in jsdom with a substitute API, then drives the controls:
 // the start-from choice, text-to-3D, the TRELLIS.2 pipeline, remove-background and the chain
 // requests they post. No engine runs.
 test('the 3D page queues chained text-to-3D and background-removal renders', async () => {
@@ -159,7 +159,6 @@ test('the 3D page queues chained text-to-3D and background-removal renders', asy
       /frees the first model before loading the second when it can/,
     );
 
-    // Fill the description, pick the 1024 pipeline and queue it.
     const prompt = document.querySelector('#three-d-text-prompt');
     const type = (element, value) => {
       const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value').set;

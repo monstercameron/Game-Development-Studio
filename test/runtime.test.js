@@ -1415,8 +1415,9 @@ test(
       if (req.url === '/api/v1/jobs' && req.method === 'POST') {
         submissions++;
         req.resume();
+        // Simulate a lost acknowledgement: the submission is read but never answered.
         return;
-      } // Simulate a lost acknowledgement.
+      }
       res.statusCode = 404;
       res.end('{}');
     });
@@ -1940,7 +1941,7 @@ test(
     let submissions = 0,
       queuedSeed = null,
       current = null,
-      forget = false,
+      isRemoteJobForgotten = false,
       unverifiedDownloads = 0;
     const http = createServer(async (req, res) => {
       res.setHeader('Content-Type', 'application/json');
@@ -1949,8 +1950,8 @@ test(
           JSON.stringify({
             ready: true,
             files: [],
-            job: forget ? null : current,
-            videos: forget ? [{ name: 'video-2.webm' }] : [],
+            job: isRemoteJobForgotten ? null : current,
+            videos: isRemoteJobForgotten ? [{ name: 'video-2.webm' }] : [],
           }),
         );
       }
@@ -2042,7 +2043,7 @@ test(
       'video-test-fixture',
     );
     assert.equal(queue.estimate(input).sampleCount, 1);
-    forget = true;
+    isRemoteJobForgotten = true;
     const second = queue.enqueue({ ...input, request: { ...input.request, seed: 5 } });
     queuedSeed = 5;
     await waitFor(() => queue.get(second.id).status === 'interrupted');

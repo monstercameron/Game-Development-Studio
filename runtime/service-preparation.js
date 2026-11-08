@@ -44,6 +44,8 @@ export function autoStartsService(type, env = process.env, readSetting = null) {
 
 // Start a configured worker without loading its model. Engines that require
 // credentials or lack a safe load API remain waiting for explicit setup.
+// Resolves to { status, stage, error? }: 'needs_attention' carries an error for the user, and
+// 'waiting_engine' means the worker is starting or the engine is not ready yet.
 export function createServicePreparation({ startEngine, autoStart }) {
   return async function prepareService({ type, reachable, health }) {
     const name =

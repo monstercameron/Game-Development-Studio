@@ -11,13 +11,20 @@ export const HUNYUAN_GPU_BUDGET_MIB = 16 * 1024;
 export const HUNYUAN_HOST_REQUIRED_BYTES = 8 * 1024 ** 3;
 // Optional texture stage, measured once at 1024: 14.0 GiB peak GPU allocation and 12.3 GiB peak
 // worker RSS (model loading dominates) on top of the resident shape model. The shape stage's
-// working memory is released before painting, so the stages need the larger of the two, not the sum.
+// working memory is released before painting, so the stages need the larger of the two,
+// not the sum.
 export const HUNYUAN_TEXTURE_GPU_BUDGET_MIB = 16 * 1024;
 export const HUNYUAN_TEXTURE_HOST_REQUIRED_BYTES = 12 * 1024 ** 3;
 // Eight views at 768 px used about 15 GB more GPU memory than the default six at 512 px
 // (measured 2026-11-07). The same increase is added for any larger painter setting.
 export const HUNYUAN_TEXTURE_EXTRA_VIEWS_MIB = 16 * 1024;
 
+/**
+ * Creates the shape-model load gate for the 3D render path. Concurrent callers share one
+ * in-flight check and load request. Worker status and load failures are returned as
+ * { status, body } results (503 for an unreachable worker or an unknown load outcome), so the
+ * caller can keep the queue barrier in place.
+ */
 export function createHunyuanLoader({
   hardware,
   services,
@@ -70,12 +77,12 @@ export function createHunyuanLoader({
           body: { code: 'model_missing', message: 'Hunyuan shape model files are missing.' },
         };
       }
-      const free = freeMemory();
-      if (hostMemoryShort(free, HUNYUAN_HOST_REQUIRED_BYTES)) {
+      const freeHostBytes = freeMemory();
+      if (hostMemoryShort(freeHostBytes, HUNYUAN_HOST_REQUIRED_BYTES)) {
         log.warn('three-d.hunyuan.memory.rejected', { reason: 'insufficient_host_memory' });
         return {
           status: 409,
-          body: hostMemoryConflict(free, HUNYUAN_HOST_REQUIRED_BYTES, await services(), [
+          body: hostMemoryConflict(freeHostBytes, HUNYUAN_HOST_REQUIRED_BYTES, await services(), [
             '3d-hunyuan',
           ]),
         };
@@ -148,6 +155,11 @@ export function createHunyuanLoader({
   };
 }
 
+/**
+ * Creates the queue preparation step that starts, loads, or waits for the shape worker.
+ * Returns null when another caller already holds the model-load barrier (claimLoad() returned
+ * false). Callers must not treat null as a ready state.
+ */
 export function createHunyuanPreparation({ startEngine, loadModel, autoStart = true }) {
   return async ({ health, reachable, claimLoad, retryModel = false }) => {
     if (!reachable) {
@@ -244,15 +256,19 @@ export function createHunyuanPreparation({ startEngine, loadModel, autoStart = t
   };
 }
 
+/**
+ * Creates the admission check for a 3D render. Returns null when the resolution and texture
+ * settings fit the GPU budget; otherwise returns a waiting_memory or needs_attention stage.
+ */
 export function createHunyuanRenderPreparation({ hardware, services, freeMemory = os.freemem }) {
   return async ({ resolution, texture = false, texture_views = 6, texture_view_size = 512 }) => {
-    const free = freeMemory();
+    const freeHostBytes = freeMemory();
     const hostRequired = texture ? HUNYUAN_TEXTURE_HOST_REQUIRED_BYTES : 4 * 1024 ** 3;
-    if (hostMemoryShort(free, hostRequired)) {
+    if (hostMemoryShort(freeHostBytes, hostRequired)) {
       return {
         status: 'waiting_memory',
         stage: 'Waiting for system memory.',
-        details: hostMemoryConflict(free, hostRequired, await services(), ['3d-hunyuan']),
+        details: hostMemoryConflict(freeHostBytes, hostRequired, await services(), ['3d-hunyuan']),
       };
     }
     const shapeBudget = { 128: 4096, 256: 8192, 384: 16384 }[resolution];

@@ -11,7 +11,7 @@ export function useImageLoras(active) {
     const controller = new AbortController();
     fetch('/api/runtime/image-loras', { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : { loras: [] }))
-      .then((data) => setLoras(Array.isArray(data.loras) ? data.loras : []))
+      .then((listing) => setLoras(Array.isArray(listing.loras) ? listing.loras : []))
       .catch(() => {
         if (!controller.signal.aborted) {
           setLoras([]);

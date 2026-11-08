@@ -101,7 +101,12 @@ def inspect_checkpoint(checkpoint_path):
 
 
 def load_detector(checkpoint_path, device="cuda"):
-    """Load only detector weights, avoiding a duplicate in-memory checkpoint."""
+    """Load only detector weights, avoiding a duplicate in-memory checkpoint.
+
+    Raises RuntimeError when device is cuda but CUDA is unavailable (there is no CPU fallback),
+    when the checkpoint has no detector weights, or when its tensors do not match the detector
+    architecture. The caller must check host and GPU memory before calling this.
+    """
     from accelerate import init_empty_weights
     from sam3.model.sam3_image_processor import Sam3Processor
 

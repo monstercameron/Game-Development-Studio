@@ -444,11 +444,11 @@ test('an invalid typed number shows an inline error and blocks queuing', async (
 });
 
 test('queuing needs a project, and variations queue sibling jobs with consecutive seeds', async (t) => {
-  const none = baseState();
-  const noProject = await mount(t, { state: none, project: null });
+  const stateWithoutProject = baseState();
+  const noProject = await mount(t, { state: stateWithoutProject, project: null });
   await click(byText(noProject.container, 'button', 'Add plant to queue'));
   assert.match(noProject.container.textContent, /Choose or create a project first/);
-  assert.equal(none.jobs.length, 0);
+  assert.equal(stateWithoutProject.jobs.length, 0);
 });
 
 test('adding plants posts one validated job per variation and reports it', async (t) => {

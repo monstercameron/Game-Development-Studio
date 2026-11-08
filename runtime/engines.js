@@ -44,11 +44,11 @@ function describeFailure(error) {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const desktop = path.join(os.homedir(), 'Desktop');
-const music = path.join(desktop, 'Snapdargon-DJ'),
-  images = path.join(desktop, 'Qwen Image Studio'),
-  sfx = path.join(desktop, 'Stable Audio Lab'),
-  video = path.join(desktop, 'H3 Studio'),
-  game = path.join(desktop, 'Mammoth Studio');
+const music = path.join(desktop, 'Snapdargon-DJ');
+const images = path.join(desktop, 'Qwen Image Studio');
+const sfx = path.join(desktop, 'Stable Audio Lab');
+const video = path.join(desktop, 'H3 Studio');
+const game = path.join(desktop, 'Mammoth Studio');
 export const engineDefinitions = [
   {
     id: 'chat',
@@ -378,7 +378,11 @@ function requireClosedPort(port) {
       }
       done = true;
       socket.destroy();
-      error ? reject(error) : resolve();
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
     };
     socket.once('connect', () =>
       finish(Error('The model service is still running. Stop it before removing files.')),
@@ -1069,7 +1073,7 @@ export class EngineManager {
             phase: 'start',
             ...describeFailure(error),
           });
-          /* The recovery state below remains fenced. */
+          // The recovery state below remains fenced.
         }
       }
       if (this.recoveryStates.get(id) === 'unresolved' || !this.recoveryLock?.held) {
@@ -1135,7 +1139,8 @@ export class EngineManager {
     const logFile = path.join(this.logDir, `engine-${id}.log`);
     const fd = openSync(logFile, 'a');
     let child;
-    const controlToken =
+    // Guarded engines get a fresh control token per start, used by their /api/forge routes.
+    const usesControlToken =
       (id === 'images' && definition.quiesce === 'qwen-v1') ||
       (id === 'tts' && definition.quiesce === 'tts-v1') ||
       (id === '3d-hunyuan' && definition.quiesce === 'hunyuan-v1') ||
@@ -1145,9 +1150,8 @@ export class EngineManager {
       (id === 'motion-bricks' && definition.quiesce === 'motionbricks-v1') ||
       (id === 'video' && definition.quiesce === 'h3-guard-v1') ||
       (id === 'asr' && definition.quiesce === 'asr-guard-v1') ||
-      (id === 'game' && definition.quiesce === 'mammoth-v1')
-        ? randomBytes(32).toString('hex')
-        : null;
+      (id === 'game' && definition.quiesce === 'mammoth-v1');
+    const controlToken = usesControlToken ? randomBytes(32).toString('hex') : null;
     const recoverable = this.recoveryDefinitions.has(id),
       nonce = recoverable ? randomBytes(32).toString('hex') : null;
     let prepared = false;
@@ -1202,7 +1206,7 @@ export class EngineManager {
               reason: 'clear_after_spawn_threw',
               ...describeFailure(clearError),
             });
-            /* Preserve unresolved state when journal cleanup fails. */
+            // Preserve unresolved state when journal cleanup fails.
           }
         }
       }
@@ -1355,7 +1359,7 @@ export class EngineManager {
               reason: 'clear_after_spawn_error',
               ...describeFailure(clearError),
             });
-            /* Preserve unresolved state when journal cleanup fails. */
+            // Preserve unresolved state when journal cleanup fails.
           }
         }
       }
@@ -1494,7 +1498,7 @@ export class EngineManager {
         durationMs: Date.now() - stopRequestedAt,
         ...describeFailure(error),
       });
-      /* The stop outcome remains unverified and is handled below. */
+      // The stop outcome remains unverified and is handled below.
     }
     if (!accepted) {
       if (!busy) {
@@ -1632,7 +1636,7 @@ export class EngineManager {
         route: '/api/forge/stop',
         ...describeFailure(error),
       });
-      /* Invalid response data remains an unknown stop outcome. */
+      // Invalid response data remains an unknown stop outcome.
     }
     if (!response.ok || body?.stopping !== true) {
       return uncertain('The stop result is unknown. Forge will check the engine before retrying.');
@@ -1742,7 +1746,7 @@ export class EngineManager {
       }
     } catch (error) {
       log.debug('engine.idle.check.failed', { engineId: id, ...describeFailure(error) });
-      /* The idle state could not be verified. */
+      // The idle state could not be verified.
     }
     if (!safe) {
       log.info('engine.offload.refused', { engineId: id, reason: 'busy_or_unverified' });

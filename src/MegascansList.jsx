@@ -15,7 +15,7 @@ const MAX_INITIAL_PAGES = 10;
 
 /** Preview image with a placeholder while it loads and a visible state when it cannot. */
 function Thumbnail({ listing }) {
-  const [state, setState] = useState('loading');
+  const [previewState, setPreviewState] = useState('loading');
   if (!listing.thumbnailUrl) {
     return (
       <div className="megascans-card-preview">
@@ -24,8 +24,8 @@ function Thumbnail({ listing }) {
     );
   }
   return (
-    <div className={`megascans-card-preview megascans-preview-${state}`}>
-      {state === 'error' ? (
+    <div className={`megascans-card-preview megascans-preview-${previewState}`}>
+      {previewState === 'error' ? (
         <span className="megascans-preview-error">
           <ImageOff size={22} aria-hidden="true" />
           <span>No preview</span>
@@ -36,8 +36,8 @@ function Thumbnail({ listing }) {
           alt=""
           loading="lazy"
           decoding="async"
-          onLoad={() => setState('loaded')}
-          onError={() => setState('error')}
+          onLoad={() => setPreviewState('loaded')}
+          onError={() => setPreviewState('error')}
         />
       )}
     </div>
@@ -217,19 +217,19 @@ export default function ModelList({
     setBusy(true);
     setMoreError('');
     try {
-      const data = await fetchPage(loadedPages.current + 1);
+      const page = await fetchPage(loadedPages.current + 1);
       loadedPages.current += 1;
       focusIndex.current = { index: list.items.length, hadFocus };
       setList((current) => ({
         ...current,
-        items: [...current.items, ...data.listings],
-        total: data.total,
+        items: [...current.items, ...page.listings],
+        total: page.total,
         pages: loadedPages.current,
-        pageCount: data.pageCount,
+        pageCount: page.pageCount,
       }));
       onPagesRef.current?.(loadedPages.current);
       setLiveText(
-        `${data.listings.length} more models loaded. Showing ${list.items.length + data.listings.length} of ${data.total}.`,
+        `${page.listings.length} more models loaded. Showing ${list.items.length + page.listings.length} of ${page.total}.`,
       );
     } catch (error) {
       log.warn('megascans.list.more.failed', requestFailureFields(error));
@@ -336,8 +336,8 @@ export default function ModelList({
     }
   }, [list.items.length, hasLocalMore, hasRemoteMore]);
 
-  const empty = list.status === 'ready' && list.total === 0;
-  const isEmptyCache = empty && !query && !tag;
+  const isEmpty = list.status === 'ready' && list.total === 0;
+  const isEmptyCache = isEmpty && !query && !tag;
   return (
     <div ref={container}>
       <p className="megascans-status-line" role="status">
@@ -372,7 +372,7 @@ export default function ModelList({
           </p>
         </div>
       )}
-      {empty && !isEmptyCache && (
+      {isEmpty && !isEmptyCache && (
         <div className="megascans-empty">
           <p>No cached models match this search. Only what is cached is searched.</p>
           <button type="button" className="outline-button" onClick={onClear}>

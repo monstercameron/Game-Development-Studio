@@ -6,25 +6,24 @@ import net from 'node:net';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { randomBytes } from 'node:crypto';
 import {
   EngineOwnershipJournal,
   verifyEngineOwnership,
   probeWindowsProcess,
 } from '../runtime/engine-ownership.js';
-import { engineDefinitions } from '../runtime/engines.js';
-import { EngineManager } from '../runtime/engines.js';
-import { randomBytes } from 'node:crypto';
+import { engineDefinitions, EngineManager } from '../runtime/engines.js';
 
 async function waitMessage(child, type, timeout = 30000) {
   return await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(Error(`Timed out waiting for ${type}`)), timeout);
-    child.on('message', function receive(value) {
-      if (value?.type !== type) {
+    child.on('message', function receive(message) {
+      if (message?.type !== type) {
         return;
       }
       clearTimeout(timer);
       child.off('message', receive);
-      resolve(value);
+      resolve(message);
     });
     child.once('exit', (code) => {
       clearTimeout(timer);
@@ -40,10 +39,10 @@ async function verifyRecoveryAfterCrash(t, id) {
   await once(listener, 'listening');
   const port = listener.address().port;
   await new Promise((resolve) => listener.close(resolve));
-  let first = null,
-    second = null,
-    workerPid = null,
-    workerStopped = false;
+  let first = null;
+  let second = null;
+  let workerPid = null;
+  let workerStopped = false;
   t.after(async () => {
     if (second?.exitCode === null) {
       second.send({ type: 'shutdown' });

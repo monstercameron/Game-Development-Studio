@@ -129,6 +129,8 @@ function describeTarget(element) {
   };
 }
 
+// The object URL is revoked after a delay, not right after the click: some browsers read
+// the blob asynchronously and a synchronous revoke can cancel the download.
 export function downloadBlob(blob, filename) {
   const href = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -166,17 +168,17 @@ export default function ViewerShell({
   const inspectorKey = mode === 'workbench' ? 'inspectorWorkbench' : 'inspectorInline';
   const inspectorOpen = prefs[inspectorKey];
   const ready = state.status === 'ready';
-  const rootRef = useRef(null),
-    stageElement = useRef(null),
-    shortcutsElement = useRef(null),
-    toastTimer = useRef(0);
+  const rootRef = useRef(null);
+  const stageElement = useRef(null);
+  const shortcutsElement = useRef(null);
+  const toastTimer = useRef(0);
   const [compact, setCompact] = useState(false);
   const [tight, setTight] = useState(false);
   const [narrow, setNarrow] = useState(false);
   const [toast, setToast] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
-  const hintId = useId(),
-    inspectorId = useId();
+  const hintId = useId();
+  const inspectorId = useId();
 
   useEffect(() => {
     const element = rootRef.current;
@@ -240,7 +242,7 @@ export default function ViewerShell({
     );
     setPref(key, next);
     say(
-      `${key === 'lighting' ? 'Lighting' : 'Background'}: ${presets.find((p) => p.id === next).label}`,
+      `${key === 'lighting' ? 'Lighting' : 'Background'}: ${presets.find((preset) => preset.id === next).label}`,
     );
   };
   const snapshot = async () => {

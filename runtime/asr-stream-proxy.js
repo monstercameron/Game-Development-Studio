@@ -3,6 +3,17 @@ import { localAsrUrl } from './asr-client.js';
 
 // The browser speaks the upstream PCM16 protocol unchanged. This is a fixed
 // route to a fixed local origin, not an arbitrary HTTP or WebSocket proxy.
+/**
+ * Adds the `/api/asr/realtime` WebSocket upgrade route to an HTTP server.
+ *
+ * Requests are rejected with 404 for other paths, 403 for a non-loopback Host
+ * or foreign Origin, 400 for a malformed upgrade, and 503 when the upstream ASR
+ * engine cannot be reached. The upstream origin is fixed at attach time.
+ *
+ * @param {import('node:http').Server} server HTTP server that emits `upgrade`.
+ * @param {{ baseUrl?: string }} [options] Upstream ASR base URL. Defaults to
+ *   `FORGE_ASR_URL`, then `http://127.0.0.1:8282`.
+ */
 export function attachAsrStreamProxy(
   server,
   { baseUrl = process.env.FORGE_ASR_URL || 'http://127.0.0.1:8282' } = {},
@@ -43,6 +54,8 @@ export function attachAsrStreamProxy(
     });
     let connected = false,
       rejected = false;
+    // Bound the TCP connect so a stalled engine cannot hold the browser socket open.
+    // The timeout is cleared once connected, so a live audio stream is not cut off.
     target.setTimeout(5000, () => target.destroy());
     target.once('connect', () => {
       connected = true;

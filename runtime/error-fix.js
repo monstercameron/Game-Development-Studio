@@ -11,6 +11,7 @@ import { sourceLabel } from './error-format.js';
 const log = createLogger('errors');
 
 export const OPENAI_BASE_URL = 'https://api.openai.com/v1/';
+// Lines shown on each side of a stack frame line.
 export const SOURCE_CONTEXT_LINES = 6;
 export const MAX_SOURCE_FRAMES = 3;
 export const MAX_OUTPUT_TOKENS = 4000;
@@ -93,8 +94,8 @@ const JS_FRAME = /(?:<repo>|<studio>)[\\/]+([^\s:()?'"]+)(?:\?[^\s:()]*)?:(\d+)(
 
 /** Repository frames in the redacted stack, innermost first. */
 export function repoFrames(stack) {
-  const python = [],
-    javascript = [];
+  const python = [];
+  const javascript = [];
   for (const line of String(stack || '').split(/\r?\n/)) {
     const py = PYTHON_FRAME.exec(line);
     if (py) {
@@ -206,6 +207,10 @@ export function buildFixRequest(error, { model, environment, sourceContext }) {
   };
 }
 
+/**
+ * Returns the SHA-256 hex digest of the JSON form of value. The preview and the send step hash
+ * the same object, so a changed body is visible in the digest.
+ */
 export function digestOf(value) {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
@@ -253,6 +258,8 @@ async function readProviderMessage(response, key) {
   return sanitizeProviderText(data?.error?.message || '', key);
 }
 
+// Aborts when either the caller's signal or the timeout fires. Callers must call dispose() in a
+// finally block so the timer and the listener on the caller's signal are released.
 function linkedSignal(external, timeoutMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -405,12 +412,12 @@ export async function verifyModel({
     stopVerified({ status: response.status, isAvailable: false });
     let models = [];
     try {
-      const list = await fetchImpl(new URL('models', baseUrl), {
+      const listResponse = await fetchImpl(new URL('models', baseUrl), {
         headers,
         redirect: 'error',
         signal: linked.signal,
       });
-      const data = list.ok ? await list.json().catch(() => ({})) : {};
+      const data = listResponse.ok ? await listResponse.json().catch(() => ({})) : {};
       models = (Array.isArray(data.data) ? data.data : [])
         .map((item) => item?.id)
         .filter((id) => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/.test(id))

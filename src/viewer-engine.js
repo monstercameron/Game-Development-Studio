@@ -28,12 +28,19 @@ import {
 
 // Shadows are skipped for very heavy meshes so toggling them can never stall the tab.
 const MAX_SHADOW_TRIANGLES = 2_000_000;
+// One arrow-key press turns the orbit or the look direction by 15 degrees.
 const KEYBOARD_ORBIT_STEP = Math.PI / 12;
+
 function materialsOf(object) {
   return (Array.isArray(object.material) ? object.material : [object.material]).filter(Boolean);
 }
 
 export class ViewerEngine {
+  /**
+   * Creates the WebGL renderer inside `host` and wires pointer, resize and visibility listeners.
+   * Throws a ViewerError with code NO_WEBGL when no WebGL context can be created; in that case
+   * nothing is appended to `host`. Call dispose() to release the renderer and listeners.
+   */
   constructor({
     host,
     flipY = false,
@@ -431,11 +438,11 @@ export class ViewerEngine {
       return;
     }
     tween.start ||= now;
-    const t = clamp((now - tween.start) / tween.duration, 0, 1);
-    const eased = 1 - (1 - t) ** 3;
+    const progress = clamp((now - tween.start) / tween.duration, 0, 1);
+    const eased = 1 - (1 - progress) ** 3;
     this.camera.position.lerpVectors(tween.fromPosition, tween.toPosition, eased);
     this.controls.target.lerpVectors(tween.fromTarget, tween.toTarget, eased);
-    if (t >= 1) {
+    if (progress >= 1) {
       this.tween = null;
     }
   }

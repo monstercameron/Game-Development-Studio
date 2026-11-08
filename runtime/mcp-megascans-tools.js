@@ -5,6 +5,12 @@ import { z } from 'zod';
 const listingId = z.string().uuid().describe('The Fab listing id (a UUID).');
 const projectId = z.string().uuid().describe('The Forge project id.');
 
+/**
+ * Registers the Megascans MCP tools on `server`, using the studio bridge from mcp-server.js.
+ * `read(path)` sends a loopback GET. `write(path, body, timeoutMs, requestKind)` sends a POST;
+ * Megascans routes pass `'megascans'` as requestKind so the X-Forge-Request header names the
+ * service that accepts the write. `readonly` is the annotations object for read-only tools.
+ */
 export function registerMegascansTools(server, { read, write, readonly }) {
   server.registerTool(
     'forge_megascans_search',

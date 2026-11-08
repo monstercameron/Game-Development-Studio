@@ -1,3 +1,8 @@
+// Imported for its side effects from src/main.jsx. Forwards uncaught browser errors to the
+// studio's client log endpoint.
+
+// Fire-and-forget: a failed upload must not raise another unhandled error, so the rejection
+// is deliberately ignored.
 function report(message) {
   fetch('/api/client-logs', {
     method: 'POST',

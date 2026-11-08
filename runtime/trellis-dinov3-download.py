@@ -24,6 +24,12 @@ DESTINATION = ROOT / "models" / "dinov3-vitl16-pretrain-lvd1689m"
 
 
 def main(token):
+    """Download missing pinned files and verify every file against the revision metadata.
+
+    The token is used only for Hugging Face requests and is never logged. Raises
+    RuntimeError when the pinned revision lacks a file or a file fails verification;
+    an existing file that fails verification is left untouched.
+    """
     log.info("three-d.dinov3.download.started", {"fileCount": len(WANTED)})
     stop = log.time("three-d.dinov3.download.completed", {"fileCount": len(WANTED)})
     info = HfApi().model_info(REPO, revision=REVISION, files_metadata=True, token=token)

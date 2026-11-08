@@ -91,10 +91,11 @@ class TtsWorkerLifecycleTests(unittest.TestCase):
 
     def test_render_removes_partial_audio_when_write_fails(self):
         worker = self.worker
+        job_id = "a" * 32
         worker.model = types.SimpleNamespace(
             generate_custom_voice=lambda **kwargs: ([b"audio"], 24000)
         )
-        worker.jobs["a" * 32] = {"status": "queued"}
+        worker.jobs[job_id] = {"status": "queued"}
 
         def write_partial_then_fail(path, *args, **kwargs):
             Path(path).write_bytes(b"partial")
@@ -102,10 +103,10 @@ class TtsWorkerLifecycleTests(unittest.TestCase):
 
         soundfile = types.SimpleNamespace(write=write_partial_then_fail)
         with patch.dict(sys.modules, {"soundfile": soundfile}):
-            worker.render_worker("a" * 32, worker.SpeechRequest(text="hello"), None)
+            worker.render_worker(job_id, worker.SpeechRequest(text="hello"), None)
 
-        self.assertFalse((worker.OUTPUTS / f".{('a' * 32)}.part").exists())
-        self.assertEqual(worker.jobs["a" * 32]["status"], "failed")
+        self.assertFalse((worker.OUTPUTS / f".{job_id}.part").exists())
+        self.assertEqual(worker.jobs[job_id]["status"], "failed")
         self.assertEqual(worker.state["phase"], "ready")
 
     def test_load_restores_error_state_when_thread_cannot_start(self):

@@ -202,14 +202,14 @@ test('the queue refuses a video job with an unknown field instead of rendering w
 
 test('the video MCP tool rejects an unknown field and never queues the job', async (t) => {
   const requests = [];
-  const server = createServer(async (req, res) => {
+  const server = createServer(async (request, response) => {
     let raw = '';
-    for await (const chunk of req) {
+    for await (const chunk of request) {
       raw += chunk;
     }
-    requests.push({ path: req.url, body: JSON.parse(raw) });
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end('{}');
+    requests.push({ path: request.url, body: JSON.parse(raw) });
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end('{}');
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

@@ -71,5 +71,6 @@ test('recovery-critical asset failures emit bounded, privacy-safe warnings', asy
     /Rename could not finish/,
   );
   assert.equal(warnings.shift(), 'WARN operation=asset_rename stage=rollback error_code=EPERM');
+  // The raw error messages above contain private paths, so nothing else may be logged.
   assert.deepEqual(warnings, []);
 });

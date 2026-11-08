@@ -3,7 +3,9 @@ import { createLog } from './app-log.js';
 
 const log = createLog('asr');
 
-const modes = [
+// Streaming latencies offered in the dropdown, in milliseconds. They must match the modes that
+// runtime/asr-latency.js accepts.
+const LATENCY_MODES = [
   [80, '80 ms · fastest replies'],
   [160, '160 ms · default'],
   [560, '560 ms · more accurate'],
@@ -55,7 +57,7 @@ export default function AsrLatency({ disabled = false, onSaved = ignoreSavedLate
     };
   }, [onSaved]);
 
-  async function apply() {
+  async function handleApply() {
     log.info('asr.latency.change.requested', { latencyMs: choice });
     setBusy(true);
     setError('');
@@ -85,7 +87,7 @@ export default function AsrLatency({ disabled = false, onSaved = ignoreSavedLate
           disabled={disabled || busy}
           onChange={(event) => setChoice(Number(event.target.value))}
         >
-          {modes.map(([value, label]) => (
+          {LATENCY_MODES.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
@@ -96,7 +98,7 @@ export default function AsrLatency({ disabled = false, onSaved = ignoreSavedLate
         type="button"
         className="outline-button"
         disabled={disabled || busy || choice === saved}
-        onClick={apply}
+        onClick={handleApply}
       >
         {busy ? 'Applying…' : 'Apply'}
       </button>

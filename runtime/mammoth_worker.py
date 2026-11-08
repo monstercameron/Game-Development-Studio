@@ -24,6 +24,11 @@ log = get_logger("chat")
 
 
 def load_mammoth(directory):
+    """Import the upstream Mammoth server with its startup hook removed.
+
+    Raises RuntimeError when server.py cannot be imported or its startup hooks
+    are not exactly the expected single hook, so the process never autoloads.
+    """
     source = Path(directory).resolve() / "server.py"
     spec = importlib.util.spec_from_file_location("forge_mammoth_engine", source)
     if spec is None or spec.loader is None:
@@ -55,6 +60,12 @@ def check_cuda_backend():
 
 
 class GuardedMammoth:
+    """ASGI wrapper that routes Forge control calls and tracks inference work.
+
+    Loads only start through /api/forge/load, after Forge's memory admission.
+    The standalone /api/load endpoint is refused for that reason.
+    """
+
     def __init__(self, engine, token, request_exit, preflight=check_cuda_backend):
         if not token:
             raise RuntimeError("A Forge control token is required.")

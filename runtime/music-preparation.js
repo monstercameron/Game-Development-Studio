@@ -1,6 +1,13 @@
 import { resolveAutoStart } from './service-preparation.js';
 
-// Start the worker and load YuE2 only when a queued job actually needs it.
+/**
+ * Start the worker and load YuE2 only when a queued job actually needs it.
+ *
+ * The returned `prepareMusic` resolves to a status object, or to `null` when another
+ * caller already holds the model-load claim (`claimLoad()` returned false). A
+ * `loadBarrier: true` result means the load request may still be running, so the
+ * caller must keep the barrier until the engine reports it is no longer loading.
+ */
 export function createMusicPreparation({ startEngine, loadModel, autoStart = true }) {
   return async function prepareMusic({ health, reachable, claimLoad, retryModel = false }) {
     if (!reachable) {

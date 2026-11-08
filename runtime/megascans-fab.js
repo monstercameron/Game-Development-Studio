@@ -190,7 +190,6 @@ export class FabClient {
     // Optional `{ get(key), set(key, { etag, lastModified }) }` for conditional requests.
     this.validators = null;
     this.lastEnd = { api: 0, image: 0 };
-    this.requestCount = 0;
   }
 
   /** Runs `work` after every earlier request finished and the quiet interval has passed. */
@@ -278,7 +277,10 @@ export class FabClient {
     });
   }
 
-  /** Accepts only an HTTPS address on Epic's delivery network. The address is never logged. */
+  /**
+   * Accepts only an HTTPS address on Epic's delivery network (plain HTTP only when a test opts
+   * in). The address is never logged, because it carries a signature.
+   */
   assertCdnUrl(address) {
     let url;
     try {
@@ -450,7 +452,6 @@ export class FabClient {
     }
     return this.schedule(kind, signal, async () => {
       for (let attempt = 1; attempt <= this.maxAttempts; attempt++) {
-        this.requestCount++;
         const timeout = AbortSignal.timeout(this.timeoutMs);
         const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
         const startedMs = performance.now();
@@ -502,15 +503,15 @@ export class FabClient {
           });
         }
         if (status === 429 || status >= 500) {
-          const lastRetryAfter = retryAfterMs(response.headers.get('retry-after'), this.now());
+          const serverWaitMs = retryAfterMs(response.headers.get('retry-after'), this.now());
           await response.body?.cancel();
           if (status === 429) {
             log.warn('megascans.fab.request.throttled', {
               kind,
               status,
               attempt,
-              hasRetryAfter: lastRetryAfter !== null,
-              retryAfterSeconds: Math.ceil((lastRetryAfter ?? 0) / 1000),
+              hasRetryAfter: serverWaitMs !== null,
+              retryAfterSeconds: Math.ceil((serverWaitMs ?? 0) / 1000),
             });
           } else {
             log.warn('megascans.fab.request.failed', {
@@ -520,16 +521,16 @@ export class FabClient {
               reason: 'server_error',
             });
           }
-          if (status === 429 && lastRetryAfter !== null && lastRetryAfter > MAX_RETRY_AFTER_MS) {
+          if (status === 429 && serverWaitMs !== null && serverWaitMs > MAX_RETRY_AFTER_MS) {
             throw new FabBlockedError('Fab asked Forge to slow down for a while.', {
               status,
               kind: 'rate_limited',
-              retryAfterSeconds: Math.ceil(lastRetryAfter / 1000),
+              retryAfterSeconds: Math.ceil(serverWaitMs / 1000),
             });
           }
           if (attempt < this.maxAttempts) {
             await this.sleep(
-              Math.max(lastRetryAfter ?? 0, this.backoffMs * 2 ** (attempt - 1)),
+              Math.max(serverWaitMs ?? 0, this.backoffMs * 2 ** (attempt - 1)),
               signal,
             );
             continue;
@@ -538,7 +539,7 @@ export class FabClient {
             throw new FabBlockedError('Fab is limiting how fast Forge may ask.', {
               status,
               kind: 'rate_limited',
-              retryAfterSeconds: lastRetryAfter === null ? 600 : Math.ceil(lastRetryAfter / 1000),
+              retryAfterSeconds: serverWaitMs === null ? 600 : Math.ceil(serverWaitMs / 1000),
             });
           }
           throw new FabError(`Fab answered with an error (${status}).`, { status });
@@ -714,8 +715,8 @@ export function parseSearchResponse(json) {
 }
 
 /**
- * Detail plus the file list of every format (and, when present, one format's technical details)
- * to the fields shown in the dialog.
+ * Turns Fab's listing detail, the file list of every format and (when present) one format's
+ * technical details into the fields shown in the dialog.
  */
 export function parseDetail(detail, formats, tech) {
   const specs = tech?.techDetails?.threeDModel || {};

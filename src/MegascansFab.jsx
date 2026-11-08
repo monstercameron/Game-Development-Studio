@@ -25,29 +25,29 @@ export function useFabCache({ onChanged }) {
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const autoTried = useRef(false);
-  const alive = useRef(true);
+  const isMounted = useRef(true);
   const changed = useRef(onChanged);
   changed.current = onChanged;
 
   useEffect(() => {
-    alive.current = true;
+    isMounted.current = true;
     return () => {
-      alive.current = false;
+      isMounted.current = false;
     };
   }, []);
 
   const load = useCallback(async (signal) => {
     try {
-      const data = await getMegascans('/status', { signal });
-      if (alive.current) {
-        setFab(data.fab);
+      const status = await getMegascans('/status', { signal });
+      if (isMounted.current) {
+        setFab(status.fab);
       }
-      return data.fab;
+      return status.fab;
     } catch (failure) {
       if (failure?.name !== 'AbortError') {
         log.debug('megascans.status.load.failed', requestFailureFields(failure));
       }
-      if (failure?.name !== 'AbortError' && alive.current) {
+      if (failure?.name !== 'AbortError' && isMounted.current) {
         setError(failure.message);
       }
       return null;
@@ -96,12 +96,12 @@ export function useFabCache({ onChanged }) {
         await work();
       } catch (failure) {
         log.warn('megascans.fab.action.failed', { action: name, ...requestFailureFields(failure) });
-        if (alive.current) {
+        if (isMounted.current) {
           setError(failure.message);
         }
         await load();
       } finally {
-        if (alive.current) {
+        if (isMounted.current) {
           setBusy('');
         }
       }
@@ -135,18 +135,21 @@ export function useFabCache({ onChanged }) {
     [run, load],
   );
 
-  /** Asks Fab for one more page beyond the cache. Resolves true when the cache grew. */
+  /**
+   * Asks Fab for one more page beyond the cache. Resolves true when the cache gained or updated
+   * listings.
+   */
   const readMore = useCallback(async () => {
     setError('');
     try {
       const result = await postMegascans('/more', {});
-      if (alive.current) {
+      if (isMounted.current) {
         setFab(result.fab);
       }
       return result.added > 0 || result.updated > 0;
     } catch (failure) {
       log.warn('megascans.more.load.failed', requestFailureFields(failure));
-      if (alive.current) {
+      if (isMounted.current) {
         setError(failure.message);
       }
       await load();

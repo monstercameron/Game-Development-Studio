@@ -15,10 +15,11 @@ async function waitFor(fn) {
     if (fn()) {
       return;
     }
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((resolve) => setTimeout(resolve, 30));
   }
   throw Error('Timed out');
 }
+
 test(
   '3D jobs use snapshotted images and recoverably save a GLB to older projects',
   { timeout: 15000 },

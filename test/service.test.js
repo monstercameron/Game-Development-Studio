@@ -40,7 +40,7 @@ test(
     await once(probe, 'listening');
     const port = probe.address().port;
     await new Promise((resolve) => probe.close(resolve));
-    const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-service-'));
+    const tempDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-service-'));
     const engineProbe = createServer();
     engineProbe.listen(0, '127.0.0.1');
     await once(engineProbe, 'listening');
@@ -53,7 +53,7 @@ test(
         port: enginePort,
         endpoint: '/api/status',
         kind: 'stable-audio',
-        cwd: temp,
+        cwd: tempDirectory,
         command: process.execPath,
         args: [
           fileURLToPath(new URL('./fixtures/mock-engine.js', import.meta.url)),
@@ -63,9 +63,9 @@ test(
     ];
     const env = {
       ...process.env,
-      FORGE_RUNTIME_DIR: path.join(temp, 'runtime'),
+      FORGE_RUNTIME_DIR: path.join(tempDirectory, 'runtime'),
       FORGE_DISABLE_TRAY: '1',
-      FORGE_PROJECTS_DIR: path.join(temp, 'projects'),
+      FORGE_PROJECTS_DIR: path.join(tempDirectory, 'projects'),
       FORGE_ENGINE_CONFIG: JSON.stringify(config),
       FORGE_SFX_URL: `http://127.0.0.1:${enginePort}`,
       FORGE_MOTIONBRICKS_URL: `http://127.0.0.1:${enginePort}`,
@@ -294,7 +294,7 @@ test(
     assert.ok(JSON.parse(result.content[0].text).projects.some((item) => item.id === project.id));
     const fakeSecret = 'hf_FixtureToken1234567890';
     await fs.appendFile(
-      path.join(temp, 'runtime', 'runtime-worker.log'),
+      path.join(tempDirectory, 'runtime', 'runtime-worker.log'),
       `\nfixture ${fakeSecret}\n`,
     );
     const mcpLogs = await mcp.callTool({
@@ -378,9 +378,9 @@ test(
         .assets.find((asset) => asset.id === 'images/renamed.png').sourceOutput,
       'images/reference.png',
     );
-    const jobId = randomUUID(),
-      db = new DatabaseSync(path.join(temp, 'runtime', 'jobs.sqlite')),
-      now = new Date().toISOString();
+    const jobId = randomUUID();
+    const db = new DatabaseSync(path.join(tempDirectory, 'runtime', 'jobs.sqlite'));
+    const now = new Date().toISOString();
     try {
       db.prepare(
         'INSERT INTO jobs(id,type,project_id,request,status,output,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',

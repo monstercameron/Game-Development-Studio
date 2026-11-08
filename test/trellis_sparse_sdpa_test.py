@@ -4,6 +4,8 @@ import os
 import sys
 from pathlib import Path
 
+# trellis2 reads SPARSE_ATTN_BACKEND once, when its sparse config is imported, so the
+# variable must be set before that import. The source is vendored under .forge-runtime.
 os.environ["SPARSE_ATTN_BACKEND"] = "sdpa"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".forge-runtime" / "trellis2-src"))
 import torch

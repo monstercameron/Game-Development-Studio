@@ -11,6 +11,7 @@ import { transformWithEsbuild } from 'vite';
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 
+// Stands in for the ASR WebSocket. The test pushes server events through message().
 class FakeSocket {
   static instance;
 
@@ -69,6 +70,8 @@ function createMediaStream() {
   };
 }
 
+// Yields to the event loop until predicate holds. It fails after a bounded number of
+// ticks rather than sleeping for a fixed time.
 async function waitFor(predicate) {
   for (let attempt = 0; attempt < 40; attempt++) {
     if (predicate()) {
@@ -137,6 +140,8 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
       };
     };
 
+    // Page-level imports become stubs so only the speech state machine runs. The ASR stream
+    // and option modules stay real because the state machine depends on their behavior.
     const sourcePath = path.join(repositoryRoot, 'src', 'SpeechTranscriber.jsx');
     const source = (await readFile(sourcePath, 'utf8'))
       .replace("from './save-project-text'", "from './speech-ui-stubs.mjs'")
@@ -216,6 +221,8 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
     assert.equal(container.querySelector('.speech-output > span')?.textContent.length, 100000);
     assert.equal(container.querySelector('[role="alert"]'), null);
 
+    // The next character overflows the 100,000-character cap. The accepted text must stay
+    // intact and the overflow must be reported, not silently dropped.
     await act(async () => {
       FakeSocket.instance.message({
         type: 'conversation.item.input_audio_transcription.completed',
@@ -268,6 +275,8 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
     if (root) {
       await act(async () => root.unmount());
     }
+    // Globals are restored even when an assertion fails, so later code in this process sees
+    // the original environment.
     dom.window.close();
     if (originalGlobals.window === undefined) {
       delete globalThis.window;

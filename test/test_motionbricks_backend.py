@@ -12,12 +12,14 @@ import motionbricks_backend as backend
 
 
 def values(rig):
-    result = {name: np.zeros(shape, np.float32) for name, shape in backend.FLOATS[rig].items()}
-    result.update({name: np.ones(shape, np.int32) for name, shape in backend.MASKS.items()})
+    sample_inputs = {
+        name: np.zeros(shape, np.float32) for name, shape in backend.FLOATS[rig].items()
+    }
+    sample_inputs.update({name: np.ones(shape, np.int32) for name, shape in backend.MASKS.items()})
     if rig == "g1":
-        result["context_qpos"][..., 6] = 1
-        result["target_qpos"][..., 6] = 1
-    return result
+        sample_inputs["context_qpos"][..., 6] = 1
+        sample_inputs["target_qpos"][..., 6] = 1
+    return sample_inputs
 
 
 class BackendTests(unittest.TestCase):
@@ -32,8 +34,10 @@ class BackendTests(unittest.TestCase):
                 backend.load_model(directory, "soma")
 
     def test_inputs_reject_missing_malformed_nonfinite_and_disabled_lengths(self):
-        data = values("soma")
-        self.assertEqual(backend.prepare_inputs("soma", data)["local_poses"].dtype, np.float32)
+        valid_inputs = values("soma")
+        self.assertEqual(
+            backend.prepare_inputs("soma", valid_inputs)["local_poses"].dtype, np.float32
+        )
         for name, bad in [
             ("local_poses", [[[0]]]),
             ("allowed_pred_num_tokens", np.zeros((1, 11))),
@@ -41,7 +45,7 @@ class BackendTests(unittest.TestCase):
             ("local_root_values", np.full((1, 8, 4), float("nan"))),
         ]:
             with self.subTest(name=name), self.assertRaises(ValueError):
-                backend.prepare_inputs("soma", {**data, name: bad})
+                backend.prepare_inputs("soma", {**valid_inputs, name: bad})
         with self.assertRaises(ValueError):
             backend.prepare_inputs("g1", values("soma"))
         with self.assertRaises(ValueError):
@@ -60,10 +64,10 @@ class BackendTests(unittest.TestCase):
                 return [np.array([6]), np.zeros((1, 64, 366), np.float32)]
 
         self.assertEqual(backend.infer(Fake(), "soma", values("soma"))["pred_num_tokens"][0], 6)
-        data = values("soma")
-        data["allowed_pred_num_tokens"][0, 0] = 0
+        zero_token_inputs = values("soma")
+        zero_token_inputs["allowed_pred_num_tokens"][0, 0] = 0
         with self.assertRaises(RuntimeError):
-            backend.infer(Fake(), "soma", data)
+            backend.infer(Fake(), "soma", zero_token_inputs)
 
 
 if __name__ == "__main__":

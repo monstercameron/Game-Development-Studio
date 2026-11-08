@@ -22,10 +22,11 @@ function imageType(bytes) {
   }
   throw Error('Reference images must be PNG, JPEG, or WebP.');
 }
-async function inputDirectory(projectFolder, create = false) {
+
+async function inputDirectory(projectFolder, shouldCreate = false) {
   const root = await fs.realpath(projectFolder),
     dir = path.join(root, '.forge-inputs');
-  if (create) {
+  if (shouldCreate) {
     await fs.mkdir(dir, { recursive: true });
   }
   const info = await fs.lstat(dir);
@@ -34,6 +35,7 @@ async function inputDirectory(projectFolder, create = false) {
   }
   return dir;
 }
+
 // Snapshot reference bytes at queue time so later edits to a project asset do
 // not silently change an already queued render or a retry of that render.
 export async function stageReference(projectFolder, bytes) {
@@ -44,6 +46,7 @@ export async function stageReference(projectFolder, bytes) {
   await atomicWriteFile(path.join(dir, id), bytes);
   return { id, mime, size: bytes.length };
 }
+
 export async function stageProjectAsset(projectFolder, relative) {
   if (
     typeof relative !== 'string' ||
@@ -68,6 +71,13 @@ export async function stageProjectAsset(projectFolder, relative) {
   }
   return stageReference(root, await fs.readFile(real));
 }
+
+/**
+ * Reads staged reference images for a queued job and returns them as data URLs, in the order given.
+ * `max` caps how many IDs a job may carry. Throws when an ID is malformed, a file is missing, a
+ * link, too large or not PNG, JPEG or WebP, or when the total exceeds MAX_REFERENCES_BYTES.
+ * Files are rechecked here, when the job runs, not only when they were staged.
+ */
 export async function readReferences(projectFolder, ids, { max = 9 } = {}) {
   if (
     !Array.isArray(ids) ||
@@ -113,6 +123,7 @@ function poseText(bytes) {
   }
   return text;
 }
+
 export async function stagePose(projectFolder, bytes) {
   poseText(bytes);
   const dir = await inputDirectory(projectFolder, true),
@@ -120,6 +131,7 @@ export async function stagePose(projectFolder, bytes) {
   await atomicWriteFile(path.join(dir, id), bytes);
   return { id, mime: 'text/plain', size: bytes.length };
 }
+
 export async function stageProjectPose(projectFolder, relative) {
   if (
     typeof relative !== 'string' ||
@@ -144,6 +156,7 @@ export async function stageProjectPose(projectFolder, relative) {
   }
   return stagePose(root, await fs.readFile(file));
 }
+
 export async function readPose(projectFolder, id) {
   if (typeof id !== 'string' || !/^[a-f0-9-]{36}\.bvh$/i.test(id)) {
     throw Error('Provide a staged BVH ID.');
@@ -157,8 +170,9 @@ export async function readPose(projectFolder, id) {
   return poseText(await fs.readFile(file));
 }
 
-// Audio sources (sound variations, region replacement, continuation) are snapshotted at queue time
-// by the clip staging route (runtime/clips.js), so a queued render keeps the bytes it was queued with.
+// Audio sources (sound variations, region replacement, continuation) are snapshotted at queue
+// time by the clip staging route (runtime/clips.js), so a queued render keeps the bytes it was
+// queued with.
 export const MAX_AUDIO_SOURCE_BYTES = 32 * 1024 * 1024;
 const audioIdPattern = /^[a-f0-9-]{36}\.(wav|flac|mp3|ogg)$/i;
 export const isAudioSourceId = (id) => typeof id === 'string' && audioIdPattern.test(id);

@@ -27,12 +27,26 @@ export class EngineBroker {
       this.pending.clear();
     });
   }
+
+  /**
+   * Forwards one engine operation to the supervisor process.
+   *
+   * Rejects when the supervisor is not connected, when the send fails, when the
+   * supervisor reports an error, or when no reply arrives in time. A timeout or a
+   * disconnect leaves the outcome unknown: the engine may still be running the
+   * request, so callers must check its state rather than submit it again.
+   *
+   * @param {string} method Supervisor operation name (for example `forceStop`).
+   * @param {object} params Operation arguments, passed through unchanged.
+   * @returns {Promise<unknown>} The supervisor's `result` field.
+   */
   call(method, params) {
     if (!process.connected) {
       return Promise.reject(new Error('Engine supervisor is unavailable.'));
     }
     return new Promise((resolve, reject) => {
       const id = ++this.nextId;
+      // forceStop gets a longer reply window than other operations, in milliseconds.
       const timer = setTimeout(
         () => {
           this.pending.delete(id);

@@ -21,7 +21,16 @@ const isVenvLauncher = (command) =>
   path.win32.basename(command).toLowerCase() === 'python.exe' &&
   path.win32.basename(path.win32.dirname(command)).toLowerCase() === 'scripts';
 
-// Returns the base interpreter recorded in the venv's own pyvenv.cfg, or null.
+/**
+ * Returns the base interpreter that a venv launcher redirects to, read from the venv's
+ * pyvenv.cfg. Returns null when the command is not a venv launcher, the config is missing,
+ * oversized or malformed, or the base is missing or is the launcher itself. The caller then
+ * keeps the command as given.
+ *
+ * @param {string} command Absolute Windows path to the launcher.
+ * @param {object} [fsOptions] Injectable existsSync, readFileSync and size readers for tests.
+ * @returns {string | null} The base python.exe path, or null.
+ */
 export function venvBaseInterpreter(
   command,
   { exists = existsSync, read = readFileSync, size = (file) => statSync(file).size } = {},
@@ -30,11 +39,14 @@ export function venvBaseInterpreter(
     return null;
   }
   try {
-    const cfg = path.win32.join(path.win32.dirname(path.win32.dirname(command)), 'pyvenv.cfg');
-    if (!exists(cfg) || size(cfg) > 16384) {
+    const configPath = path.win32.join(
+      path.win32.dirname(path.win32.dirname(command)),
+      'pyvenv.cfg',
+    );
+    if (!exists(configPath) || size(configPath) > 16384) {
       return null;
     }
-    const values = String(read(cfg, 'utf8'))
+    const values = String(read(configPath, 'utf8'))
       .split(/\r?\n/)
       .map((line) => /^\s*executable\s*=\s*(.*?)\s*$/i.exec(line)?.[1])
       .filter(Boolean);
@@ -60,6 +72,12 @@ export function venvBaseInterpreter(
   }
 }
 
+/**
+ * Returns the command, arguments and environment used to spawn an engine. Off Windows the
+ * definition command and arguments are returned unchanged. On Windows, a console launcher gets
+ * console_launch.py inserted after the interpreter flags, and a venv launcher is replaced by its
+ * base interpreter with __PYVENV_LAUNCHER__ set, as the redirector would have done.
+ */
 export function resolveEngineLaunch(
   definition,
   args,
@@ -71,9 +89,9 @@ export function resolveEngineLaunch(
   }
   if (definition.consoleLauncher && Array.isArray(args)) {
     // Keep the interpreter flags (such as -u) ahead of the launcher script.
-    const split = args.findIndex((arg) => !/^-[A-Za-z]$/.test(arg) || arg === '-m');
-    const flags = split < 0 ? args : args.slice(0, split);
-    plan.args = [...flags, consoleLauncher, ...(split < 0 ? [] : args.slice(split))];
+    const scriptStart = args.findIndex((arg) => !/^-[A-Za-z]$/.test(arg) || arg === '-m');
+    const flags = scriptStart < 0 ? args : args.slice(0, scriptStart);
+    plan.args = [...flags, consoleLauncher, ...(scriptStart < 0 ? [] : args.slice(scriptStart))];
   }
   const base = venvBaseInterpreter(definition.command, fsOptions);
   if (base) {

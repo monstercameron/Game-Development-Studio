@@ -12,9 +12,9 @@ import { createServer } from 'node:net';
 test('ASR admission refuses low or unknown GPU memory before starting the native model', async () => {
   let starts = 0,
     claims = 0,
-    free = 1000;
+    freeMiB = 1000;
   const starter = createAsrStarter({
-    hardware: async () => ({ devices: free === null ? [] : [{ freeMiB: free }] }),
+    hardware: async () => ({ devices: freeMiB === null ? [] : [{ freeMiB }] }),
     services: async () => [{ id: 'tts', name: 'TTS', modelLoaded: true, canUnload: true }],
     startEngine: async () => {
       starts++;
@@ -36,11 +36,11 @@ test('ASR admission refuses low or unknown GPU memory before starting the native
   assert.equal(result.body.candidates[0].id, 'tts');
   assert.equal(starts, 0);
   assert.equal(claims, 0);
-  free = null;
+  freeMiB = null;
   result = await starter(begin);
   assert.equal(result.body.code, 'gpu_memory_unavailable');
   assert.equal(starts, 0);
-  free = 100000;
+  freeMiB = 100000;
   result = await starter(begin);
   assert.equal(result.body.code, 'load_requested');
   assert.equal(result.keepBarrier, true);
@@ -126,7 +126,7 @@ test('ASR releases its load barrier when model files are being removed', async (
 });
 
 test('ASR readiness verifies the expected streaming model', async () => {
-  const response = (data) => async () => ({ ok: true, json: async () => data });
+  const response = (json) => async () => ({ ok: true, json: async () => json });
   assert.equal(
     await probeAsr(
       'http://127.0.0.1:8282',

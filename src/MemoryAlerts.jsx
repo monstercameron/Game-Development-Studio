@@ -5,6 +5,19 @@ import { createLog } from './app-log.js';
 
 const log = createLog('memory');
 
+// Queue job type to the model name shown in the memory dialog. Unlisted types fall back to YuE2.
+const MEMORY_TARGET_LABELS = new Map([
+  ['video', 'H3 Studio'],
+  ['images', 'Qwen Image'],
+  ['sfx', 'Stable Audio'],
+  ['voices', 'Qwen3-TTS'],
+  ['3d', 'Hunyuan3D'],
+  ['trellis', 'TRELLIS.2'],
+  ['segmentation', 'SAM 3.1'],
+  ['motion', 'HY-Motion'],
+  ['motion-bricks', 'MotionBricks'],
+]);
+
 export default function MemoryAlerts() {
   const [job, setJob] = useState(null),
     [working, setWorking] = useState(false),
@@ -46,11 +59,11 @@ export default function MemoryAlerts() {
           }
           return next || null;
         });
-      } catch (error) {
+      } catch (pollError) {
         // Polling is best-effort; the next interval retries. Logged once per failure streak.
         if (!isPollFailing) {
           isPollFailing = true;
-          log.debug('memory.alert.poll.failed', { error });
+          log.debug('memory.alert.poll.failed', { error: pollError });
         }
       }
     }
@@ -122,27 +135,7 @@ export default function MemoryAlerts() {
     <>
       {job?.details && (
         <MemoryDialog
-          target={
-            job.type === 'video'
-              ? 'H3 Studio'
-              : job.type === 'images'
-                ? 'Qwen Image'
-                : job.type === 'sfx'
-                  ? 'Stable Audio'
-                  : job.type === 'voices'
-                    ? 'Qwen3-TTS'
-                    : job.type === '3d'
-                      ? 'Hunyuan3D'
-                      : job.type === 'trellis'
-                        ? 'TRELLIS.2'
-                        : job.type === 'segmentation'
-                          ? 'SAM 3.1'
-                          : job.type === 'motion'
-                            ? 'HY-Motion'
-                            : job.type === 'motion-bricks'
-                              ? 'MotionBricks'
-                              : 'YuE2'
-          }
+          target={MEMORY_TARGET_LABELS.get(job.type) ?? 'YuE2'}
           conflict={job.details}
           onClose={() => setJob(null)}
           onRetry={retry}

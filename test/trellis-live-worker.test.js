@@ -7,13 +7,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { EngineManager, engineDefinitions } from '../runtime/engines.js';
 
+// The worker binds its port asynchronously, so poll until the status endpoint answers.
 async function waitFor(fn) {
   const end = Date.now() + 15000;
   while (Date.now() < end) {
     if (await fn()) {
       return;
     }
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw Error('Timed out waiting for TRELLIS.2 worker');
 }
@@ -23,6 +24,7 @@ test(
   { timeout: 25000 },
   async (t) => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-trellis-worker-'));
+    // Ask the OS for a free loopback port, then release it so the worker can bind it.
     const listener = createServer();
     listener.listen(0, '127.0.0.1');
     await once(listener, 'listening');
@@ -40,6 +42,8 @@ test(
       env: { FORGE_RUNTIME_DIR: dir },
     };
     const manager = new EngineManager({ definitions: [definition], logDir: dir });
+    // Cleanup must not hide the test's own failure, so an offload error is ignored and
+    // the directory removal still runs.
     t.after(async () => {
       if (manager.owns('3d-trellis')) {
         await manager.offload('3d-trellis').catch(() => {});

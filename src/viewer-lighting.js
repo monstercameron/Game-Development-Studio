@@ -31,6 +31,13 @@ export const LIGHT_RIGS = {
   },
 };
 
+/**
+ * Builds the lights for a named rig. Unknown ids fall back to 'studio'.
+ * `radius` is the model's bounding radius in scene units and scales the light distance and
+ * shadow frustum. `castShadow` is applied only to the key light.
+ * Returns { group, keyLight (null when the rig has no key light), environment, dispose() }.
+ * Call dispose() when the rig is removed so shadow maps and GPU resources are released.
+ */
 export function createLightRig(
   id,
   { radius = 1, center = new THREE.Vector3(), castShadow = false } = {},

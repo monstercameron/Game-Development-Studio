@@ -25,7 +25,10 @@ function trianglesFor(mode, count) {
   return 0;
 }
 
-/** Counts from a parsed glTF JSON document. */
+/**
+ * Counts from a parsed glTF JSON document. Missing or malformed accessor, mesh or material
+ * fields count as zero rather than throwing.
+ */
 export function statsFromGltf(gltf) {
   const accessors = Array.isArray(gltf?.accessors) ? gltf.accessors : [];
   let triangles = 0;
@@ -35,15 +38,17 @@ export function statsFromGltf(gltf) {
   for (const mesh of Array.isArray(gltf?.meshes) ? gltf.meshes : []) {
     for (const primitive of mesh?.primitives || []) {
       primitives += 1;
-      const position = accessors[primitive.attributes?.POSITION];
-      const positions = Number.isSafeInteger(position?.count) ? position.count : 0;
-      vertices += positions;
+      const positionAccessor = accessors[primitive.attributes?.POSITION];
+      const positionCount = Number.isSafeInteger(positionAccessor?.count)
+        ? positionAccessor.count
+        : 0;
+      vertices += positionCount;
       hasUvs ||= primitive.attributes?.TEXCOORD_0 !== undefined;
       const indices = accessors[primitive.indices];
       const drawn =
         primitive.indices !== undefined && Number.isSafeInteger(indices?.count)
           ? indices.count
-          : positions;
+          : positionCount;
       triangles += trianglesFor(primitive.mode ?? TRIANGLES, drawn);
     }
   }
@@ -71,11 +76,11 @@ export function readGlbStats(file) {
     if (header.readUInt32LE(16) !== JSON_CHUNK || length > MAX_JSON_BYTES || 20 + length > size) {
       return null;
     }
-    const json = Buffer.alloc(length);
-    if (fs.readSync(handle, json, 0, length, 20) < length) {
+    const jsonChunk = Buffer.alloc(length);
+    if (fs.readSync(handle, jsonChunk, 0, length, 20) < length) {
       return null;
     }
-    return { bytes: size, ...statsFromGltf(JSON.parse(json.toString('utf8'))) };
+    return { bytes: size, ...statsFromGltf(JSON.parse(jsonChunk.toString('utf8'))) };
   } catch (error) {
     // An unreadable or malformed file only means no statistics are shown.
     log.debug('three-d.glb.stats.failed', { error });

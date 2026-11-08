@@ -253,8 +253,7 @@ async function openPage(t, path) {
       await wait(50);
     });
   };
-  const alertFor = (id) => document.getElementById(id);
-  return { dom, posts, type, submit, alertFor };
+  return { dom, posts, type, submit };
 }
 
 function assertInvalid(field, errorId, pattern) {

@@ -8,7 +8,11 @@ import {
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const DATA_URL = /^data:(image\/[a-z+.-]{1,20});base64,([A-Za-z0-9+/]+={0,2})$/;
 
-/** Reads the image type from the first bytes. A file name or a claimed type is never trusted. */
+/**
+ * Reads the image type from the first bytes. A file name or a claimed type is never trusted.
+ * @param {Buffer} bytes The decoded picture bytes.
+ * @returns {'image/jpeg' | 'image/png' | 'image/webp' | null} null when no signature matches.
+ */
 export function sniffChatImage(bytes) {
   if (bytes.length < 12) {
     return null;
@@ -33,12 +37,14 @@ export function sniffChatImage(bytes) {
  */
 export function checkChatImage(value, index = 0) {
   const label = `Image ${index + 1}`;
+  // Base64 adds one third to the byte size; the 64-character slack covers the data URL prefix.
   if (typeof value !== 'string' || value.length > Math.ceil((MAX_CHAT_IMAGE_BYTES * 4) / 3) + 64) {
     throw Error(
       `${label} is larger than ${MAX_CHAT_IMAGE_BYTES / 1024 / 1024} MiB or is not a data URL.`,
     );
   }
   const match = DATA_URL.exec(value);
+  // Padded base64 always has a length that is a multiple of four; anything else is truncated.
   if (!match || !CHAT_IMAGE_TYPES.includes(match[1]) || match[2].length % 4 !== 0) {
     throw Error(`${label} must be a base64 PNG, JPEG or WebP data URL.`);
   }
@@ -63,7 +69,7 @@ export function checkChatImage(value, index = 0) {
 export function buildImageMessages(messages) {
   let imageCount = 0;
   let imageBytes = 0;
-  const built = messages.map((message) => {
+  const builtMessages = messages.map((message) => {
     if (message.images === undefined) {
       return message;
     }
@@ -93,5 +99,5 @@ export function buildImageMessages(messages) {
     }
     return { ...rest, content: [{ type: 'text', text: message.content }, ...parts] };
   });
-  return { messages: built, imageCount, imageBytes };
+  return { messages: builtMessages, imageCount, imageBytes };
 }

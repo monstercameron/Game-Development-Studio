@@ -256,8 +256,8 @@ test('every /api request is logged with a route template and a trace id', async 
   const failed = rows.find((row) => row.event === 'http.request.failed');
   assert.equal(failed.fields.route, '/api/broken');
   assert.equal(failed.fields.status, 500);
-  const completed = rows.find((row) => row.traceId === 'trace-from-browser-1');
-  assert.equal(completed, undefined, 'successful requests are debug and off by default');
+  const successfulRow = rows.find((row) => row.traceId === 'trace-from-browser-1');
+  assert.equal(successfulRow, undefined, 'successful requests are debug and off by default');
   assert.ok(!JSON.stringify(rows).includes('my-secret-game'));
   assert.ok(!JSON.stringify(rows).includes('dragon'));
 });

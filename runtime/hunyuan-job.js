@@ -4,20 +4,25 @@ import { readReferences } from './references.js';
 
 const log = createLogger('three-d');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function send(jobId, type, values = {}) {
   if (process.connected) {
     process.send({ jobId, type, ...values });
   }
 }
+
+// The host owns job state. If its channel closes, exit rather than keep polling
+// a remote job with nobody left to report the result to.
 process.on('disconnect', () => {
   log.info('three-d.process.disconnected');
   process.exit(0);
 });
+
 process.once('message', async ({ job, projectFolder, baseUrl }) => {
   const jobLog = log.child({ jobId: job.id });
   let remoteId = job.remoteId;
   jobLog.info('three-d.job.started', { engine: job.type, hasRemoteId: Boolean(remoteId) });
-  const name = job.type === 'trellis' ? 'TRELLIS.2' : 'Hunyuan';
+  const engineLabel = job.type === 'trellis' ? 'TRELLIS.2' : 'Hunyuan';
   try {
     if (!remoteId) {
       let image;
@@ -72,7 +77,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       } catch (error) {
         jobLog.warn('three-d.submit.unknown', { route: '/api/generate', error });
         send(job.id, 'interrupted', {
-          error: `Submission result is unknown. Check the ${name} worker before resolving this job.`,
+          error: `Submission result is unknown. Check the ${engineLabel} worker before resolving this job.`,
         });
         return;
       }
@@ -80,7 +85,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
         jobLog.warn('three-d.submit.rejected', { status: response.status });
         send(job.id, response.status >= 500 ? 'interrupted' : 'failed', {
           // FastAPI puts a readable validation message in "detail"; keep it unwrapped.
-          error: `${name} returned ${response.status}: ${
+          error: `${engineLabel} returned ${response.status}: ${
             typeof body?.detail === 'string'
               ? body.detail.slice(0, 1000)
               : JSON.stringify(body).slice(0, 1000)
@@ -91,7 +96,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       if (typeof body.id !== 'string' || !/^[a-f0-9]{32}$/.test(body.id)) {
         jobLog.warn('three-d.submit.rejected', { reason: 'invalid_job_id' });
         send(job.id, 'interrupted', {
-          error: `${name} accepted the request without a usable job ID. Check its output.`,
+          error: `${engineLabel} accepted the request without a usable job ID. Check its output.`,
         });
         return;
       }
@@ -110,7 +115,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
         if (response.status === 404) {
           jobLog.warn('three-d.job.missing', { status: 404 });
           send(job.id, 'interrupted', {
-            error: `The ${name} worker no longer recognizes this job. Check its output before resolving.`,
+            error: `The ${engineLabel} worker no longer recognizes this job. Check its output before resolving.`,
           });
           return;
         }
@@ -127,7 +132,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           isReconnecting = true;
           jobLog.warn('three-d.poll.failed', { route: '/api/jobs/:id', error });
         }
-        send(job.id, 'progress', { stage: `Waiting to reconnect to the ${name} worker.` });
+        send(job.id, 'progress', { stage: `Waiting to reconnect to the ${engineLabel} worker.` });
         await sleep(5000);
         continue;
       }

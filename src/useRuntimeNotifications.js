@@ -4,6 +4,8 @@ import { createLog } from './app-log.js';
 
 const log = createLog('ui');
 
+// Statuses that mean the runtime still has work. The queue-level notice is only sent
+// after no job remains in this set, so a finished job is not announced too early.
 const active = new Set([
   'queued',
   'waiting_engine',
@@ -15,6 +17,22 @@ const active = new Set([
   'finalizing',
   'interrupted',
 ]);
+
+// Display names for the completion notice. Keys are persisted job types.
+const JOB_TYPE_NAMES = {
+  sfx: 'Sound effect',
+  music: 'Music asset',
+  images: 'Image',
+  video: 'Video',
+  voices: 'Voice',
+  '3d': '3D shape',
+  trellis: '3D model',
+  motion: 'Motion clip',
+  'motion-bricks': 'Motion transition',
+  segmentation: 'Segmentation',
+  vegetation: 'Plant model',
+};
+
 export function useRuntimeNotifications() {
   useEffect(() => {
     let previous = null,
@@ -75,7 +93,7 @@ export function useRuntimeNotifications() {
               id: job.id,
               name:
                 job.request.title ||
-                `${{ sfx: 'Sound effect', music: 'Music asset', images: 'Image', video: 'Video', voices: 'Voice', '3d': '3D shape', trellis: '3D model', motion: 'Motion clip', 'motion-bricks': 'Motion transition', segmentation: 'Segmentation', vegetation: 'Plant model' }[job.type] || 'Asset'} ready in your project.`,
+                `${JOB_TYPE_NAMES[job.type] || 'Asset'} ready in your project.`,
             });
           }
           if (

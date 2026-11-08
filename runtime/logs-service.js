@@ -298,7 +298,8 @@ function readRetentionSettings(getSetting) {
  * @param {string} [options.runtimeDir] folder holding logs.sqlite and log-spool/
  * @param {number} [options.ingestIntervalMs] 0 disables the ingest timer
  * @param {number} [options.retentionIntervalMs] 0 disables the retention timer
- * @param {(key: string) => unknown} [options.getSetting] settings accessor (core-settings getSetting)
+ * @param {(key: string) => unknown} [options.getSetting]
+ *   settings accessor (core-settings getSetting)
  * @param {(pid: number) => boolean} [options.isAlive]
  */
 export function logsService({
@@ -341,8 +342,8 @@ export function logsService({
       return;
     }
     try {
-      const module = await import('./core-settings.js');
-      settingsAccessor = module.getSetting;
+      const coreSettings = await import('./core-settings.js');
+      settingsAccessor = coreSettings.getSetting;
     } catch (error) {
       log.debug('log.settings.unavailable', { error });
     }

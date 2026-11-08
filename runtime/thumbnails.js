@@ -3,7 +3,10 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { fsyncFile } from './durable-file.js';
 
-const maxBytes = 1024 * 1024;
+// Upper bound on one cached PNG, in bytes. The base64 text in a save request
+// may be about 1.4x this.
+const MAX_THUMBNAIL_BYTES = 1024 * 1024;
+
 function inside(root, target) {
   const relative = path.relative(root, target);
   return (
@@ -21,6 +24,8 @@ async function assertCurrentAsset(project, asset) {
   const root = await fs.realpath(project.folder),
     file = path.resolve(root, ...asset.id.split('/')),
     relative = path.relative(root, file);
+  // Dot-prefixed folders hold Forge state such as .forge-thumbnails,
+  // so no asset path may enter them.
   if (!inside(root, file) || relative.split(path.sep).some((part) => part.startsWith('.'))) {
     throw Error('Invalid thumbnail asset.');
   }
@@ -33,11 +38,16 @@ async function assertCurrentAsset(project, asset) {
   }
 }
 
+/**
+ * Cache file name stem for an asset. The key changes whenever the asset's id, size or
+ * modification time changes, so an edited asset never reads a stale thumbnail.
+ */
 export function thumbnailKey(asset) {
   return createHash('sha256')
     .update(JSON.stringify([asset.id, asset.size, asset.modified]))
     .digest('hex');
 }
+
 async function cachePath(project, asset, create = false) {
   const folder = path.join(project.folder, '.forge-thumbnails');
   if (create) {
@@ -55,11 +65,12 @@ async function cachePath(project, asset, create = false) {
   }
   return path.join(real, `${thumbnailKey(asset)}.png`);
 }
+
 export async function readThumbnail(project, asset) {
   try {
     const file = await cachePath(project, asset);
     const stat = await fs.lstat(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes) {
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_THUMBNAIL_BYTES) {
       return null;
     }
     return await fs.readFile(file);
@@ -77,13 +88,13 @@ export async function saveThumbnail(project, asset, input) {
   if (
     typeof input.image !== 'string' ||
     !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(input.image) ||
-    input.image.length > maxBytes * 1.4
+    input.image.length > MAX_THUMBNAIL_BYTES * 1.4
   ) {
     throw Error('Invalid thumbnail image.');
   }
   const image = Buffer.from(input.image.slice('data:image/png;base64,'.length), 'base64');
   if (
-    image.length > maxBytes ||
+    image.length > MAX_THUMBNAIL_BYTES ||
     image.length < 24 ||
     !image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) ||
     image.toString('ascii', 12, 16) !== 'IHDR' ||
@@ -100,6 +111,8 @@ export async function saveThumbnail(project, asset, input) {
   try {
     await fs.writeFile(temp, image, { flag: 'wx' });
     await fsyncFile(temp);
+    // link() never overwrites. An existing target has the same key, so it already holds the same
+    // image and the staged copy can be dropped.
     try {
       await fs.link(temp, target);
     } catch (error) {

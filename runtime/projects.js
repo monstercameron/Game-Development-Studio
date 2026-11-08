@@ -176,6 +176,44 @@ async function listProjects() {
   }
   return found.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
+// Runs one asset mutation for POST /api/projects/:id/assets/:action. The route regex is
+// case-insensitive, but the switch compares exact names, so any other spelling falls through to
+// restore. Keep it that way: normalising the case here would change behaviour.
+async function runAssetAction(action, project, input) {
+  switch (action) {
+    case 'metadata':
+      return updateAsset(project, input.path, input);
+    case 'rename':
+      return renameAsset(project, input.path, input.name);
+    case 'trash':
+      return trashAsset(project, input.path);
+    case 'clear-trash':
+      return clearTrash(project, input.confirmation);
+    case 'convert':
+      return convertAsset(project, input);
+    default:
+      return restoreAsset(project, input.trashId);
+  }
+}
+
+// Stages one reference, pose or clip for a request. kind is 'references', 'poses' or 'clips'.
+// fromAsset means bytes is JSON that names a project asset instead of an uploaded file.
+async function stageRequestReference(folder, kind, fromAsset, bytes) {
+  if (kind === 'clips') {
+    return stageProjectClip(folder, JSON.parse(bytes.toString('utf8')).path);
+  }
+  const isPose = kind === 'poses';
+  if (fromAsset) {
+    const assetPath = JSON.parse(bytes.toString('utf8')).path;
+    return isPose ? stageProjectPose(folder, assetPath) : stageProjectAsset(folder, assetPath);
+  }
+  return isPose ? stagePose(folder, bytes) : stageReference(folder, bytes);
+}
+
+/**
+ * Returns the /api/projects service. It is mounted by both vite.config.js and
+ * runtime/http-server.js, so a change to its routes applies to the dev and production hosts.
+ */
 export function projectsService() {
   function attach(server) {
     server.middlewares.use('/api/projects', async (req, res) => {
@@ -406,18 +444,7 @@ export function projectsService() {
           }
           try {
             const input = JSON.parse(body);
-            const result =
-              assetAction[2] === 'metadata'
-                ? await updateAsset(project, input.path, input)
-                : assetAction[2] === 'rename'
-                  ? await renameAsset(project, input.path, input.name)
-                  : assetAction[2] === 'trash'
-                    ? await trashAsset(project, input.path)
-                    : assetAction[2] === 'clear-trash'
-                      ? await clearTrash(project, input.confirmation)
-                      : assetAction[2] === 'convert'
-                        ? await convertAsset(project, input)
-                        : await restoreAsset(project, input.trashId);
+            const result = await runAssetAction(assetAction[2], project, input);
             return json(res, result);
           } catch (error) {
             log.warn('projects.request.failed', {
@@ -533,24 +560,13 @@ export function projectsService() {
             chunks.push(chunk);
           }
           try {
-            const bytes = Buffer.concat(chunks),
-              pose = referenceMatch[2].toLowerCase() === 'poses',
-              clip = referenceMatch[2].toLowerCase() === 'clips',
-              reference = clip
-                ? await stageProjectClip(project.folder, JSON.parse(bytes.toString('utf8')).path)
-                : referenceMatch[3]
-                  ? pose
-                    ? await stageProjectPose(
-                        project.folder,
-                        JSON.parse(bytes.toString('utf8')).path,
-                      )
-                    : await stageProjectAsset(
-                        project.folder,
-                        JSON.parse(bytes.toString('utf8')).path,
-                      )
-                  : pose
-                    ? await stagePose(project.folder, bytes)
-                    : await stageReference(project.folder, bytes);
+            const bytes = Buffer.concat(chunks);
+            const reference = await stageRequestReference(
+              project.folder,
+              referenceMatch[2].toLowerCase(),
+              Boolean(referenceMatch[3]),
+              bytes,
+            );
             return json(res, { reference }, 201);
           } catch (error) {
             log.warn('projects.request.failed', {
@@ -586,26 +602,26 @@ export function projectsService() {
             return json(res, { error: 'Asset not found.' }, 404);
           }
           const stat = await fs.stat(real);
-          let start = 0,
-            end = stat.size - 1;
+          let start = 0;
+          let end = stat.size - 1;
           const range = req.headers.range;
           if (range) {
-            const m = /^bytes=(\d*)-(\d*)$/.exec(range);
-            if (!m || (!m[1] && !m[2])) {
+            const rangeMatch = /^bytes=(\d*)-(\d*)$/.exec(range);
+            if (!rangeMatch || (!rangeMatch[1] && !rangeMatch[2])) {
               res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` });
               return res.end();
             }
-            if (!m[1]) {
-              const suffix = Number(m[2]);
+            if (!rangeMatch[1]) {
+              const suffix = Number(rangeMatch[2]);
               if (!Number.isSafeInteger(suffix) || suffix <= 0) {
                 res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` });
                 return res.end();
               }
               start = Math.max(0, stat.size - suffix);
             } else {
-              start = Number(m[1]);
-              if (m[2]) {
-                end = Math.min(end, Number(m[2]));
+              start = Number(rangeMatch[1]);
+              if (rangeMatch[2]) {
+                end = Math.min(end, Number(rangeMatch[2]));
               }
             }
             if (

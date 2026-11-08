@@ -449,9 +449,9 @@ test('ingest: a partial last line waits, and a second ingester never duplicates'
     });
   fs.writeFileSync(file, `${record(1)}\n${record(2)}\nnot json\n${record(3).slice(0, 20)}`);
   const store = openStore({ directory });
-  const other = openStore({ directory });
+  const secondStore = openStore({ directory });
   const first = createLogIngester({ store, spoolDirectory });
-  const second = createLogIngester({ store: other, spoolDirectory });
+  const second = createLogIngester({ store: secondStore, spoolDirectory });
   first.ingestOnce();
   second.ingestOnce();
   assert.equal(store.summary().rows, 2);
@@ -461,8 +461,8 @@ test('ingest: a partial last line waits, and a second ingester never duplicates'
   first.ingestOnce();
   assert.equal(store.summary().rows, 3);
   assert.ok(fs.existsSync(file), 'a live writer keeps its file');
-  const dead = createLogIngester({ store, spoolDirectory, isAlive: () => false });
-  dead.ingestOnce();
+  const exitedWriterIngester = createLogIngester({ store, spoolDirectory, isAlive: () => false });
+  exitedWriterIngester.ingestOnce();
   assert.ok(!fs.existsSync(file), 'the file of an exited writer is removed once ingested');
 });
 

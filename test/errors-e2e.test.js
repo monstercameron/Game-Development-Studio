@@ -1,7 +1,8 @@
 // End-to-end test of the Errors review pipeline against the REAL studio host: a Vite server (the
 // same host the studio runs on) with the real errors service plugin, a real SQLite error store,
 // the real Python helper, the real log scanner and the real browser capture code. Only the
-// outside world is replaced: OpenAI by a fake server on loopback and `gh` by test/fixtures/fake-gh.mjs.
+// outside world is replaced: OpenAI by a fake server on loopback and `gh` by
+// test/fixtures/fake-gh.mjs.
 // All state lives in a temporary folder. No engine is started and no model or GPU is used.
 import assert from 'node:assert/strict';
 import { execFile, spawnSync } from 'node:child_process';
@@ -781,7 +782,9 @@ test('tools/emit-test-error.mjs creates and deletes test errors in a running stu
   assert.equal(deleted.status, 0, deleted.stdout + deleted.stderr);
   assert.equal((await call('GET', '')).data.total, 0);
 
-  const closed = await cli('--port', String(Number(port) + 1000), '--kind', 'server');
+  // Another valid port on the loopback with nothing listening; stay inside 1-65535 for any port.
+  const unusedPort = Number(port) > 64000 ? Number(port) - 1000 : Number(port) + 1000;
+  const closed = await cli('--port', String(unusedPort), '--kind', 'server');
   assert.equal(closed.status, 1);
   assert.match(closed.stdout, /Could not reach the studio/);
 });

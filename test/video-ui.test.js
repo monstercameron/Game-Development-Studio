@@ -88,7 +88,7 @@ export default function AssetPicker({ title, extensions, maxFiles, onSelect, onC
     React.createElement('button', { type: 'button', id: 'close', onClick: onClose }, 'Close'));
 }
 `;
-// The inline error component only adds a message and an icon; the slots' own behaviour is under test.
+// The stand-in error component renders only the message; the slots' own behaviour is under test.
 const fieldErrorStub = `import React from 'react';
 export default function FieldError({ id, message }) {
   return message ? React.createElement('p', { id, role: 'alert' }, message) : null;
@@ -352,7 +352,7 @@ test('video settings list the picture sizes of the chosen aspect and warn about 
   const updates = [];
   const view = await settings(
     { options: ['Cinema · 21:9', 'About 5 seconds'], videoResolution: 'large' },
-    (change) => updates.push(change),
+    (patch) => updates.push(patch),
   );
   try {
     const select = view.container.querySelector('#video-resolution');
@@ -380,7 +380,7 @@ test('the turbo adapter switches the step list and turns guidance off', async ()
   const updates = [];
   const view = await settings(
     { options: [], videoTurbo: true, videoSteps: 4, videoNegative: 'x' },
-    (c) => updates.push(c),
+    (patch) => updates.push(patch),
   );
   try {
     assert.deepEqual(
@@ -413,7 +413,7 @@ test('experimental controls are labelled, validated and passed through', async (
   const updates = [];
   const view = await settings(
     { options: [], videoCfg: '9', videoMaxVram: '30', videoSampler: 'res_multistep' },
-    (c) => updates.push(c),
+    (patch) => updates.push(patch),
   );
   try {
     const advanced = view.container.querySelector('.image-video-settings-advanced');

@@ -18,9 +18,12 @@ export function placeholdersOf(text) {
 
 /** Same placeholders, ignoring order: translations may reorder them. */
 export function samePlaceholders(left, right) {
-  const a = placeholdersOf(left).sort();
-  const b = placeholdersOf(right).sort();
-  return a.length === b.length && a.every((name, index) => name === b[index]);
+  const leftNames = placeholdersOf(left).sort();
+  const rightNames = placeholdersOf(right).sort();
+  return (
+    leftNames.length === rightNames.length &&
+    leftNames.every((name, index) => name === rightNames[index])
+  );
 }
 
 /**

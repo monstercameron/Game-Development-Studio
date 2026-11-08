@@ -15,12 +15,20 @@ const IMAGE_MODES = ['references', 'frames', 'none'];
 const SAMPLERS = ['euler', 'res_multistep'];
 const SCHEDULERS = ['simple', 'beta', 'discrete'];
 const REFERENCE_DETAILS = ['match', 'max'];
-const relativeName = /^[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_.-]{1,64}$/;
+// Two-part names such as `folder/file.ext`, each part bounded so a client cannot send long paths.
+const RELATIVE_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_.-]{1,64}$/;
 
 const isInt = (value, min, max) => Number.isInteger(value) && value >= min && value <= max;
 
+// Maps a client-supplied name to a path under `root`. The name is checked before resolving so that
+// traversal and absolute paths are refused without relying on path.resolve behaviour.
 function insideRoot(root, name) {
-  if (!root || typeof name !== 'string' || !relativeName.test(name) || name.includes('..')) {
+  if (
+    !root ||
+    typeof name !== 'string' ||
+    !RELATIVE_NAME_PATTERN.test(name) ||
+    name.includes('..')
+  ) {
     return null;
   }
   const resolved = path.resolve(root, ...name.split('/'));
@@ -37,6 +45,7 @@ function clipList(value, kind, env, errors) {
   const resolved = [];
   for (const name of value) {
     const full = insideRoot(env.FORGE_H3_INPUT_ROOT, name);
+    // A video reference is a folder of extracted frames (at least 5 files); audio is one file.
     let ok;
     try {
       ok =
@@ -266,6 +275,7 @@ const capabilities = {
     'fl2va-checkpoint-optional',
   ],
 };
+
 // Wraps H3's request listener so Forge can tell this launcher from one started before the update.
 function withCapabilities(listener) {
   return (req, res) => {

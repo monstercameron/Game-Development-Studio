@@ -13,8 +13,9 @@ import { createLog } from './app-log.js';
 import './ux-metadata.css';
 
 const log = createLog('ui');
+// Characters shown before a long prompt is clamped behind a "Show more" button.
 const PROMPT_PREVIEW = 280;
-const when = (value) =>
+const formatDateTime = (value) =>
   value
     ? new Date(value).toLocaleString(undefined, {
         year: 'numeric',
@@ -66,16 +67,16 @@ export function useGenerationDetails(projectId, assetId) {
 
 function Prompt({ label, value, id }) {
   const [expanded, setExpanded] = useState(false);
-  const long = value.length > PROMPT_PREVIEW;
+  const isLong = value.length > PROMPT_PREVIEW;
   return (
     <div className="generation-block">
       <span className="generation-label" id={`${id}-label`}>
         {label}
       </span>
       <p id={id} className="generation-text" aria-labelledby={`${id}-label`}>
-        {long && !expanded ? `${value.slice(0, PROMPT_PREVIEW).trimEnd()}…` : value}
+        {isLong && !expanded ? `${value.slice(0, PROMPT_PREVIEW).trimEnd()}…` : value}
       </p>
-      {long && (
+      {isLong && (
         <button
           type="button"
           className="generation-link"
@@ -107,6 +108,7 @@ export default function GenerationDetails({ project, asset, onReuse, compact = f
   const id = useId();
   const state = useGenerationDetails(asset?.sample ? '' : project?.id, asset?.id);
   const [copied, setCopied] = useState('');
+  // A different asset must not show the previous copy confirmation.
   useEffect(() => setCopied(''), [asset?.id]);
   if (!project || !asset || asset.sample) {
     return null;
@@ -171,7 +173,7 @@ export default function GenerationDetails({ project, asset, onReuse, compact = f
             {meta.asset?.createdAt && (
               <div>
                 <dt>Created</dt>
-                <dd>{when(meta.asset.createdAt)}</dd>
+                <dd>{formatDateTime(meta.asset.createdAt)}</dd>
               </div>
             )}
             {took && (

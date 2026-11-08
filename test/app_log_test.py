@@ -17,6 +17,7 @@ import app_log  # noqa: E402
 
 class AppLogTest(unittest.TestCase):
     def setUp(self) -> None:
+        # The app_log writer is process-wide; reset it so each test sees only its own records.
         app_log.configure(sink="memory")
         app_log._writer.memory.clear()
         app_log._writer.dedupe.clear()
@@ -151,6 +152,8 @@ class AppLogTest(unittest.TestCase):
                 "log = app_log.get_logger('image'); "
                 "log.info('image.render.completed', {'jobId': 'j1', 'durationMs': 5})"
             )
+            # Replacing the whole environment keeps the developer's own settings out of the
+            # child process. SYSTEMROOT is required by Windows for Python to start.
             env = {"FORGE_RUNTIME_DIR": directory, "SYSTEMROOT": str(Path("C:/Windows"))}
             subprocess.run(
                 [sys.executable, "-c", script, str(ROOT / "runtime")],

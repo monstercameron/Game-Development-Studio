@@ -51,7 +51,11 @@ function runModelHelper(input, python = process.env.FORGE_MODEL_CONVERT_PYTHON |
       }
       settled = true;
       clearTimeout(timer);
-      error ? reject(error) : resolve(value);
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(value);
     }
     child.on('error', (error) =>
       finish(
@@ -118,6 +122,20 @@ async function publish(temporaryFolder, parent, files) {
   }
 }
 
+/**
+ * Converts a 3D asset in the project into another MODEL_FORMATS entry, next to the source.
+ * Companion files (materials, textures) are published under the same stem. Existing names are
+ * never overwritten: a name clash moves on to "-converted-2", "-converted-3" and so on.
+ *
+ * @param {{ id: string, folder: string }} project Project whose folder contains the asset.
+ * @param {{ id: string }} asset Asset whose id is a project-relative path.
+ * @param {{ format: string }} input Requested target format from MODEL_FORMATS.
+ * @param {{ run?: Function }} [options] `run` replaces the Python helper in tests.
+ * @returns {Promise<{ path: string, name: string, backend: string, url: string,
+ *   extraFiles: object[], notes: string[] }>} The published main file and its companions.
+ * @throws {Error} With a user-facing message when the format is unsupported or the same as the
+ *   source, the asset is outside the project, or the helper fails or produces no main file.
+ */
 export async function convertModelAsset(project, asset, input, { run = runModelHelper } = {}) {
   const sourceFormat = modelExtension(asset.id);
   if (!MODEL_FORMATS.includes(input.format || '') || input.format === sourceFormat) {
@@ -161,7 +179,9 @@ export async function convertModelAsset(project, asset, input, { run = runModelH
         });
         throw Error('3D conversion did not produce a file.');
       }
-      if (!(await publish(temporaryFolder, parent, [main, ...files.filter((f) => f !== main)]))) {
+      if (
+        !(await publish(temporaryFolder, parent, [main, ...files.filter((file) => file !== main)]))
+      ) {
         // A companion file (material or texture) already exists under this name: try the next one.
         for (const file of files) {
           await fs.unlink(path.join(temporaryFolder, file.name)).catch((cleanupError) => {

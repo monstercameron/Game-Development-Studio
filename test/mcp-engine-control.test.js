@@ -7,15 +7,17 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
+// Runs the real stdio bridge against a loopback fake studio. The fake records each request and
+// answers {}, so a test can assert what the bridge sent without starting an engine.
 async function connectToFakeStudio(t, requests) {
-  const server = createServer(async (req, res) => {
-    let raw = '';
-    for await (const chunk of req) {
-      raw += chunk;
+  const server = createServer(async (request, response) => {
+    let rawBody = '';
+    for await (const chunk of request) {
+      rawBody += chunk;
     }
-    requests.push({ path: req.url, body: raw ? JSON.parse(raw) : null });
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end('{}');
+    requests.push({ path: request.url, body: rawBody ? JSON.parse(rawBody) : null });
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end('{}');
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

@@ -314,15 +314,15 @@ async function projectWithUploads(t, count) {
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const folder = path.join(root, 'project');
   await fs.mkdir(folder);
-  const real = await fs.realpath(folder);
+  const realFolder = await fs.realpath(folder);
   const rows = [];
   for (let index = 1; index <= count; index++) {
     const row = importRow(index);
-    await fs.mkdir(stagingDirectory(real, row.id), { recursive: true });
-    await fs.writeFile(uploadFile(real, row.id, row.filename), 'zip');
+    await fs.mkdir(stagingDirectory(realFolder, row.id), { recursive: true });
+    await fs.writeFile(uploadFile(realFolder, row.id, row.filename), 'zip');
     rows.push(row);
   }
-  return { folder: real, rows };
+  return { folder: realFolder, rows };
 }
 
 test('the runner starts at most two imports at once even when many are queued', async (t) => {
@@ -335,7 +335,7 @@ test('the runner starts at most two imports at once even when many are queued', 
   }
   let active = 0;
   let peak = 0;
-  const gates = [];
+  const pendingReleases = [];
   const runner = new ImportRunner({
     queue,
     library,
@@ -344,7 +344,7 @@ test('the runner starts at most two imports at once even when many are queued', 
     importFile: async (job) => {
       active++;
       peak = Math.max(peak, active);
-      await new Promise((resolve) => gates.push(resolve));
+      await new Promise((resolve) => pendingReleases.push(resolve));
       active--;
       return { files: [`3d/${job.id}.glb`], folder: null, skipped: 0, bytes: 3 };
     },
@@ -357,7 +357,7 @@ test('the runner starts at most two imports at once even when many are queued', 
   assert.equal(active, 2);
   assert.equal(queue.summary().running, 2);
   while (queue.summary().completed < 6) {
-    gates.splice(0).forEach((release) => release());
+    pendingReleases.splice(0).forEach((release) => release());
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
   await runner.idle();

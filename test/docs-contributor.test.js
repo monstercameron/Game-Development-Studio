@@ -53,7 +53,7 @@ const KNOWN_EXTENSIONS = new Set([
   '.patch',
   '.toml',
 ]);
-// Naming patterns the original root AGENTS.md quotes as examples; they are not repository files.
+// Naming patterns the root AGENTS.md quotes as examples; they are not repository files.
 const NAMING_PATTERNS = new Set(['PascalCase.jsx']);
 // Files that a guide may name before another change adds them. Keep this list short.
 const ALLOWED_PENDING_FILES = new Set([

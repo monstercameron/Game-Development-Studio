@@ -92,7 +92,7 @@ def log_lifecycle(event, *, started_at, job_id=None, error=None):
         "engine": "forge-qwen3-tts-v1",
         "event": event,
         "job_id": job_id,
-        "elapsed_ms": round((time.perf_counter() - started_at) * 1000),
+        "elapsed_ms": elapsed_ms(started_at),
         "exception_class": type(error).__name__ if error is not None else None,
         "traceback_frames": frames,
     }
@@ -166,7 +166,7 @@ def load_worker(variant):
 
 
 def synthesize(request, reference, sampling):
-    """Run the checkpoint-specific generation method; the resident model matches the request mode."""
+    """Generate with the checkpoint-specific method; the resident model matches the request mode."""
     if request.mode == "clone":
         # The package only uses ref_text in ICL mode, and in x-vector mode it still tokenizes a
         # non-empty transcript into the prompt. Withhold it so a voice-only clone never sees one.
@@ -199,7 +199,7 @@ def synthesize(request, reference, sampling):
 
 
 def render_worker(job_id, request, reference):
-    temp = None
+    partial_path = None
     started_at = time.perf_counter()
     log_lifecycle("generation_started", started_at=started_at, job_id=job_id)
     log.info("voices.render.started", {"jobId": job_id})
@@ -233,9 +233,9 @@ def render_worker(job_id, request, reference):
         wavs, sample_rate = synthesize(request, reference, sampling)
         if not wavs or len(wavs[0]) == 0:
             raise RuntimeError("The speech model returned empty audio.")
-        temp = OUTPUTS / f".{job_id}.part"
-        sf.write(str(temp), wavs[0], sample_rate, format="WAV")
-        os.replace(temp, OUTPUTS / f"{job_id}.wav")
+        partial_path = OUTPUTS / f".{job_id}.part"
+        sf.write(str(partial_path), wavs[0], sample_rate, format="WAV")
+        os.replace(partial_path, OUTPUTS / f"{job_id}.wav")
         log.debug("voices.file.written", {"jobId": job_id, "kind": "output", "extension": "wav"})
         # The codec runs at 12.5 tokens per second; audio that fills the token limit was cut off.
         truncated = len(wavs[0]) / sample_rate >= (request.max_new_tokens - 2) / 12.5
@@ -249,9 +249,9 @@ def render_worker(job_id, request, reference):
         log_lifecycle("generation_completed", started_at=started_at, job_id=job_id)
     except Exception as error:
         message = str(error)
-        if temp is not None:
+        if partial_path is not None:
             try:
-                temp.unlink(missing_ok=True)
+                partial_path.unlink(missing_ok=True)
             except OSError as cleanup_error:
                 message = f"{message} (could not remove partial audio: {cleanup_error})"
                 log.warn(

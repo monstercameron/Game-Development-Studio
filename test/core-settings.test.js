@@ -164,6 +164,8 @@ test('the environment rules match the ones the queue always used', (t) => {
       { [url]: 'http://127.0.0.1:9', [auto]: '0' },
       { [auto]: '1' },
     ]) {
+      // The rule the queue used before the registry: without a URL the engine starts by default,
+      // and a URL turns that off unless the auto-start variable is exactly '1'.
       const legacy = !env[url] || env[auto] === '1';
       const settings = createSettings({ directory: defaults.directory, env });
       assert.equal(
@@ -363,8 +365,8 @@ test('reset puts a key or a whole group back and reports what it skipped', async
   assert.equal(locked.get('engines.autoStart.hunyuan'), true);
   assert.equal(locked.get('engines.autoPrepare.music'), true);
   assert.equal(outcome.results.filter((item) => item.changed).length, 2);
-  const again = await settings.reset({ key: 'engines.autoStart.trellis' });
-  assert.equal(again.results[0].changed, true);
+  const firstReset = await settings.reset({ key: 'engines.autoStart.trellis' });
+  assert.equal(firstReset.results[0].changed, true);
   assert.equal(
     (await settings.reset({ key: 'engines.autoStart.trellis' })).results[0].changed,
     false,
@@ -460,9 +462,9 @@ test('host adapters (keep awake, language) apply, validate and roll back togethe
     (await refused(settings.set([{ key: 'ui.language', value: 'x y' }]))).code,
     'invalid_value',
   );
-  const bad = await refused(settings.set([{ key: 'ui.language', value: 'abcd' }]));
-  assert.equal(bad.code, 'invalid_value');
-  assert.equal(bad.message, 'ui.language: That is not a valid language code.');
+  const invalidError = await refused(settings.set([{ key: 'ui.language', value: 'abcd' }]));
+  assert.equal(invalidError.code, 'invalid_value');
+  assert.equal(invalidError.message, 'ui.language: That is not a valid language code.');
   await settings.set([{ key: 'ui.language', value: 'FR' }]);
   assert.equal(state.language, 'fr', 'the adapter stores the normalized value');
 
@@ -484,14 +486,14 @@ test('host adapters (keep awake, language) apply, validate and roll back togethe
     env: {},
     adapters: brokenAdapters,
   });
-  const apply = await refused(
+  const applyError = await refused(
     broken.set([
       { key: 'power.keepAwake', value: false },
       { key: 'ui.language', value: 'fr-FAIL' },
     ]),
   );
-  assert.equal(apply.code, 'apply_failed');
-  assert.match(apply.message, /No setting was changed/);
+  assert.equal(applyError.code, 'apply_failed');
+  assert.match(applyError.message, /No setting was changed/);
   assert.equal(state.awake, true, 'keep awake was restored after the later adapter failed');
   await broken.set([{ key: 'ui.language', value: null }]);
   assert.equal(state.language, null);

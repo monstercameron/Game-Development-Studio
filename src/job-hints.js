@@ -19,6 +19,10 @@ export function friendlyAssetName(path, noun = 'file', fallback = '') {
   return generated ? `${noun} ${generated[1]}` : name;
 }
 
+/**
+ * Returns a one-line hint for a queue or library entry, or '' when there is nothing to add.
+ * An sfx job with an unrecognised `edit_mode` returns undefined, not ''.
+ */
 export function jobHint(job) {
   const request = job?.request || {};
   if (['images', 'vegetation'].includes(job?.type) && Number.isInteger(request.variation_index)) {

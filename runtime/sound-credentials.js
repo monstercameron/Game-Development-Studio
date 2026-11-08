@@ -36,8 +36,8 @@ export async function findSharedHuggingFaceToken(
   );
   for (const name of names) {
     try {
-      const file = path.join(root, name),
-        stat = await fs.lstat(file);
+      const file = path.join(root, name);
+      const stat = await fs.lstat(file);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 2 * 1024 * 1024) {
         continue;
       }
@@ -58,6 +58,8 @@ export async function findSharedHuggingFaceToken(
   return '';
 }
 
+// The saved credential wins; the shared notes are read only when nothing is saved.
+// Resolves to '' when neither source has a token. Errors from the store propagate.
 export async function findConfiguredHuggingFaceToken({
   store = credentialStore,
   readShared = findSharedHuggingFaceToken,
@@ -65,6 +67,9 @@ export async function findConfiguredHuggingFaceToken({
   return (await store.get('huggingface')) || readShared();
 }
 
+// Returns an async provider that yields the token only while Forge owns the sound
+// service. A custom endpoint never receives the Hugging Face token, and an unowned
+// or unmanaged service gets ''. The token is read per call, never cached here.
 export function createManagedSoundTokenProvider({
   ownership,
   readToken = findConfiguredHuggingFaceToken,

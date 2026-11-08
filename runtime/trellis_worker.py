@@ -76,6 +76,11 @@ class MemoryStatus(ctypes.Structure):
 
 
 def check_memory(host_bytes, gpu_bytes):
+    """Raise RuntimeError unless the host and GPU byte budgets are free.
+
+    host_bytes goes through host_bytes_needed first, and gpu_bytes is compared with
+    the CUDA free memory reported by torch. CUDA is required; there is no CPU fallback.
+    """
     status = MemoryStatus()
     status.length = ctypes.sizeof(status)
     if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
@@ -141,11 +146,11 @@ def render_worker(job_id, image, request):
                     else f"Generating textured 3D model ({request.pipeline} pipeline)."
                 ),
             )
-        temp = OUTPUTS / f".{job_id}.part"
+        partial_path = OUTPUTS / f".{job_id}.part"
         generate_glb(
             model,
             image,
-            temp,
+            partial_path,
             seed=request.seed,
             steps=request.steps,
             texture_size=request.texture_size,
@@ -153,7 +158,7 @@ def render_worker(job_id, image, request):
             pipeline_type=request.pipeline,
             report=report,
         )
-        os.replace(temp, OUTPUTS / f"{job_id}.glb")
+        os.replace(partial_path, OUTPUTS / f"{job_id}.glb")
         log.debug("three-d.file.written", {"kind": "output"})
         with lock:
             jobs[job_id].update(status="completed", message="3D model ready.")
@@ -228,10 +233,10 @@ def generate(request: RenderRequest):
             400, f"The {request.pipeline} pipeline's checkpoints are not installed."
         )
     try:
-        prefix, data = request.image.split(",", 1)
+        prefix, encoded = request.image.split(",", 1)
         if prefix not in ("data:image/png;base64", "data:image/webp;base64"):
             raise ValueError("Use a transparent PNG or WebP image.")
-        raw = base64.b64decode(data, validate=True)
+        raw = base64.b64decode(encoded, validate=True)
         if len(raw) > 10 * 1024 * 1024:
             raise ValueError("Image is too large.")
         with Image.open(io.BytesIO(raw)) as source:

@@ -223,16 +223,17 @@ export function scanSource(source, file) {
   const seen = new Set();
   const report = (node, kind, text, ancestors, options) => {
     const line = node.loc?.start.line || 0;
-    const id = node.start;
+    // The source offset identifies a node, so a node reached twice is reported once.
+    const startOffset = node.start;
     if (
-      seen.has(id) ||
+      seen.has(startOffset) ||
       ignored.has(line) ||
       isInsideTranslation(ancestors, bindings) ||
       !looksLikeUiText(text, options)
     ) {
       return;
     }
-    seen.add(id);
+    seen.add(startOffset);
     findings.push({ line, kind, text: text.replace(/\s+/g, ' ').trim().slice(0, 100) });
   };
   const reportValues = (expression, kind, ancestors, options) => {
@@ -301,6 +302,10 @@ export function scanFiles(files) {
   }));
 }
 
+/**
+ * Runs the CLI and returns the process exit code: 0 when clean or with --report, 1 when
+ * findings exist, 2 when a named file does not exist. Nothing is written to disk.
+ */
 export function main(argv = process.argv.slice(2)) {
   const isJson = argv.includes('--json');
   const isReport = argv.includes('--report');
@@ -333,9 +338,9 @@ export function main(argv = process.argv.slice(2)) {
         }
       }
     }
-    const clean = results.filter((item) => !item.findings.length).length;
+    const cleanCount = results.filter((item) => !item.findings.length).length;
     console.log(
-      `${total} unwrapped strings in ${results.length - clean} of ${results.length} files.` +
+      `${total} unwrapped strings in ${results.length - cleanCount} of ${results.length} files.` +
         (detailed ? '' : ' Pass file names to list line numbers.'),
     );
   }

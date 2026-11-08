@@ -4,6 +4,9 @@ import './ux-viewer.css';
 
 const GaussianPreview = React.lazy(() => import('./GaussianPreview'));
 
+// Bytes read from the start of the file. Must match the Range header below.
+const HEADER_READ_BYTES = 8192;
+
 // A PLY can be a mesh, point cloud, or Gaussian splat. Inspect only its
 // header before choosing the viewer; do not download the entire file twice.
 export default function PlyAssetPreview({ url, name, ...viewerProps }) {
@@ -21,21 +24,22 @@ export default function PlyAssetPreview({ url, name, ...viewerProps }) {
           throw Error('Could not read the PLY header.');
         }
         const chunks = [];
-        let length = 0;
+        let bytesRead = 0;
         try {
-          while (length < 8192) {
+          while (bytesRead < HEADER_READ_BYTES) {
             const { done, value } = await reader.read();
             if (done) {
               break;
             }
-            const chunk = value.subarray(0, 8192 - length);
+            const chunk = value.subarray(0, HEADER_READ_BYTES - bytesRead);
             chunks.push(chunk);
-            length += chunk.byteLength;
+            bytesRead += chunk.byteLength;
           }
         } finally {
+          // The Range response may still be streaming; cancel it once the header is read.
           await reader.cancel();
         }
-        const bytes = new Uint8Array(length);
+        const bytes = new Uint8Array(bytesRead);
         let offset = 0;
         for (const chunk of chunks) {
           bytes.set(chunk, offset);

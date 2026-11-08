@@ -48,6 +48,8 @@ test('a write killed before the rename keeps the old file and leaves only a hidd
 
 test('the file is flushed before the rename', async (t) => {
   const directory = await temp(t);
+  // Opening and closing a handle exposes FileHandle.prototype, so sync can be wrapped to record
+  // the order of flush and rename.
   const handle = await fs.open(path.join(directory, 'probe'), 'w');
   const prototype = Object.getPrototypeOf(handle);
   await handle.close();
@@ -98,6 +100,8 @@ test('a damaged file is moved aside under a recognisable name instead of deleted
   assert.equal(await fs.readFile(moved, 'utf8'), 'broken');
 });
 
+// Minimal GLB header: magic, version 2 and total length, the only fields the structural
+// check reads.
 function glb(size) {
   const buffer = Buffer.alloc(size);
   buffer.write('glTF', 0, 'latin1');
@@ -105,6 +109,7 @@ function glb(size) {
   buffer.writeUInt32LE(size, 8);
   return buffer;
 }
+// PNG signature, and an IEND chunk (zero length, type, CRC) that a complete PNG ends with.
 const PNG_HEAD = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PNG_TAIL = Buffer.from([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]);
 

@@ -4,15 +4,20 @@ import { saveAsset } from './job-io.js';
 const log = createLogger('motion');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// The parent may disconnect while a poll is in flight; process.send would throw then.
 function send(jobId, type, values = {}) {
   if (process.connected) {
     process.send({ jobId, type, ...values });
   }
 }
+// A worker whose parent has gone must not keep polling the motion service on its own.
 process.on('disconnect', () => {
   log.info('motion.process.disconnected', { exitCode: 0 });
   process.exit(0);
 });
+
+// One job arrives per process. The finally block disconnects so the parent sees the process end.
 process.once('message', async ({ job, projectFolder, baseUrl }) => {
   let remoteId = job.remoteId;
   log.info('motion.job.started', { jobId: job.id, isResumed: Boolean(remoteId) });

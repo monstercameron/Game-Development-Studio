@@ -119,6 +119,8 @@ export async function readZipDirectory(file, { maxEntries = 20000 } = {}) {
       }
       const name = decodeName(directory.subarray(cursor + 46, cursor + 46 + nameLength), flags);
       const unixMode = externalAttributes >>> 16;
+      // Only Unix-made archives store the file type in the high 16 bits of the external attributes.
+      const isUnixHost = versionMadeBy >> 8 === UNIX_HOST;
       entries.push({
         name,
         flags,
@@ -129,7 +131,7 @@ export async function readZipDirectory(file, { maxEntries = 20000 } = {}) {
         localOffset,
         isDirectory: name.endsWith('/') || name.endsWith('\\'),
         isEncrypted: Boolean(flags & 0x1) || Boolean(flags & 0x40),
-        isSymlink: versionMadeBy >> 8 === UNIX_HOST && (unixMode & UNIX_TYPE_MASK) === UNIX_SYMLINK,
+        isSymlink: isUnixHost && (unixMode & UNIX_TYPE_MASK) === UNIX_SYMLINK,
       });
       cursor = next;
     }
@@ -165,7 +167,13 @@ function countingStream({ expectedSize, onBytes }) {
  * @param {string} file Path of the archive.
  * @param {object} entry An entry returned by readZipDirectory.
  * @param {string} destination Absolute path of the file to create.
- * @param {{ signal?: AbortSignal, onBytes?: (count: number) => void, archiveSize: number }} options
+ * @param {object} options
+ * @param {number} options.archiveSize Size of the archive in bytes, used to reject a member
+ * whose data runs past the end of the file.
+ * @param {AbortSignal} [options.signal] Cancels the copy in progress.
+ * @param {(count: number) => void} [options.onBytes] Called with each decompressed chunk length.
+ * @throws {ZipError} For an unsupported method, a truncated archive, or data that fails its size
+ * or CRC-32 check. File system errors (for example EEXIST) are thrown as they are.
  */
 export async function extractZipEntry(file, entry, destination, options) {
   const { signal, onBytes, archiveSize } = options;

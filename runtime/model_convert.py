@@ -1,6 +1,6 @@
 """Convert a 3D model file to another format. Writes new files; never changes the input.
 
-Run by runtime/transcode.js with the Hunyuan3D virtual environment's Python (it ships trimesh).
+Run by runtime/model-convert.js with the Hunyuan3D virtual environment's Python (it ships trimesh).
 Input (JSON on stdin): source, directory, stem, format. Output (JSON on stdout): the files written
 into `directory`, named from `stem`, and a short list of notes about what the format cannot hold.
 
@@ -42,6 +42,10 @@ class ConversionError(Exception):
 
 
 def read_glb(data):
+    """Return (glTF JSON document, binary chunk bytes) from a GLB 2.0 file.
+
+    Raises ConversionError when the header is not GLB 2.0 or the JSON chunk is missing.
+    """
     if len(data) < 20:
         raise ConversionError("The GLB file is too short.", "glb_too_short")
     magic, version, length = struct.unpack_from("<III", data, 0)

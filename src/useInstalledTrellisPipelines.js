@@ -9,34 +9,34 @@ export function useInstalledTrellisPipelines() {
   const [pipelines, setPipelines] = useState(null);
   useEffect(() => {
     let active = true;
-    const request = new AbortController();
+    const abortController = new AbortController();
     (async () => {
       try {
-        const response = await fetch('/api/runtime/services', { signal: request.signal });
+        const response = await fetch('/api/runtime/services', { signal: abortController.signal });
         if (!response.ok) {
           log.warn('three-d.pipelines.unavailable', { reason: 'http_error' });
           return;
         }
-        const data = await response.json();
-        const entry = data?.services?.find((item) => item.id === '3d-trellis');
+        const servicesResponse = await response.json();
+        const entry = servicesResponse?.services?.find((item) => item.id === '3d-trellis');
         if (active && Array.isArray(entry?.pipelines)) {
           setPipelines(entry.pipelines.filter((item) => typeof item === 'string'));
         }
-      } catch (reason) {
+      } catch (error) {
         // Leave the list unknown; the worker still rejects a pipeline that is not installed.
-        if (request.signal.aborted) {
+        if (abortController.signal.aborted) {
           log.debug('three-d.pipelines.cancelled');
         } else {
           log.warn('three-d.pipelines.unavailable', {
             reason: 'request_failed',
-            errorClass: reason?.name,
+            errorClass: error?.name,
           });
         }
       }
     })();
     return () => {
       active = false;
-      request.abort();
+      abortController.abort();
     };
   }, []);
   return pipelines;

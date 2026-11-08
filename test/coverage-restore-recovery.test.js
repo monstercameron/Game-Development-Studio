@@ -19,7 +19,7 @@ function failOnceUnlink(matches) {
   fs.unlink = async (...args) => {
     if (!failed && matches(args[0])) {
       failed = true;
-      const error = Error('Injected unlink failure.');
+      const error = new Error('Injected unlink failure.');
       error.code = 'EIO';
       throw error;
     }

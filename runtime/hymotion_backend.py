@@ -16,6 +16,11 @@ from hymotion_bvh import motion_to_bvh
 
 
 def load_motion_core(source_dir, model_root, device="cuda"):
+    """Load the HY-Motion diffusion pipeline without its text encoders.
+
+    Raises RuntimeError when CUDA is requested but unavailable, or when the checkpoint
+    does not match the upstream architecture. Callers must check memory admission first.
+    """
     from accelerate import init_empty_weights
 
     source = Path(source_dir).resolve()
@@ -63,7 +68,8 @@ def load_motion_core(source_dir, model_root, device="cuda"):
     }
     if set(missing) != derived or unexpected:
         raise RuntimeError(
-            f"HY-Motion checkpoint does not match its architecture: missing={missing}, unexpected={unexpected}"
+            "HY-Motion checkpoint does not match its architecture: "
+            f"missing={missing}, unexpected={unexpected}"
         )
     pipeline = pipeline.to(device).eval()
     del checkpoint, weights
@@ -90,6 +96,12 @@ def load_motion(source_dir, model_root, device="cuda"):
 
 
 def generate_motion(pipeline, prompt, *, duration=3, seed=123, steps=50, guidance=5.0):
+    """Generate one motion clip and return it as BVH text.
+
+    Every argument is validated before inference starts, and ValueError is raised for
+    values outside the documented ranges. The pipeline's validation_steps is restored
+    even when generation fails.
+    """
     if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 1000:
         raise ValueError("Describe one human motion in 1–1000 characters.")
     if (

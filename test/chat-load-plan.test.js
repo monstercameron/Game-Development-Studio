@@ -13,8 +13,10 @@ test('Qwen admission uses GPU memory rather than requiring a duplicate model-siz
     contextSize: 4096,
   });
   assert.equal(plan.code, 'ready');
+  // Qwen is admitted from GPU memory, so the admission check never queries other services.
   assert.equal(probes, 0);
 });
+
 test('Qwen still checks the selected GPU and reports offload candidates when it is full', async () => {
   const services = async () => [
     {
@@ -26,6 +28,7 @@ test('Qwen still checks the selected GPU and reports offload candidates when it 
       canUnload: true,
     },
   ];
+  // A full GPU reports a managed, unloadable service as an offload candidate.
   const low = await planChatLoad({
     hardware: async () => ({ devices: [{ index: 0, freeMiB: 1024 }] }),
     services,
@@ -33,6 +36,7 @@ test('Qwen still checks the selected GPU and reports offload candidates when it 
   });
   assert.equal(low.code, 'insufficient_gpu_memory');
   assert.equal(low.candidates[0].id, 'video');
+  // An empty device list is an unknown reading, not proof that the GPU is full.
   const unknown = await planChatLoad({
     hardware: async () => ({ devices: [] }),
     services,

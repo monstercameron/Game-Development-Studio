@@ -9,6 +9,23 @@ import { createLogger } from './app-log.js';
 
 const log = createLogger('assets');
 
+/**
+ * Saves an engine output into a project folder without ever overwriting an existing file.
+ *
+ * The download is staged beside its final name, fsynced and hard-linked into place. A complete
+ * output that already exists is reused without downloading again. If the final name appears during
+ * the download, the existing file is kept and a conflict record blocks retries until a person moves
+ * that file away.
+ *
+ * @param {string} projectFolder Project root. It is resolved with realpath before use.
+ * @param {string} folder Existing asset subfolder. Only `3d`, `masks` and `motion` are created.
+ * @param {string} jobId Queue job id; it is part of the output file name.
+ * @param {string} extension File extension without a dot.
+ * @param {string} url Engine output URL. Redirects are refused and the download has a timeout.
+ * @returns {Promise<string>} Project-relative path such as `<folder>/forge-<jobId>.<extension>`.
+ * @throws {Error} When the folder is missing or a link, a conflict is preserved, the download
+ * fails, the engine returns an empty asset, or the filesystem cannot commit without overwriting.
+ */
 export async function saveAsset(projectFolder, folder, jobId, extension, url) {
   const realProject = await fs.realpath(projectFolder);
   const destination = path.join(realProject, folder);
@@ -22,17 +39,17 @@ export async function saveAsset(projectFolder, folder, jobId, extension, url) {
       }
     }
   }
-  const info = await fs.lstat(destination);
+  const destinationInfo = await fs.lstat(destination);
   if (
-    !info.isDirectory() ||
-    info.isSymbolicLink() ||
+    !destinationInfo.isDirectory() ||
+    destinationInfo.isSymbolicLink() ||
     (await fs.realpath(destination)) !== destination
   ) {
     throw Error('Project asset folder is missing or is a link.');
   }
   const name = `forge-${jobId}.${extension}`,
     output = path.join(destination, name),
-    temp = path.join(destination, `.${name}.${randomUUID()}.part`),
+    stagingPath = path.join(destination, `.${name}.${randomUUID()}.part`),
     conflict = path.join(destination, `.${name}.conflict`);
   // A recorded collision is not proof that the existing file belongs to this
   // job. Keep retries blocked until the user moves the conflicting file away.
@@ -92,20 +109,23 @@ export async function saveAsset(projectFolder, folder, jobId, extension, url) {
       throw Error(`Could not download the asset (HTTP ${response.status}).`);
     }
     try {
-      await pipeline(Readable.fromWeb(response.body), createWriteStream(temp, { flags: 'wx' }));
+      await pipeline(
+        Readable.fromWeb(response.body),
+        createWriteStream(stagingPath, { flags: 'wx' }),
+      );
       stopDownload({ httpStatus: response.status });
-      const { size: outputBytes } = await fs.stat(temp);
+      const { size: outputBytes } = await fs.stat(stagingPath);
       if (!outputBytes) {
         throw Error('The engine returned an empty asset.');
       }
       // The bytes must be on disk before the final name exists: after a power loss a name that
       // was linked first can come back as an empty or partial file that looks like a finished
       // asset, and the retry logic below would accept it.
-      await fsyncFile(temp);
+      await fsyncFile(stagingPath);
       // A hard link commits the completed file atomically without replacing an
       // asset created after the initial check. Both names are on the same volume.
       try {
-        await fs.link(temp, output);
+        await fs.link(stagingPath, output);
       } catch (error) {
         if (error.code === 'EEXIST') {
           log.warn('assets.output.conflicted', {
@@ -142,7 +162,7 @@ export async function saveAsset(projectFolder, folder, jobId, extension, url) {
       await fsyncDirectory(destination);
       log.info('assets.output.saved', { jobId, extension, kind: 'output', bytes: outputBytes });
     } finally {
-      await fs.rm(temp, { force: true }).catch((error) => {
+      await fs.rm(stagingPath, { force: true }).catch((error) => {
         log.debug('assets.temp.cleanup.failed', { errorCode: error.code });
       });
     }

@@ -86,7 +86,7 @@ function publicRow(row, { full = false } = {}) {
 }
 
 /**
- * Opens (creating on first write) the errors database.
+ * Opens the errors database, creating the file and schema when they are missing.
  *
  * @param {{directory: string, roots?: object, retention?: {maxRows: number, maxAgeDays: number},
  *   now?: () => Date}} options roots are the local paths replaced by placeholders.
@@ -262,8 +262,8 @@ export function createErrorStore({
     },
     prune,
     list({ status = '', source = '', query = '', limit = 100, offset = 0 } = {}) {
-      const where = [],
-        params = [];
+      const where = [];
+      const params = [];
       if (status) {
         where.push('status=?');
         params.push(status);
@@ -398,13 +398,13 @@ export function createErrorStore({
       return removedCount;
     },
     clear(statuses) {
-      const list = statuses.filter((status) => ERROR_STATUSES.includes(status));
-      if (!list.length) {
+      const knownStatuses = statuses.filter((status) => ERROR_STATUSES.includes(status));
+      if (!knownStatuses.length) {
         return 0;
       }
       const removedCount = db
-        .prepare(`DELETE FROM errors WHERE status IN (${list.map(() => '?').join(',')})`)
-        .run(...list).changes;
+        .prepare(`DELETE FROM errors WHERE status IN (${knownStatuses.map(() => '?').join(',')})`)
+        .run(...knownStatuses).changes;
       log.info('errors.clear.completed', { removedCount });
       return removedCount;
     },

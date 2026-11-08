@@ -14,11 +14,11 @@ import {
   safeSegments,
   slugify,
 } from '../runtime/megascans-import.js';
-import { ZipError, readZipDirectory } from '../runtime/zip-reader.js';
+import { ZipError, extractZipEntry, readZipDirectory } from '../runtime/zip-reader.js';
 import { buildZip, tinyGlb } from './fixtures/zip-builder.js';
 
-async function temporaryDirectory(t, prefix = 'forge-megascans-import-') {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+async function temporaryDirectory(t) {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-megascans-import-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
   return directory;
 }
@@ -46,18 +46,18 @@ async function entriesOf(t, zip) {
 }
 
 async function listFiles(directory) {
-  const out = [];
+  const relativePaths = [];
   for (const entry of await fs.readdir(directory, { withFileTypes: true, recursive: true })) {
     if (entry.isFile()) {
-      out.push(
+      relativePaths.push(
         path.relative(directory, path.join(entry.parentPath, entry.name)).replaceAll('\\', '/'),
       );
     }
   }
-  return out.sort();
+  return relativePaths.sort();
 }
 
-const model = Buffer.from('ply\nformat ascii 1.0\nend_header\n');
+const plyBytes = Buffer.from('ply\nformat ascii 1.0\nend_header\n');
 
 test('safeSegments accepts relative names and rejects traversal, absolute paths and Windows hazards', () => {
   assert.deepEqual(safeSegments('rock/Textures\\albedo.png'), ['rock', 'Textures', 'albedo.png']);
@@ -123,7 +123,6 @@ test('the zip reader extracts stored and deflated members and checks CRC and siz
   await fs.writeFile(file, zip);
   const { size, entries } = await readZipDirectory(file);
   assert.equal(entries.length, 4);
-  const { extractZipEntry } = await import('../runtime/zip-reader.js');
   for (const entry of entries.filter((item) => !item.isDirectory)) {
     const destination = path.join(root, path.basename(entry.name));
     await extractZipEntry(file, entry, destination, { archiveSize: size });
@@ -159,7 +158,6 @@ test('the zip reader rejects damaged, ZIP64, multi-part and lying archives', asy
   const liar = buildZip([{ name: 'a.glb', data: tinyGlb(), declaredSize: 10 }]);
   const liarFile = await write('liar.zip', liar);
   const { size, entries } = await readZipDirectory(liarFile);
-  const { extractZipEntry } = await import('../runtime/zip-reader.js');
   await assert.rejects(
     extractZipEntry(liarFile, entries[0], path.join(root, 'out.glb'), { archiveSize: size }),
     /larger than the archive says/,
@@ -269,7 +267,7 @@ test('checkModelFile recognizes each format and rejects mismatches', async (t) =
     return file;
   };
   assert.ok(await checkModelFile(await write('a.glb', tinyGlb()), '.glb'));
-  assert.ok(await checkModelFile(await write('a.ply', model), '.ply'));
+  assert.ok(await checkModelFile(await write('a.ply', plyBytes), '.ply'));
   assert.ok(await checkModelFile(await write('a.obj', 'v 0 0 0\n'), '.obj'));
   assert.ok(await checkModelFile(await write('a.gltf', ' {"asset":{}}'), '.gltf'));
   assert.ok(await checkModelFile(await write('a.fbx', 'Kaydara FBX Binary  \0'), '.fbx'));

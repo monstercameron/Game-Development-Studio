@@ -21,7 +21,7 @@ test('Models & services offers Start only for a stopped service that a plain sta
     navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'),
     actEnvironment: globalThis.IS_REACT_ACT_ENVIRONMENT,
   };
-  const posts = [];
+  const requests = [];
   let vite;
   let root;
   try {
@@ -51,7 +51,7 @@ test('Models & services offers Start only for a stopped service that a plain sta
       service('images', { status: 'reachable', modelLoaded: false, busy: false }),
     ];
     globalThis.fetch = async (url, options = {}) => {
-      posts.push([String(url), options.method || 'GET']);
+      requests.push([String(url), options.method || 'GET']);
       if (url === '/api/runtime/hardware') {
         return json({ devices: [], available: true });
       }
@@ -111,7 +111,7 @@ test('Models & services offers Start only for a stopped service that a plain sta
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
     assert.ok(
-      posts.some(
+      requests.some(
         ([url, method]) => url === '/api/runtime/engines/video/start' && method === 'POST',
       ),
     );

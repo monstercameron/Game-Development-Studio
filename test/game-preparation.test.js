@@ -6,6 +6,8 @@ import {
   GAME_HOST_REQUIRED_BYTES,
 } from '../runtime/game-preparation.js';
 
+// Defaults describe a healthy machine with the model downloaded and not loaded, so each test
+// overrides only the dependency that drives the refusal or failure it checks.
 function fixture(overrides = {}) {
   const calls = [];
   const ready = { loaded: false, loading: false, load_finished: false, model_downloaded: true };

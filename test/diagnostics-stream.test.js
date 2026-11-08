@@ -33,6 +33,7 @@ test('a slow log-stream client does not accumulate snapshots and resumes after d
   await handlers.get('/api/logs')(request, response);
   assert.equal(writes.length, 1);
   assert.match(writes[0], /event: logs/);
+  // While the client has not drained, the stream must hold back further snapshots.
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(writes.length, 1);
   response.writableNeedDrain = false;

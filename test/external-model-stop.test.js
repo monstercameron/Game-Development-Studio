@@ -1,10 +1,13 @@
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { stopExternalModel } from '../runtime/external-model-stop.js';
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
 
 const service = { id: 'video', port: 8274 };
+
+// Each case overrides one input (activity, listeners) to exercise a single identity or
+// busy-state branch; the default listener is the service's own process.
 function fixture({ busy = false, listeners = ['127.0.0.1:1234'] } = {}) {
   const calls = [];
   const options = {
@@ -23,6 +26,7 @@ function fixture({ busy = false, listeners = ['127.0.0.1:1234'] } = {}) {
   };
   return { calls, options };
 }
+
 test('idle close identifies the service listener before stopping its tree', async () => {
   const { calls, options } = fixture();
   const result = await stopExternalModel(service, options);
@@ -47,6 +51,8 @@ test('unverified or ambiguous services never reach process termination', async (
   assert.equal(calls.length, 0);
 });
 
+// Uses a real loopback child process to prove the tree stop works end to end. It runs
+// only on Windows, where the stop path is platform specific.
 test(
   'Windows closes a real idle loopback service process',
   { skip: process.platform !== 'win32', timeout: 40000 },

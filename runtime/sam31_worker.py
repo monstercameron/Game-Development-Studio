@@ -83,6 +83,7 @@ def log_lifecycle(event, job_id, started_at, error=None):
 
 
 def free_host_memory():
+    """Return available physical RAM in bytes; raise RuntimeError if the OS cannot report it."""
     if os.name == "nt":
 
         class MemoryStatus(ctypes.Structure):
@@ -110,6 +111,10 @@ def free_host_memory():
 
 
 def require_memory(*, loading):
+    """Raise RuntimeError when host RAM, CUDA or free GPU memory is below the budget.
+
+    loading selects the larger load budget instead of the per-render budget.
+    """
     # Conservative estimates, not reservations. Actual SAM budgets are uncalibrated.
     host_gib, gpu_gib = (9, 14) if loading else (3, 10)
     free_host = free_host_memory()
@@ -194,7 +199,7 @@ def load_worker(job_id):
 
 
 def render_worker(job_id, image, request):
-    temp = OUTPUTS / f".{job_id}.part"
+    partial_path = OUTPUTS / f".{job_id}.part"
     started_at = time.perf_counter()
     log_lifecycle("segmentation_started", job_id, started_at)
     render_timer = log.time(
@@ -206,8 +211,8 @@ def render_worker(job_id, image, request):
             jobs[job_id].update(status="running", message="Segmenting image.")
         require_memory(loading=False)
         result, metadata = run_segmentation(model, image, request)
-        result.save(temp, format="PNG")
-        os.replace(temp, OUTPUTS / f"{job_id}.png")
+        result.save(partial_path, format="PNG")
+        os.replace(partial_path, OUTPUTS / f"{job_id}.png")
         log.debug("segmentation.file.written", {"jobId": job_id, "kind": "output"})
         with lock:
             jobs[job_id].update(
@@ -218,7 +223,7 @@ def render_worker(job_id, image, request):
         render_timer({"outcome": "completed", **match_log_fields(metadata)})
     except Exception as error:
         try:
-            temp.unlink(missing_ok=True)
+            partial_path.unlink(missing_ok=True)
         except OSError as cleanup_error:
             log.debug(
                 "segmentation.temp.cleanup.failed",
@@ -335,14 +340,14 @@ def generate(request: SegmentRequest):
     job_id = uuid.uuid4().hex
     started_at = time.perf_counter()
     try:
-        prefix, data = request.image.split(",", 1)
+        prefix, encoded = request.image.split(",", 1)
         if prefix not in (
             "data:image/png;base64",
             "data:image/jpeg;base64",
             "data:image/webp;base64",
         ):
             raise ValueError("Unsupported image.")
-        raw = base64.b64decode(data, validate=True)
+        raw = base64.b64decode(encoded, validate=True)
         if len(raw) > 10 * 1024 * 1024:
             raise ValueError("Image is too large.")
         with Image.open(io.BytesIO(raw)) as source:

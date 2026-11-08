@@ -187,7 +187,8 @@ function clientRejectionReason(error) {
   return error?.message === 'A message is required.' ? 'missing_message' : 'invalid_body';
 }
 
-const clean = (text) =>
+// Logs and browser messages can contain prompts or tokens; redact them before storing or serving.
+const redactSecrets = (text) =>
   String(text)
     .replace(/\b(?:hf_[A-Za-z0-9]{12,}|sk-[A-Za-z0-9_-]{12,})\b/g, '[REDACTED]')
     .replace(/(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+/gi, '$1[REDACTED]')
@@ -196,7 +197,7 @@ const clean = (text) =>
       '$1[REDACTED]',
     );
 function appendStudio(level, message) {
-  studioLog.push(clean(`${new Date().toISOString()} ${level} ${message}`).slice(0, 4000));
+  studioLog.push(redactSecrets(`${new Date().toISOString()} ${level} ${message}`).slice(0, 4000));
   if (studioLog.length > 150) {
     studioLog.shift();
   }
@@ -215,9 +216,9 @@ async function readTail(source) {
     handle = await fs.open(source.file, 'r');
     const info = await handle.stat();
     const size = Math.min(info.size, MAX_BYTES);
-    const buf = Buffer.alloc(size);
-    await handle.read(buf, 0, size, info.size - size);
-    let text = buf.toString('utf8');
+    const tailBytes = Buffer.alloc(size);
+    await handle.read(tailBytes, 0, size, info.size - size);
+    let text = tailBytes.toString('utf8');
     if (info.size > size) {
       text = text.slice(text.indexOf('\n') + 1);
     }
@@ -227,7 +228,7 @@ async function readTail(source) {
       available: true,
       modified: info.mtime.toISOString(),
       size: info.size,
-      lines: clean(text).split(/\r?\n/).filter(Boolean).slice(-150),
+      lines: redactSecrets(text).split(/\r?\n/).filter(Boolean).slice(-150),
     };
   } catch (error) {
     const errorCode = error.code || 'error';
@@ -273,6 +274,13 @@ function json(res, value, status = 200) {
   res.end(JSON.stringify(value));
 }
 
+/**
+ * Vite plugin that adds the studio diagnostics and log routes to the dev and preview servers.
+ *
+ * @param {object} [options]
+ * @param {number} [options.streamIntervalMs=2000] Milliseconds between log stream polls.
+ * @returns {object} Plugin with configureServer and configurePreviewServer hooks.
+ */
 export function diagnosticsService({ streamIntervalMs = 2000 } = {}) {
   function attach(server) {
     const logger = server.config.logger;
@@ -373,7 +381,8 @@ export function diagnosticsService({ streamIntervalMs = 2000 } = {}) {
       }
       const url = new URL(req.url, 'http://127.0.0.1');
       const selected = url.searchParams.get('source') || 'all';
-      const list = selected === 'all' ? sources : sources.filter((s) => s.id === selected);
+      const list =
+        selected === 'all' ? sources : sources.filter((source) => source.id === selected);
       if (!list.length) {
         log.warn('diagnostics.request.rejected', {
           route: '/api/logs',
@@ -391,7 +400,7 @@ export function diagnosticsService({ streamIntervalMs = 2000 } = {}) {
         });
         let closed = false;
         let running = false;
-        let last = '';
+        let lastSentBody = '';
         // Do not buffer repeated snapshots for a client that is not reading.
         // Once its socket drains, the next poll sends the latest full snapshot.
         async function send() {
@@ -402,9 +411,9 @@ export function diagnosticsService({ streamIntervalMs = 2000 } = {}) {
           try {
             const logs = await Promise.all(list.map(readTail));
             const body = JSON.stringify({ sources: logs });
-            if (body !== last && !closed) {
+            if (body !== lastSentBody && !closed) {
               res.write(`event: logs\ndata: ${body}\n\n`);
-              last = body;
+              lastSentBody = body;
             } else if (!closed) {
               res.write(': keepalive\n\n');
             }

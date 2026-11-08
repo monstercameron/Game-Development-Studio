@@ -21,6 +21,7 @@ export const panels = new Set([
   'models',
   'diagnostics',
 ]);
+
 export function useNav() {
   const { section: pathSection } = useParams();
   const location = useLocation();
@@ -32,10 +33,13 @@ export function useNav() {
     if (location.pathname !== '/' || !location.hash) {
       return;
     }
-    const old = location.hash.slice(1);
-    if (panels.has(old)) {
+    const oldHash = location.hash.slice(1);
+    if (panels.has(oldHash)) {
       route(
-        { pathname: old === 'overview' ? '/' : '/' + old, search: location.search },
+        {
+          pathname: oldHash === 'overview' ? '/' : '/' + oldHash,
+          search: location.search,
+        },
         { replace: true },
       );
     }
@@ -53,7 +57,14 @@ export function useNav() {
   return [panels.has(section) ? section : null, navigate, searchParams, setSearchParams];
 }
 
-// Replace frequently typed fields; discrete selections make navigable history entries.
+/**
+ * Replace frequently typed fields; discrete selections make navigable history entries.
+ * A null, undefined or empty value removes the key from the URL.
+ *
+ * @param {Function} setSearchParams The setter returned by useSearchParams.
+ * @param {Record<string, unknown>} changes Keys to set or remove.
+ * @param {{ replace?: boolean }} [options] Use replace to avoid a history entry.
+ */
 export function updateSearch(setSearchParams, changes, { replace = false } = {}) {
   setSearchParams(
     (current) => {
@@ -71,7 +82,10 @@ export function updateSearch(setSearchParams, changes, { replace = false } = {})
   );
 }
 
-// Panel changes carry project context, while page-specific filters stay on their page.
+/**
+ * Panel changes carry project context, while page-specific filters stay on their page.
+ * options.project of undefined inherits the current project; null or '' drops it.
+ */
 export function panelLocation(panel, current, options = {}) {
   const params = new URLSearchParams();
   const project = options.project === undefined ? current.get('project') : options.project;
@@ -88,6 +102,7 @@ export function panelLocation(panel, current, options = {}) {
 }
 
 // Shareable open/closed UI state. Opening and closing are navigations, never actions.
+// The URL is the source of truth, so the state survives reloads and history traversal.
 export function useRouteToggle(key) {
   const [params, setParams] = useSearchParams();
   const open = params.get(key) === '1';
@@ -97,6 +112,9 @@ export function useRouteToggle(key) {
     });
   return [open, setOpen];
 }
+
+// Keeps a native <details> element in sync with the URL-backed open state.
+// Only write when the DOM differs, so a re-render does not add history entries.
 export function routeDetails(open, setOpen) {
   return {
     open,

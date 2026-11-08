@@ -12,8 +12,15 @@ const SPOOL_NAME = /^(.+)-(\d+)-(\d+)-(\d+)-(\d+)\.jsonl$/;
 export const INGEST_INTERVAL_MS = 1000;
 // Bounds the synchronous SQLite work done per pass so the host's event loop stays responsive.
 export const INGEST_MAX_LINES_PER_PASS = 4000;
+// Caps each read so one large spool file cannot allocate an unbounded buffer.
 const READ_CHUNK_BYTES = 2 * 1024 * 1024;
 
+/**
+ * Parses `<process>-<pid>-<thread>-<startMs>-<n>.jsonl`.
+ * @param {string} name spool file name (no directory)
+ * @returns {{ writer: string, pid: number, index: number } | null} null when the name does not
+ *   match; `writer` groups the files of one process and `index` orders them.
+ */
 export function parseSpoolName(name) {
   const match = SPOOL_NAME.exec(name);
   if (!match) {
@@ -43,8 +50,8 @@ function readRange(file, start, length) {
   const handle = fs.openSync(file, 'r');
   try {
     const buffer = Buffer.alloc(length);
-    const read = fs.readSync(handle, buffer, 0, length, start);
-    return buffer.subarray(0, read);
+    const bytesRead = fs.readSync(handle, buffer, 0, length, start);
+    return buffer.subarray(0, bytesRead);
   } finally {
     fs.closeSync(handle);
   }
@@ -85,12 +92,15 @@ export function createLogIngester({ store, spoolDirectory, isAlive = isProcessAl
       return { lines: 0, done: false, size, offset };
     }
     const lines = bytes.subarray(0, lastNewline).toString('utf8').split('\n');
-    const take = lines.slice(0, Math.max(1, budget));
+    // Lines beyond the pass budget stay unread; the offset advances only over the lines taken.
+    const linesInPass = lines.slice(0, Math.max(1, budget));
     const consumedBytes =
-      take.length === lines.length ? lastNewline + 1 : Buffer.byteLength(`${take.join('\n')}\n`);
+      linesInPass.length === lines.length
+        ? lastNewline + 1
+        : Buffer.byteLength(`${linesInPass.join('\n')}\n`);
     const records = [];
     let rejectedLines = 0;
-    for (const line of take) {
+    for (const line of linesInPass) {
       if (!line.trim()) {
         continue;
       }

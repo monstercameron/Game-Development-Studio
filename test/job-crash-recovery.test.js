@@ -39,7 +39,7 @@ async function fixture(t) {
     queues.push(queue);
     return queue;
   };
-  return { root, directory, projects, project, projectId, open };
+  return { directory, project, projectId, open };
 }
 
 function insertJob(queue, projectId, values) {
@@ -228,9 +228,8 @@ test('a finalizing job with a truncated or missing output is not completed', asy
     assert.equal(await queue.completeFromSavedOutput(queue.get(id), token), false);
     assert.equal(queue.get(id).status, 'finalizing');
   }
-  const folder = path.join(project);
-  assert.equal((await inspectFinishedOutput(queue.get(truncated), folder)).state, 'invalid');
-  assert.equal((await inspectFinishedOutput(queue.get(missing), folder)).state, 'missing');
+  assert.equal((await inspectFinishedOutput(queue.get(truncated), project)).state, 'invalid');
+  assert.equal((await inspectFinishedOutput(queue.get(missing), project)).state, 'missing');
   assert.ok(
     readRecoveryEvents({ directory: queue.directory }).some(
       (event) => event.code === 'job.output_damaged' && event.id === truncated,

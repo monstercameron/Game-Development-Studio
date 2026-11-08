@@ -96,6 +96,10 @@ export function sanitizeSavedChatList(chats) {
 export const CHAT_DRAFT_KEY = 'forge-chat-draft-v1';
 const MAX_CHAT_DRAFT_CHARS = 20000;
 
+/**
+ * Returns the saved draft text, or '' when nothing is saved, the entry is damaged, or storage is
+ * blocked. It never throws, because it runs during render.
+ */
 export function readChatDraft(storage = globalThis.localStorage) {
   try {
     const value = JSON.parse(storage?.getItem(CHAT_DRAFT_KEY));
@@ -106,8 +110,13 @@ export function readChatDraft(storage = globalThis.localStorage) {
   }
 }
 
+// Logged once per page load so a full or blocked storage does not flood the log on every keystroke.
 let isDraftWriteFailureLogged = false;
 
+/**
+ * Saves the draft, or removes it when the text is empty. It never throws; a failed write is only
+ * logged, and the text stays in the composer.
+ */
 export function writeChatDraft(text, storage = globalThis.localStorage) {
   try {
     if (!text) {

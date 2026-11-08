@@ -6,6 +6,8 @@ import { createLogger } from './app-log.js';
 
 const log = createLogger('chat');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Milliseconds. A stopped chat model should fail the /props probe quickly.
+const PROPS_TIMEOUT_MS = 3000;
 
 // The BF16 multimodal projector that ships beside the Qwen3.8-27B GGUF. Its size is the file
 // size on disk (about 0.93 GB); the GPU copy is expected to be about that large (see
@@ -48,7 +50,7 @@ export async function readServerVision(propsUrl, fetchImpl = fetch, signal) {
   try {
     const response = await fetchImpl(propsUrl, {
       redirect: 'error',
-      signal: signal ?? AbortSignal.timeout(3000),
+      signal: signal ?? AbortSignal.timeout(PROPS_TIMEOUT_MS),
     });
     stop({ status: response.status });
     if (!response.ok) {

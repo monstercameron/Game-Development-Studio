@@ -3,6 +3,34 @@ import { createLog } from './app-log.js';
 
 const log = createLog('asr');
 
+// Byte limits for one session. Units are bytes; the names say what each limit bounds.
+const MAX_FRAME_BYTES = 1024 * 1024;
+// Caps audio queued in the socket but not yet sent, so a slow service cannot grow memory
+// without bound.
+const MAX_BUFFERED_BYTES = 2 * 1024 * 1024;
+const MAX_SESSION_BYTES = 64 * 1024 * 1024;
+const MIN_SAMPLE_RATE_HZ = 8000;
+const MAX_SAMPLE_RATE_HZ = 96000;
+
+/**
+ * Opens a transcription session on the same-origin PCM16 proxy.
+ *
+ * Call send() with ArrayBuffer audio frames, then commit() once. done resolves with the
+ * final transcript event after the commit. ready and done reject on service errors, socket
+ * failure, timeouts or cancel(). send() and commit() throw synchronously when the session is
+ * not accepting audio or a frame is invalid.
+ *
+ * @param {object} options
+ * @param {string} options.url WebSocket URL of the proxy.
+ * @param {number} options.sampleRate Integer sample rate in Hz, from 8000 to 96000.
+ * @param {object} [options.session] Extra fields merged into the session.update event.
+ * @param {(delta: string) => void} [options.onDelta] Receives partial transcript text.
+ * @param {(transcript: string) => void} [options.onFinal] Receives each completed transcript.
+ * @param {number} [options.timeoutMs] Maximum wait, in ms, for the session to become ready.
+ * @param {number} [options.completionTimeoutMs] Maximum wait, in ms, after commit().
+ * @returns {{ready: Promise<void>, done: Promise<object>, send: Function,
+ *   commit: Function, cancel: Function}}
+ */
 export function openAsrStream({
   url,
   sampleRate,
@@ -13,7 +41,11 @@ export function openAsrStream({
   timeoutMs = 15000,
   completionTimeoutMs = 120000,
 }) {
-  if (!Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 96000) {
+  if (
+    !Number.isInteger(sampleRate) ||
+    sampleRate < MIN_SAMPLE_RATE_HZ ||
+    sampleRate > MAX_SAMPLE_RATE_HZ
+  ) {
     throw Error('Microphone sample rate must be between 8 and 96 kHz.');
   }
   const socket = new WebSocketImpl(url);
@@ -37,6 +69,8 @@ export function openAsrStream({
     doneResolve = resolve;
     doneReject = reject;
   });
+  // Rejections also reach callers through ready and done. These no-op handlers only stop
+  // an unawaited promise from being reported as unhandled.
   ready.catch(() => {});
   done.catch(() => {});
   let timer = setTimeout(
@@ -139,14 +173,14 @@ export function openAsrStream({
         !(bytes instanceof ArrayBuffer) ||
         !bytes.byteLength ||
         bytes.byteLength % 2 ||
-        bytes.byteLength > 1024 * 1024
+        bytes.byteLength > MAX_FRAME_BYTES
       ) {
         throw Error('Invalid microphone audio frame.');
       }
-      if (socket.bufferedAmount + bytes.byteLength > 2 * 1024 * 1024) {
+      if (socket.bufferedAmount + bytes.byteLength > MAX_BUFFERED_BYTES) {
         throw Error('Speech service is not consuming audio fast enough.');
       }
-      if (total + bytes.byteLength > 64 * 1024 * 1024) {
+      if (total + bytes.byteLength > MAX_SESSION_BYTES) {
         throw Error('Speech session exceeded its audio limit.');
       }
       total += bytes.byteLength;
@@ -157,6 +191,7 @@ export function openAsrStream({
         throw Error('Speech session is not accepting audio.');
       }
       committed = true;
+      // The ready timer was cleared once configured, so this timer bounds the final transcript.
       timer = setTimeout(
         () => fail(Error('Speech transcription did not finish in time.'), 'completion_timeout'),
         completionTimeoutMs,

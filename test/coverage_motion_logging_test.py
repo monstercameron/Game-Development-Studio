@@ -16,6 +16,8 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runtime"))
 
 
+# The worker is imported with its web stack and engine modules replaced by stubs, so the
+# test runs without FastAPI, uvicorn or model weights.
 def load_worker_module(runtime_dir):
     os.environ["FORGE_RUNTIME_DIR"] = str(runtime_dir)
     spec = importlib.util.spec_from_file_location(
@@ -61,6 +63,8 @@ def load_worker_module(runtime_dir):
     return module
 
 
+# FORGE_RUNTIME_DIR points at a throwaway directory only while the worker is imported, so the
+# import cannot touch real runtime state. The previous value is restored afterwards.
 with tempfile.TemporaryDirectory(prefix="forge-motion-logging-import-") as runtime_dir:
     previous_runtime_dir = os.environ.get("FORGE_RUNTIME_DIR")
     worker = load_worker_module(Path(runtime_dir))
@@ -70,6 +74,9 @@ with tempfile.TemporaryDirectory(prefix="forge-motion-logging-import-") as runti
         os.environ["FORGE_RUNTIME_DIR"] = previous_runtime_dir
 
 
+# Raises a nested error whose frame filename and message carry private paths and prompt text.
+# The tests assert that logs keep only the sanitized frame (basename, function, line). The
+# *args and **kwargs let this function serve as a Mock side_effect.
 def fail_with_sensitive_traceback(*args, **kwargs):
     exec(
         compile(

@@ -16,7 +16,7 @@ const log = createLog('vegetation');
 export const DEFAULT_SPECIES = 'whiteOak';
 export const BUDGET_NAMES = { low: 'Low', medium: 'Medium', high: 'High' };
 
-/** "species=...&seed=...&budget=...&n=...&tune=height:20,levels:3" */
+/** The `tune` address-bar value, "id:value,...". Ids are sorted so one state gives one URL. */
 export function serializeTune(params) {
   return Object.keys(params)
     .sort()
@@ -47,11 +47,13 @@ export function parseTune(text, speciesEntry) {
   return params;
 }
 
+/** An integer in [min, max] from a query-string value, or fallback when missing or invalid. */
 function whole(text, min, max, fallback) {
+  if (text === null || text === '') {
+    return fallback;
+  }
   const number = Number(text);
-  return text !== null && text !== '' && Number.isInteger(number) && number >= min && number <= max
-    ? number
-    : fallback;
+  return Number.isInteger(number) && number >= min && number <= max ? number : fallback;
 }
 
 /** The form state described by the address bar, validated against the schema. */
@@ -133,7 +135,7 @@ export function randomSeed(schema, random = Math.random) {
   return min + Math.floor(random() * (max - min + 1));
 }
 
-/** Triangle text for a budget, from the measured table when it matches this species. */
+/** Triangle count for a budget from the measured table, or null when there is no finite number. */
 export function budgetCount(measured, species, budget) {
   const count = measured?.[species]?.[budget];
   return Number.isFinite(count) ? count : null;

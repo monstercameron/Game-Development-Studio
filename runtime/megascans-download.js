@@ -36,6 +36,10 @@ async function sizeOf(file) {
 }
 
 /**
+ * @typedef {{ bytesDone: number, bytesTotal: number, stage: string }} DownloadProgress
+ */
+
+/**
  * @param {object} options
  * @param {import('./megascans-fab.js').FabClient} options.client
  * @param {string} options.listingId
@@ -43,7 +47,7 @@ async function sizeOf(file) {
  * @param {string} options.partPath Where the partial file lives (`upload.<ext>.part`).
  * @param {string} options.finalPath Where the finished file goes (`upload.<ext>`).
  * @param {AbortSignal} [options.signal]
- * @param {(progress: { bytesDone: number, bytesTotal: number, stage: string }) => void} [options.onProgress]
+ * @param {(progress: DownloadProgress) => void} [options.onProgress]
  * @returns {Promise<{ bytes: number, resumed: boolean }>}
  */
 async function transferFabFile({
@@ -77,8 +81,10 @@ async function transferFabFile({
     log.debug('megascans.download.part.renamed', { bytes: expected });
     return { bytes: expected, resumed: true };
   }
-  const info = await client.getDownloadInfo(listingId, file.formatCode, file.uid, { signal });
-  let response = await client.openDownload(info.url, { start: offset, signal });
+  const downloadInfo = await client.getDownloadInfo(listingId, file.formatCode, file.uid, {
+    signal,
+  });
+  let response = await client.openDownload(downloadInfo.url, { start: offset, signal });
   let resumed = false;
   if (offset > 0) {
     if (response.status === 206 && response.rangeStart === offset) {
@@ -90,7 +96,7 @@ async function transferFabFile({
       await fs.rm(partPath, { force: true });
       log.debug('megascans.download.part.removed', { reason: 'range_ignored' });
       offset = 0;
-      response = await client.openDownload(info.url, { start: 0, signal });
+      response = await client.openDownload(downloadInfo.url, { start: 0, signal });
     }
   }
   if (offset === 0 && response.status === 206) {

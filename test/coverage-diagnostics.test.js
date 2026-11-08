@@ -5,6 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import test from 'node:test';
+
+// diagnostics.js reads FORGE_RUNTIME_DIR when it loads, so the variable is set before the
+// dynamic import and restored right after it.
 const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-diagnostics-'));
 const previousRuntimeDir = process.env.FORGE_RUNTIME_DIR;
 process.env.FORGE_RUNTIME_DIR = runtimeDir;
@@ -14,9 +17,11 @@ if (previousRuntimeDir === undefined) {
 } else {
   process.env.FORGE_RUNTIME_DIR = previousRuntimeDir;
 }
+
 test.after(async () => {
   await fs.rm(runtimeDir, { recursive: true, force: true });
 });
+
 function createService(t, options = {}) {
   const handlers = new Map();
   const httpServer = new EventEmitter();
@@ -39,6 +44,7 @@ function createService(t, options = {}) {
   t.after(() => httpServer.emit('close'));
   return { handlers, httpServer, logger, originals, originalCalls };
 }
+
 function createResponse() {
   const response = new EventEmitter();
   response.headers = {};
@@ -54,6 +60,7 @@ function createResponse() {
   };
   return response;
 }
+
 function createRequest({ method = 'GET', url = '/', body = '', headers = {} } = {}) {
   const request = Readable.from(body ? [body] : []);
   request.method = method;
@@ -61,6 +68,9 @@ function createRequest({ method = 'GET', url = '/', body = '', headers = {} } = 
   request.headers = headers;
   return request;
 }
+
+// Log lines are redacted in the logger wrapper, and closing the server must put the original
+// logger back.
 test('logger wrappers redact captured messages and restore original methods on close', (t) => {
   const service = createService(t);
   const receiver = { name: 'logger receiver' };
@@ -80,6 +90,7 @@ test('logger wrappers redact captured messages and restore original methods on c
       assert.deepEqual(service.logger, service.originals);
     });
 });
+
 test('client log endpoint validates local request headers and redacts accepted messages', async (t) => {
   const service = createService(t);
   const token = 'sk-abcdefghijklmnop';
@@ -121,6 +132,8 @@ test('client log endpoint validates local request headers and redacts accepted m
   assert.equal(malformed.statusCode, 400);
   assert.match(JSON.parse(malformed.body).error, /JSON/);
 });
+
+// A closed log view must stop receiving writes, or its polling timer would outlive the response.
 test('log stream stops polling after the response closes', async (t) => {
   const logPath = path.join(runtimeDir, 'runtime-worker.log');
   await fs.writeFile(logPath, 'first line\n', 'utf8');

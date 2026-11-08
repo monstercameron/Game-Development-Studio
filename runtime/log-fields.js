@@ -224,7 +224,6 @@ function cleanString(value, limit, redact) {
   return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 }
 
-/** Turns an Error (or anything thrown) into safe fields: class, code, message and frames. */
 // After the shared redaction, a path under a private placeholder still ends in a folder and file
 // name chosen by the user (an asset or document name). The log keeps only the extension.
 const PRIVATE_PATH_TAIL = /(<home>|<projects>|<path>|<user>)((?:[\\/]+[^\\/\s"'<>|:*?]+)+)/g;
@@ -260,6 +259,15 @@ export function redactLogText(value, roots = {}) {
   });
 }
 
+/**
+ * Turns an Error (or anything thrown) into safe fields: class, code, message and frames. Never
+ * throws; a non-object value contributes only its type name and text.
+ *
+ * @param {unknown} error the thrown value
+ * @param {(text: string) => string} redact redaction applied to the message and stack frames
+ * @returns {Record<string, unknown>} fields with errorClass and optional errorCode, errorMessage
+ *   and errorFrames; empty for null or undefined.
+ */
 export function describeError(error, redact = redactLogText) {
   const fields = {};
   if (error === null || error === undefined) {

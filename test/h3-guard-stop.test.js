@@ -52,7 +52,7 @@ async function freePort() {
 }
 
 // Same substitute server as test/h3-guard.test.js; the launcher refuses code it does not recognize.
-const fixture = `const http=require('http');
+const substituteServerSource = `const http=require('http');
 const {spawn}=require('child_process');
 const ROOT = __dirname, PORT = 8274;
 let job=null;
@@ -99,7 +99,7 @@ const control = (port, route, headerToken, method = 'POST') =>
   });
 async function fixtureFolder(prefix) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
-  await fs.writeFile(path.join(dir, 'server.js'), fixture);
+  await fs.writeFile(path.join(dir, 'server.js'), substituteServerSource);
   return dir;
 }
 function startGuard(port, dir) {
@@ -135,8 +135,8 @@ test(
     });
     const base = `http://127.0.0.1:${port}`;
     const status = await waitFor(async () => {
-      const r = await fetch(`${base}/api/status`);
-      return r.ok && r.json();
+      const response = await fetch(`${base}/api/status`);
+      return response.ok && response.json();
     });
     serverPid = status.serverPid;
     // No token, a wrong token and an unauthenticated read are refused; nothing is stopped.
@@ -201,8 +201,8 @@ test(
     const base = `http://127.0.0.1:${port}`;
     serverPid = (
       await waitFor(async () => {
-        const r = await fetch(`${base}/api/status`);
-        return r.ok && r.json();
+        const response = await fetch(`${base}/api/status`);
+        return response.ok && response.json();
       })
     ).serverPid;
     // An upload that has sent only part of its body.
@@ -258,8 +258,8 @@ test(
     assert.equal((await manager.start('video')).status, 'starting');
     const base = `http://127.0.0.1:${port}`;
     const status = await waitFor(async () => {
-      const r = await fetch(`${base}/api/status`);
-      return r.ok && r.json();
+      const response = await fetch(`${base}/api/status`);
+      return response.ok && response.json();
     });
     assert.equal(manager.canOffload('video'), true);
     assert.equal(manager.status().video.canUnload, true);

@@ -107,6 +107,8 @@ export class FabSync {
     return stored && Date.parse(stored.until) > this.now().getTime() ? stored : null;
   }
 
+  // Returns the saved block even after it has expired; block() filters those out. The recheck
+  // path needs the stored copy to tell the user when the pause ends.
   storedBlock() {
     return this.readKv('block');
   }
@@ -217,6 +219,7 @@ export class FabSync {
 
   // ------------------------------------------------------------------------- status
 
+  // The first page of a query (cursor ''), which is the one a Refresh rewrites.
   newestPage(query = '') {
     return this.db
       .prepare("SELECT fetched_at FROM search_pages WHERE query=? AND cursor='' ")

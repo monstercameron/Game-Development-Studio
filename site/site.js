@@ -1,15 +1,16 @@
 // Progressive enhancements only: the page is fully usable without JavaScript.
 (() => {
-  // Shared, visually hidden status region for announcements.
-  const status = document.createElement('p');
-  status.className = 'sr-only';
-  status.setAttribute('role', 'status');
-  status.setAttribute('aria-live', 'polite');
-  document.body.append(status);
+  // Shared, visually hidden live region for announcements. The text is cleared first and set
+  // again after a short delay so that a repeated message is read out again.
+  const announcementRegion = document.createElement('p');
+  announcementRegion.className = 'sr-only';
+  announcementRegion.setAttribute('role', 'status');
+  announcementRegion.setAttribute('aria-live', 'polite');
+  document.body.append(announcementRegion);
   const announce = (message) => {
-    status.textContent = '';
+    announcementRegion.textContent = '';
     window.setTimeout(() => {
-      status.textContent = message;
+      announcementRegion.textContent = message;
     }, 50);
   };
 
@@ -285,7 +286,8 @@
         dialog.close();
         return;
       }
-      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !hasSeveral) {
+      const hasModifierKey = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
+      if (hasModifierKey || !hasSeveral) {
         return;
       }
       // While the full-size region has focus, the arrow keys and Home/End scroll it.

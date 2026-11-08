@@ -39,6 +39,10 @@ import { createLog } from './app-log.js';
 
 const log = createLog('queue');
 
+/**
+ * POSTs JSON to a runtime or project endpoint and returns the parsed body.
+ * A non-2xx response throws an Error whose `status` and `body` hold the server reply.
+ */
 export async function post(path, body = {}) {
   const response = await fetch(path, {
     method: 'POST',
@@ -159,6 +163,11 @@ export async function stageReferences(projectId, files) {
   }
   return referenceIds;
 }
+/**
+ * Queues an image render, once per variation. Returns one job, or an array of jobs
+ * when several variations are requested. A failure after some jobs were queued
+ * reports how many were accepted.
+ */
 export async function enqueueImage(projectId, draft, files = []) {
   // Validate before saving references; the staged IDs only exist afterwards.
   imageRequest({ ...draft, referenceIds: files.map((file) => file.name) });
@@ -393,9 +402,9 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
     applyQueueOrder,
     restoreJobs,
   } = useQueueTiming();
-  const [error, setError] = useState(''),
-    [busy, setBusy] = useState(''),
-    [copied, setCopied] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState('');
+  const [copied, setCopied] = useState('');
   // Sections whose "Show more" is open, and the last dismissal (kept so it can be undone).
   const [openGroups, setOpenGroups] = useState({});
   const [dismissal, setDismissal] = useState(null);
@@ -403,8 +412,8 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
   // Where keyboard focus goes once the dismissed row has left the list.
   const focusAfterDismiss = useRef(null);
   const [confirmClear, setConfirmClear] = useRouteToggle('clearQueue');
-  const [confirmation, setConfirmation] = useState(''),
-    [notice, setNotice] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [notice, setNotice] = useState('');
   useEffect(() => {
     if (!confirmClear) {
       setConfirmation('');
@@ -695,7 +704,7 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
     (job) =>
       !hiddenIds.includes(job.id) && !['completed', 'failed', 'cancelled'].includes(job.status),
   ).length;
-  const waiting = jobs.filter(
+  const waitingCount = jobs.filter(
     (job) => ['queued', 'waiting_engine', 'waiting_memory'].includes(job.status) && !job.remoteId,
   ).length;
   async function clearWaiting() {
@@ -773,8 +782,8 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
                 setConfirmation('');
                 setConfirmClear(true);
               }}
-              disabled={!waiting}
-              title={waiting ? undefined : 'There are no waiting renders to cancel.'}
+              disabled={!waitingCount}
+              title={waitingCount ? undefined : 'There are no waiting renders to cancel.'}
             >
               Clear waiting renders…
             </button>

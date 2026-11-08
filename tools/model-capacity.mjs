@@ -9,7 +9,8 @@
 //   --studio-url <url>   Loopback studio address (default http://127.0.0.1:5173).
 //   --render-only        Rebuild the table in index.html from the existing JSON; measure nothing.
 //
-// The only network calls are two read-only GET requests to a loopback studio.
+// The only network calls are read-only GET requests to a loopback studio: one hardware read and
+// up to STORAGE_POLL_ATTEMPTS storage reads while the studio finishes its rescan.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -31,6 +32,7 @@ const BYTES_PER_GB = 1000 ** 3;
 const BYTES_PER_MIB = 1024 ** 2;
 // A folder this large that no row claims is treated as a forgotten model.
 const UNMAPPED_LIMIT_BYTES = 100 * BYTES_PER_MIB;
+// The studio answers "scanning" while it rescans. 12 polls 5 s apart wait up to about one minute.
 const STORAGE_POLL_ATTEMPTS = 12;
 const STORAGE_POLL_INTERVAL_MS = 5000;
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
@@ -370,6 +372,10 @@ export async function scanModelsFolder(root, owner, definitions = ROW_DEFINITION
   return { folders, skippedLinks, sharedWithOutsideBytes, sharedWithOutsideFiles };
 }
 
+/**
+ * Throws when a folder over 100 MiB under models/ is not claimed by a row, so that a new model
+ * cannot be left out of the capacity table without a visible failure.
+ */
 export function assertNoForgottenModel(folders, owner) {
   const forgotten = [...folders.entries()].filter(
     ([name, stats]) => !owner.has(name) && stats.nameBytes > UNMAPPED_LIMIT_BYTES,
@@ -519,8 +525,9 @@ function methodParagraphs({ date, scan, crossCheck, totalBytes }) {
     );
   }
   if (scan.sharedWithOutsideFiles > 0) {
+    const sharedGiBText = formatGiBText(scan.sharedWithOutsideBytes);
     paragraphs.push(
-      `${scan.sharedWithOutsideFiles} of the counted files (${formatGiBText(scan.sharedWithOutsideBytes)} ` +
+      `${scan.sharedWithOutsideFiles} of the counted files (${sharedGiBText} ` +
         'GiB) also have hard links outside the models folder. They are counted here, but ' +
         'deleting them from the models folder would not free that space.',
     );
@@ -532,6 +539,11 @@ function methodParagraphs({ date, scan, crossCheck, totalBytes }) {
   return paragraphs;
 }
 
+/**
+ * Builds the document written to site/model-capacity.json. Pure: it reads no files and makes no
+ * requests. `rows` come from buildRows, `scan` from scanModelsFolder and `machine` carries the GPU
+ * size (`gpuMemoryMiB`) used for the comparison.
+ */
 export function buildCapacity({ rows, scan, machine, crossCheck, generatedAt }) {
   const totalBytes = rows.reduce((sum, row) => sum + row.bytes, 0);
   const jsonRows = rows
@@ -553,7 +565,7 @@ export function buildCapacity({ rows, scan, machine, crossCheck, generatedAt }) 
   const supportingBytes = supportingRows.reduce((sum, row) => sum + row.bytes, 0);
   const gpuMemoryBytes = machine.gpuMemoryMiB * BYTES_PER_MIB;
   const date = generatedAt.slice(0, 10);
-  const data = {
+  const capacity = {
     schemaVersion: 1,
     generatedAt,
     machine,
@@ -580,10 +592,10 @@ export function buildCapacity({ rows, scan, machine, crossCheck, generatedAt }) 
     },
     crossCheck,
   };
-  data.method = methodParagraphs({ date, scan, crossCheck, totalBytes });
-  const summary = globalThis.ForgeCapacity.summarize(data);
-  data.comparison.text = globalThis.ForgeCapacity.compareText(data, summary);
-  return data;
+  capacity.method = methodParagraphs({ date, scan, crossCheck, totalBytes });
+  const summary = globalThis.ForgeCapacity.summarize(capacity);
+  capacity.comparison.text = globalThis.ForgeCapacity.compareText(capacity, summary);
+  return capacity;
 }
 
 /** The markup stored between the markers in index.html, indented to sit inside the section. */
@@ -644,22 +656,22 @@ async function main() {
     }
     machine = existing.machine;
   }
-  const data = buildCapacity({
+  const capacity = buildCapacity({
     rows,
     scan,
     machine,
     crossCheck,
     generatedAt: new Date().toISOString(),
   });
-  await fs.writeFile(jsonPath, `${JSON.stringify(data, null, 2)}\n`);
+  await fs.writeFile(jsonPath, `${JSON.stringify(capacity, null, 2)}\n`);
   const html = await fs.readFile(htmlPath, 'utf8');
-  await fs.writeFile(htmlPath, replaceStaticBlock(html, data));
+  await fs.writeFile(htmlPath, replaceStaticBlock(html, capacity));
 
   console.log(
-    `${data.totals.models} models, ${data.totals.supportingEntries} supporting entries: ` +
-      `${formatGiBText(data.totals.bytes)} GiB (${data.totals.gb} GB) on disk.`,
+    `${capacity.totals.models} models, ${capacity.totals.supportingEntries} supporting entries: ` +
+      `${formatGiBText(capacity.totals.bytes)} GiB (${capacity.totals.gb} GB) on disk.`,
   );
-  for (const row of data.rows) {
+  for (const row of capacity.rows) {
     console.log(`  ${row.gib.toFixed(2).padStart(7)} GiB  ${row.kind.padEnd(10)} ${row.name}`);
   }
   if (crossCheck) {

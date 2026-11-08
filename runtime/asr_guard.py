@@ -17,7 +17,10 @@ from pathlib import Path
 from app_log import get_logger, install_excepthook
 from engine_identity import identity
 
+# Read once at import. An empty token refuses every /api/forge/ request and makes run() fail,
+# so a guard started without the Forge-issued secret never accepts control traffic.
 TOKEN = os.environ.get("FORGE_ENGINE_CONTROL_TOKEN", "")
+# Header and request-line cap in bytes, enforced before any route is parsed.
 MAX_HEADER = 32768
 log = get_logger("asr")
 
@@ -84,6 +87,8 @@ class WindowsJob:
         if not self.handle:
             raise ctypes.WinError(ctypes.get_last_error())
         info = EXTENDED_LIMIT()
+        # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE (0x2000) under JobObjectExtendedLimitInformation (9),
+        # so the native engine dies with this guard even if the guard crashes.
         info.basic.flags = 0x00002000
         if not self.kernel.SetInformationJobObject(
             self.handle, 9, ctypes.byref(info), ctypes.sizeof(info)
@@ -105,6 +110,12 @@ class WindowsJob:
 
 
 class Guard:
+    """Proxy client connections to the native engine on an internal loopback port.
+
+    `active` tracks connections that may hold a speech session; `/api/forge/stop` is refused
+    while it is non-empty. Setting `stop_event` lets run() shut the guard down.
+    """
+
     def __init__(self, native_port, stop_event):
         self.native_port = native_port
         self.stop_event = stop_event
@@ -287,12 +298,17 @@ class Guard:
             writer.close()
 
 
-# Cache-aware streaming right context R gives a chunk of (R + 1) x 80 ms: 0, 1, 6 and 13 are the
-# 80, 160, 560 and 1120 ms modes of the Nemotron streaming model. Omitted keeps the engine default (1).
+# Cache-aware streaming right context R gives a chunk of (R + 1) x 80 ms: 0, 1, 6 and 13 are
+# the 80, 160, 560 and 1120 ms modes of the Nemotron streaming model. Omitted keeps the engine
+# default (1).
 RIGHT_CONTEXTS = (0, 1, 6, 13)
 
 
 def native_command(args, port):
+    """Return the argv that starts the native engine on the internal loopback `port`.
+
+    `args.right_context` is appended only when set, so the engine default applies otherwise.
+    """
     command = [
         str(args.native),
         "serve",
@@ -312,6 +328,11 @@ def native_command(args, port):
 
 
 async def run(args):
+    """Serve the guard on `args.port` until a stop request or engine exit.
+
+    Raises RuntimeError when the control token is missing or the engine exits unexpectedly.
+    The native process is always reaped and the Windows job is closed on the way out.
+    """
     if not TOKEN:
         raise RuntimeError("A Forge control token is required.")
     log.info("asr.process.started", {"pid": os.getpid(), "port": args.port})

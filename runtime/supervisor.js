@@ -65,6 +65,42 @@ function safeOperation(method) {
   return ENGINE_OPERATIONS.has(method) ? method : 'unknown';
 }
 
+// Model loads can take longer than the default RPC timeout, so they share a longer one.
+const MODEL_LOAD_OPERATIONS = new Set([
+  'loadChat',
+  'loadMusic',
+  'loadSound',
+  'loadTts',
+  'loadAsr',
+  'loadGame',
+  'loadHunyuan',
+  'loadTrellis',
+  'loadSam31',
+  'loadHyMotion',
+  'loadMotionBricks',
+]);
+
+// Per-call RPC timeouts in ms. Operations not listed return undefined, which makes
+// RuntimeSupervisor.call use its own default timeout.
+function rpcTimeoutFor(method) {
+  if (method === 'transcribe') {
+    return 130000;
+  }
+  if (method === 'decide' || method === 'forceStop' || method === 'closeModel') {
+    return 65000;
+  }
+  if (method === 'offload') {
+    return 30000;
+  }
+  if (method === 'removeModel') {
+    return 15000;
+  }
+  if (MODEL_LOAD_OPERATIONS.has(method)) {
+    return 20000;
+  }
+  return undefined;
+}
+
 export class RuntimeSupervisor {
   constructor({
     workerUrl = new URL('./worker.js', import.meta.url),
@@ -158,7 +194,7 @@ export class RuntimeSupervisor {
     } else {
       appLog.error('supervisor.worker.exited', exitFields);
     }
-    const pid = Number.isSafeInteger(child.pid) ? child.pid : 'unknown';
+    const pid = knownPid(child) ?? 'unknown';
     this.log(
       this.stopped ? 'INFO' : 'ERROR',
       `Supervisor event=worker_stopped pid=${pid} reason=${reason}`,
@@ -206,7 +242,7 @@ export class RuntimeSupervisor {
     child.on('message', (message) => {
       if (message?.type === 'ready') {
         this.ready = true;
-        const pid = Number.isSafeInteger(child.pid) ? child.pid : 'unknown';
+        const pid = knownPid(child) ?? 'unknown';
         this.log('INFO', `Supervisor event=worker_ready pid=${pid}`);
         appLog.info('supervisor.worker.ready', { pid: knownPid(child) });
         return;
@@ -269,7 +305,7 @@ export class RuntimeSupervisor {
         pending.resolve(message.result);
       }
     });
-    child.on('error', (_error) => {
+    child.on('error', () => {
       this.log('ERROR', 'Supervisor event=worker_process_error reason=process_error');
       appLog.error('supervisor.worker.error', {
         reason: 'process_error',
@@ -417,8 +453,8 @@ export function runtimeService({ engineBroker = null } = {}) {
         /^\/models\/(tts|3d-hunyuan|segmentation|motion-hy|motion-bricks|asr)\/remove$/.exec(
           url.pathname,
         );
-      let method,
-        params = {};
+      let method;
+      let params = {};
       if (req.method === 'GET') {
         method = match && !match[2] ? 'job' : routes[url.pathname];
       } else if (req.method === 'POST') {
@@ -550,54 +586,14 @@ export function runtimeService({ engineBroker = null } = {}) {
         params.id = startMatch[1];
       }
       try {
-        const result = await supervisor.call(
-          method,
-          params,
-          method === 'transcribe'
-            ? 130000
-            : method === 'decide' || method === 'forceStop' || method === 'closeModel'
-              ? 65000
-              : method === 'offload'
-                ? 30000
-                : method === 'removeModel'
-                  ? 15000
-                  : [
-                        'loadChat',
-                        'loadMusic',
-                        'loadSound',
-                        'loadTts',
-                        'loadAsr',
-                        'loadGame',
-                        'loadHunyuan',
-                        'loadTrellis',
-                        'loadSam31',
-                        'loadHyMotion',
-                        'loadMotionBricks',
-                      ].includes(method)
-                    ? 20000
-                    : undefined,
-        );
+        const result = await supervisor.call(method, params, rpcTimeoutFor(method));
         if (method === 'decide') {
           return send(result.status, result.result);
         }
         if (method === 'move') {
           return send(result.status, result.body);
         }
-        if (
-          [
-            'loadChat',
-            'loadMusic',
-            'loadSound',
-            'loadTts',
-            'loadAsr',
-            'loadGame',
-            'loadHunyuan',
-            'loadTrellis',
-            'loadSam31',
-            'loadHyMotion',
-            'loadMotionBricks',
-          ].includes(method)
-        ) {
+        if (MODEL_LOAD_OPERATIONS.has(method)) {
           return send(result.status, result.body);
         }
         send(

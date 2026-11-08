@@ -1,7 +1,14 @@
 // Small formatting helpers for the Recovery panel. They return plain numbers and unit codes so
 // the component can put the words through t().
 
-/** @returns {{ value: string, unit: 'B'|'KiB'|'MiB'|'GiB' }} */
+/**
+ * Splits a byte count into a binary (1024-based) value and unit. Non-finite or negative input
+ * counts as 0. Values under 10 keep one decimal place; the value is a display rounding, not an
+ * exact size.
+ *
+ * @param {number} bytes
+ * @returns {{ value: string, unit: 'B'|'KiB'|'MiB'|'GiB' }}
+ */
 export function sizeParts(bytes) {
   const size = Number.isFinite(bytes) && bytes > 0 ? bytes : 0;
   if (size < 1024) {
@@ -17,7 +24,13 @@ export function sizeParts(bytes) {
   return { value: value.toFixed(value >= 10 ? 0 : 1), unit: units[index] };
 }
 
-/** @returns {{ value: number, unit: 'h'|'d' }} */
+/**
+ * Shows an age in whole hours below 48 hours, then in whole days. Non-finite or negative input
+ * counts as 0 hours.
+ *
+ * @param {number} hours
+ * @returns {{ value: number, unit: 'h'|'d' }}
+ */
 export function ageParts(hours) {
   const age = Number.isFinite(hours) && hours > 0 ? hours : 0;
   return age < 48

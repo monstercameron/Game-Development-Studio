@@ -5,6 +5,7 @@ import { readPose } from './references.js';
 const log = createLogger('motion');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function send(jobId, type, values = {}) {
   if (process.connected) {
     process.send({ jobId, type, ...values });

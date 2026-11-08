@@ -152,6 +152,10 @@ async function requestJson(url, { signal } = {}) {
   return body ?? {};
 }
 
+/**
+ * Fetches one page of records, newest first. `cursor` is the `nextCursor` from the previous page
+ * (omit it for the first page); the value is opaque to the client.
+ */
 export function fetchLogPage(filters, { cursor, signal } = {}) {
   return requestJson(
     `/api/logs?${buildLogQuery(filters, { extra: { limit: LOG_PAGE_ROWS, cursor } })}`,
@@ -161,6 +165,7 @@ export function fetchLogPage(filters, { cursor, signal } = {}) {
   );
 }
 
+/** Fetches records newer than `afterId`, the id of the last record the view already shows. */
 export function fetchLogTail(filters, { afterId, signal } = {}) {
   return requestJson(`/api/logs/tail?${buildLogQuery(filters, { extra: { after: afterId } })}`, {
     signal,

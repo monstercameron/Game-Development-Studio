@@ -11,6 +11,11 @@ HOST_MEMORY_FLOOR_BYTES = 2 * 1024**3
 
 
 def host_bytes_needed(required_bytes):
+    """Return the host RAM in bytes that an admission check should require.
+
+    In strict mode this is the engine's full budget. Otherwise it is capped at
+    HOST_MEMORY_FLOOR_BYTES, because host budgets are estimates and weights are memory-mapped.
+    """
     if os.environ.get("FORGE_HOST_MEMORY_POLICY", "").strip().lower() == "strict":
         return required_bytes
     return min(required_bytes, HOST_MEMORY_FLOOR_BYTES)

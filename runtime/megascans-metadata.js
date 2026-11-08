@@ -9,7 +9,12 @@ import { attributionText, DEFAULT_LICENSE, FAB_SELLER } from './megascans-librar
 /**
  * @param {string} projectFolder Real path of the project folder.
  * @param {string[]} paths Project-relative model paths (forward slashes).
- * @param {{ listing: object | null, filename: string, title?: string, fileUid?: string | null }} source
+ * @param {{
+ *   listing: object | null,
+ *   filename: string,
+ *   title?: string,
+ *   fileUid?: string | null,
+ * }} source
  * @param {{ logger?: Console }} [options]
  * @returns {number} How many records were written.
  */

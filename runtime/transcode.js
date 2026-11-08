@@ -20,6 +20,10 @@ const formats = {
   // WebM (VP8) is poorly supported by game engines and editors; MP4 (H.264 + AAC) is not.
   video: { mp4: 'mp4', gif: 'gif' },
 };
+// A conversion running longer than this is treated as hung: the worker is killed and the job fails.
+const PROCESS_TIMEOUT_MS = 300000;
+// Worker output is kept only as its tail so a chatty worker cannot grow memory without limit.
+const OUTPUT_TAIL_CHARS = 8000;
 
 function run(input) {
   return new Promise((resolve, reject) => {
@@ -36,17 +40,25 @@ function run(input) {
       stderr = '',
       settled = false;
     const timer = setTimeout(() => {
-      log.warn('transcode.process.timed_out', { ...fields, pid: child.pid, limitMs: 300000 });
+      log.warn('transcode.process.timed_out', {
+        ...fields,
+        pid: child.pid,
+        limitMs: PROCESS_TIMEOUT_MS,
+      });
       child.kill();
       finish(Error('Conversion took too long. Try a smaller file.'));
-    }, 300000);
+    }, PROCESS_TIMEOUT_MS);
     function finish(error, value) {
       if (settled) {
         return;
       }
       settled = true;
       clearTimeout(timer);
-      error ? reject(error) : resolve(value);
+      if (error) {
+        reject(error);
+      } else {
+        resolve(value);
+      }
     }
     child.on('error', (error) => {
       log.error('transcode.process.failed', { ...fields, error });
@@ -59,10 +71,10 @@ function run(input) {
       );
     });
     child.stdout.on('data', (chunk) => {
-      stdout = (stdout + chunk).slice(-8000);
+      stdout = (stdout + chunk).slice(-OUTPUT_TAIL_CHARS);
     });
     child.stderr.on('data', (chunk) => {
-      stderr = (stderr + chunk).slice(-8000);
+      stderr = (stderr + chunk).slice(-OUTPUT_TAIL_CHARS);
     });
     child.on('close', (code) => {
       const durationMs = Math.round(performance.now() - startedAt);
@@ -77,9 +89,25 @@ function run(input) {
         finish(Error('Conversion returned an invalid result.'));
       }
     });
+    // A worker that exits before reading its input emits EPIPE here. The close handler reports the
+    // real outcome, and without a listener the error would crash the host process.
     child.stdin.on('error', () => {});
     child.stdin.end(JSON.stringify(input));
   });
+}
+
+// Maps an asset category to its converter family; null means the category cannot be converted.
+function kindForCategory(category) {
+  if (category === 'Images' || category === 'Masks') {
+    return 'image';
+  }
+  if (category === 'Audio') {
+    return 'audio';
+  }
+  if (category === 'Video') {
+    return 'video';
+  }
+  return null;
 }
 
 export async function convertAsset(project, input) {
@@ -91,13 +119,7 @@ export async function convertAsset(project, input) {
   if (isModelAsset(asset)) {
     return convertModelAsset(project, asset, input);
   }
-  const kind = ['Images', 'Masks'].includes(asset.category)
-    ? 'image'
-    : asset.category === 'Audio'
-      ? 'audio'
-      : asset.category === 'Video'
-        ? 'video'
-        : null;
+  const kind = kindForCategory(asset.category);
   if (!kind || !Object.hasOwn(formats[kind], input.format || '')) {
     throw Error('Choose a supported format for this asset.');
   }
@@ -161,5 +183,9 @@ export async function convertAsset(project, input) {
   }
 }
 
-// Lower-level entry for jobs that already know the exact source and target files.
+/**
+ * Runs the worker on explicit files for jobs that already know both paths. `input` is the worker
+ * request ({ source, target, kind, format, ... }). The caller owns `target` and any later rename.
+ * Rejects on timeout, a non-zero worker exit or an unparseable result.
+ */
 export const convertFile = (input) => run(input);

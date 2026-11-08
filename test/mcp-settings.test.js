@@ -170,7 +170,7 @@ test('the tools work end to end against the real settings routes', async (t) => 
     power: { get: () => false, set: async () => {} },
   });
   const app = express();
-  const server = (await import('node:http')).createServer(app);
+  const server = createServer(app);
   service.configureServer({ middlewares: app, httpServer: server, config: {} });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');

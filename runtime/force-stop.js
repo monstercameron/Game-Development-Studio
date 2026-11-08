@@ -14,6 +14,15 @@ const shell = path.join(
   'powershell.exe',
 );
 
+/**
+ * Stops the verified Windows process tree of a Forge-owned engine.
+ *
+ * @param {{ pid: number, creationTicks: string, executable: string }} identity
+ *   The launcher identity recorded at start. The PID alone is never trusted.
+ * @returns {Promise<object>} The helper's parsed result, once it reports `stopped: true`.
+ *   Rejects on an unsupported platform, a missing identity, a helper failure, a timeout
+ *   or an unreadable result. A rejection does not prove the process tree is still running.
+ */
 export function forceStopWindows(identity) {
   if (process.platform !== 'win32') {
     log.warn('engine.force_stop.rejected', { reason: 'unsupported_platform' });
@@ -38,8 +47,8 @@ export function forceStopWindows(identity) {
       { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
     );
     log.info('engine.force_stop.spawned', { targetPid, pid: child.pid });
-    let output = '',
-      done = false;
+    let output = '';
+    let done = false;
     // The reason is a fixed code for the failure path; the error message is never logged.
     const finish = (error, value, failureReason) => {
       if (done) {
@@ -58,8 +67,14 @@ export function forceStopWindows(identity) {
       } else {
         log.info('engine.force_stop.completed', { targetPid, durationMs });
       }
-      error ? reject(error) : resolve(value);
+      if (error) {
+        reject(error);
+      } else {
+        resolve(value);
+      }
     };
+    // Killing the helper does not prove the engine tree stopped. The caller must re-check
+    // the engine state before it treats the stop as finished or retries anything.
     const timer = setTimeout(() => {
       child.kill();
       finish(
@@ -100,6 +115,9 @@ export function forceStopWindows(identity) {
         finish(Error('The force-stop result could not be verified.'), null, 'result_invalid');
       }
     });
+    // The helper may exit before it reads stdin, which raises EPIPE here. The 'close' handler
+    // already decides the outcome from the exit code and output, so the error is not handled
+    // separately.
     child.stdin.on('error', () => {});
     child.stdin.end(JSON.stringify(identity));
   });

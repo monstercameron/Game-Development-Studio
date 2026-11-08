@@ -306,6 +306,8 @@ export function buildOutputs(keys) {
   return { catalogs, manifest: `${JSON.stringify(manifest, null, 2)}\n` };
 }
 
+// Rename replaces the target in one step, so an interrupted run leaves the old catalog or the new
+// one, never a truncated file that a later --check would accept.
 function writeAtomic(file, text) {
   const temporary = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(temporary, text, 'utf8');
@@ -335,6 +337,7 @@ export function compareOutputs(outputs, { catalogDirectory, manifestFile }) {
   return problems;
 }
 
+/** Writes the catalogs and manifest, and deletes catalog files that no longer have strings. */
 export function writeOutputs(outputs, { catalogDirectory, manifestFile }) {
   fs.mkdirSync(catalogDirectory, { recursive: true });
   for (const name of fs.readdirSync(catalogDirectory)) {
@@ -354,6 +357,10 @@ function printIssues(label, list) {
   }
 }
 
+/**
+ * CLI entry point. Returns the exit code: 1 on errors, or on stale catalogs in --check mode.
+ * `options` lets tests redirect the catalog directory, manifest file or source file list.
+ */
 export function main(argv = process.argv.slice(2), options = {}) {
   const catalogDirectory =
     options.catalogDirectory || path.join(sourceRoot, 'i18n', 'locales', 'en');

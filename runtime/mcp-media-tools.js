@@ -7,7 +7,7 @@ import { variationRequests } from './image-options.js';
 const change = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 const projectId = z.string().uuid();
 
-// Extra image fields the queue_image tool accepts, spread into its input schema.
+// Extra image fields the forge_queue_image tool accepts, spread into its input schema.
 export const imageOptionSchema = {
   variations: z
     .number()
@@ -53,7 +53,18 @@ export const imageOptionSchema = {
   lora_scale: z.number().min(0).max(2).optional().describe('LoRA strength, 0 to 2 (default 1).'),
 };
 
-// One job per variation. Jobs queued before a failure stay queued, and the reply lists each result.
+/**
+ * Queue one images job per variation. Jobs queued before a failure stay queued, and the reply
+ * lists each result.
+ *
+ * @param {(path: string, body: object) => Promise<object>} write Studio write helper that returns
+ *   an MCP tool result ({ content, isError }).
+ * @param {string} project Project id, already validated as a UUID by the tool schema.
+ * @param {object} input Validated image fields; `sigmas` is converted to a sigma schedule and
+ *   overrides num_inference_steps.
+ * @returns {Promise<object>} The single job result, or a JSON summary of the queued variations
+ *   with isError set when any queue write failed.
+ */
 export async function queueImageRender(write, project, input) {
   const { variations = 1, sigmas, ...request } = input;
   if (sigmas) {

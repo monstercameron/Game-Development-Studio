@@ -14,6 +14,7 @@ import {
   createMotionBricksRenderPreparation,
 } from '../runtime/motionbricks-preparation.js';
 
+// A minimal BVH: a HIERARCHY header that the staging check accepts, and one motion frame.
 const fixture = Buffer.from(
   'HIERARCHY\nROOT Hips\n{\n}\nMOTION\nFrames: 1\nFrame Time: 0.033333333\n0\n',
 );
@@ -57,6 +58,7 @@ test('MotionBricks admission checks memory and keeps uncertain loads fenced', as
       };
     }
     if (options.method === 'POST') {
+      // A lost response leaves the load outcome unknown; the engine may still accept it.
       posts++;
       throw Error('response lost');
     }

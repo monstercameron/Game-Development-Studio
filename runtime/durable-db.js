@@ -265,8 +265,7 @@ export function openDatabase(file, options = {}) {
     backupDirectory = backupDirectoryFor(name, directory),
   } = options;
   if (readOnly) {
-    const db = new DatabaseSync(file, { readOnly: true, timeout: busyTimeoutMs });
-    return db;
+    return new DatabaseSync(file, { readOnly: true, timeout: busyTimeoutMs });
   }
   const kind = databaseKindFor(name);
   const key = path.resolve(file);
@@ -334,9 +333,9 @@ export function openDatabase(file, options = {}) {
   } catch (error) {
     try {
       db?.close();
-    } catch (error) {
+    } catch (closeError) {
       // The failure below is the useful one.
-      log.debug('db.close.failed', { error });
+      log.debug('db.close.failed', { error: closeError });
     }
     throw error;
   }

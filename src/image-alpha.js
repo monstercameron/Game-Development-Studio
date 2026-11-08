@@ -17,10 +17,12 @@ export function analyzeAlpha(rgba) {
   if (!pixels) {
     return { status: 'opaque', transparentFraction: 0 };
   }
-  let transparent = 0,
-    visible = 0;
+  let transparent = 0;
+  let visible = 0;
   for (let index = 3; index < pixels * 4; index += 4) {
     const alpha = rgba[index];
+    // Below 128 is under half opaque (transparent); above 204 is over 80% opaque (visible).
+    // Both thresholds are on the 0-255 alpha scale.
     if (alpha < 128) {
       transparent += 1;
     }
@@ -35,7 +37,12 @@ export function analyzeAlpha(rgba) {
   };
 }
 
-// 'unknown' means the browser could not decode or inspect the file; the caller should not block.
+/**
+ * Measures alpha on a downscaled copy of the picture. Never rejects.
+ * @param {Blob | File | null | undefined} file the chosen picture
+ * @returns {Promise<{status: 'transparent'|'opaque'|'unknown', transparentFraction: number}>}
+ *   'unknown' means the browser could not decode or inspect the file; the caller should not block.
+ */
 export async function measureTransparency(file) {
   if (!file) {
     return { status: 'unknown', transparentFraction: 0 };
@@ -51,8 +58,8 @@ export async function measureTransparency(file) {
     const bitmap = await createImageBitmap(file);
     try {
       const scale = Math.min(1, SAMPLE_SIDE / Math.max(bitmap.width, bitmap.height, 1));
-      const width = Math.max(1, Math.round(bitmap.width * scale)),
-        height = Math.max(1, Math.round(bitmap.height * scale));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;

@@ -10,7 +10,10 @@ const CHAIN =
 const JS_ERROR_HEAD =
   /^(?:Uncaught\s+)?(?:[A-Z][A-Za-z]*(?:Error|Exception)|Error)(?: \[[A-Z0-9_]+\])?: \S/;
 const JS_FRAME = /^\s+at\s\S/;
+// Caps a single traceback so a runaway log cannot grow one block without bound.
 const MAX_BLOCK_LINES = 400;
+// Caps the stack frames kept for one JavaScript error, in lines.
+const MAX_FRAME_LINES = 200;
 
 function splitTimestamp(line) {
   const match = TIMESTAMP.exec(line);
@@ -94,6 +97,7 @@ export function extractLogErrors(text, { final = false } = {}) {
   }
   const entries = [];
   let safeLength = raw.length;
+  // Line index of the last error handled. -2 never equals index - 1, so line 0 cannot match.
   let lastErrorLine = -2;
   for (let index = 0; index < lines.length; index++) {
     const { text, timestamp } = lines[index];
@@ -126,7 +130,11 @@ export function extractLogErrors(text, { final = false } = {}) {
     }
     const frames = [];
     let next = index + 1;
-    while (next < lines.length && JS_FRAME.test(lines[next].text) && frames.length < 200) {
+    while (
+      next < lines.length &&
+      JS_FRAME.test(lines[next].text) &&
+      frames.length < MAX_FRAME_LINES
+    ) {
       frames.push(lines[next].text);
       next++;
     }

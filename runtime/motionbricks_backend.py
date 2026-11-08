@@ -32,6 +32,12 @@ FLOATS = {
 
 
 def prepare_inputs(rig, values):
+    """Validate the raw tensors for one rig and return them as NumPy arrays.
+
+    Masks become int32 0/1 arrays and float tensors become float32. Raises
+    ValueError for an unknown rig, a wrong key set, a shape or dtype mismatch,
+    non-finite values, or a request that allows no token count.
+    """
     if rig not in MODELS or not isinstance(values, dict):
         raise ValueError("Choose the SOMA or G1 model and provide its input tensors.")
     specs = {**FLOATS[rig], **MASKS}
@@ -66,6 +72,12 @@ def prepare_inputs(rig, values):
 
 
 def load_model(model_dir, rig, *, threads=4):
+    """Load the released SOMA graph onto CUDA and return a CudaSomaSession.
+
+    Raises ValueError for an unsupported rig or thread count, and RuntimeError
+    when CUDA is missing, fewer than 8 GiB of GPU memory is free, the model
+    source or checkpoints are missing, or parameters did not reach the GPU.
+    """
     if (
         rig not in MODELS
         or not isinstance(threads, int)
@@ -81,6 +93,7 @@ def load_model(model_dir, rig, *, threads=4):
         raise RuntimeError("CUDA GPU is unavailable. CPU fallback is disabled.")
     torch.set_num_threads(threads)
     free, _ = torch.cuda.mem_get_info()
+    # Bytes. A fixed admission floor for this model, not a measured peak.
     if free < 8 * 1024**3:
         raise RuntimeError("At least 8 GiB of free GPU memory is required to load MotionBricks.")
 
@@ -155,6 +168,12 @@ class CudaSomaSession:
 
 
 def infer(session, rig, values):
+    """Run one validated MotionBricks step and return the checked output dict.
+
+    Raises ValueError for invalid inputs (see prepare_inputs) and RuntimeError
+    when the session returns unexpected outputs, non-finite values, or a token
+    count the request did not allow.
+    """
     inputs = prepare_inputs(rig, values)
     output = dict(
         zip((item.name for item in session.get_outputs()), session.run(None, inputs), strict=False)
@@ -169,6 +188,7 @@ def infer(session, rig, values):
         if output[name].shape != shape or not np.isfinite(output[name]).all():
             raise RuntimeError(f"MotionBricks returned invalid {name}.")
     token = output["pred_num_tokens"][0]
+    # Token counts 6 to 16 map to columns 0 to 10 of allowed_pred_num_tokens.
     if (
         token != int(token)
         or not 6 <= int(token) <= 16

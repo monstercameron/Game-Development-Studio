@@ -25,7 +25,7 @@ test('audio settings map to the supported worker parameters and respect override
     },
     {
       seedGenerator: () => {
-        throw Error('Must not generate a seed');
+        throw new Error('Must not generate a seed');
       },
     },
   );

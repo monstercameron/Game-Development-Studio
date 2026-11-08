@@ -18,16 +18,24 @@ export function stagingDirectory(projectFolder, importId) {
   return path.join(projectFolder, '.forge-staging', 'megascans', importId);
 }
 
+/**
+ * Path of the staged upload. The filename's extension is kept so the importer can tell the
+ * archive type; the file itself lives in the import's staging folder.
+ */
 export function uploadFile(projectFolder, importId, filename) {
   return path.join(stagingDirectory(projectFolder, importId), `upload${extensionOf(filename)}`);
 }
+
+/**
+ * @typedef {{ id: string, name: string, folder: string }} ResolvedProject
+ */
 
 export class ImportRunner {
   /**
    * @param {object} options
    * @param {import('./megascans-queue.js').ImportQueue} options.queue
    * @param {import('./megascans-library.js').MegascansLibrary} options.library
-   * @param {(projectId: string) => Promise<{ id: string, name: string, folder: string } | null>} options.resolveProject
+   * @param {(projectId: string) => Promise<ResolvedProject | null>} options.resolveProject
    * @param {Console} [options.logger]
    * @param {typeof runImport} [options.importFile] Replaceable in tests.
    * @param {number} [options.progressIntervalMs]

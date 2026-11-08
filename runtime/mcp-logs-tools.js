@@ -107,6 +107,14 @@ export function formatLogRows(rows) {
     .join('\n');
 }
 
+/**
+ * Registers forge_logs_query and forge_logs_summary on the MCP server.
+ * @param {object} server MCP server exposing registerTool.
+ * @param {object} options
+ * @param {URL} options.base Loopback origin of the studio host that serves /api/logs.
+ * @param {object} options.readonly MCP tool annotations shared by read-only tools.
+ * @param {() => number} [options.now] Epoch milliseconds source, injectable for tests.
+ */
 export function registerLogsTools(server, { base, readonly, now = () => Date.now() }) {
   async function getJson(path) {
     try {

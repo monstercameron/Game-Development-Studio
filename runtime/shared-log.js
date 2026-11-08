@@ -10,10 +10,20 @@
 // src/app-log.js in the browser (each installs itself here when it is first imported). Records
 // logged before that happen are kept (at most 200) and replayed. See docs/LOGGING.md.
 const LEVEL_NAMES = ['trace', 'debug', 'info', 'warn', 'error'];
+// Records beyond this count are discarded while no sink is installed, so a process that never
+// installs one cannot grow memory without bound.
 const PENDING_CAP = 200;
 
+// The real logger, or null until installSharedLogSink runs. `pending` holds records logged
+// before that, in order, and is replayed when the sink arrives.
 let sink = null;
 const pending = [];
+
+// performance.now() is monotonic and sub-millisecond; Date.now() is the fallback for runtimes
+// (such as some Node test contexts) that do not expose a global performance object.
+function currentTimeMs() {
+  return typeof performance === 'undefined' ? Date.now() : performance.now();
+}
 
 /**
  * Installs the real logger. Called by runtime/app-log.js and src/app-log.js; not for feature code.
@@ -65,10 +75,9 @@ export function createLogger(component, context = undefined) {
     }
   };
   logger.time = (event, fields) => {
-    const started = typeof performance === 'undefined' ? Date.now() : performance.now();
+    const started = currentTimeMs();
     return (extra) => {
-      const now = typeof performance === 'undefined' ? Date.now() : performance.now();
-      const durationMs = Math.round(now - started);
+      const durationMs = Math.round(currentTimeMs() - started);
       const hasError = Boolean(extra && extra.error !== undefined && extra.error !== null);
       write(
         component,

@@ -64,22 +64,24 @@ with av.open(out, "w") as dst:
   });
   assert.equal(result.status, 0, result.stderr);
 }
+
 async function project(t) {
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-h3-media-project-'));
   t.after(() => fs.rm(folder, { recursive: true, force: true }));
   await fs.mkdir(path.join(folder, 'video'));
   return folder;
 }
+
 // One second of a quiet 8 kHz mono tone; the media runtime must convert it to 32 kHz stereo.
 function toneWav() {
   const samples = 8000,
-    data = Buffer.alloc(samples * 2);
+    pcm = Buffer.alloc(samples * 2);
   for (let n = 0; n < samples; n++) {
-    data.writeInt16LE(Math.round(Math.sin((n / 8000) * 2 * Math.PI * 440) * 6000), n * 2);
+    pcm.writeInt16LE(Math.round(Math.sin((n / 8000) * 2 * Math.PI * 440) * 6000), n * 2);
   }
   const header = Buffer.alloc(44);
   header.write('RIFF', 0);
-  header.writeUInt32LE(36 + data.length, 4);
+  header.writeUInt32LE(36 + pcm.length, 4);
   header.write('WAVEfmt ', 8);
   header.writeUInt32LE(16, 16);
   header.writeUInt16LE(1, 20);
@@ -89,9 +91,10 @@ function toneWav() {
   header.writeUInt16LE(2, 32);
   header.writeUInt16LE(16, 34);
   header.write('data', 36);
-  header.writeUInt32LE(data.length, 40);
-  return Buffer.concat([header, data]);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
 }
+
 const dimensions = (dataUrl) => {
   const bytes = Buffer.from(dataUrl.split(',')[1], 'base64');
   return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
@@ -272,7 +275,8 @@ test(
     assert.deepEqual(body.forge.ref_video_audios, ['job-clips/video-audio-1.wav']);
     assert.deepEqual(body.forge.ref_audios, ['job-clips/audio-1.wav']);
     assert.equal(body.forge.images, 'references');
-    // Encoding a reference clip needs more than the engine's usual 6 GiB budget (video-options.js).
+    // Encoding a reference clip needs more than the engine's usual 6 GiB budget
+    // (video-options.js).
     assert.equal(body.forge.max_vram, 12);
     const frames = await fs.readdir(path.join(inputRoot, 'job-clips', 'video-1'));
     // 2.5 s at 24 fps is 60 frames; MiniMax counts frames as 17 n + 5, so 56 are kept.
@@ -316,21 +320,21 @@ test(
     const folder = await project(t);
     makeClip(path.join(folder, 'video', 'a.webm'), 1.0, true);
     const { convertAsset } = await import('../runtime/transcode.js');
-    const project_ = {
+    const projectRecord = {
       id: '00000000-0000-4000-8000-000000000000',
       folder,
       assets: [{ id: 'video/a.webm', category: 'Video' }],
     };
-    const mp4 = await convertAsset(project_, { path: 'video/a.webm', format: 'mp4' });
+    const mp4 = await convertAsset(projectRecord, { path: 'video/a.webm', format: 'mp4' });
     assert.equal(mp4.name, 'a-converted.mp4');
     assert.equal(mp4.backend, 'CPU (PyAV, x264)');
     const header = (await fs.readFile(path.join(folder, 'video', mp4.name))).subarray(4, 8);
     assert.equal(header.toString('ascii'), 'ftyp');
-    const gif = await convertAsset(project_, { path: 'video/a.webm', format: 'gif' });
+    const gif = await convertAsset(projectRecord, { path: 'video/a.webm', format: 'gif' });
     const bytes = await fs.readFile(path.join(folder, 'video', gif.name));
     assert.equal(bytes.toString('ascii', 0, 3), 'GIF');
     await assert.rejects(
-      convertAsset(project_, { path: 'video/a.webm', format: 'png' }),
+      convertAsset(projectRecord, { path: 'video/a.webm', format: 'png' }),
       /supported/,
     );
   },

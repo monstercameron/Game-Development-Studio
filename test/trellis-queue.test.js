@@ -28,7 +28,7 @@ async function waitFor(fn) {
 test('TRELLIS.2 admission checks system and GPU memory and fences uncertain loads', async () => {
   let host = 1,
     gpu = 1,
-    posts = 0;
+    postCount = 0;
   const fetcher = async (url, options = {}) => {
     if (url.endsWith('/api/status')) {
       return {
@@ -42,7 +42,7 @@ test('TRELLIS.2 admission checks system and GPU memory and fences uncertain load
       };
     }
     if (options.method === 'POST') {
-      posts++;
+      postCount++;
       throw Error('response lost');
     }
     throw Error('Unexpected');
@@ -59,15 +59,15 @@ test('TRELLIS.2 admission checks system and GPU memory and fences uncertain load
     fetcher,
   });
   assert.equal((await load()).body.code, 'insufficient_host_memory');
-  assert.equal(posts, 0);
+  assert.equal(postCount, 0);
   host = 20 * 1024 ** 3;
-  const low = await load();
-  assert.equal(low.body.code, 'insufficient_gpu_memory');
-  assert.equal(low.body.candidates[0].id, 'tts');
-  assert.equal(posts, 0);
+  const lowGpuResult = await load();
+  assert.equal(lowGpuResult.body.code, 'insufficient_gpu_memory');
+  assert.equal(lowGpuResult.body.candidates[0].id, 'tts');
+  assert.equal(postCount, 0);
   gpu = 60000;
   assert.equal((await load()).body.code, 'load_unknown');
-  assert.equal(posts, 1);
+  assert.equal(postCount, 1);
   const prepare = createTrellisRenderPreparation({ hardware, services, freeMemory: () => host });
   assert.equal(await prepare(), null);
   gpu = 1024;

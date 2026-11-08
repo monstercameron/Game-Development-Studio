@@ -68,8 +68,8 @@ test('opposite views mirror each other and splat scenes use the y-down frame', (
     ['front', 'back'],
     ['left', 'right'],
   ]) {
-    const first = viewDirection(a),
-      second = viewDirection(b);
+    const first = viewDirection(a);
+    const second = viewDirection(b);
     first.forEach((component, index) => near(component, -second[index]));
   }
   const flipped = viewDirection('top', { flipY: true });

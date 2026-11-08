@@ -96,9 +96,9 @@ export function beginSession({
       }
       lastTick = Date.now();
       heartbeat = setInterval(() => {
-        const current = Date.now();
-        const gap = current - lastTick - intervalMs;
-        lastTick = current;
+        const nowMs = Date.now();
+        const gap = nowMs - lastTick - intervalMs;
+        lastTick = nowMs;
         if (gap > gapMs) {
           for (const listener of suspendListeners) {
             try {
@@ -113,7 +113,7 @@ export function beginSession({
           }
         }
         try {
-          write({ heartbeatAt: new Date(current).toISOString() });
+          write({ heartbeatAt: new Date(nowMs).toISOString() });
         } catch (error) {
           // A missed heartbeat only makes the "last alive" time older.
           log.debug('session.heartbeat.write.failed', {
@@ -175,9 +175,9 @@ export function beginSession({
 export function watchForSuspend(onResume, { intervalMs = 5000, gapMs = SUSPEND_GAP_MS } = {}) {
   let last = Date.now();
   const timer = setInterval(() => {
-    const current = Date.now();
-    const gap = current - last - intervalMs;
-    last = current;
+    const nowMs = Date.now();
+    const gap = nowMs - last - intervalMs;
+    last = nowMs;
     if (gap > gapMs) {
       try {
         onResume({ gapMs: gap });

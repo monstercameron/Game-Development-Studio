@@ -4,6 +4,7 @@ import './motionbricks-controls.css';
 
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 
+// A blank value counts as valid: the field is optional and the caller decides what blank means.
 function isOptionalInteger(value, minimum, maximum = Number.MAX_SAFE_INTEGER) {
   if (value === undefined || value === '') {
     return true;
@@ -47,6 +48,11 @@ export default function MotionBricksControls({
     maxTokens !== '';
   const shortestFrames = lengthRangeValid ? frameCount(Number(minTokens)) : null;
   const longestFrames = lengthRangeValid ? frameCount(Number(maxTokens)) : null;
+  // The frame range is shown only when both token bounds are valid. Durations assume 30 fps.
+  const frameRangeText =
+    shortestFrames !== null
+      ? ` (${shortestFrames} to ${longestFrames} frames, about ${(shortestFrames / 30).toFixed(1)} to ${(longestFrames / 30).toFixed(1)} seconds)`
+      : '';
 
   return (
     <section className="motionbricks-controls" aria-label="MotionBricks source and settings">
@@ -261,10 +267,7 @@ export default function MotionBricksControls({
         <p className="helper motionbricks-group-help" id="motionbricks-length-help">
           Choose 6–16 tokens; the minimum must not exceed the maximum. Each token is four frames at
           30 fps, and boundary frames are trimmed, so a transition has 4 × tokens − 6 frames
-          {shortestFrames !== null
-            ? ` (${shortestFrames} to ${longestFrames} frames, about ${(shortestFrames / 30).toFixed(1)} to ${(longestFrames / 30).toFixed(1)} seconds)`
-            : ''}
-          .
+          {frameRangeText}.
         </p>
         {(minTokensInvalid || maxTokensInvalid || tokenOrderInvalid) && (
           <p className="motionbricks-error" id="motionbricks-token-error" aria-live="polite">

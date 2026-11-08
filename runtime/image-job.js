@@ -8,7 +8,11 @@ const log = createLogger('image');
 // Qwen Image 2.1's documented wording for native transparency (RGBA) output.
 export const transparentPrompt = (prompt) =>
   `This is an RGBA image with transparency. ${String(prompt).trim()} The image has alpha channel and the background is transparent.`;
+
+// Delay in milliseconds before the next poll of the remote job.
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Progress messages arrive every few seconds, so only state changes are logged.
 function send(jobId, type, values = {}) {
   if (type !== 'progress') {
     log.info('image.job.state.changed', { jobId, to: type });
@@ -17,10 +21,12 @@ function send(jobId, type, values = {}) {
     process.send({ jobId, type, ...values });
   }
 }
+
 process.on('disconnect', () => {
   log.info('image.process.stopped', { reason: 'disconnected' });
   process.exit(0);
 });
+
 process.once('message', async ({ job, projectFolder, baseUrl }) => {
   let remoteId = job.remoteId;
   log.info('image.job.started', { jobId: job.id, hasRemoteId: Boolean(remoteId) });

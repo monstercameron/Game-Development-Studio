@@ -58,10 +58,10 @@ async function setup(t, engines) {
   for (const name of ENV) {
     process.env[name] = engines[name] || 'http://127.0.0.1:1';
   }
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-chain-e2e-')),
-    projects = path.join(dir, 'projects'),
-    folder = path.join(projects, 'Game'),
-    projectId = randomUUID();
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-chain-e2e-'));
+  const projects = path.join(dir, 'projects');
+  const folder = path.join(projects, 'Game');
+  const projectId = randomUUID();
   await fs.mkdir(path.join(folder, 'images'), { recursive: true });
   await fs.writeFile(path.join(folder, '.forge-project.json'), JSON.stringify({ id: projectId }));
   const queue = new JobQueue({ directory: path.join(dir, 'state'), projects, intervalMs: 50 });

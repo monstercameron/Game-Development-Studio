@@ -56,10 +56,10 @@ test('budgets pick levels by triangle count, even when the levels are not in ord
   assert.equal(pickLevel(stats, 'high'), 0);
   assert.equal(pickLevel(stats, 'medium'), 2);
   assert.equal(pickLevel(stats, 'low'), 1);
-  const two = { perLod: [{ triangles: 10 }, { triangles: 5 }] };
-  assert.equal(pickLevel(two, 'low'), 1);
-  assert.equal(pickLevel(two, 'medium'), 1);
-  assert.equal(pickLevel(two, 'high'), 0);
+  const twoLevelStats = { perLod: [{ triangles: 10 }, { triangles: 5 }] };
+  assert.equal(pickLevel(twoLevelStats, 'low'), 1);
+  assert.equal(pickLevel(twoLevelStats, 'medium'), 1);
+  assert.equal(pickLevel(twoLevelStats, 'high'), 0);
 });
 
 test('generation is validated again in the child and refuses plants over the limits', async () => {
@@ -67,15 +67,15 @@ test('generation is validated again in the child and refuses plants over the lim
   try {
     const api = await loadSeedThree(fake.directory);
     const schema = buildSchema(api);
-    const ok = await generateVegetation(api, schema, {
+    const grown = await generateVegetation(api, schema, {
       species: 'fakeTree',
       seed: 3,
       budget: 'high',
       params: { branches: 10 },
     });
-    assert.equal(ok.result.triangles, 10 * 100 * 1);
-    assert.equal(ok.preset.format, 'seedthree-preset/1');
-    assert.ok(readGlbBytes(ok.glb));
+    assert.equal(grown.result.triangles, 10 * 100 * 1);
+    assert.equal(grown.preset.format, 'seedthree-preset/1');
+    assert.ok(isGlbBuffer(grown.glb));
     await assert.rejects(
       generateVegetation(api, schema, { species: 'fakeTree', params: { branches: 99 } }),
       /from 1 to 20/,
@@ -88,9 +88,7 @@ test('generation is validated again in the child and refuses plants over the lim
       generateVegetation(
         api,
         { ...schema, limits: { ...schema.limits, maxGlbBytes: 100 } },
-        {
-          species: 'fakeTree',
-        },
+        { species: 'fakeTree' },
       ),
       /MiB; the limit is/,
     );
@@ -99,7 +97,8 @@ test('generation is validated again in the child and refuses plants over the lim
   }
 });
 
-function readGlbBytes(buffer) {
+function isGlbBuffer(buffer) {
+  // glTF binary header: the magic "glTF" read as a little-endian uint32, then version 2.
   return buffer.readUInt32LE(0) === 0x46546c67 && buffer.readUInt32LE(4) === 2;
 }
 

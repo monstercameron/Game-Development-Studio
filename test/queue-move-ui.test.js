@@ -113,11 +113,12 @@ async function mountQueue(t, { jobs = baseJobs(), expanded = true } = {}) {
     // Applies a move the way the runtime does, with the real planner.
     apply(id, body) {
       const entries = queueEntries(this.jobs);
-      const spec = body.to
-        ? { kind: 'to', value: body.to }
-        : body.before
-          ? { kind: 'before', value: body.before }
-          : { kind: 'after', value: body.after };
+      let spec = { kind: 'after', value: body.after };
+      if (body.to) {
+        spec = { kind: 'to', value: body.to };
+      } else if (body.before) {
+        spec = { kind: 'before', value: body.before };
+      }
       const plan = planMove(entries, id, spec);
       if (plan.moved) {
         const movable = new Set(entries.filter((entry) => entry.movable).map((entry) => entry.id));
@@ -299,8 +300,7 @@ test('each waiting row shows its place and labelled controls with reasons when d
   assert.equal(handle.getAttribute('aria-label'), 'Reorder prompt b. Position 2 of 4.');
   assert.equal(handle.getAttribute('aria-pressed'), 'false');
   assert.match(
-    ui.container.getElementById?.(handle.getAttribute('aria-describedby'))?.textContent ||
-      document.getElementById(handle.getAttribute('aria-describedby')).textContent,
+    document.getElementById(handle.getAttribute('aria-describedby')).textContent,
     /Space to pick the render up/,
   );
   assert.ok(!ui.container.querySelector('.queue-group-processing [data-reorder-handle]'));

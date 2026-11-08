@@ -24,12 +24,14 @@ def main(argv):
         if len(argv) < 2:
             raise SystemExit("console_launch.py: -m needs a module name")
         module, rest = argv[1], argv[2:]
+        # Match python's own -m behaviour: the cwd joins sys.path unless -P or -I disabled it.
         if not sys.flags.safe_path:
             sys.path.insert(0, os.getcwd())
         sys.argv = [module, *rest]
         runpy.run_module(module, run_name="__main__", alter_sys=True)
         return
     script, rest = os.path.abspath(argv[0]), argv[1:]
+    # Like python script.py, the script's own folder is importable, unless -P or -I disabled it.
     if not sys.flags.safe_path:
         sys.path.insert(0, os.path.dirname(script))
     sys.argv = [script, *rest]

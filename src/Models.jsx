@@ -168,7 +168,8 @@ function startNotice(result, name) {
   }
   return result.message || `${name}: ${String(result.status).replaceAll('_', ' ')}.`;
 }
-function memory(value) {
+// Input is MiB from the hardware report; output is GiB with one decimal place.
+function formatMiBAsGiB(value) {
   return value === null || value === undefined ? '—' : `${(value / 1024).toFixed(1)} GiB`;
 }
 function fileSize(value) {
@@ -180,6 +181,35 @@ function fileSize(value) {
     : value >= 1024 ** 2
       ? `${(value / 1024 ** 2).toFixed(1)} MiB`
       : `${value} B`;
+}
+// Tone class for a card's status pill. A pending attention state outranks a loaded model.
+function catalogStatusTone(attention, isLoaded, isOnline) {
+  if (attention) {
+    return 'attention';
+  }
+  if (isLoaded) {
+    return 'loaded';
+  }
+  return isOnline ? 'online' : 'offline';
+}
+// Checked in order: a removal in progress, a failed cleanup, a scan error, then the measured size.
+function modelSizeLabel(storage, removal, storageInventory) {
+  if (['prepared', 'deleting'].includes(removal?.state)) {
+    return 'Removing…';
+  }
+  if (removal?.state === 'failed') {
+    return 'Cleanup needed';
+  }
+  if (storage?.error) {
+    return 'Scan failed';
+  }
+  if (storage?.installed) {
+    return fileSize(storage.bytes);
+  }
+  if (storage?.installed === false) {
+    return 'Not installed';
+  }
+  return !storageInventory || storageInventory.state === 'scanning' ? 'Measuring…' : 'Not measured';
 }
 // Only the error class is logged: messages thrown by this view can carry server text.
 function failureFields(error) {
@@ -336,9 +366,9 @@ export default function Models({ onNavigate = () => {} }) {
   const forceModel = models.find((model) => model.id === params.get('force'));
   const forceTarget = forceModel ? { id: forceModel.id, name: forceModel.name } : null;
   const setForceTarget = (value) => change({ force: value?.id || null });
-  const [forceBusy, setForceBusy] = useState(false),
-    [forceResult, setForceResult] = useState(null),
-    [forceError, setForceError] = useState('');
+  const [forceBusy, setForceBusy] = useState(false);
+  const [forceResult, setForceResult] = useState(null);
+  const [forceError, setForceError] = useState('');
   const [asrConflict, setAsrConflict] = useState(null);
   const [asrError, setAsrError] = useState('');
   const [loadingAsr, setLoadingAsr] = useState(false);
@@ -676,38 +706,32 @@ export default function Models({ onNavigate = () => {} }) {
   }
   async function clearBarrier() {
     const engine = [
-        'sfx',
-        'tts',
-        'asr',
-        'game',
-        '3d-hunyuan',
-        '3d-trellis',
-        'segmentation',
-        'motion-hy',
-        'motion-bricks',
-      ].includes(runtimeHealth?.modelLoadEngine)
-        ? runtimeHealth.modelLoadEngine
-        : 'music',
-      name =
-        engine === 'sfx'
-          ? 'Stable Audio'
-          : engine === 'tts'
-            ? 'Qwen3-TTS'
-            : engine === 'asr'
-              ? 'Nemotron ASR'
-              : engine === 'game'
-                ? 'Mammoth'
-                : engine === '3d-hunyuan'
-                  ? 'Hunyuan3D'
-                  : engine === '3d-trellis'
-                    ? 'TRELLIS.2'
-                    : engine === 'segmentation'
-                      ? 'SAM 3.1'
-                      : engine === 'motion-hy'
-                        ? 'HY-Motion'
-                        : engine === 'motion-bricks'
-                          ? 'MotionBricks'
-                          : 'YuE2';
+      'sfx',
+      'tts',
+      'asr',
+      'game',
+      '3d-hunyuan',
+      '3d-trellis',
+      'segmentation',
+      'motion-hy',
+      'motion-bricks',
+    ].includes(runtimeHealth?.modelLoadEngine)
+      ? runtimeHealth.modelLoadEngine
+      : 'music';
+    // Keys cover the engines in the list above; 'music' is the fallback for any other id.
+    const engineNames = {
+      sfx: 'Stable Audio',
+      tts: 'Qwen3-TTS',
+      asr: 'Nemotron ASR',
+      game: 'Mammoth',
+      '3d-hunyuan': 'Hunyuan3D',
+      '3d-trellis': 'TRELLIS.2',
+      segmentation: 'SAM 3.1',
+      'motion-hy': 'HY-Motion',
+      'motion-bricks': 'MotionBricks',
+      music: 'YuE2',
+    };
+    const name = engineNames[engine];
     if (
       !window.confirm(
         `Only continue after verifying ${name} is neither loading nor waiting to load. Clear the queue barrier?`,
@@ -1008,15 +1032,15 @@ export default function Models({ onNavigate = () => {} }) {
           </div>
           <div className="catalog-memory-values">
             <div>
-              <strong>{memory(device?.freeMiB)}</strong>
+              <strong>{formatMiBAsGiB(device?.freeMiB)}</strong>
               <span>free</span>
             </div>
             <div>
-              <strong>{memory(device?.usedMiB)}</strong>
+              <strong>{formatMiBAsGiB(device?.usedMiB)}</strong>
               <span>used</span>
             </div>
             <div>
-              <strong>{memory(device?.totalMiB)}</strong>
+              <strong>{formatMiBAsGiB(device?.totalMiB)}</strong>
               <span>total</span>
             </div>
           </div>
@@ -1198,20 +1222,9 @@ export default function Models({ onNavigate = () => {} }) {
               removal = removalFor(model),
               attention = isAttention(model),
               online = status?.status === 'reachable',
+              tone = catalogStatusTone(attention, status?.modelLoaded === true, online),
               notes = modelNotes[model.id] || [],
-              size = ['prepared', 'deleting'].includes(removal?.state)
-                ? 'Removing…'
-                : removal?.state === 'failed'
-                  ? 'Cleanup needed'
-                  : storage?.error
-                    ? 'Scan failed'
-                    : storage?.installed
-                      ? fileSize(storage.bytes)
-                      : storage?.installed === false
-                        ? 'Not installed'
-                        : !modelStorage || modelStorage.state === 'scanning'
-                          ? 'Measuring…'
-                          : 'Not measured',
+              size = modelSizeLabel(storage, removal, modelStorage),
               locationFallback = modelStorage
                 ? 'Not found in the Forge model folder'
                 : 'Checking model folder location…';
@@ -1225,18 +1238,7 @@ export default function Models({ onNavigate = () => {} }) {
                     <span>{model.category}</span>
                     <h3>{model.name}</h3>
                   </div>
-                  <span
-                    className={
-                      'catalog-status ' +
-                      (attention
-                        ? 'attention'
-                        : status?.modelLoaded === true
-                          ? 'loaded'
-                          : online
-                            ? 'online'
-                            : 'offline')
-                    }
-                  >
+                  <span className={'catalog-status ' + tone}>
                     <i />
                     {serviceLabel(status)}
                   </span>

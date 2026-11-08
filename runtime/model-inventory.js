@@ -52,9 +52,9 @@ async function measureDirectory(root, folder) {
     throw Error('Model folder resolves outside its expected location.');
   }
   const pending = [target];
-  let bytes = 0,
-    files = 0,
-    skippedLinks = 0;
+  let bytes = 0;
+  let files = 0;
+  let skippedLinks = 0;
   while (pending.length) {
     const current = pending.pop();
     const currentStat = await fs.lstat(current);
@@ -66,8 +66,8 @@ async function measureDirectory(root, folder) {
       throw Error('Model folder changed while measuring.');
     }
     for (const entry of await fs.readdir(current, { withFileTypes: true })) {
-      const item = path.join(current, entry.name),
-        stat = await fs.lstat(item);
+      const item = path.join(current, entry.name);
+      const stat = await fs.lstat(item);
       if (stat.isSymbolicLink()) {
         skippedLinks++;
         continue;
@@ -85,6 +85,16 @@ async function measureDirectory(root, folder) {
   return { installed: true, bytes, files, skippedLinks };
 }
 
+/**
+ * Measures every model folder under the storage root.
+ *
+ * Throws when the root is missing or is a link. A folder that cannot be measured
+ * (for example a link inside the model path) is reported per entry with `error`
+ * set and does not reject the whole scan.
+ *
+ * @param {{ root?: string, models?: Array<{ id: string, folder: string }> }} options
+ * @returns {Promise<{ root: string, entries: object[], observedAt: string, note: string }>}
+ */
 export async function inspectModelInventory({
   root = defaultModelsRoot,
   models = managedModels,

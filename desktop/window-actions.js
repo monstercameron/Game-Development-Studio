@@ -1,6 +1,17 @@
 const ACTIONS = new Set(['open', 'minimize', 'maximize']);
 
-// Queue the latest tray request until the window exists and is ready to show.
+/**
+ * Applies tray or launch requests to the main window.
+ *
+ * Only the latest request is kept while the window is missing, destroyed or not yet ready,
+ * because repeated tray clicks should not replay a stale sequence of show/minimize actions.
+ * An unknown `initial` value falls back to 'open'.
+ *
+ * @param {() => import('electron').BrowserWindow | null | undefined} getWindow
+ *   Returns the current window; called on every request so a recreated window is used.
+ * @param {string} [initial='open'] Action to run once `ready()` is called.
+ * @returns {{ request(action: string): void, ready(): void }}
+ */
 export function createWindowActions(getWindow, initial = 'open') {
   let ready = false;
   let pending = ACTIONS.has(initial) ? initial : 'open';

@@ -13,6 +13,8 @@ test('TRELLIS.2 controls explain requirements and associate step errors with the
     pretendToBeVisual: true,
     url: 'http://localhost/',
   });
+  // jsdom globals are installed for the render and restored in finally, so the rest of
+  // this test process keeps its own globals after the test ends.
   const previousGlobals = {
     window: globalThis.window,
     document: globalThis.document,
@@ -30,6 +32,8 @@ test('TRELLIS.2 controls explain requirements and associate step errors with the
       value: dom.window.navigator,
     });
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    // Runtime state under .forge-runtime changes while studio services run, so the watcher
+    // ignores it.
     vite = await createServer({
       configFile: false,
       root: repositoryRoot,

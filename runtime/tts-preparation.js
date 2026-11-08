@@ -7,8 +7,8 @@ const log = createLogger('voices');
 
 export const TTS_BUDGET_MIB = TTS_CHECKPOINTS.custom_voice.budgetMiB;
 
-// Whether the worker has this checkpoint's files. Workers from before the variant change only report
-// model_downloaded for the preset checkpoint.
+// Whether the worker has this checkpoint's files. Workers from before the variant change only
+// report model_downloaded for the preset checkpoint.
 export function checkpointInstalled(health, checkpoint) {
   if (health?.variants) {
     return health.variants[checkpoint] === true;
@@ -165,6 +165,14 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
   };
 }
 
+/**
+ * Builds the speech stage of the model preparation pass.
+ *
+ * startEngine('tts') resolves with a start result whose status drives the stage. loadModel(variant)
+ * resolves with the { status, body } shape returned by createTtsLoader. claimLoad() returns false
+ * when another load already holds the queue barrier; the function then returns null and reports
+ * no stage for this pass.
+ */
 export function createTtsPreparation({ startEngine, loadModel, autoStart = true }) {
   return async function prepareTts({
     health,

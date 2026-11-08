@@ -254,6 +254,8 @@ function parseCursor(cursor) {
  * @param {object} options
  * @param {string} options.directory runtime folder that holds logs.sqlite
  * @param {() => number} [options.now]
+ * @returns {object} the store API. Throws when the database cannot be opened or its schema is
+ *   newer than this studio; the connection is closed before the error propagates.
  */
 export function createLogStore({ directory, now = () => Date.now() }) {
   fs.mkdirSync(directory, { recursive: true });

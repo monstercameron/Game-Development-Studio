@@ -47,7 +47,7 @@ def webp_glb(glb):
     out = io.BytesIO()
     Image.open(io.BytesIO(png)).save(out, format="WEBP", lossless=True)
     webp = out.getvalue()
-    # Append the WebP bytes as a new buffer view and point the texture extension at it.
+    # TRELLIS.2 reaches its WebP image only through EXT_texture_webp, so the test builds that shape.
     padded = binary + b"\0" * (-len(binary) % 4)
     document["bufferViews"].append(
         {"buffer": 0, "byteOffset": len(padded), "byteLength": len(webp)}
@@ -108,7 +108,7 @@ class ConvertTest(unittest.TestCase):
             (folder / name).write_bytes(data)
         self.assertTrue(any(name.endswith(".bin") for name in files))
         self.run_convert(folder / "model.gltf", "glb", stem="folded")
-        document, binary = converter.read_glb((self.output / "folded.glb").read_bytes())
+        document, _ = converter.read_glb((self.output / "folded.glb").read_bytes())
         self.assertEqual(len(document["buffers"]), 1)
         self.assertNotIn("uri", document["buffers"][0])
         self.assertTrue(all("uri" not in image for image in document.get("images", [])))

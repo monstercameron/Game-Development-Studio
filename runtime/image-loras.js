@@ -7,9 +7,13 @@ import { fileURLToPath } from 'node:url';
 import { createLogger } from './app-log.js';
 
 const log = createLogger('image');
+// This file lives in runtime/, so one level up is the repository root.
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const LORA_FOLDER_NAME = 'Qwen-Image-2.1-LoRA';
+// Upper bound for a LoRA strength multiplier (dimensionless; 0 disables the effect).
 export const MAX_LORA_SCALE = 2;
+// Scan cap: the listing stops after this many LoRA files, so a large folder
+// cannot stall a request.
 const MAX_LORAS = 200;
 // A plain file name: no separators, no leading dot, safetensors only.
 const loraName = /^[A-Za-z0-9][A-Za-z0-9 ._()-]{0,95}\.safetensors$/;

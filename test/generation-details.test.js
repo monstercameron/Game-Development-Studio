@@ -87,7 +87,8 @@ test('reusing settings rebuilds the original request for every creation page', (
   request = { prompt: 'p', width: 800, height: 480, num_inference_steps: 17, references: [] };
   assert.deepEqual(imageRequest(draftFor(request, 'images')), request);
 
-  // Transparency and a size taken from the last reference are restored; the reference is chosen again.
+  // Transparency and a size taken from the last reference are restored; the reference
+  // is chosen again.
   request = { prompt: 'p', width: 1024, height: 1024, num_inference_steps: 12, references: [] };
   assert.deepEqual(imageRequest(draftFor({ ...request, transparent: true }, 'images')), {
     ...request,
@@ -374,12 +375,13 @@ async function renderDetails(responses, props = {}) {
     const asset = { id: 'images/forge-a.png', sample: false };
     await act(async () => root.render(element(asset)));
     await act(async () => {});
-    return { container, requests, copied, asset, root, element, window: dom.window };
+    return { container, requests, copied, root, element };
   } catch (error) {
     root?.unmount();
     throw error;
   } finally {
-    // Cleanup is registered by the caller through the returned dispose function.
+    // Callers run renderDetails.cleanup, directly or through t.after, to unmount React,
+    // close jsdom and restore the globals.
     renderDetails.cleanup = async () => {
       await act(async () => root?.unmount());
       dom.window.close();

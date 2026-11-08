@@ -56,6 +56,16 @@ function integer(value, name, min, max) {
   }
   return n;
 }
+/**
+ * Builds the TRELLIS.2 queue request from the panel draft.
+ *
+ * @param {object} draft Panel values: seed, trellisSteps, trellisTexture, trellisTriangles and
+ *   trellisPipeline. Undefined or empty values take the defaults above.
+ * @param {string[]} [references] Exactly one staged PNG or WebP reference file name.
+ * @returns {object} The request body. `pipeline` is left out for the default pipeline.
+ * @throws {Error} With a user-facing message when a value is out of range or the reference is
+ *   not exactly one PNG or WebP file name.
+ */
 export function trellisRequest(draft, references = draft.referenceIds || [estimateReference]) {
   if (
     !Array.isArray(references) ||

@@ -31,6 +31,9 @@ export const OPEN_STATUSES = [
   'finalizing',
   'interrupted',
 ];
+// `?` placeholders for the SQL IN lists built from the status arrays above.
+const WAITING_PLACEHOLDERS = WAITING_STATUSES.map(() => '?').join(',');
+const OPEN_PLACEHOLDERS = OPEN_STATUSES.map(() => '?').join(',');
 
 // Spacing used when open jobs are numbered afresh, and the smallest gap that still allows a
 // midpoint. A gap of 1024 survives about 30 successive halvings before a renumbering is needed.
@@ -245,8 +248,9 @@ export function planMove(entries, id, spec) {
     const shift = carried.length;
     remaining = rest.filter((entry) => !carried.includes(entry.id));
     at -= shift;
-    note =
-      `${note} ${shift === 1 ? '1 render' : `${shift} renders`} that use${shift === 1 ? 's' : ''} its result moved with it.`.trim();
+    const carriedCount = shift === 1 ? '1 render' : `${shift} renders`;
+    const carriedVerb = shift === 1 ? 'uses' : 'use';
+    note = `${note} ${carriedCount} that ${carriedVerb} its result moved with it.`.trim();
   }
   const block = [id, ...carried];
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
@@ -272,8 +276,14 @@ export function planMove(entries, id, spec) {
   };
 }
 
-// Ranks for `count` jobs placed in order between two neighbours (either may be missing).
-// Returns null when the neighbours leave no room, which means the queue needs renumbering.
+/**
+ * Ranks for `count` jobs placed in order between two neighbours (either may be missing).
+ * @param {number|null|undefined} previous Rank of the job before the gap, if any.
+ * @param {number|null|undefined} next Rank of the job after the gap, if any.
+ * @param {number} count Number of jobs to place.
+ * @returns {number[]|null} Null when the neighbours leave no room, which means the queue needs
+ *   renumbering.
+ */
 export function ranksBetween(previous, next, count) {
   const hasPrevious = Number.isFinite(previous);
   const hasNext = Number.isFinite(next);
@@ -298,7 +308,7 @@ function openEntries(db) {
     .prepare(
       `SELECT id,status,remote_id,depends_on,queue_rank,COALESCE(queue_rank,rowid) AS rank_value,
         CASE WHEN depends_on IS NULL THEN NULL ELSE request END AS chain_request
-        FROM jobs WHERE status IN (${OPEN_STATUSES.map(() => '?').join(',')})
+        FROM jobs WHERE status IN (${OPEN_PLACEHOLDERS})
         ORDER BY ${QUEUE_ORDER_SQL}`,
     )
     .all(...OPEN_STATUSES)
@@ -380,7 +390,7 @@ function logMoveFailed(jobId, error) {
 function writeRank(db, id, rank) {
   const result = db
     .prepare(
-      `UPDATE jobs SET queue_rank=? WHERE id=? AND remote_id IS NULL AND status IN (${WAITING_STATUSES.map(() => '?').join(',')})`,
+      `UPDATE jobs SET queue_rank=? WHERE id=? AND remote_id IS NULL AND status IN (${WAITING_PLACEHOLDERS})`,
     )
     .run(rank, id, ...WAITING_STATUSES);
   if (result.changes !== 1) {
@@ -447,9 +457,7 @@ export function moveQueuedJob(db, id, spec) {
         renumbered = true;
         plan.order.forEach((openId, position) => {
           const result = db
-            .prepare(
-              `UPDATE jobs SET queue_rank=? WHERE id=? AND status IN (${OPEN_STATUSES.map(() => '?').join(',')})`,
-            )
+            .prepare(`UPDATE jobs SET queue_rank=? WHERE id=? AND status IN (${OPEN_PLACEHOLDERS})`)
             .run((position + 1) * RANK_STEP, openId, ...OPEN_STATUSES);
           if (result.changes !== 1) {
             throw new QueueMoveError(409, 'stale', 'The queue changed while moving this render.');
