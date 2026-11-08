@@ -174,6 +174,7 @@ which checks use isolated workers and which load real GPU models. Follow
 - [MCP and agent controls](docs/MCP.md)
 - [Agent setup](docs/AGENT_SETUP.md) and [runtime map](runtime/README.md)
 - [Windows ARM64 build notes](docs/WINDOWS_ARM64.md) and [tests](test/README.md)
+- [Private remote access with Tailscale and SSH](docs/TAILSCALE_REMOTE.md)
 
 ## License
 
