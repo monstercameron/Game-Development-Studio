@@ -12,6 +12,7 @@ import {
   AudioLines,
   Check,
   FileOutput,
+  ImageOff,
   RotateCcw,
   Sparkles,
   Star,
@@ -20,6 +21,8 @@ import {
 import { RepeatButton, ShrinkButton } from './MiniPlayer';
 import { isDerivedMusic, rerunRequest } from './rerun-request';
 import GenerationDetails from './GenerationDetails';
+import { useAssetMetaIndex } from './asset-meta-index';
+import { friendlyAssetLabel } from './asset-labels.js';
 import './preview-area.css';
 
 const folders = {
@@ -31,6 +34,7 @@ const folders = {
   segmentation: ['masks/'],
   '3d': ['3d/', 'models/'],
   world: ['3d/'],
+  vegetation: ['3d/'],
   motion: ['motion/', 'animations/'],
 };
 async function post(url, body, kind = 'project') {
@@ -52,7 +56,33 @@ function matches(asset, section) {
   }
   return (
     (folders[section] || []).some((prefix) => id.startsWith(prefix)) &&
-    (section === '3d' || section === 'motion' ? asset.category === '3D' : true)
+    (['3d', 'motion', 'vegetation'].includes(section) ? asset.category === '3D' : true)
+  );
+}
+
+// The large preview: a skeleton until the picture arrives, and a plain message if it cannot load.
+function PreviewImage({ src, alt }) {
+  const [state, setState] = useState('loading');
+  useEffect(() => setState('loading'), [src]);
+  if (state === 'failed') {
+    return (
+      <div className="iteration-image-error" role="status">
+        <ImageOff size={28} aria-hidden="true" />
+        <strong>Preview unavailable</strong>
+        <span>Forge could not load this image. The file is still in the project.</span>
+      </div>
+    );
+  }
+  return (
+    <>
+      {state === 'loading' && <span className="asset-skeleton" aria-hidden="true" />}
+      <img
+        src={src}
+        alt={alt}
+        onLoad={() => setState('loaded')}
+        onError={() => setState('failed')}
+      />
+    </>
   );
 }
 
@@ -91,6 +121,14 @@ export default function PreviewArea({
       project?.assets.filter(
         (asset) =>
           matches(asset, section) &&
+          (section !== 'vegetation' ||
+            jobs.some(
+              (job) =>
+                job.type === 'vegetation' &&
+                job.projectId === project.id &&
+                job.status === 'completed' &&
+                (job.output === asset.id || job.output === asset.sourceOutput),
+            )) &&
           (section !== 'world' ||
             jobs.some(
               (job) =>
@@ -103,6 +141,12 @@ export default function PreviewArea({
     [project, section, jobs],
   );
   const asset = assets.find((item) => item.id === selected) || assets[0];
+  // Generated files are named forge-<id>; the stored prompt gives them a readable caption.
+  const metaIndex = useAssetMetaIndex(
+    project?.id,
+    `${project?.assets?.length ?? 0}:${project?.updatedAt || ''}`,
+  );
+  const labelOf = (item) => friendlyAssetLabel(item, metaIndex[item.id]).label;
   const job = jobs.find(
     (item) =>
       item.projectId === project?.id &&
@@ -281,7 +325,7 @@ export default function PreviewArea({
               asset.name.toLowerCase().endsWith('.tga') ? (
                 <AssetThumbnail asset={asset} project={project} />
               ) : (
-                <img src={asset.url} alt={asset.name} />
+                <PreviewImage src={asset.url} alt={labelOf(asset)} />
               )
             ) : asset.category === 'Video' ? (
               <video
@@ -307,8 +351,8 @@ export default function PreviewArea({
           </div>
           <div className="iteration-caption">
             <div>
-              <strong title={asset.name}>{asset.name}</strong>
-              <span>{asset.id}</span>
+              <strong title={asset.name}>{labelOf(asset)}</strong>
+              <span title={asset.id}>{labelOf(asset) === asset.name ? asset.id : asset.name}</span>
             </div>
             {(asset.category === 'Video' || asset.category === 'Audio') && (
               <RepeatButton
@@ -331,7 +375,7 @@ export default function PreviewArea({
               className="iteration-icon"
               href={asset.url}
               download={asset.name}
-              aria-label={`Download ${asset.name}`}
+              aria-label={`Download ${labelOf(asset)}`}
               title="Download"
             >
               <ArrowDownToLine size={17} />
@@ -343,7 +387,7 @@ export default function PreviewArea({
                 <button
                   key={item.id}
                   type="button"
-                  aria-label={`Preview ${item.name}`}
+                  aria-label={`Preview ${labelOf(item)}`}
                   aria-pressed={item.id === asset.id}
                   className={item.id === asset.id ? 'selected' : ''}
                   onClick={() => setSelected(item.id)}
@@ -371,7 +415,7 @@ export default function PreviewArea({
             >
               <Check size={15} /> {asset.kept ? 'Kept' : 'Keep'}
             </button>
-            {job && (
+            {job && section !== 'vegetation' && (
               <button className="outline-button" disabled={busy} onClick={beginRefine}>
                 <RotateCcw size={15} /> Rerun / refine
               </button>

@@ -1,8 +1,10 @@
 import {
+  REFERENCE_CLIP_MAX_VRAM_GIB,
   VIDEO_ASPECTS,
   VIDEO_FRAME_PRESETS,
   normalizeVideoRequest,
   videoDimensions,
+  videoGpuBudget,
   videoSeconds,
 } from '../runtime/video-options.js';
 
@@ -266,6 +268,23 @@ export function videoFormatSummary(options, draft = {}) {
   const frames = videoFrames[options?.[1]] || 124;
   const [width, height] = videoDimensions(aspect, draft.videoResolution || 'standard');
   return `${width} × ${height} pixels · ${frames} frames at 24 fps (${videoSeconds(frames).toFixed(1)} s) · stereo sound included`;
+}
+
+// The GPU budget line on the video page. It follows the draft: a chosen budget, the larger budget
+// reference clips need, or the engine's usual one. This is the budget the render is admitted
+// with, not a measurement.
+export function videoBudgetLabel(draft = {}) {
+  const fromReferences = !['frames', 'text'].includes(draft.videoSource);
+  const budget = videoGpuBudget({
+    max_vram: hasValue(draft.videoMaxVram) ? Number(draft.videoMaxVram) : undefined,
+    reference_videos: fromReferences ? draft.videoClips || [] : [],
+  });
+  if (budget.reason === 'chosen') {
+    return `${budget.gib} GiB (your setting)`;
+  }
+  return budget.reason === 'reference clips'
+    ? `~${budget.gib} GiB (reference clips)`
+    : `~${budget.gib} GiB render · ~${REFERENCE_CLIP_MAX_VRAM_GIB} GiB with reference clips`;
 }
 
 // Labels for the "changed: ..." hint shown while the panel is closed.

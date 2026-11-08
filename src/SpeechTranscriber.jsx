@@ -57,6 +57,7 @@ export default function SpeechTranscriber({
     [working, setWorking] = useState(false),
     [punctuation, setPunctuation] = useState(true),
     [wordTiming, setWordTiming] = useState(false),
+    [latencyMs, setLatencyMs] = useState(160),
     [words, setWords] = useState([]),
     [progress, setProgress] = useState(0);
   const [fileRates, setFileRates] = useState(readFileRates);
@@ -556,7 +557,9 @@ export default function SpeechTranscriber({
       <details className="speech-options">
         <summary>
           Recognition options
-          {(!punctuation || wordTiming) && <span className="speech-options-badge">Customized</span>}
+          {(!punctuation || wordTiming || latencyMs !== 160) && (
+            <span className="speech-options-badge">Customized</span>
+          )}
         </summary>
         <div className="speech-options-body">
           <label className="speech-check">
@@ -587,7 +590,7 @@ export default function SpeechTranscriber({
               </small>
             </span>
           </label>
-          {renderLatency?.({ disabled: phase !== 'idle' })}
+          {renderLatency?.({ disabled: phase !== 'idle', onSaved: setLatencyMs })}
           <p className="speech-options-note">
             Not available: other languages (this model is English only), word boosting for names
             (the installed model file lacks the tokenizer it needs), and speaker labels, profanity

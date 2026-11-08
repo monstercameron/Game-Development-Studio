@@ -15,6 +15,16 @@ import {
   qualityPixelRatio,
   viewDirection,
 } from './viewer-core';
+import {
+  PANORAMA_INSIDE_FOV,
+  PANORAMA_OUTSIDE_FOV,
+  dragLook,
+  lookForward,
+  lookFromDirection,
+  turnLook,
+  wheelFieldOfView,
+  zoomFieldOfView,
+} from './viewer-panorama';
 
 // Shadows are skipped for very heavy meshes so toggling them can never stall the tab.
 const MAX_SHADOW_TRIANGLES = 2_000_000;
@@ -74,6 +84,12 @@ export class ViewerEngine {
     this.keyLight = null;
     this.helpers = {};
 
+    // Panorama shells: detected at load, then switched between the orbit camera (outside)
+    // and a camera fixed at the shell centre that turns in place (inside).
+    this.panorama = { detected: false, inside: false, source: null };
+    this.look = { yaw: 0, pitch: 0 };
+    this.lookDrag = null;
+
     try {
       this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference });
     } catch {
@@ -122,6 +138,15 @@ export class ViewerEngine {
       this.onContextLost();
     };
     renderer.domElement.addEventListener('webglcontextlost', this.onContextLostEvent);
+    this.onLookPointerDown = this.handleLookPointerDown.bind(this);
+    this.onLookPointerMove = this.handleLookPointerMove.bind(this);
+    this.onLookPointerUp = this.handleLookPointerUp.bind(this);
+    this.onLookWheel = this.handleLookWheel.bind(this);
+    renderer.domElement.addEventListener('pointerdown', this.onLookPointerDown);
+    renderer.domElement.addEventListener('pointermove', this.onLookPointerMove);
+    renderer.domElement.addEventListener('pointerup', this.onLookPointerUp);
+    renderer.domElement.addEventListener('pointercancel', this.onLookPointerUp);
+    renderer.domElement.addEventListener('wheel', this.onLookWheel, { passive: false });
     this.onVisibility = () => {
       this.lastTime = 0;
       this.requestRender();
@@ -207,7 +232,8 @@ export class ViewerEngine {
         this.onPlayback(this.playback());
       }
     }
-    if (!this.adapter) {
+    // Inside a panorama the camera is set by applyLook(); OrbitControls would re-aim it.
+    if (!this.adapter && !this.panorama.inside) {
       this.controlsUpdate();
     }
     this.renderNow();
@@ -246,6 +272,7 @@ export class ViewerEngine {
     disposables = [],
     attachments = [],
     stats = null,
+    panorama = null,
   }) {
     if (!bounds || bounds.isEmpty()) {
       throw new ViewerError('EMPTY', 'This 3D file has no visible geometry.');
@@ -280,6 +307,12 @@ export class ViewerEngine {
     });
     this.meshes = meshes;
     this.points = points;
+    for (const mesh of meshes) {
+      for (const material of materialsOf(mesh)) {
+        // The side the file asked for, restored when leaving the inside view.
+        material.userData.baseSide ??= material.side;
+      }
+    }
     for (const point of points) {
       for (const material of materialsOf(point)) {
         material.userData.baseSize = material.size;
@@ -290,6 +323,7 @@ export class ViewerEngine {
     for (const mesh of meshes) {
       mesh.castShadow = canShadow;
     }
+    this.panorama = { detected: !!panorama, inside: !!panorama, source: panorama || null };
     this.caps = {
       wireframe: meshes.length > 0 && kind !== 'skeleton',
       ground: canShadow,
@@ -348,6 +382,9 @@ export class ViewerEngine {
     this.controls.maxDistance = radius * 30;
     this.applyLighting(this.prefs.lighting);
     this.applyPrefs(this.prefs, true);
+    if (this.panorama.detected) {
+      this.applyPanoramaMode();
+    }
     this.goHome({ animate: false });
     this.controls.saveState();
     this.requestRender();
@@ -404,6 +441,12 @@ export class ViewerEngine {
   }
 
   setView(id, options) {
+    if (this.panorama.inside) {
+      this.look = lookFromDirection(viewDirection(id, { flipY: this.flipY }));
+      this.applyLook();
+      this.setActiveView(id);
+      return;
+    }
     const direction = viewDirection(id, { flipY: this.flipY });
     const distance = this.frameDistance();
     this.moveCamera(
@@ -419,6 +462,12 @@ export class ViewerEngine {
   }
 
   goHome(options) {
+    if (this.panorama.inside) {
+      this.look = { yaw: 0, pitch: 0 };
+      this.setActiveView(null);
+      this.applyLook();
+      return;
+    }
     if (this.homeView) {
       this.moveCamera(
         this.homeView.position,
@@ -438,6 +487,10 @@ export class ViewerEngine {
 
   // Fits the whole model in view from the current direction and re-centres the orbit.
   frame() {
+    if (this.panorama.inside) {
+      this.goHome();
+      return;
+    }
     const direction = this.camera.position.clone().sub(this.controls.target);
     if (direction.lengthSq() < 1e-12) {
       direction.set(...viewDirection(DEFAULT_VIEW, { flipY: this.flipY }));
@@ -447,6 +500,16 @@ export class ViewerEngine {
   }
 
   orbitBy(azimuthSteps, polarSteps) {
+    if (this.panorama.inside) {
+      this.look = turnLook(
+        this.look,
+        azimuthSteps * KEYBOARD_ORBIT_STEP,
+        polarSteps * KEYBOARD_ORBIT_STEP,
+      );
+      this.setActiveView(null);
+      this.applyLook();
+      return;
+    }
     const offset = this.camera.position.clone().sub(this.controls.target);
     const next = orbitVector(
       offset.toArray(),
@@ -462,6 +525,10 @@ export class ViewerEngine {
   }
 
   panBy(dx, dy) {
+    // Panning would move the camera off the shell centre, so inside it is not offered.
+    if (this.panorama.inside) {
+      return;
+    }
     const distance = this.camera.position.distanceTo(this.controls.target);
     const step = 2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * 0.1;
     this.camera.updateMatrixWorld();
@@ -477,6 +544,10 @@ export class ViewerEngine {
   }
 
   zoomBy(factor) {
+    if (this.panorama.inside) {
+      this.setFieldOfView(zoomFieldOfView(this.camera.fov, factor));
+      return;
+    }
     const offset = this.camera.position.clone().sub(this.controls.target);
     const distance = clamp(
       offset.length() * factor,
@@ -497,10 +568,118 @@ export class ViewerEngine {
     if (!state?.position || !state?.target) {
       return;
     }
+    if (this.panorama.inside) {
+      // A stored outside pose only contributes its look direction; the camera stays central.
+      const direction = state.position.map((value, axis) => value - state.target[axis]);
+      if (direction.some((value) => value !== 0)) {
+        this.look = lookFromDirection(direction);
+      }
+      this.applyLook();
+      this.setActiveView(null);
+      return;
+    }
     this.moveCamera(state.position, new THREE.Vector3().fromArray(state.target), {
       animate: false,
     });
     this.setActiveView(null);
+  }
+
+  // ---- panorama shells ------------------------------------------------------
+
+  panoramaState() {
+    return { ...this.panorama };
+  }
+
+  // Inside stands the camera at the shell centre and turns it in place. Outside returns to
+  // the orbit camera. Only shells detected when the file loaded can switch.
+  setPanoramaInside(inside) {
+    if (!this.panorama.detected) {
+      return;
+    }
+    const next = !!inside;
+    if (next === this.panorama.inside) {
+      return;
+    }
+    this.panorama.inside = next;
+    this.tween = null;
+    this.lookDrag = null;
+    this.applyPanoramaMode();
+    if (next) {
+      this.look = { yaw: 0, pitch: 0 };
+      this.applyLook();
+    } else {
+      this.goHome({ animate: false });
+    }
+    this.requestRender();
+  }
+
+  // Sets the lens, the orbit controls and face culling for the current state.
+  applyPanoramaMode() {
+    const inside = this.panorama.inside;
+    this.controls.enabled = !inside;
+    this.camera.fov = inside ? PANORAMA_INSIDE_FOV : PANORAMA_OUTSIDE_FOV;
+    this.camera.updateProjectionMatrix();
+    for (const mesh of this.meshes || []) {
+      for (const material of materialsOf(mesh)) {
+        // Seen from inside, the faces point away from the viewer, so both sides must draw.
+        const side = inside ? THREE.DoubleSide : (material.userData.baseSide ?? THREE.FrontSide);
+        if (material.side !== side) {
+          material.side = side;
+          material.needsUpdate = true;
+        }
+      }
+    }
+  }
+
+  applyLook() {
+    this.camera.position.copy(this.center);
+    this.camera.rotation.set(this.look.pitch, this.look.yaw, 0, 'YXZ');
+    const [x, y, z] = lookForward(this.look);
+    this.controls.target.copy(this.camera.position).add(new THREE.Vector3(x, y, z));
+    this.requestRender();
+  }
+
+  setFieldOfView(fovDegrees) {
+    this.camera.fov = fovDegrees;
+    this.camera.updateProjectionMatrix();
+    this.requestRender();
+  }
+
+  handleLookPointerDown(event) {
+    if (!this.panorama.inside || (event.pointerType === 'mouse' && event.button !== 0)) {
+      return;
+    }
+    this.lookDrag = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    this.renderer.domElement.setPointerCapture?.(event.pointerId);
+    this.tween = null;
+    this.setActiveView(null);
+  }
+
+  handleLookPointerMove(event) {
+    if (!this.lookDrag || event.pointerId !== this.lookDrag.id) {
+      return;
+    }
+    const deltaX = event.clientX - this.lookDrag.x;
+    const deltaY = event.clientY - this.lookDrag.y;
+    this.lookDrag.x = event.clientX;
+    this.lookDrag.y = event.clientY;
+    this.look = dragLook(this.look, deltaX, deltaY);
+    this.applyLook();
+  }
+
+  handleLookPointerUp(event) {
+    if (this.lookDrag?.id === event.pointerId) {
+      this.lookDrag = null;
+      this.renderer.domElement.releasePointerCapture?.(event.pointerId);
+    }
+  }
+
+  handleLookWheel(event) {
+    if (!this.panorama.inside) {
+      return;
+    }
+    event.preventDefault();
+    this.setFieldOfView(wheelFieldOfView(this.camera.fov, event.deltaY));
   }
 
   // ---- helpers: grid, axes, bounds, ground ---------------------------------
@@ -766,6 +945,12 @@ export class ViewerEngine {
     this.intersectionObserver?.disconnect();
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.renderer.domElement.removeEventListener('webglcontextlost', this.onContextLostEvent);
+    const element = this.renderer.domElement;
+    element.removeEventListener('pointerdown', this.onLookPointerDown);
+    element.removeEventListener('pointermove', this.onLookPointerMove);
+    element.removeEventListener('pointerup', this.onLookPointerUp);
+    element.removeEventListener('pointercancel', this.onLookPointerUp);
+    element.removeEventListener('wheel', this.onLookWheel);
     this.controls.removeEventListener('change', this.onControlsChange);
     this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.dispose();

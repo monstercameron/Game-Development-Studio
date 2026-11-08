@@ -20,6 +20,30 @@ export function createGameLoader({
     if (inFlight) {
       return inFlight;
     }
+    // Host RAM and GPU admission. Returns { refusal } with the 409 body, or { plan } to report.
+    const admitLoad = async () => {
+      const free = freeMemory();
+      if (hostMemoryShort(free, GAME_HOST_REQUIRED_BYTES)) {
+        return {
+          refusal: {
+            status: 409,
+            body: hostMemoryConflict(free, GAME_HOST_REQUIRED_BYTES, await services(), ['game']),
+          },
+        };
+      }
+      const gpu = await hardware();
+      let plan = planModelLoad(gpu, [], GAME_GPU_BUDGET_MIB);
+      if (plan.code === 'insufficient_gpu_memory') {
+        plan = {
+          ...planModelLoad(gpu, await services(), GAME_GPU_BUDGET_MIB),
+          estimate: 'Conservative, uncalibrated Mammoth GPU budget plus system reserve.',
+        };
+      }
+      if (plan.code !== 'ready') {
+        return { refusal: { status: 409, body: plan } };
+      }
+      return { plan };
+    };
     inFlight = (async () => {
       let initial = (await services()).find((service) => service.id === 'game');
       if (initial?.ownershipRecovery === 'checking') {
@@ -56,6 +80,12 @@ export function createGameLoader({
                   'Mammoth is running outside Forge. Load it in its own application or stop it before starting Forge’s managed service.',
               },
             };
+      }
+      // Admission runs before the worker starts, so a refused load leaves no idle Mammoth
+      // process behind. A worker that already reports a loaded model is not re-admitted.
+      const admission = initial?.modelLoaded === true ? { plan: null } : await admitLoad();
+      if (admission.refusal) {
+        return admission.refusal;
       }
       const started = await startEngine('game');
       if (started.status === 'recovery_unresolved') {
@@ -134,24 +164,6 @@ export function createGameLoader({
           },
         };
       }
-      const free = freeMemory();
-      if (hostMemoryShort(free, GAME_HOST_REQUIRED_BYTES)) {
-        return {
-          status: 409,
-          body: hostMemoryConflict(free, GAME_HOST_REQUIRED_BYTES, await services(), ['game']),
-        };
-      }
-      const gpu = await hardware();
-      let plan = planModelLoad(gpu, [], GAME_GPU_BUDGET_MIB);
-      if (plan.code === 'insufficient_gpu_memory') {
-        plan = {
-          ...planModelLoad(gpu, await services(), GAME_GPU_BUDGET_MIB),
-          estimate: 'Conservative, uncalibrated Mammoth GPU budget plus system reserve.',
-        };
-      }
-      if (plan.code !== 'ready') {
-        return { status: 409, body: plan };
-      }
       if (!markRequested()) {
         throw Error('Could not reserve the model-load barrier.');
       }
@@ -179,7 +191,7 @@ export function createGameLoader({
             body: {
               code: 'load_requested',
               message: 'Mammoth model loading requested.',
-              memory: plan,
+              memory: admission.plan,
             },
           };
         }

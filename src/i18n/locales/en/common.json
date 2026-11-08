@@ -1,0 +1,19 @@
+{
+  "common.action.cancel": "Cancel",
+  "common.action.done": "Done",
+  "common.fieldHelp.button": "Help: {name}",
+  "common.fieldHelp.layoutName": "Display layout",
+  "common.fieldHelp.ratingFallback": "Rate this asset from one to five stars.",
+  "common.fieldHelp.ratingName": "Asset rating",
+  "common.tooltip.choose_project_a6a19b": "Switch the asset library to another project.",
+  "common.tooltip.confidence_threshold_ceb1e9": "Set how certain SAM must be before including a matching object. Lower values include more; higher values are more selective.",
+  "common.tooltip.current_project_2b8d60": "Choose the project that receives new creations and shows its saved assets.",
+  "common.tooltip.enable_desktop_notifications_c775fb": "Allow this browser to notify you when enabled render events finish.",
+  "common.tooltip.keep_computer_awake_945bd5": "Prevent Windows from sleeping while the studio server is running. The display can still turn off.",
+  "common.tooltip.project_for_this_creation_793b8a": "Choose where this creation will be saved. Select a project before adding it to the render queue.",
+  "common.tooltip.project_name_0bbe9c": "Enter a name for the project folder that Forge creates on this computer.",
+  "common.tooltip.seed_d07208": "Enter a number to help reproduce a result when the selected model supports seeds. Leave it blank for a random seed.",
+  "common.tooltip.send_test_notification_8a7bcd": "Show a test alert to check that desktop notifications are working.",
+  "common.tooltip.when_a_render_completes_20a24f": "Get a desktop notification each time an individual render finishes.",
+  "common.tooltip.when_the_render_queue_completes_cbbd89": "Get one desktop notification when all queued renders have finished."
+}

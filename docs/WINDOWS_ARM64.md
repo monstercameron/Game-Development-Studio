@@ -39,7 +39,7 @@ Upstream TRELLIS.2 documents a Linux-oriented setup; this is an experimental nat
 - TRELLIS sparse attention supports segmented PyTorch SDPA on CUDA. The sparse implementation refuses CPU tensors. The DINOv3 adapter supports the installed Transformers 5 layer layout while retaining TRELLIS's unweighted final normalization.
 - `runtime/trellis_backend.py` assembles the 512-resolution model from local, memory-mapped checkpoints, reconstructs the deterministic sparse-flow RoPE buffer absent from the checkpoint, uses the GPU for inference, and currently accepts transparent references. The DINO encoder has run on CUDA; full textured GLB renders now complete (several through the studio queue on 2026-11-07, 100,000-triangle default); memory use is not calibrated, and only one object was tested. `decimation_target` is exposed as a triangle budget (default 100,000).
 
-The `1024`, `1024_cascade` and `1536_cascade` pipelines (`runtime/trellis_backend.py`, `ensure_pipeline_models`) load the two extra 1024 flow checkpoints on first use and run the same native extensions at larger sparse grids. Only the 512 pipeline has been exercised on this port; FlexGEMM autotuning, CuMesh and O-Voxel at the larger sizes, and peak memory are untested. If a higher pipeline fails natively, select 512 again; the worker reports the error through the job.
+The `1024`, `1024_cascade` and `1536_cascade` pipelines (`runtime/trellis_backend.py`, `ensure_pipeline_models`) load the two extra 1024 flow checkpoints on first use and run the same native extensions at larger sparse grids. All four pipelines completed a render on this port on 2026-11-08 (one apple cutout: 512 in about 70 s, 1024 in 3 min 43 s, 1024 cascade in 4 min 15 s, 1536 cascade in 9 min 10 s; sampled GPU memory in use peaked at about 8, 20, 15 and 36 GB). One object is not a calibration, and free host RAM dipped below 2 GB during each render. If a higher pipeline fails natively, select 512 again; the worker reports the error through the job.
 
 The current environment uses Python 3.12.10 ARM64, PyTorch `2.14.0+cu134`, Transformers 5.22.1, Triton 3.8.0, OpenCV 4.12.0, and `huggingface_hub` 2.4.0. Its `.pth` files deliberately refer to:
 
@@ -88,3 +88,47 @@ Forge starts every model engine detached (`runtime/engines.js`) so it keeps runn
 To debug an engine in a visible console, set `FORGE_ALLOW_CONSOLE_WINDOWS=1` in its environment. If a console window still appears, run `Get-CimInstance Win32_Process` and look at the parent of the new `cmd.exe`, `conhost.exe` or `powershell.exe`; it may belong to another application. Native engines (`llama-server.exe`, `nemo-speech.exe`) do not start console children.
 
 These notes describe the observed installation. They do not replace a tested installation manifest for every dependency or establish that a new machine can reproduce the environment without additional setup.
+
+## Known intermittent video crash (exit 3221226505, 0xC0000409)
+
+**Symptom.** A default-setting H3 video render (56 frames, 8 steps) ended with `Generation failed (engine exit 3221226505)` at step 7 of 8. Two of six renders failed this way on 2026-11-08 (jobs started 08:29:56 and 08:32:50 local time, UTC-5), and the same requests and seeds completed later. 3221226505 is `0xC0000409`. Forge now shows "The video engine crashed (0xC0000409), often under memory pressure. Retry; if it repeats, offload other models and lower max GPU memory/size." and offers a manual **Retry** that submits a fresh attempt. Forge never retries by itself.
+
+**Where the evidence lives.** H3 Studio writes no per-job log file. Its `server.js` keeps only the last 12,000 characters of `sd-cli` output in memory (`GET /api/status`, `job.details`), and loses them when H3 restarts. `.forge-runtime/engine-video.log` holds only the guard start lines. The evidence below comes from the Windows event logs, which a normal user can read:
+
+```powershell
+# Low virtual memory (commit limit) diagnoses, with the largest consumers
+Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Resource-Exhaustion-Detector'} | Select-Object TimeCreated, Message
+# sd-cli crashes recorded by Windows Error Reporting
+Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='Application Error'} | Where-Object Message -match 'sd-cli'
+# Commit limit and use right now
+Get-CimInstance Win32_OperatingSystem | Select-Object TotalVirtualMemorySize, FreeVirtualMemory
+```
+
+**What the logs show.**
+
+- The machine has 30.4 GiB of RAM and a fixed 96 GiB page file, so the Windows commit limit is 126.4 GiB.
+- At 08:32:24, as the first failed render ended, Windows logged event 2004 (low virtual memory). A `node.exe` (PID 25092, not a Forge engine, already gone) had committed 118.5 GiB; `sd-cli.exe` held only 3.5 GiB. Five seconds later the same node process was at 53.7 GiB.
+- At 08:34:59, as the second render ended, event 2004 again listed a node process at 23.8 GiB and `sd-cli.exe` at 3.1 GiB. At 08:34:58 the WMI service (`svchost.exe_winmgmt`) crashed with exception 0x0000000E (`ERROR_OUTOFMEMORY`), and Service Control Manager logged that the Windows Error Reporting service timed out (event 7009). That is also why neither render left a Windows Error Reporting report.
+- The only `sd-cli.exe` crash that Windows did record is from 2026-11-05 23:46:42: fault module `ucrtbase.dll` offset `0x15e27c`, exception `0xC0000409`, exception data `7`. Data 7 is `FAST_FAIL_FATAL_APP_EXIT`, which is what the C runtime raises for `abort()` and an uncaught C++ exception. It is not a stack-buffer-overrun check (that would be data 2).
+
+**Hypotheses, most likely first.**
+
+1. _Commit exhaustion in another process makes an `sd-cli` allocation fail, and `sd-cli` aborts._ Supported by the timing (each failure ends within seconds of an event 2004, and other Windows components failed for lack of memory in the same minutes) and by the abort signature above. The decode and encode after step 8 allocate large host buffers, which fits a failure at step 7 or 8. Unproven: no dump was captured, and the large node process was not identified.
+2. _A Vulkan allocation failure inside `sd-cli`_ (the engine is `engine/vulkan/sd-cli.exe`) that the C++ code does not handle. It would also abort with this status. Not excluded; GPU memory use was not logged at the time.
+3. _A real defect in `sd-cli` or `ucrtbase` that only some seeds or timings reach._ Unlikely for the same seed to pass later, but not excluded.
+
+**Ruled out.** A GPU driver reset (no `nvlddmkm` or `dxgkrnl` events between 08:20 and 08:45, and none at 08:29 to 08:36). A crash of the H3 server or the guard (the same guard PID and server PID served every job). A deterministic bug for those seeds (they completed later). A wrong exit code from Forge (`3221226505` is exactly the value `sd-cli` returned to H3's server).
+
+**Capturing a dump next time.** Windows keeps full dumps only if told to. From an elevated PowerShell:
+
+```powershell
+$key = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\sd-cli.exe'
+New-Item -Path $key -Force | Out-Null
+New-ItemProperty -Path $key -Name DumpFolder -Value 'C:\ForgeDumps' -PropertyType ExpandString -Force | Out-Null
+New-ItemProperty -Path $key -Name DumpType -Value 2 -PropertyType DWord -Force | Out-Null
+New-ItemProperty -Path $key -Name DumpCount -Value 3 -PropertyType DWord -Force | Out-Null
+```
+
+(`DumpType 2` is a full dump of up to the process size, about 4 GiB each; create the folder first and remove the key afterwards.) Without elevation, Sysinternals ProcDump works as the same user: `procdump -accepteula -ma -e 1 -w sd-cli.exe C:\ForgeDumps`. To log the pressure itself, run `typeperf "\Memory\Committed Bytes" "\Memory\Commit Limit" -si 5 -o C:\ForgeDumps\commit.csv` during renders. A dump whose exception data is 7 and whose stack contains `std::terminate` or `ggml_abort` confirms hypothesis 1 or 2; the allocation size on the stack separates them.
+
+**What Forge does about it.** It names the cause in the failure text and keeps Retry manual. It does not reduce the commit use of other programs. Close other large programs (test runs and model tools that commit tens of GiB) during renders, and keep the GPU memory budget at its default unless a render needs more.

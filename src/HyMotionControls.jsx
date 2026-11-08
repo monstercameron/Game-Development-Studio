@@ -51,6 +51,18 @@ const advancedControls = [
     help: `Whole number from 0 to ${SEED_MAX}. Blank picks a new random seed for each queued clip.`,
     invalid: `Enter a whole number from 0 to ${SEED_MAX}, or leave blank for a random seed.`,
   },
+  {
+    key: 'motionVariations',
+    id: 'hy-motion-variations',
+    label: 'Variations',
+    min: 1,
+    max: 4,
+    step: 1,
+    fallback: 1,
+    integer: true,
+    help: '1–4 separate clips. They use consecutive seeds from the seed above, or random seeds when it is blank. Blank uses 1.',
+    invalid: 'Enter a whole number from 1 to 4.',
+  },
 ];
 
 function isValidValue(value, { min, max, step, integer }) {

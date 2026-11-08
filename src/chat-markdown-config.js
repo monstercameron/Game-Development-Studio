@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { safeChatMarkdownHref } from './chat-output.js';
 
 function ChatMarkdownLink({ href, children }) {
@@ -12,11 +12,52 @@ function ChatMarkdownLink({ href, children }) {
     : React.createElement('span', null, children);
 }
 
+// The plain text of a rendered code block, for the copy button.
+export function textOfNode(node) {
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node);
+  }
+  if (Array.isArray(node)) {
+    return node.map(textOfNode).join('');
+  }
+  return node?.props ? textOfNode(node.props.children) : '';
+}
+
 function ChatMarkdownPre({ children }) {
+  const [state, setState] = useState('idle');
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(textOfNode(children).replace(/\n$/, ''));
+      setState('copied');
+    } catch {
+      setState('failed');
+    }
+    setTimeout(() => setState('idle'), 1800);
+  };
+  let label = 'Copy';
+  if (state === 'copied') {
+    label = 'Copied';
+  } else if (state === 'failed') {
+    label = 'Copy failed';
+  }
   return React.createElement(
-    'pre',
-    { tabIndex: 0, 'aria-label': 'Code block. Scroll to read the full code.' },
-    children,
+    'div',
+    { className: 'chat-code-block' },
+    React.createElement(
+      'button',
+      { type: 'button', className: 'chat-code-copy', 'aria-label': 'Copy code', onClick: copy },
+      label,
+    ),
+    React.createElement(
+      'span',
+      { className: 'sr-only', role: 'status' },
+      state === 'idle' ? '' : label,
+    ),
+    React.createElement(
+      'pre',
+      { tabIndex: 0, 'aria-label': 'Code block. Scroll to read the full code.' },
+      children,
+    ),
   );
 }
 

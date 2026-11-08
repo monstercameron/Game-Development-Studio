@@ -23,6 +23,7 @@ const FAKE_ENGINE = `
       this.calls = [];
       this.disposed = false;
       this.kind = 'mesh';
+      this.panorama = { detected: !!log.panorama, inside: !!log.panorama, source: log.panorama ? (log.panoramaSource || 'metadata') : null };
       this.caps = { wireframe: true, ground: true, lighting: true, pointSize: false, animation: !!log.animated };
       this.stats = { vertices: 100, triangles: 50, meshes: 1, materials: 1, size: [1, 2, 3] };
       this.clip = { time: 0, playing: false, speed: 1 };
@@ -57,6 +58,8 @@ const FAKE_ENGINE = `
     snapshot() { this.calls.push('snapshot'); return Promise.resolve(new Blob(['png'])); }
     getCameraState() { return { position: [1, 2, 3], target: [0, 0, 0] }; }
     restoreCameraState(state) { this.calls.push('restore:' + state.position.join(',')); }
+    panoramaState() { return { ...this.panorama }; }
+    setPanoramaInside(value) { this.calls.push('setPanoramaInside:' + value); this.panorama = { ...this.panorama, inside: !!value }; }
     dispose() { this.disposed = true; }
   }
   export function createViewerEngine(options) { return new FakeEngine(options); }
@@ -64,8 +67,8 @@ const FAKE_ENGINE = `
 
 const FAKE_SOURCES = `
   const log = globalThis.__viewerLog;
-  async function load(engine, { url, name }) {
-    log.loads.push({ url, name });
+  async function load(engine, { url, name, panoramaHint = false }) {
+    log.loads.push({ url, name, panoramaHint });
     if (log.sourceError) { throw log.sourceError; }
     return { kind: 'mesh', byteLength: 1234 };
   }
@@ -166,7 +169,14 @@ export async function createViewerHarness(t, { reducedMotion = false, storage = 
       consoleError(...args);
     }
   };
-  const log = { engines: [], loads: [], engineFails: false, sourceError: null, animated: false };
+  const log = {
+    engines: [],
+    loads: [],
+    engineFails: false,
+    sourceError: null,
+    animated: false,
+    panorama: false,
+  };
   define('__viewerLog', log);
 
   const server = await createServer({

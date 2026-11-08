@@ -10,6 +10,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { modelCatalog } from './model-catalog.js';
+import { vegetationSettings, vegetationTitle } from './vegetation-request.js';
+import { videoGpuBudget } from './video-options.js';
 
 export const SCHEMA_VERSION = 1;
 export const DB_NAME = '.forge-meta.sqlite';
@@ -178,6 +180,7 @@ const jobKind = {
   motion: 'motion',
   'motion-bricks': 'motion',
   world: 'world',
+  vegetation: '3d',
 };
 export function modelForId(id) {
   const model = catalogById.get(id);
@@ -197,6 +200,14 @@ function modelIdForJob(job) {
   return jobModelId[job.type];
 }
 function modelForJob(job) {
+  if (job.type === 'vegetation') {
+    // SeedThree is a linked repository, not a catalog model: record its version and commit.
+    const result = job.details?.result;
+    const version = [result?.seedthreeVersion, result?.seedthreeCommit?.slice(0, 10)]
+      .filter(Boolean)
+      .join(' · ');
+    return { name: 'SeedThree', id: 'seedthree', version: version || null };
+  }
   const id = modelIdForJob(job);
   const model = modelForId(id || job.type);
   if (job.type === '3d' && job.request?.texture === true) {
@@ -331,6 +342,35 @@ export function buildJobMetadata(job, outputPath, options = {}) {
       settings.chained_from_asset = chain.output;
     }
   }
+  // Reference clips are rendered with a larger GPU budget than the engine's default when none
+  // was chosen. Record the budget the render was given, unless this is a record rebuilt for an
+  // older job that ran before Forge did that.
+  if (
+    job.type === 'video' &&
+    options.backfilled !== true &&
+    request.reference_videos?.length &&
+    !Number.isInteger(request.max_vram)
+  ) {
+    settings.max_vram = videoGpuBudget(request).gib;
+    settings.max_vram_automatic = true;
+  }
+  // A segmentation records how many matches SAM found and kept when the worker reported it.
+  const matches = job.type === 'segmentation' ? job.details?.result : null;
+  if (matches && Number.isSafeInteger(matches.found) && Number.isSafeInteger(matches.used)) {
+    settings.matches_found = matches.found;
+    settings.matches_used = matches.used;
+    const kept = (Array.isArray(matches.usedScores) ? matches.usedScores : [])
+      .filter((score) => typeof score === 'number' && Number.isFinite(score))
+      .slice(0, 10);
+    if (kept.length) {
+      settings.match_scores = kept.map((score) => score.toFixed(2)).join(', ');
+    }
+  }
+  if (job.type === 'vegetation') {
+    // The control values are nested in the request; metadata keeps flat scalars only.
+    delete settings.params;
+    Object.assign(settings, vegetationSettings(request, job.details?.result));
+  }
   const started = isoOrNull(job.startedAt);
   const finished = isoOrNull(job.finishedAt);
   const references = referenceEntries(job).map((entry) => ({
@@ -341,15 +381,25 @@ export function buildJobMetadata(job, outputPath, options = {}) {
   }));
   return normalize({
     path: outputPath,
-    kind: jobKind[job.type] || extensionKind(outputPath),
+    // A vegetation render also saves its editable SeedThree preset (JSON) beside the model.
+    kind:
+      job.type === 'vegetation' && outputPath.endsWith('.json')
+        ? 'text'
+        : jobKind[job.type] || extensionKind(outputPath),
     source: options.source || 'job',
     jobId: job.id,
     jobType: job.type,
     model: modelForJob({ ...job, request }),
-    prompt: request[keys[0]],
+    // A vegetation render has no prompt; its short design name labels it in the library.
+    prompt: job.type === 'vegetation' ? vegetationTitle(request, job.details?.result) : request[keys[0]],
     negative: keys[1] ? request[keys[1]] : null,
     secondary: secondaryValue(job.type, request, keys[2]),
-    title: keys[3] ? request[keys[3]] : null,
+    title:
+      job.type === 'vegetation'
+        ? vegetationTitle(request, job.details?.result)
+        : keys[3]
+          ? request[keys[3]]
+          : null,
     settings,
     references,
     parentPath: options.parentPath || derivedParent(job.type, request),
@@ -677,13 +727,18 @@ export function readAssetMeta(folder, rel, { logger } = {}) {
     return row ? publicRecord(row) : null;
   });
 }
+// WorldGen meshes (output glb) are closed 360-degree shells that the viewer shows from inside.
+// The viewer applies the same rule to files the details do not name.
+export function isPanoramaShellRecord(modelId, settings) {
+  return modelId === 'worldgen' && settings?.output === 'glb';
+}
 // Compact per-asset summaries for the library list: one query per project.
 export function readMetaIndex(folder, { logger } = {}) {
   return withDb(folder, { create: false, logger, fallback: {} }, (db) => {
     const out = {};
     const rows = db
       .prepare(
-        'SELECT path, model_name, model_id, seed, source, backfilled, substr(prompt, 1, 200) AS prompt FROM asset_meta',
+        'SELECT path, model_name, model_id, seed, source, backfilled, settings_json, substr(prompt, 1, 200) AS prompt FROM asset_meta',
       )
       .all();
     for (const row of rows) {
@@ -693,6 +748,9 @@ export function readMetaIndex(folder, { logger } = {}) {
         seed: row.seed,
         source: row.source,
         backfilled: row.backfilled === 1,
+        ...(isPanoramaShellRecord(row.model_id, parseJson(row.settings_json, {}))
+          ? { panorama: true }
+          : {}),
       };
     }
     return out;

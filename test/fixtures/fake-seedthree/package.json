@@ -1,0 +1,7 @@
+{
+  "name": "fake-seedthree",
+  "version": "0.0.0-test",
+  "private": true,
+  "type": "module",
+  "description": "A tiny stand-in for SeedThree's headless API, used only by Forge's tests."
+}

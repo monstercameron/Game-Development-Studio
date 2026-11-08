@@ -61,7 +61,7 @@
       }
       count.textContent =
         value === 'all'
-          ? `Showing all ${total} cards: 15 catalog models and one group of supporting checkpoints.`
+          ? `Showing all ${total} cards: 16 models and one group of supporting checkpoints.`
           : `Showing ${shown} of ${total} cards for ${label}.`;
     };
     for (const radio of radios) {

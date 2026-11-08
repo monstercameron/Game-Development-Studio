@@ -172,9 +172,10 @@
     min-height: var(--ux-target-touch);
   }
 
-  /* Disclosures (fine-tune, advanced settings) get full-width tap targets. */
+  /* Disclosures (fine-tune, advanced settings) get full-width tap targets. The round help marks
+     also carry aria-expanded but keep their own size and tap area. */
   .editor-page summary,
-  .editor-page .form-panel [aria-expanded] {
+  .editor-page .form-panel [aria-expanded]:not(.field-help-trigger) {
     min-height: var(--ux-target-touch);
     display: flex;
     align-items: center;

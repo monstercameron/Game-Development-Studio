@@ -79,7 +79,6 @@ export class ModelRemoval {
     if (
       !value ||
       value.removable === false ||
-      id === 'sam3-base' ||
       !/^[-a-z0-9]+$/.test(id) ||
       typeof value.folder !== 'string' ||
       value.folder === '.' ||

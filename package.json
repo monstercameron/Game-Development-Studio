@@ -19,6 +19,9 @@
     "lint:python": "\".\\.venv-dev\\Scripts\\python.exe\" -m ruff check runtime test",
     "format:python:check": "\".\\.venv-dev\\Scripts\\python.exe\" -m ruff format --check runtime test",
     "format:python": "\".\\.venv-dev\\Scripts\\python.exe\" -m ruff format runtime test",
+    "i18n:extract": "node tools/i18n-extract.mjs",
+    "i18n:check": "node tools/i18n-extract.mjs --check",
+    "i18n:scan": "node tools/i18n-scan.mjs",
     "mcp": "node runtime/mcp.js",
     "start": "node server.js"
   },

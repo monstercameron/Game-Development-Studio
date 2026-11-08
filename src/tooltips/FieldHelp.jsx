@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CircleHelp } from 'lucide-react';
+import { i18n, t, useT } from '../i18n/index.js';
+import { tooltipKey } from '../i18n/message-format.js';
 import { topModal } from '../modal-layer';
 import './field-help.css';
 
@@ -22,12 +24,39 @@ const clean = (value) =>
     .replace(/\s*(OPTIONAL|REQUIRED(?: FOR (?:A TEST|RENDER|3D|VIDEO|SEGMENTATION))?)\s*$/i, '')
     .trim();
 
-function labelText(label) {
+// Tooltips are keyed by the English label. When the UI is translated, every text node that t()
+// produced is mapped back to its English source, so the lookup keeps working in any language.
+const english = (text) => {
+  const value = String(text || '');
+  const trimmed = value.trim();
+  const source = trimmed ? i18n.englishFor(trimmed) : trimmed;
+  return source === trimmed ? value : value.replace(trimmed, source);
+};
+
+function labelText(label, { translated = false } = {}) {
   const clone = label.cloneNode(true);
   clone
     .querySelectorAll(`input,select,textarea,button,svg,small,option,p,.${SLOT_CLASS}`)
     .forEach((node) => node.remove());
+  if (!translated) {
+    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      walker.currentNode.nodeValue = english(walker.currentNode.nodeValue);
+    }
+  }
   return clean(clone.textContent);
+}
+
+/** The English tooltip for a label and the page that owns it, translated for display. */
+function tooltipFor(name, tips, common, section) {
+  const owner = Object.hasOwn(tips, name) ? section : Object.hasOwn(common, name) ? 'common' : '';
+  if (!owner) {
+    return '';
+  }
+  const text = owner === 'common' ? common[name] : tips[name];
+  // Generated keys (see tools/i18n-extract.mjs) are called through i18n.t on purpose: the
+  // extractor reads tooltip texts from src/tooltips/pages/*.js instead of from this call.
+  return i18n.t(tooltipKey(owner, name), text);
 }
 
 function isVisible(element) {
@@ -83,11 +112,12 @@ function findTargets(scope, tips, common, described, section) {
   const found = [];
   const ratingGroups = new Set(),
     layoutGroups = new Set();
-  const add = (key, name, text, anchor) => {
+  const add = (key, name, text, anchor, shownName = name) => {
     if (anchor && isVisible(anchor)) {
-      found.push({ key: `${section}:${key}`, name, text, anchor });
+      found.push({ key: `${section}:${key}`, name, shownName, text, anchor });
     }
   };
+  const tipFor = (name) => tooltipFor(name, tips, common, section);
   for (const control of scope.querySelectorAll(CONTROL_SELECTOR)) {
     if (control.closest('[inert],details:not([open]),.field-help-layer')) {
       continue;
@@ -97,19 +127,23 @@ function findTargets(scope, tips, common, described, section) {
       candidates.find(
         (item) => Object.hasOwn(tips, labelText(item)) || Object.hasOwn(common, labelText(item)),
       ) || candidates[0];
-    let name = label
-      ? labelText(label)
-      : clean(control.getAttribute('aria-label') || control.textContent);
-    let text = tips[name] || common[name];
-    if (!text && control.getAttribute('aria-label')) {
-      name = clean(control.getAttribute('aria-label'));
-      text = tips[name] || common[name];
+    const ariaLabel = control.getAttribute('aria-label');
+    let name = label ? labelText(label) : clean(english(ariaLabel || control.textContent));
+    let shownName = label
+      ? labelText(label, { translated: true })
+      : clean(ariaLabel || control.textContent);
+    let text = tipFor(name);
+    if (!text && ariaLabel) {
+      name = clean(english(ariaLabel));
+      shownName = clean(ariaLabel);
+      text = tipFor(name);
     }
     if (!text && label) {
       const strong = label.querySelector('strong');
       if (strong) {
-        name = clean(strong.textContent);
-        text = tips[name] || common[name];
+        name = clean(english(strong.textContent));
+        shownName = clean(strong.textContent);
+        text = tipFor(name);
       }
     }
     if (!text || (label && !isVisible(label)) || (!isVisible(control) && control.type !== 'file')) {
@@ -134,10 +168,10 @@ function findTargets(scope, tips, common, described, section) {
         add(
           'rating',
           'Asset rating',
-          tips['Asset rating'] ||
-            common['Asset rating'] ||
-            'Rate this asset from one to five stars.',
+          tipFor('Asset rating') ||
+            t('common.fieldHelp.ratingFallback', 'Rate this asset from one to five stars.'),
           anchor,
+          t('common.fieldHelp.ratingName', 'Asset rating'),
         );
       }
       continue;
@@ -146,10 +180,16 @@ function findTargets(scope, tips, common, described, section) {
     if (layout && (name === 'Grid view' || name === 'List view')) {
       if (!layoutGroups.has(layout)) {
         layoutGroups.add(layout);
-        const groupText = tips['Display layout'] || common['Display layout'];
+        const groupText = tipFor('Display layout');
         const anchor = layout.querySelector('.gallery-control-label');
         if (groupText && anchor) {
-          add('layout', 'Display layout', groupText, anchor);
+          add(
+            'layout',
+            'Display layout',
+            groupText,
+            anchor,
+            t('common.fieldHelp.layoutName', 'Display layout'),
+          );
         }
       }
       continue;
@@ -161,7 +201,7 @@ function findTargets(scope, tips, common, described, section) {
     const anchor = label || namedAnchor;
     // Controls with no visible text to sit beside keep their description but get no button.
     if (anchor) {
-      add(`${name}:${found.length}`, name, text, anchor);
+      add(`${name}:${found.length}`, name, text, anchor, shownName);
     }
   }
   return found;
@@ -174,7 +214,7 @@ function HelpButton({ target, open, setOpen }) {
       ref={buttonRef}
       type="button"
       className="field-help-trigger"
-      aria-label={`Help: ${target.name}`}
+      aria-label={t('common.fieldHelp.button', 'Help: {name}', { name: target.shownName })}
       aria-expanded={open ? 'true' : 'false'}
       aria-describedby={open ? 'forge-field-help' : undefined}
       onPointerEnter={(event) => {
@@ -245,6 +285,8 @@ function Popover({ open }) {
 export default function FieldHelp({ section, tooltips }) {
   const [targets, setTargets] = useState([]),
     [open, setOpen] = useState(null);
+  const { locale } = useT();
+  const catalogVersion = i18n.getVersion();
   useEffect(() => {
     const root = document.querySelector('.app-shell');
     if (!root) {
@@ -282,7 +324,8 @@ export default function FieldHelp({ section, tooltips }) {
           (item, index) =>
             item.key === next[index].key &&
             item.slot === next[index].slot &&
-            item.text === next[index].text,
+            item.text === next[index].text &&
+            item.shownName === next[index].shownName,
         )
           ? current
           : next,
@@ -334,7 +377,9 @@ export default function FieldHelp({ section, tooltips }) {
       }
       setTargets([]);
     };
-  }, [section, tooltips]);
+    // Translated labels change text nodes, which the observer ignores, so discovery reruns when
+    // the locale or a loaded catalog changes.
+  }, [section, tooltips, locale, catalogVersion]);
   useEffect(() => {
     const escape = (event) => {
       if (event.key === 'Escape') {

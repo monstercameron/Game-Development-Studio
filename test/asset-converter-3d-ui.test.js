@@ -82,7 +82,11 @@ test('3D assets offer the other mesh formats and list the extra files an OBJ wri
     // Every format except the file's own, with the likely one chosen first.
     assert.deepEqual(options(), ['gltf', 'obj', 'ply', 'stl']);
     assert.equal(container.querySelector('select').value, 'obj');
-    assert.match(container.textContent, /\.mtl file and the colour texture as a PNG/);
+    assert.match(
+      container.textContent,
+      /\.mtl file and, when the model has a colour texture, that texture as a PNG/,
+    );
+    assert.match(container.textContent, /An untextured model gets no texture file/);
     assert.match(container.textContent, /Point clouds and Gaussian splats cannot be converted/);
     assert.equal(container.querySelector('input[type="range"]'), null);
     assert.equal(container.querySelector('input[type="color"]'), null);

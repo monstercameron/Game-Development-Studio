@@ -1,0 +1,12 @@
+{
+  "sfx.tooltip.change_amount_297c87": "How far a variation may move from the source sound, from 0.05 to 1. Low stays close to the source; 1 ignores it. Blank uses 0.9.",
+  "sfx.tooltip.describe_the_sound_16bb4b": "Describe the sound you want, including its source, texture, timing, and surroundings.",
+  "sfx.tooltip.duration_d4c749": "Choose the target length for the generated sound effect.",
+  "sfx.tooltip.duration_in_seconds_388a7b": "Set a custom length in seconds (1 to 380). It replaces the Duration preset above.",
+  "sfx.tooltip.generation_steps_4a49ea": "Set a custom number of generation steps. This overrides the quality preset above.",
+  "sfx.tooltip.quality_cb7fbe": "Choose how many generation steps to use. Medium is tuned for 8 steps, so Draft is faster and Detailed takes longer without always sounding better.",
+  "sfx.tooltip.replace_from_seconds_8277f9": "Where the part to regenerate starts, in seconds from the beginning of the source sound.",
+  "sfx.tooltip.replace_to_seconds_a687f5": "Where the part to regenerate ends. It must be after the start and inside the sound duration.",
+  "sfx.tooltip.seed_d07208": "Enter a whole number to repeat a render: the same prompt and settings with the same seed gave an identical sound in tests. Leave it blank for a random seed, which Forge records with the sound.",
+  "sfx.tooltip.start_from_an_existing_sound_c139da": "Begin from a sound already in a project: make a variation of it, replace one part of it, or continue it. Forge copies the sound when you choose it. Replace and Continue re-render the whole sound, so the part you keep follows the source closely but is not an exact copy."
+}

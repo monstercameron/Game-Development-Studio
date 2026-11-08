@@ -1,49 +1,71 @@
+// Mammoth System One allows up to 16 named questions per request; each question shares one prefill.
+export const MAX_GAME_QUESTIONS = 16;
+
+// Builds one System One question from a question type and its text (first line is the question).
+export function gameQuestion(mode, text) {
+  if (mode === 'Yes / No') {
+    if (typeof text !== 'string' || !text.trim()) {
+      throw Error('Enter a question.');
+    }
+    return { type: 'noul', instructions: text.trim() };
+  }
+  if (mode !== 'Choice' && mode !== 'Score') {
+    throw Error('Choose a supported question type.');
+  }
+  if (typeof text !== 'string' || !text.trim()) {
+    throw Error('Enter a question.');
+  }
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length < 3) {
+    throw Error(
+      'Enter a question followed by at least two choices or score levels on separate lines.',
+    );
+  }
+  const values = lines.slice(1).map((line) => line.replace(/^\d+[.)]\s*/, '').trim());
+  if (values.some((value) => !value)) {
+    throw Error('Every choice or score level needs a description.');
+  }
+  if (mode === 'Score') {
+    if (values.length > 10) {
+      throw Error('Score questions support up to 10 levels.');
+    }
+    return { type: 'score', instructions: lines[0], criteria: values };
+  }
+  if (values.length > 255) {
+    throw Error('Choice questions support up to 255 choices.');
+  }
+  return {
+    type: 'choice',
+    instructions: lines[0],
+    criteria: Object.fromEntries(values.map((value, index) => [`option_${index + 1}`, value])),
+  };
+}
+
 // Build only request shapes accepted by the local Mammoth System One service.
-export function gameDecisionRequest(draft) {
+// extraQuestions adds further questions about the same state: [{ mode, text }, ...].
+export function gameDecisionRequest(draft, extraQuestions = []) {
   if (typeof draft?.prompt !== 'string' || !draft.prompt.trim()) {
     throw Error('Enter a game state.');
   }
   if (typeof draft.second !== 'string' || !draft.second.trim()) {
     throw Error('Enter a question.');
   }
-  const mode = draft.options?.[0];
-  let question;
-  if (mode === 'Yes / No') {
-    question = { type: 'noul', instructions: draft.second.trim() };
-  } else if (mode === 'Choice' || mode === 'Score') {
-    const lines = draft.second
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    if (lines.length < 3) {
-      throw Error(
-        'Enter a question followed by at least two choices or score levels on separate lines.',
-      );
-    }
-    const values = lines.slice(1).map((line) => line.replace(/^\d+[.)]\s*/, '').trim());
-    if (values.some((value) => !value)) {
-      throw Error('Every choice or score level needs a description.');
-    }
-    if (mode === 'Score' && values.length > 10) {
-      throw Error('Score questions support up to 10 levels.');
-    }
-    if (mode === 'Choice' && values.length > 255) {
-      throw Error('Choice questions support up to 255 choices.');
-    }
-    question =
-      mode === 'Score'
-        ? { type: 'score', instructions: lines[0], criteria: values }
-        : {
-            type: 'choice',
-            instructions: lines[0],
-            criteria: Object.fromEntries(
-              values.map((value, index) => [`option_${index + 1}`, value]),
-            ),
-          };
-  } else {
-    throw Error('Choose a supported question type.');
+  const questions = { decision: gameQuestion(draft.options?.[0], draft.second) };
+  if (extraQuestions.length + 1 > MAX_GAME_QUESTIONS) {
+    throw Error(`Use at most ${MAX_GAME_QUESTIONS} questions per request.`);
   }
-  return { model: 'mammoth-1', state: draft.prompt, questions: { decision: question } };
+  extraQuestions.forEach((item, index) => {
+    const name = `decision_${index + 2}`;
+    try {
+      questions[name] = gameQuestion(item?.mode, item?.text);
+    } catch (error) {
+      throw Error(`Question ${index + 2}: ${error.message}`, { cause: error });
+    }
+  });
+  return { model: 'mammoth-1', state: draft.prompt, questions };
 }
 
 // The selector changes presentation only; it never changes model inference.
@@ -51,7 +73,7 @@ export function presentGameDecision(result, format) {
   return format === 'Compact' && result?.answers ? result.answers : result;
 }
 
-// Plain-language summary of a decision response, derived from the same request and response.
+// Plain-language summary of one answer, derived from the same question and response.
 // Returns null when the response does not contain a recognised answer.
 export function decisionSummary(result, request) {
   const decision = result?.answers?.decision;
@@ -91,4 +113,35 @@ export function decisionSummary(result, request) {
     };
   }
   return null;
+}
+
+// One entry per question in the request, in request order: { name, summary }.
+export function decisionSummaries(result, request) {
+  return Object.keys(request?.questions || {}).map((name) => ({
+    name,
+    summary: decisionSummary(
+      { answers: { decision: result?.answers?.[name] } },
+      { questions: { decision: request.questions[name] } },
+    ),
+  }));
+}
+
+// Detail line under the Mammoth status. Only a service that is answering can have been "started
+// outside Forge"; a stopped service has nothing for Forge to leave running.
+export function mammothStateDetail(service, statusError = '') {
+  if (statusError) {
+    return statusError;
+  }
+  if (service?.managed === false && service.state === 'error') {
+    return 'Check the Mammoth application for the load failure. Forge cannot manage this service.';
+  }
+  if (service?.managed === false && service.status === 'reachable') {
+    return 'Started outside Forge. Forge will leave this service running when you stop it.';
+  }
+  if (service?.managed) {
+    return service.state === 'error'
+      ? 'Stop the managed service, then start Mammoth again to retry the load.'
+      : 'Managed by Forge. Stop only unloads the managed Mammoth service.';
+  }
+  return 'Start or load Mammoth before running a decision.';
 }

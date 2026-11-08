@@ -325,8 +325,15 @@ function InspectionDialog({
 }
 
 // `navigation` is optional: { index, total, onStep(offset) } across the 3D assets of the
-// current list. `size` is the file size in bytes when the caller already knows it.
-export default function InteractiveAssetViewer({ url, name, navigation = null, size }) {
+// current list. `size` is the file size in bytes when the caller already knows it, and
+// `panorama` is true when the stored generation details name a WorldGen panorama shell.
+export default function InteractiveAssetViewer({
+  url,
+  name,
+  navigation = null,
+  size,
+  panorama = false,
+}) {
   const [expanded, setExpanded] = useRouteToggle('inspect');
   const [playing, setPlaying] = useState(true);
   const [focusOnReady] = useState(() => focusStageNext);
@@ -337,7 +344,7 @@ export default function InteractiveAssetViewer({ url, name, navigation = null, s
   const index = navigation?.total > 1 ? navigation.index : null,
     total = navigation?.total > 1 ? navigation.total : null;
   navigationRef.current = navigation;
-  const meta = useMemo(() => ({ size }), [size]);
+  const meta = useMemo(() => ({ size, panorama }), [size, panorama]);
   const step = useCallback((offset) => {
     const current = navigationRef.current;
     const target = current ? current.index + offset : -1;

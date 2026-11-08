@@ -135,6 +135,39 @@ class VoiceModesWorkerTests(unittest.TestCase):
         self.assertEqual(kwargs["max_new_tokens"], 512)
         self.assertEqual(kwargs["temperature"], 0.7)
 
+    def test_voice_only_clone_uses_x_vector_mode_and_withholds_any_transcript(self):
+        model = RecordingModel("base")
+        clip = (FakeAudio(16000 * 5), 16000)
+        self.worker.model = model
+        for transcript in ("", "Words that must not reach the model."):
+            with self.subTest(transcript=transcript):
+                request = self.request(
+                    mode="clone", clone_voice_only=True, reference_text=transcript
+                )
+                self.worker.synthesize(request, clip, {})
+                name, kwargs = model.calls[-1]
+                self.assertEqual(name, "clone")
+                self.assertTrue(kwargs["x_vector_only_mode"])
+                self.assertIsNone(kwargs["ref_text"])
+                self.assertIs(kwargs["ref_audio"], clip)
+
+    def test_clone_request_defaults_to_the_transcript_mode(self):
+        self.assertFalse(self.request(mode="clone").clone_voice_only)
+
+    def test_generate_accepts_a_voice_only_clone_without_a_transcript(self):
+        self.worker.model = RecordingModel("base")
+        self.worker.loaded_variant = "base"
+        request = self.request(
+            mode="clone", clone_voice_only=True, reference_audio_base64="UklGRg=="
+        )
+        with patch.dict(sys.modules, {"soundfile": fake_soundfile(16000 * 5)}):
+            with patch.object(self.worker.threading, "Thread") as thread:
+                response = self.worker.generate(request)
+        self.assertRegex(response["id"], r"^[0-9a-f]{32}$")
+        self.assertIn(response["id"], self.worker.jobs)
+        started_request = thread.call_args.kwargs["args"][1]
+        self.assertTrue(started_request.clone_voice_only)
+
     def test_design_passes_the_description_as_instruct(self):
         model = RecordingModel("design")
         self.worker.model = model

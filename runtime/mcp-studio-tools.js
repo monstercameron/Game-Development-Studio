@@ -1,6 +1,7 @@
 // Extra MCP controls share the HTTP routes and safety checks used by Studio.
 import { z } from 'zod';
 import { CHAT_CONTEXT_SIZES, estimateChatMemory } from './chat-memory.js';
+import { MAX_CHAT_IMAGE_BYTES, MAX_CHAT_IMAGES } from './chat-image-limits.js';
 import { ACTIVE_QUEUE_STATES, estimateFromNearbyHistory, forecastQueue } from './queue-timing.js';
 
 const change = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
@@ -84,11 +85,59 @@ async function readAssetContent(base, id, path, thumbnail = false) {
   }
 }
 
+// Reads one project image through the studio's asset route and returns it as a data URL.
+// The chat endpoint sniffs the bytes again, so the content type here is only a first filter.
+async function readChatImage(base, projectId, assetPath) {
+  const url = new URL(`/api/projects/${projectId}/asset`, base);
+  url.searchParams.set('path', assetPath);
+  const response = await fetch(url, { signal: AbortSignal.timeout(15000), redirect: 'error' });
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw Error(`Image ${assetPath} could not be read (${response.status}).`);
+  }
+  const type = response.headers.get('content-type')?.split(';')[0];
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(type)) {
+    await response.body?.cancel();
+    throw Error(`${assetPath} is not a PNG, JPEG or WebP image.`);
+  }
+  if (Number(response.headers.get('content-length')) > MAX_CHAT_IMAGE_BYTES) {
+    await response.body?.cancel();
+    throw Error(`${assetPath} is larger than ${MAX_CHAT_IMAGE_BYTES / 1024 / 1024} MiB.`);
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.length > MAX_CHAT_IMAGE_BYTES) {
+    throw Error(`${assetPath} is larger than ${MAX_CHAT_IMAGE_BYTES / 1024 / 1024} MiB.`);
+  }
+  return `data:${type};base64,${bytes.toString('base64')}`;
+}
+
+// Project images become data URLs on the last user message. Nothing else is read from disk.
+async function attachChatImages(base, { projectId, images, ...request }) {
+  if (!images?.length) {
+    return request;
+  }
+  if (!projectId) {
+    throw Error('projectId is required when images are attached.');
+  }
+  const messages = [...request.messages];
+  const last = messages.length - 1;
+  if (messages[last]?.role !== 'user') {
+    throw Error('Images are attached to the last message, which must be a user message.');
+  }
+  const dataUrls = [];
+  for (const assetPath of images) {
+    dataUrls.push(await readChatImage(base, projectId, assetPath));
+  }
+  messages[last] = { ...messages[last], images: dataUrls };
+  return { ...request, messages };
+}
+
 // Chat's HTTP endpoint streams SSE. Bound the entire response and require its
 // completion marker so interrupted generations cannot look like finished ones.
 async function completeChat(base, input) {
   const started = performance.now();
   try {
+    const request = await attachChatImages(base, input);
     const response = await fetch(new URL('/api/chat/completions', base), {
       method: 'POST',
       headers: {
@@ -96,7 +145,7 @@ async function completeChat(base, input) {
         'X-Forge-Request': 'chat',
         Origin: base.origin,
       },
-      body: JSON.stringify(input),
+      body: JSON.stringify(request),
       signal: AbortSignal.timeout(600000),
       redirect: 'error',
     });
@@ -468,7 +517,7 @@ export function registerExtendedTools(server, { base, read, write, readonly }) {
     'forge_chat',
     {
       description:
-        'Request a complete chat response from the configured local-compatible server or OpenAI, with optional JSON or JSON Schema output and thinking effort. Uses stored credentials; never pass secrets in tool arguments. Returns text, usage when supplied, time to first token and generation rate. The MCP call waits for completion.',
+        'Request a complete chat response from the configured local-compatible server or OpenAI, with optional JSON or JSON Schema output and thinking effort. Uses stored credentials; never pass secrets in tool arguments. Returns text, usage when supplied, time to first token and generation rate. The MCP call waits for completion. Optional images (up to 4 project asset paths, PNG, JPEG or WebP, 8 MiB each, with projectId) are attached to the last user message; they work only with the local Qwen engine on port 8098 started with its vision projector, and are refused for OpenAI and other servers.',
       inputSchema: {
         ...connection,
         model: z.string().trim().min(1).max(300),
@@ -486,6 +535,15 @@ export function registerExtendedTools(server, { base, read, write, readonly }) {
         effort: z.enum(['auto', 'none', 'low', 'medium', 'high']).default('auto'),
         format: z.enum(['text', 'json', 'schema']).default('text'),
         schema: z.record(z.string(), z.unknown()).optional(),
+        topP: z.number().gt(0).max(1).optional(),
+        topK: z.number().int().min(1).max(1000).optional(),
+        minP: z.number().min(0).max(1).optional(),
+        presencePenalty: z.number().min(-2).max(2).optional(),
+        frequencyPenalty: z.number().min(-2).max(2).optional(),
+        seed: z.number().int().min(0).max(2147483647).optional(),
+        stop: z.array(z.string().min(1).max(100)).max(4).optional(),
+        projectId: projectId.optional(),
+        images: z.array(assetPath).max(MAX_CHAT_IMAGES).optional(),
       },
       annotations: { ...change, openWorldHint: true },
     },

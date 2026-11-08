@@ -7,6 +7,7 @@ param(
     [switch]$Rebuild,
     [switch]$ReinstallDependencies,
     [switch]$Activate,
+    [switch]$Vegetation,
     [string[]]$Models = @(),
     [string]$HfCli = '',
     [string]$StagingDirectory = ''
@@ -77,7 +78,7 @@ foreach ($id in $requested) {
     if ($matches.Count -ne 1) { throw "Unknown model '$id'. Use -ListModels to see available IDs." }
     $selected += $matches[0]
 }
-$managedFolders = @{'worldgen'='worldgen'; '3d-hunyuan'='Hunyuan3D-2.1'; 'motion-hy'='HY-Motion'; 'motion-bricks'='MotionBricks'; 'tts'='Qwen3-TTS-12Hz-1.7B-CustomVoice'; 'asr'='nemotron-speech-streaming-en-0.6b'; 'segmentation'='sam3.1'}
+$managedFolders = @{'worldgen'='worldgen'; '3d-hunyuan'='Hunyuan3D-2.1'; 'motion-hy'='HY-Motion'; 'motion-bricks'='MotionBricks'; 'tts'='Qwen3-TTS-12Hz-1.7B-CustomVoice'; 'tts-base'='Qwen3-TTS-12Hz-1.7B-Base'; 'tts-voicedesign'='Qwen3-TTS-12Hz-1.7B-VoiceDesign'; 'asr'='nemotron-speech-streaming-en-0.6b'; 'segmentation'='sam3.1'}
 if ($Activate) {
     if (-not $selected.Count) { throw '-Activate requires at least one model ID.' }
     foreach ($model in $selected) { if (-not $managedFolders.ContainsKey($model.id)) { throw "$($model.id) cannot be activated automatically. Stage it without -Activate and follow its separate instructions." } }
@@ -90,6 +91,12 @@ if ($ListModels) {
         Write-Host "  Installer: $method"
         foreach ($source in $model.sources) { Write-Host "  Source: $source" }
         Write-Host "  $($model.notes)"
+    }
+    foreach ($linked in @($manifest.linkedRepositories)) {
+        Write-Host "`n$($linked.id) - $($linked.name) (linked repository, $($linked.license))"
+        Write-Host "  Expected: $($linked.destination) at commit $($linked.commit)"
+        Write-Host '  Installer: -Vegetation fetches the pinned commit (source only) and runs npm ci --ignore-scripts inside it'
+        Write-Host "  Source: $($linked.repository)"
     }
     return
 }
@@ -128,6 +135,8 @@ if ($CheckOnly) {
         $paths = @($checks[$model.id]); $found = @($paths | Where-Object { Test-Path -LiteralPath $_ }).Count
         Write-Host ("  {0}: {1}/{2} selected paths present" -f $model.id, $found, $paths.Count)
     }
+    $linkedCheck = Get-Executable 'node.exe'
+    if ($linkedCheck) { & $linkedCheck (Join-Path $root 'runtimeegetation-checkout.js') status } else { Write-Host 'SeedThree (Vegetation): cannot check without Node.js' }
     Write-Host 'File presence is not proof of a complete environment or a working model. See docs/INSTALLATION.md.'
     return
 }
@@ -145,6 +154,7 @@ if ($Plan) {
         }
         Write-Host "  $($model.notes)"
     }
+    if ($Vegetation) { Write-Host "`nVegetation: fetch the SeedThree repository at its pinned commit into external/SeedThree (source only, about 1 MiB) and run npm ci --ignore-scripts there. No model is involved." }
     if ($Activate) { Write-Host 'After download: activate supported models only if their target folders do not exist.' }
     Write-Host 'Plan only: no files were changed and no downloads were started.'
     return
@@ -178,6 +188,13 @@ if (-not $SkipApp) {
             Invoke-Checked $npm.exe ($npm.prefix + @('run','build'))
         } else { Write-Host 'Keeping the existing web build. Use -Rebuild to refresh it.' }
     } finally { Pop-Location }
+}
+
+if ($Vegetation) {
+    $node = Get-Executable 'node.exe'
+    if (-not $node) { throw 'Node.js 24 or newer is required to fetch SeedThree.' }
+    Write-Host "`nFetching the linked SeedThree repository (pinned commit, source only, MIT licence)."
+    Invoke-Checked $node @((Join-Path $root 'runtimeegetation-checkout.js'), 'fetch')
 }
 
 if ($selected.Count) {

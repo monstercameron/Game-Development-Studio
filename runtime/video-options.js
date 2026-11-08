@@ -91,6 +91,36 @@ export const imageIdPattern = /^[a-f0-9-]{36}\.(png|jpg|webp)$/i;
 export const videoClipPattern = /^[a-f0-9-]{36}\.(webm|mp4)$/i;
 export const audioClipPattern = /^[a-f0-9-]{36}\.(wav|mp3|flac|ogg|opus)$/i;
 
+// sd-cli's --max-vram (GiB of GPU memory for weights). H3 Studio's own form always uses 6.
+export const DEFAULT_VIDEO_MAX_VRAM_GIB = 6;
+// Budget used when a request has reference videos and no explicit budget. Measured on this PC
+// (2026-11-08, "use the sound of the reference videos"): at 6 GiB the model manager reported
+// "cannot make enough memory ... need 9518 MB device / 9006 MB budget ... failed to encode
+// MiniMax-H3 reference video 1" twice; the same request completed at 12 GiB. Encoding a
+// reference clip needs the video encoder and its activations resident next to the diffusion
+// model. Only reference clips are known to need this, so every other request keeps 6.
+export const REFERENCE_CLIP_MAX_VRAM_GIB = 12;
+
+// The budget Forge sends to the engine, or null to leave the engine's own default (6 GiB).
+export function videoMaxVramGiB(request = {}) {
+  if (Number.isInteger(request.max_vram) && request.max_vram > 0) {
+    return request.max_vram;
+  }
+  return request.reference_videos?.length ? REFERENCE_CLIP_MAX_VRAM_GIB : null;
+}
+
+// What a request will actually be given, and whether the user chose it. Used for memory
+// admission, the estimate shown on the page and the generation details.
+export function videoGpuBudget(request = {}) {
+  const sent = videoMaxVramGiB(request);
+  const explicit = Number.isInteger(request.max_vram) && request.max_vram > 0;
+  return {
+    gib: sent ?? DEFAULT_VIDEO_MAX_VRAM_GIB,
+    explicit,
+    reason: explicit ? 'chosen' : sent === null ? 'default' : 'reference clips',
+  };
+}
+
 export const videoSeconds = (frames) => Math.round(((frames - 1) / 24) * 10) / 10;
 
 // Short, plain-language cautions for settings that cost more memory or time than the default.
@@ -126,8 +156,60 @@ export function videoWarnings(request = {}) {
     warnings.push(
       'Reference clips add many tokens per step (every frame is a reference); use short clips.',
     );
+    if (!Number.isInteger(request.max_vram)) {
+      warnings.push(
+        `Encoding a reference clip did not fit in the default ${DEFAULT_VIDEO_MAX_VRAM_GIB} GiB GPU memory budget in testing, so Forge uses ${REFERENCE_CLIP_MAX_VRAM_GIB} GiB for this video unless you choose a budget.`,
+      );
+    }
   }
   return warnings;
+}
+
+// Every field a queued video request may carry. Anything else is rejected rather than dropped,
+// so an unsupported setting never silently produces a different render than the one requested.
+// Older jobs only stored prompt, references, aspect, frames and steps; all of those stay valid.
+// `referenceFrom` and the variation fields are handled (and removed) before this check runs.
+export const VIDEO_REQUEST_FIELDS = new Set([
+  'prompt',
+  'references',
+  'aspect',
+  'frames',
+  'steps',
+  'seed',
+  'source',
+  'first_frame',
+  'last_frame',
+  'reference_videos',
+  'reference_audios',
+  'use_clip_audio',
+  'resolution',
+  'turbo',
+  'negative_prompt',
+  'cfg_scale',
+  'sampler',
+  'scheduler',
+  'max_vram',
+  'reference_detail',
+  'also_mp4',
+]);
+
+// Names people commonly try, with the reason they are not settings. Shown in the 400 message.
+const UNSUPPORTED_VIDEO_FIELD_HELP = {
+  fps: 'The video engine is fixed at 24 fps; choose the length with frames (17 × n + 5) instead.',
+  width: 'Choose the picture shape with aspect and size with resolution instead.',
+  height: 'Choose the picture shape with aspect and size with resolution instead.',
+  duration: 'Choose the length with frames (17 × n + 5, 24 frames per second) instead.',
+};
+
+// Throws for the first field a video request may not carry.
+export function rejectUnknownVideoFields(request) {
+  for (const key of Object.keys(request)) {
+    if (!VIDEO_REQUEST_FIELDS.has(key)) {
+      const name = key.slice(0, 40);
+      const help = UNSUPPORTED_VIDEO_FIELD_HELP[key] || 'Remove it and queue the video again.';
+      throw Error(`Unknown video setting "${name}". ${help}`);
+    }
+  }
 }
 
 const hasOwn = (object, key) => Object.hasOwn(object, key);
@@ -157,6 +239,10 @@ const optionalId = (value, label) => {
 // Validates a queued video request and returns the stored form. Defaults are left out so
 // earlier requests, history and timing profiles keep matching. `seedFor` picks a random seed.
 export function normalizeVideoRequest(request, seedFor) {
+  if (!request || typeof request !== 'object' || Array.isArray(request)) {
+    throw Error('Video settings must be an object.');
+  }
+  rejectUnknownVideoFields(request);
   const {
     prompt,
     references = [],
@@ -269,14 +355,22 @@ export function normalizeVideoRequest(request, seedFor) {
   if (turbo && cfg > 1) {
     throw Error('The turbo adapter is made for unguided rendering; leave guidance at 1.');
   }
-  if (
-    !(sampler === null || VIDEO_SAMPLERS.includes(sampler)) ||
-    !(scheduler === null || VIDEO_SCHEDULERS.includes(scheduler)) ||
-    !(reference_detail === null || REFERENCE_DETAILS.includes(reference_detail)) ||
-    !(max_vram === null || (Number.isInteger(max_vram) && max_vram >= 4 && max_vram <= 24)) ||
-    typeof also_mp4 !== 'boolean'
-  ) {
-    throw Error('Invalid sampler, scheduler, reference detail, GPU memory budget or MP4 option.');
+  if (!(sampler === null || VIDEO_SAMPLERS.includes(sampler))) {
+    throw Error(`Choose a sampler from ${VIDEO_SAMPLERS.join(', ')}, or leave it at the default.`);
+  }
+  if (!(scheduler === null || VIDEO_SCHEDULERS.includes(scheduler))) {
+    throw Error(
+      `Choose a scheduler from ${VIDEO_SCHEDULERS.join(', ')}, or leave it at the default.`,
+    );
+  }
+  if (!(reference_detail === null || REFERENCE_DETAILS.includes(reference_detail))) {
+    throw Error('Reference detail must be match or max, or left at the default.');
+  }
+  if (!(max_vram === null || (Number.isInteger(max_vram) && max_vram >= 4 && max_vram <= 24))) {
+    throw Error('The GPU memory budget must be a whole number of GiB from 4 to 24.');
+  }
+  if (typeof also_mp4 !== 'boolean') {
+    throw Error('The MP4 option must be true or false.');
   }
   return {
     prompt,

@@ -52,7 +52,7 @@ without the feature. Apply them to a fresh checkout, then restart the app.
 needs the `peft` package for them and the app's `.venv` does not include it. Install it with
 `.venvScriptspython.exe -m pip install peft` (pure Python; not installed by Forge). LoRA files
 go in `models/Qwen-Image-2.1-LoRA` (Forge sets `QWEN_LORA_DIR` to it). Compatibility of a
-given LoRA with the 2.1 transformer is not verified; it must be trained for Qwen Image 2.1.
+given LoRA with the 2.1 transformer is not verified; it must be trained for Qwen Image 2.1. Tested on 2026-11-08 with `angles_v2_step1500.safetensors` (ai-toolkit, base `qwen_image_2`), diffusers 0.42.1 and `peft` 0.21.2: `load_lora_weights` succeeds and the LoRA is removed after each job (the next render without it was bit-identical to the baseline), but the engine log reports `transformer_blocks.N.img_mlp.gate_up.lora_A/B` as unexpected keys: the file fuses the SwiGLU up and gate projections into `gate_up`, while the 2.1 transformer has separate `proj` and `gate_layer` layers. Those 64 tensors were not applied until the split below was added; with it, no unexpected keys remain.
 
 ```diff
 @@ -9,4 +9,6 @@ from pydantic import BaseModel, Field
@@ -111,6 +111,158 @@ given LoRA with the 2.1 transformer is not verified; it must be trained for Qwen
 +                    except Exception: traceback.print_exc()
              urls=[]
              for i, image in enumerate(result.images):
+```
+
+**Qwen Image Studio `app.py`: fused `gate_up` split for the camera-angle LoRA (2026-11-08).** The
+camera-angle LoRA stores each block's SwiGLU input projections as one `img_mlp.gate_up` pair:
+`lora_A` `[64, 4096]` and `lora_B` `[24576, 64]` (rank 64, fp16). The Qwen-Image-2.1 block has
+`img_mlp.proj` and `img_mlp.gate_layer` (each 4096 to 12288) and `img_mlp.out` (12288 to 4096),
+and `out(silu(gate_layer(x)) * proj(x))`. The file's `img_mlp.out` pair matches the base layer, so
+only `gate_up` needed converting. The conversion copies `lora_A` to both targets and splits
+`lora_B` into two row halves. `QWEN_LORA_GATE_UP_ORDER` selects the half order: `gate_first` (the
+first half to `gate_layer`, the default) or `proj_first`; `skip` keeps the old unapplied behaviour.
+The per-request field `lora_gate_up_order` overrides the default for tests. Forge does not send it
+and drops unknown fields, so Forge always uses the app default. The conversion runs only when the
+safetensors header contains `*.img_mlp.gate_up.*` keys; other LoRAs load as before.
+
+Verification (CPU unit tests only, then GPU renders, all judged by eye): `test/qwen_lora_gate_up_test.py`
+(13 tests, run with the Qwen `.venv` Python) covers both orders against the fused delta, alpha,
+unrelated keys, rejection paths and the real file's shapes. Forge renders at seed 424242, 1024 by
+1024, 20 steps, project Forge Model Review, prompts `<mva> a ceramic teapot, front view, eye-level
+shot`, `back view, eye-level shot` and `right side view, high-angle shot`. No LoRA: jobs
+`c5a9e9aa`, `b5ece4b6`, `aab5affd`. `gate_first`: `f0749c83`, `6fa5e448`, `80997552`. `proj_first`:
+`88413c48`, `0bd0c2c0`, `136fc588`. The no-LoRA re-render `fef4ddc7` (front view) is byte-identical to
+`c5a9e9aa` (sha256 `2e5b51bdea6dfff0...`), so the LoRA unloads cleanly. The engine log after the
+fix shows no `unexpected keys` line for either order; before the fix it listed 64 `gate_up` tensors.
+Both orders gave clean, coherent images: the front, back and high-angle prompts gave different
+views of one teapot, with no noise, burnt colour or broken geometry. The LoRA also changes the
+teapot's glaze and shape from the no-LoRA renders in both orders. The two orders looked alike by
+eye, so `gate_first` stays the default, matching the usual chunk-then-activate SwiGLU layout. No
+objective angle-accuracy measurement was made, and these prompts are text-to-image, while the card
+describes image-to-image use with a reference photo.
+
+```diff
+--- qwen_app_app.py.bak (before 2026-11-08 split)
++++ app.py (after)
+@@ -1,4 +1,4 @@
+-import base64, gc, io, json, os, threading, time, traceback, uuid
++import base64, gc, io, json, os, re, threading, time, traceback, uuid
+ from pathlib import Path
+ from typing import Any
+ from fastapi import FastAPI, HTTPException
+@@ -10,6 +10,15 @@
+ MODEL = os.environ.get('QWEN_MODEL', str(ROOT / 'models' / 'Qwen-Image-2.1'))
+ # Forge additions: optional LoRA files (plain .safetensors names, never paths) from this folder.
+ LORA_DIR = Path(os.environ.get('QWEN_LORA_DIR', str(ROOT / 'models' / 'Qwen-Image-2.1-LoRA')))
++# Forge addition: the camera-angle LoRA (ai-toolkit, qwen_image_2) stores the two SwiGLU input
++# projections of each img_mlp as one fused `gate_up` pair, while the Qwen-Image-2.1 block has
++# separate `gate_layer` and `proj` Linear layers. 'gate_first' sends the first half of lora_B rows
++# to gate_layer and the second half to proj; 'proj_first' is the reverse; 'skip' leaves the fused
++# keys unapplied (diffusers reports them as unexpected). The order is not documented by the LoRA
++# author and is chosen by render comparison (see docs/MODEL_SOURCES.md).
++GATE_UP_ORDERS = ('gate_first', 'proj_first', 'skip')
++GATE_UP_ORDER = os.environ.get('QWEN_LORA_GATE_UP_ORDER', 'gate_first')
++GATE_UP_PATTERN = re.compile(r'^(?P<module>(?:.*\.)?(?:img|txt)_mlp)\.gate_up\.(?P<part>lora_A\.weight|lora_B\.weight|alpha)$')
+ app = FastAPI(title='Qwen Image Studio API', version='1.0')
+ app.mount('/static', StaticFiles(directory=ROOT / 'static'), name='static')
+ app.mount('/outputs', StaticFiles(directory=ROOT / 'outputs'), name='outputs')
+@@ -33,6 +42,7 @@
+     use_kv_cache: bool = True
+     lora: str | None = Field(default=None, description='A .safetensors file name from GET /api/loras')
+     lora_scale: float = Field(default=1.0, ge=0.0, le=2.0)
++    lora_gate_up_order: str | None = Field(default=None, description='Optional override of QWEN_LORA_GATE_UP_ORDER for a fused gate_up LoRA: gate_first, proj_first or skip')
+     attention_kwargs: dict[str, Any] | None = None
+     tensors: dict[str, str] | None = Field(default=None, description='Base64 safetensors files for latents, prompt_embeds, prompt_embeds_mask, negative_prompt_embeds, negative_prompt_embeds_mask')
+
+@@ -52,6 +62,71 @@
+     except OSError:
+         return []
+
++def has_fused_gate_up(keys):
++    return any(GATE_UP_PATTERN.match(key) is not None for key in keys)
++
++def split_fused_gate_up(state_dict, order):
++    """Return a copy of a LoRA state dict whose fused `*.img_mlp.gate_up` pairs target gate_layer and proj.
++
++    lora_B rows are split into two equal halves. lora_A is the shared input projection of the
++    fused layer, so it is copied to both new pairs; an `alpha` scalar is copied too. Keys that are
++    not part of a fused pair are kept unchanged. Raises ValueError for an unknown order, an odd
++    lora_B row count, a rank mismatch, an incomplete pair, or a target key that already exists.
++    """
++    if order not in ('gate_first', 'proj_first'):
++        raise ValueError(f'Unknown gate_up order: {order!r}')
++    converted = {}
++    fused = {}
++    for key, value in state_dict.items():
++        match = GATE_UP_PATTERN.match(key)
++        if match is None:
++            converted[key] = value
++        else:
++            fused.setdefault(match.group('module'), {})[match.group('part')] = value
++    for module, parts in fused.items():
++        if 'lora_A.weight' not in parts or 'lora_B.weight' not in parts:
++            raise ValueError(f'{module}.gate_up has an incomplete LoRA pair.')
++        lora_a = parts['lora_A.weight']
++        lora_b = parts['lora_B.weight']
++        if lora_a.dim() != 2 or lora_b.dim() != 2 or lora_b.shape[1] != lora_a.shape[0]:
++            raise ValueError(f'{module}.gate_up has a LoRA rank mismatch.')
++        if lora_b.shape[0] % 2:
++            raise ValueError(f'{module}.gate_up lora_B has an odd row count and cannot be split.')
++        half = lora_b.shape[0] // 2
++        first_half = lora_b[:half].clone()
++        second_half = lora_b[half:].clone()
++        if order == 'gate_first':
++            halves = {'gate_layer': first_half, 'proj': second_half}
++        else:
++            halves = {'proj': first_half, 'gate_layer': second_half}
++        for target, target_lora_b in halves.items():
++            target_module = f'{module}.{target}'
++            if f'{target_module}.lora_A.weight' in converted:
++                raise ValueError(f'{target_module} already has LoRA weights in this file.')
++            converted[f'{target_module}.lora_A.weight'] = lora_a.clone()
++            converted[f'{target_module}.lora_B.weight'] = target_lora_b
++            if 'alpha' in parts:
++                converted[f'{target_module}.alpha'] = parts['alpha']
++    return converted
++
++def validated_gate_up_order(request):
++    order = request.lora_gate_up_order or GATE_UP_ORDER
++    if order not in GATE_UP_ORDERS:
++        raise ValueError('Unknown LoRA gate_up order: choose gate_first, proj_first or skip.')
++    return order
++
++def load_lora_into_pipeline(pipe, name, order):
++    from safetensors import safe_open
++    from safetensors.torch import load_file
++    path = LORA_DIR / name
++    with safe_open(str(path), framework='pt') as handle:
++        needs_split = order != 'skip' and has_fused_gate_up(handle.keys())
++    if needs_split:
++        state_dict = split_fused_gate_up(load_file(str(path)), order)
++        pipe.load_lora_weights(state_dict, adapter_name='forge')
++    else:
++        pipe.load_lora_weights(str(LORA_DIR), weight_name=name, adapter_name='forge')
++
+ @app.get('/api/loras')
+ def loras():
+     # Forge reads this before sending a LoRA, because an app without it would ignore the field.
+@@ -97,6 +172,7 @@
+             if request.height is not None and (request.height < 32 or request.height % 32): raise ValueError('Height must be a positive multiple of 32.')
+             if request.num_inference_steps < 1 or request.num_images_per_prompt < 1: raise ValueError('Steps and image count must be positive.')
+             if request.lora is not None and request.lora not in lora_files(): raise ValueError('Unknown LoRA: choose a name from /api/loras.')
++            gate_up_order = validated_gate_up_order(request)
+             args = dict(prompt=request.prompt, negative_prompt=request.negative_prompt, image=images or None, width=request.width, height=request.height, output_resolution=request.output_resolution, num_inference_steps=request.num_inference_steps, true_cfg_scale=request.true_cfg_scale, num_images_per_prompt=request.num_images_per_prompt, use_kv_cache=request.use_kv_cache, output_type='pil')
+             if request.seed is not None: args['generator'] = torch.Generator(device='cuda').manual_seed(request.seed)
+             if request.sigmas is not None: args['sigmas'] = request.sigmas
+@@ -118,7 +194,7 @@
+                     import peft  # noqa: F401  (diffusers needs it to attach LoRA layers)
+                 except ImportError: raise RuntimeError('LoRA needs the peft package: install it into this app\'s .venv (pip install peft).')
+                 jobs[job_id].update(message='Applying LoRA')
+-                pipe.load_lora_weights(str(LORA_DIR), weight_name=request.lora, adapter_name='forge')
++                load_lora_into_pipeline(pipe, request.lora, gate_up_order)
+                 pipe.set_adapters(['forge'], adapter_weights=[request.lora_scale])
+             try:
+                 with torch.inference_mode(): result = pipe(**args)
 ```
 
 **Stable Audio Lab `app.py`** (audio-to-audio, region replacement, continuation). Uses
@@ -208,6 +360,14 @@ folders. Do not create a junction over an existing directory or move a live
 model. These notes document the observed integration; they are not an automated
 or verified fresh-machine installer for the companion apps.
 
+## Linked repositories (not models)
+
+| Project                                        | Repository                                                    | Pinned commit                                              | Licence                                                             | Location                                                      |
+| ---------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------- |
+| SeedThree (procedural plants, Vegetation page) | [SkyeShark/SeedThree](https://github.com/SkyeShark/SeedThree) | `cf2eaad39d9b7355ed086aca2a95fb785e539242` (`0.1.0-alpha`) | MIT, Copyright (c) 2026 SkyeShark (`LICENSE` stays in the checkout) | `external/SeedThree`, a git submodule; not committed as files |
+
+SeedThree is code, not weights, and Forge does not copy or modify it. The URL and exact commit are in `install-models.json` (`linkedRepositories`) and in the submodule entry; the two must agree. The checkout contains only source (a sparse checkout that omits `assets/` and `docs/media/`, which headless generation does not read) and the two production dependencies from its own lockfile, `three@0.184.0` and `lil-gui`, installed with `npm ci --ignore-scripts --omit=dev` inside the folder. Fetch it with the Vegetation page, `install.ps1 -Vegetation` or `node runtime/vegetation-checkout.js fetch`; nothing downloads it implicitly. Review of the pinned commit: MIT licence file, `package.json` (dependencies `three`, `lil-gui`; `sharp` and `vite` are development-only and are not installed), and the import graph of `src/api/seedthree.js`, which reaches only `three` and `lil-gui` and has no network, process or file-system calls. To move the pin, see [Vegetation](VEGETATION.md#updating-the-pinned-commit). Generated plant models are produced by Forge's adapter, with SeedThree's species presets; SeedThree's own textures and audio are not used.
+
 ## World generators
 
 Forge's World studio uses the installed desktop projects directly; their weights are inventoried in Forge's centralized model directory and are protected from Studio removal. WorldGen is based on [ZiYang-xie/WorldGen](https://github.com/ZiYang-xie/WorldGen), its [WorldGen model](https://huggingface.co/LeoXie/WorldGen), [DA-2 depth model](https://huggingface.co/haodongli/DA-2), and the appropriate FLUX model for text or image generation. See `Desktop/WorldGen/WINDOWS-ARM-README.md` and `download_models.py` for the native Windows environment and manual download steps. FLUX models may require accepting their terms and a Hugging Face token. Forge uses the existing cache in offline mode and does not trigger downloads.
@@ -224,25 +384,24 @@ This is the provenance and recovery record for the Windows ARM64 installation ob
 
 The revision is the downloaded Hugging Face commit recorded in the local `.cache/huggingface/download/*.metadata`; it is matched below to the upstream repository and a representative file's published hash. A metadata file records provenance; it is **not** a substitute for rehashing the actual file after a copy. Each source folder may contain additional configs, tokenizers, and licenses required by the engine.
 
-| Studio model and local folder                                                                            | Upstream model files                                                                                                                                                                                                                                           | Recorded revision                          | Representative SHA-256                                                                      |
-| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| Hunyuan3D shape, `models/Hunyuan3D-2.1/`                                                                 | [tencent/Hunyuan3D-2.1](https://huggingface.co/tencent/Hunyuan3D-2.1), `hunyuan3d-dit-v2-1/model.fp16.ckpt`                                                                                                                                                    | `0b94677654c57bb9a6b6845cd7b704ccf551d327` | `6b519fc7242f78e9b5f47ea4d55668fe3d944a2d27332f4ca68d29a6ff603f5e`                          |
-| Hunyuan3D Paint PBR texture, `models/Hunyuan3D-2.1/hunyuan3d-paintpbr-v2-1/`                             | [tencent/Hunyuan3D-2.1](https://huggingface.co/tencent/Hunyuan3D-2.1), `hunyuan3d-paintpbr-v2-1/unet/diffusion_pytorch_model.bin` (3.9 GB), VAE, CLIP text encoder, tokenizer, scheduler; Tencent Hunyuan Non-Commercial License (see `LICENSE`, `Notice.txt`) | `0b94677654c57bb9a6b6845cd7b704ccf551d327` | `675a1b5cd0098b2002637c443946529c03c5cd54427f40245263350feb3dd5b8`                          |
-| Hunyuan3D Paint DINOv2 image encoder, `models/Hunyuan3D-2.1/dinov2-giant/`                               | [facebook/dinov2-giant](https://huggingface.co/facebook/dinov2-giant), `model.safetensors` (4.5 GB); Apache-2.0                                                                                                                                                | `611a9d42f2335e0f921f1e313ad3c1b7178d206d` | `917d3c470db999d32a312f8542149be91c7cbac61ee8fb4b67ae3d82b79ce21f`                          |
-| Hunyuan3D Paint upscaler, `models/Hunyuan3D-2.1/RealESRGAN_x4plus.pth`                                   | [xinntao/Real-ESRGAN v0.1.0 release](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.1.0), `RealESRGAN_x4plus.pth` (67 MB); BSD-3-Clause                                                                                                                | Release `v0.1.0`                           | `4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1`                          |
-| HY-Motion, `models/HY-Motion/HY-Motion-1.0/`                                                             | [tencent/HY-Motion-1.0](https://huggingface.co/tencent/HY-Motion-1.0), `HY-Motion-1.0/latest.ckpt`                                                                                                                                                             | `620dd559f8d964aac2f82f1204fe6a35ad8ad14d` | `4fa91c6085f30c49bccda150b28d6c8d0887dc07e6d5d4ec0055482732635f10`                          |
-| HY-Motion CLIP encoder, `models/HY-Motion/clip-vit-large-patch14/`                                       | [openai/clip-vit-large-patch14](https://huggingface.co/openai/clip-vit-large-patch14), `model.safetensors`                                                                                                                                                     | `32bd64288804d66eefd0ccbe215aa642df71cc41` | `a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb`                          |
-| HY-Motion text encoder, `models/HY-Motion/Qwen3-8B/`                                                     | [Qwen/Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B), five SafeTensors shards and tokenizer/config files                                                                                                                                                      | `b968826d9c46dd6066d109eabc6255188de91218` | Multiple shard hashes; inspect upstream metadata for each file.                             |
-| Qwen3-TTS CustomVoice, `models/Qwen3-TTS-12Hz-1.7B-CustomVoice/`                                         | [Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice), `model.safetensors` and the separate `speech_tokenizer/` directory                                                                                        | `0c0e3051f131929182e2c023b9537f8b1c68adfe` | `38b1d5971bdbd982b561cccec982669a53b0537c3cf5e9bd4778ed07bb2f5137`                          |
-| Nemotron streaming ASR, `models/nemotron-speech-streaming-en-0.6b/`                                      | [nvidia/nemotron-speech-streaming-en-0.6b](https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b), `nemotron-speech-streaming-en-0.6b.q8_0.gguf`                                                                                                     | `ebe59e5a817142986528bbbee5dba8db7b38ed50` | `d9a01898d2a611c8764e23a1c2f45e70bbd5a425dc4de93692ac951dd603812d`                          |
-| Qwen3-TTS Base (voice cloning, optional, downloaded and verified 2026-11-08; staged, not activated), `models/Qwen3-TTS-12Hz-1.7B-Base/`              | [Qwen/Qwen3-TTS-12Hz-1.7B-Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base), `model.safetensors` (3,857,413,744 bytes) and `speech_tokenizer/` (682,293,092 bytes); about 4.54 GB in total                                                           | `fd4b254389122332181a7c3db7f27e918eec64e3` | `38fc7fc51c5e776e840414b6fd443962e9411b9654888fd7913e4da643cb857c`                          |
-| Qwen3-TTS VoiceDesign (voice design, optional, downloaded and verified 2026-11-08; staged, not activated), `models/Qwen3-TTS-12Hz-1.7B-VoiceDesign/` | [Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign), `model.safetensors` (3,833,402,552 bytes) and `speech_tokenizer/` (682,293,092 bytes); about 4.52 GB in total                                             | `5ecdb67327fd37bb2e042aab12ff7391903235d3` | `391e8db219f292c515297cdceeb43e4eae67cdde35fa57e79a6a8a532fca0522`                          |
-| SAM 3, `models/sam3/`                                                                                    | [facebook/sam3](https://huggingface.co/facebook/sam3), `sam3.pt`; access approval required                                                                                                                                                                     | `3c879f39826c281e95690f02c7821c4de09afae7` | `9999e2341ceef5e136daa386eecb55cb414446a00ac2b55eb2dfd2f7c3cf8c9e`                          |
-| SAM 3.1, `models/sam3.1/`                                                                                | [facebook/sam3.1](https://huggingface.co/facebook/sam3.1), `sam3.1_multiplex.pt`; access approval required                                                                                                                                                     | `daa63191845a41281374e725f4c9e51c7a824460` | `0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6`                          |
-| MotionBricks SOMA, `models/MotionBricks/checkpoints/`                                                    | [nvidia/MotionBricks](https://huggingface.co/nvidia/MotionBricks), SOMA checkpoint and statistics tree. The representative file is `mmm-v6-soma-pose-nova-4n8g-ea43dd8-fp32-v1/version_0/checkpoints/model-step=1500000.safetensors`.                          | `3cb362d9b95aa40462abcb4d8cfae9ffb6d97410` | `8537d9d33a880ff1df6c16c28ed061d60c461a5918d70b1cf99251ff91a10a10`                          |
-| TRELLIS.2, `models/TRELLIS.2-4B/`                                                                        | [microsoft/TRELLIS.2-4B](https://huggingface.co/microsoft/TRELLIS.2-4B), selected image-to-3D checkpoints                                                                                                                                                      | `af44b45f2e35a493886929c6d786e563ec68364d` | The project downloader verifies every selected file against the pinned repository metadata. |
-| TRELLIS.2 supporting decoder, `models/TRELLIS-image-large/`                                              | [microsoft/TRELLIS-image-large](https://huggingface.co/microsoft/TRELLIS-image-large), `ckpts/ss_dec_conv3d_16l8_fp16.*`                                                                                                                                       | `25e0d31ffbebe4b5a97464dd851910efc3002d96` | Verified by the project downloader.                                                         |
-| TRELLIS.2 DINOv3 image encoder, `models/dinov3-vitl16-pretrain-lvd1689m/`                                | [facebook/dinov3-vitl16-pretrain-lvd1689m](https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m), `model.safetensors`; access approval required                                                                                                     | `ea8dc2863c51be0a264bab82070e3e8836b02d51` | `dcb2e45127cccbf1601e5f42fef165eea275c8e5213197e8dcf3f48822718179`                          |
+| Studio model and local folder                                                                                                                                                                                  | Upstream model files                                                                                                                                                                                                                                           | Recorded revision                          | Representative SHA-256                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Hunyuan3D shape, `models/Hunyuan3D-2.1/`                                                                                                                                                                       | [tencent/Hunyuan3D-2.1](https://huggingface.co/tencent/Hunyuan3D-2.1), `hunyuan3d-dit-v2-1/model.fp16.ckpt`                                                                                                                                                    | `0b94677654c57bb9a6b6845cd7b704ccf551d327` | `6b519fc7242f78e9b5f47ea4d55668fe3d944a2d27332f4ca68d29a6ff603f5e`                          |
+| Hunyuan3D Paint PBR texture, `models/Hunyuan3D-2.1/hunyuan3d-paintpbr-v2-1/`                                                                                                                                   | [tencent/Hunyuan3D-2.1](https://huggingface.co/tencent/Hunyuan3D-2.1), `hunyuan3d-paintpbr-v2-1/unet/diffusion_pytorch_model.bin` (3.9 GB), VAE, CLIP text encoder, tokenizer, scheduler; Tencent Hunyuan Non-Commercial License (see `LICENSE`, `Notice.txt`) | `0b94677654c57bb9a6b6845cd7b704ccf551d327` | `675a1b5cd0098b2002637c443946529c03c5cd54427f40245263350feb3dd5b8`                          |
+| Hunyuan3D Paint DINOv2 image encoder, `models/Hunyuan3D-2.1/dinov2-giant/`                                                                                                                                     | [facebook/dinov2-giant](https://huggingface.co/facebook/dinov2-giant), `model.safetensors` (4.5 GB); Apache-2.0                                                                                                                                                | `611a9d42f2335e0f921f1e313ad3c1b7178d206d` | `917d3c470db999d32a312f8542149be91c7cbac61ee8fb4b67ae3d82b79ce21f`                          |
+| Hunyuan3D Paint upscaler, `models/Hunyuan3D-2.1/RealESRGAN_x4plus.pth`                                                                                                                                         | [xinntao/Real-ESRGAN v0.1.0 release](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.1.0), `RealESRGAN_x4plus.pth` (67 MB); BSD-3-Clause                                                                                                                | Release `v0.1.0`                           | `4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1`                          |
+| HY-Motion, `models/HY-Motion/HY-Motion-1.0/`                                                                                                                                                                   | [tencent/HY-Motion-1.0](https://huggingface.co/tencent/HY-Motion-1.0), `HY-Motion-1.0/latest.ckpt`                                                                                                                                                             | `620dd559f8d964aac2f82f1204fe6a35ad8ad14d` | `4fa91c6085f30c49bccda150b28d6c8d0887dc07e6d5d4ec0055482732635f10`                          |
+| HY-Motion CLIP encoder, `models/HY-Motion/clip-vit-large-patch14/`                                                                                                                                             | [openai/clip-vit-large-patch14](https://huggingface.co/openai/clip-vit-large-patch14), `model.safetensors`                                                                                                                                                     | `32bd64288804d66eefd0ccbe215aa642df71cc41` | `a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb`                          |
+| HY-Motion text encoder, `models/HY-Motion/Qwen3-8B/`                                                                                                                                                           | [Qwen/Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B), five SafeTensors shards and tokenizer/config files                                                                                                                                                      | `b968826d9c46dd6066d109eabc6255188de91218` | Multiple shard hashes; inspect upstream metadata for each file.                             |
+| Qwen3-TTS CustomVoice, `models/Qwen3-TTS-12Hz-1.7B-CustomVoice/`                                                                                                                                               | [Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice), `model.safetensors` and the separate `speech_tokenizer/` directory                                                                                        | `0c0e3051f131929182e2c023b9537f8b1c68adfe` | `38b1d5971bdbd982b561cccec982669a53b0537c3cf5e9bd4778ed07bb2f5137`                          |
+| Nemotron streaming ASR, `models/nemotron-speech-streaming-en-0.6b/`                                                                                                                                            | [nvidia/nemotron-speech-streaming-en-0.6b](https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b), `nemotron-speech-streaming-en-0.6b.q8_0.gguf`                                                                                                     | `ebe59e5a817142986528bbbee5dba8db7b38ed50` | `d9a01898d2a611c8764e23a1c2f45e70bbd5a425dc4de93692ac951dd603812d`                          |
+| Qwen3-TTS Base (voice cloning, optional, downloaded and verified 2026-11-08; already installed on this machine; activatable with -Activate into a new folder), `models/Qwen3-TTS-12Hz-1.7B-Base/`              | [Qwen/Qwen3-TTS-12Hz-1.7B-Base](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base), `model.safetensors` (3,857,413,744 bytes) and `speech_tokenizer/` (682,293,092 bytes); about 4.54 GB in total                                                           | `fd4b254389122332181a7c3db7f27e918eec64e3` | `38fc7fc51c5e776e840414b6fd443962e9411b9654888fd7913e4da643cb857c`                          |
+| Qwen3-TTS VoiceDesign (voice design, optional, downloaded and verified 2026-11-08; already installed on this machine; activatable with -Activate into a new folder), `models/Qwen3-TTS-12Hz-1.7B-VoiceDesign/` | [Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign), `model.safetensors` (3,833,402,552 bytes) and `speech_tokenizer/` (682,293,092 bytes); about 4.52 GB in total                                             | `5ecdb67327fd37bb2e042aab12ff7391903235d3` | `391e8db219f292c515297cdceeb43e4eae67cdde35fa57e79a6a8a532fca0522`                          |
+| SAM 3.1, `models/sam3.1/`                                                                                                                                                                                      | [facebook/sam3.1](https://huggingface.co/facebook/sam3.1), `sam3.1_multiplex.pt`; access approval required                                                                                                                                                     | `daa63191845a41281374e725f4c9e51c7a824460` | `0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6`                          |
+| MotionBricks SOMA, `models/MotionBricks/checkpoints/`                                                                                                                                                          | [nvidia/MotionBricks](https://huggingface.co/nvidia/MotionBricks), SOMA checkpoint and statistics tree. The representative file is `mmm-v6-soma-pose-nova-4n8g-ea43dd8-fp32-v1/version_0/checkpoints/model-step=1500000.safetensors`.                          | `3cb362d9b95aa40462abcb4d8cfae9ffb6d97410` | `8537d9d33a880ff1df6c16c28ed061d60c461a5918d70b1cf99251ff91a10a10`                          |
+| TRELLIS.2, `models/TRELLIS.2-4B/`                                                                                                                                                                              | [microsoft/TRELLIS.2-4B](https://huggingface.co/microsoft/TRELLIS.2-4B), selected image-to-3D checkpoints                                                                                                                                                      | `af44b45f2e35a493886929c6d786e563ec68364d` | The project downloader verifies every selected file against the pinned repository metadata. |
+| TRELLIS.2 supporting decoder, `models/TRELLIS-image-large/`                                                                                                                                                    | [microsoft/TRELLIS-image-large](https://huggingface.co/microsoft/TRELLIS-image-large), `ckpts/ss_dec_conv3d_16l8_fp16.*`                                                                                                                                       | `25e0d31ffbebe4b5a97464dd851910efc3002d96` | Verified by the project downloader.                                                         |
+| TRELLIS.2 DINOv3 image encoder, `models/dinov3-vitl16-pretrain-lvd1689m/`                                                                                                                                      | [facebook/dinov3-vitl16-pretrain-lvd1689m](https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m), `model.safetensors`; access approval required                                                                                                     | `ea8dc2863c51be0a264bab82070e3e8836b02d51` | `dcb2e45127cccbf1601e5f42fef165eea275c8e5213197e8dcf3f48822718179`                          |
 
 The MotionBricks ONNX files in `models/MotionBricks/` are separate from the SafeTensors checkpoint tree. The currently integrated SOMA path uses NVIDIA's PyTorch graph and the checkpoint tree; the ONNX files and G1 inference are not the connected path. The [upstream repository](https://github.com/NVlabs/motionbricks) documents its ONNX export and separate source and model licenses. Its example poses have their own terms.
 
@@ -296,13 +455,12 @@ Invoke-WebRequest -Uri 'https://github.com/xinntao/Real-ESRGAN/releases/download
 & $hf download Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice --revision 0c0e3051f131929182e2c023b9537f8b1c68adfe --include '*.json' --include '*.txt' --include '*.safetensors' --include 'speech_tokenizer/*' --include 'README.md' --local-dir "$restore\Qwen3-TTS-12Hz-1.7B-CustomVoice"
 
 # Optional: voice cloning (Base) and voice design (VoiceDesign) checkpoints for Qwen3-TTS.
-# Used by the Voices page clone (Base) and design (VoiceDesign) modes; stage them with: .\install.ps1 -Models tts-base,tts-voicedesign
+# Used by the Voices page clone (Base) and design (VoiceDesign) modes; stage them with: .\install.ps1 -Models tts-base,tts-voicedesign; add -Activate only when their target folders do not exist yet
 & $hf download Qwen/Qwen3-TTS-12Hz-1.7B-Base --revision fd4b254389122332181a7c3db7f27e918eec64e3 --include '*.json' --include '*.txt' --include '*.safetensors' --include 'speech_tokenizer/*' --include 'README.md' --local-dir "$restoreQwen3-TTS-12Hz-1.7B-Base"
 & $hf download Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign --revision 5ecdb67327fd37bb2e042aab12ff7391903235d3 --include '*.json' --include '*.txt' --include '*.safetensors' --include 'speech_tokenizer/*' --include 'README.md' --local-dir "$restoreQwen3-TTS-12Hz-1.7B-VoiceDesign"
 
 # NVIDIA speech GGUF, plus gated Meta checkpoints after approval
 & $hf download nvidia/nemotron-speech-streaming-en-0.6b nemotron-speech-streaming-en-0.6b.q8_0.gguf --revision ebe59e5a817142986528bbbee5dba8db7b38ed50 --local-dir "$restore\nemotron-speech-streaming-en-0.6b"
-& $hf download facebook/sam3 sam3.pt --revision 3c879f39826c281e95690f02c7821c4de09afae7 --local-dir "$restore\sam3"
 & $hf download facebook/sam3.1 sam3.1_multiplex.pt --revision daa63191845a41281374e725f4c9e51c7a824460 --local-dir "$restore\sam3.1"
 
 # SOMA checkpoint tree; this does not download the separate ONNX files
@@ -332,6 +490,6 @@ Qwen Image Studio reads LoRA files from `models/Qwen-Image-2.1-LoRA/` (Forge set
 - Source: [akhaliq/Qwen-Image-2.1-Multiple-Angles-LoRA](https://huggingface.co/akhaliq/Qwen-Image-2.1-Multiple-Angles-LoRA), `checkpoints_v2/angles_v2_full_qwen21_multiple_angles_v2_qwen21_multiple_angles_v2_000001500.safetensors` (the card's recommended v2 step 1,500 checkpoint), repository revision `175b29b6eb41307473eebc363fca8fc198216b60`.
 - Local file: `models/Qwen-Image-2.1-LoRA/angles_v2_step1500.safetensors`, 318,819,792 bytes, SHA-256 `548c57977c3f1c09c2c9e5f4e83e930cbc6f719c878a576ab8666ce29fef39b6`.
 - Base and license: the card declares `Qwen/Qwen-Image-2.1` as its base model, rank 64, license Apache-2.0. It is a camera-angle LoRA, not a style LoRA. Prompts start with the trigger `<mva>`, and the card suggests strength 0.8 to 1.0.
-- Status: size and SHA-256 verified. `peft` 0.21.2 was installed into the Qwen Image Studio `.venv` with `--no-deps`; torch, torchvision, diffusers, and transformers versions were unchanged. Loading this LoRA into the pipeline has not been tested.
+- Status: size and SHA-256 verified. `peft` 0.21.2 was installed into the Qwen Image Studio `.venv` with `--no-deps`; torch, torchvision, diffusers, and transformers versions were unchanged. Loading into the pipeline was tested on 2026-11-08 with the `gate_up` split above: all 64 fused tensors are applied and the engine log shows no unexpected keys (the split is described in the Qwen Image Studio `app.py` section).
 
 See [Windows ARM64 notes](WINDOWS_ARM64.md) for the code sources, CUDA toolchain, local patches, and validation commands.

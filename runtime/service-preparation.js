@@ -1,3 +1,19 @@
+// Whether the queue may start this kind of worker itself. A custom service address (for example
+// FORGE_VIDEO_URL) means the service is provided from outside Forge, so the queue waits for it
+// instead of starting a second copy; FORGE_AUTO_START_<NAME>=1 opts back in for images and video.
+export function autoStartsService(type, env = process.env) {
+  if (type === 'images') {
+    return !env.FORGE_IMAGE_URL || env.FORGE_AUTO_START_IMAGE === '1';
+  }
+  if (type === 'video') {
+    return !env.FORGE_VIDEO_URL || env.FORGE_AUTO_START_VIDEO === '1';
+  }
+  if (type === 'world') {
+    return !env.FORGE_WORLD_URL;
+  }
+  return !env.FORGE_SFX_URL;
+}
+
 // Start a configured worker without loading its model. Engines that require
 // credentials or lack a safe load API remain waiting for explicit setup.
 export function createServicePreparation({ startEngine, autoStart }) {

@@ -384,7 +384,7 @@ p {
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.6;
-  white-space: nowrap;
+  white-space: normal;
   color: var(--muted);
   background: var(--info-surface);
   vertical-align: middle;
@@ -704,6 +704,12 @@ p {
 
 .shots figure {
   margin: 0;
+}
+
+/* One screenshot inside a section, kept narrower than the full content width. */
+.shots.shots-single {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 960px;
 }
 
 .shots img {
@@ -1614,5 +1620,91 @@ td code {
   }
   .model[hidden] {
     display: flex;
+  }
+}
+
+/* NVIDIA RTX Spark: hardware badge, hardware band and trademark note. The green is an accent
+   only; no NVIDIA logo artwork is used. */
+:root {
+  --spark-green: #76b900;
+}
+
+.spark-badge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--spark-green);
+  border-radius: 8px;
+  background: var(--info-surface);
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.spark-badge strong {
+  color: var(--strong);
+}
+
+.spark-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--spark-green);
+}
+
+.spark-sep {
+  color: var(--subtle);
+}
+
+.spark-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.spark-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.spark-stats li {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-quiet);
+  border-left: 3px solid var(--spark-green);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.spark-stats strong {
+  min-width: 4.2ch;
+  color: var(--strong);
+  font-size: 1.25rem;
+}
+
+.spark-stats span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.site-footer .trademark-note {
+  font-size: 0.8rem;
+  color: var(--subtle);
+  max-width: 34em;
+}
+
+@media (max-width: 760px) {
+  .spark-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
   }
 }

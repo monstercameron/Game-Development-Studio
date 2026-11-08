@@ -31,6 +31,7 @@ export default function TrellisControls({ draft, onChange, installedPipelines })
   // Only pipelines whose checkpoints exist are offered. While that is unknown, every pipeline is
   // shown and the worker rejects one that is missing with a clear message.
   const offered = TRELLIS_PIPELINES.filter((item) => !installed || installed.includes(item.id));
+  const fromDescription = draft.threeDMode === 'text';
   const pipelineId = draft.trellisPipeline ?? TRELLIS_DEFAULT_PIPELINE;
   const pipeline = TRELLIS_PIPELINES.find((item) => item.id === pipelineId);
   const steps = draft.trellisSteps === undefined ? 12 : (draft.trellisSteps ?? '');
@@ -45,16 +46,16 @@ export default function TrellisControls({ draft, onChange, installedPipelines })
         <span className="trellis-controls__badge">Experimental</span>
         <p>
           TRELLIS.2 makes textured 3D models with colour and metallic-roughness maps. Renders
-          complete on this computer, but quality, speed and memory use are not yet calibrated. The
-          1024 and 1536 pipelines are untested here, so treat their time and memory figures as
-          guesses.
+          complete on this computer for all four pipelines, but each was timed on one simple object
+          only, and memory use is not calibrated: Forge&apos;s GPU and system memory waits are
+          cautious guesses.
         </p>
       </aside>
 
       <p className="trellis-controls__reference-help">
-        Requires one PNG or WebP with a transparent background (alpha channel); an opaque image is
-        rejected unless you remove its background first (above). A checkerboard flattened into the
-        image is opaque. Segmentation can also cut an object out.
+        {fromDescription
+          ? 'The picture comes from your description: Qwen Image draws it with a transparent background first, so no reference image is needed.'
+          : 'Requires one PNG or WebP with a transparent background (alpha channel); an opaque image is rejected unless you remove its background first (above). A checkerboard flattened into the image is opaque. Segmentation can also cut an object out.'}
       </p>
 
       <div className="trellis-controls__fields">
@@ -77,8 +78,8 @@ export default function TrellisControls({ draft, onChange, installedPipelines })
           <p id="trellis-pipeline-help" className="trellis-controls__help">
             {pipeline?.summary}{' '}
             {pipeline && pipeline.id !== TRELLIS_DEFAULT_PIPELINE
-              ? `Forge waits for about ${pipeline.gpuGiB} GB of free GPU memory. The first render with a higher pipeline also reads about 5 GB of extra checkpoints into system memory, and these pipelines have not been timed here.`
-              : 'Forge waits for about 24 GB of free GPU memory.'}
+              ? `Forge waits for about ${pipeline.gpuGiB} GB of free GPU memory (a cautious guess). The first render with a higher pipeline also reads about 5 GB of extra checkpoints into system memory. One test object took ${pipeline.measured}; yours may differ.`
+              : `Forge waits for about 24 GB of free GPU memory. One test object took ${pipeline?.measured ?? 'about 1 minute'}; yours may differ.`}
           </p>
         </div>
 
@@ -152,7 +153,7 @@ export default function TrellisControls({ draft, onChange, installedPipelines })
             three sampling stages, so more steps take longer.
           </p>
           {stepsError && (
-            <p id="trellis-steps-error" className="trellis-controls__error" aria-live="polite">
+            <p id="trellis-steps-error" className="trellis-controls__error" role="alert">
               {stepsError}
             </p>
           )}

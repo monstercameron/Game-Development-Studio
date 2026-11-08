@@ -12,6 +12,7 @@ import { EngineRecovery } from './engine-recovery.js';
 import { expectedEngineExecutables, inspectWindowsProcess } from './engine-ownership.js';
 import { forceStopWindows } from './force-stop.js';
 import { DEFAULT_CHAT_CONTEXT, validateChatContext } from './chat-memory.js';
+import { CHAT_PROJECTOR_PATH, chatProjectorExists } from './chat-vision.js';
 import { resolveEngineLaunch } from './engine-launch.js';
 import { asrLatencyArgs } from './asr-latency.js';
 
@@ -137,6 +138,9 @@ export const engineDefinitions = [
       FORGE_H3_INPUT_ROOT: path.join(root, '.forge-runtime', 'h3-inputs'),
       FORGE_H3_LORA_DIR: path.join(defaultModelsRoot, 'MiniMax-H3', 'loras'),
     },
+    // runtime/h3_guard.py answers the stop operation itself: it refuses new work, then exits only
+    // when no request is in flight and H3 reports no running render.
+    quiesce: 'h3-guard-v1',
   },
   {
     id: 'world',
@@ -290,6 +294,18 @@ export const engineDefinitions = [
 export function engineStartArgs(definition, options = {}) {
   if (definition.id === 'chat') {
     const contextSize = validateChatContext(options.contextSize ?? DEFAULT_CHAT_CONTEXT);
+    // Image input needs the multimodal projector. Without the file the server starts text-only
+    // and the Chat page reports vision as unavailable (checked from the server's /props).
+    const projectorPath = options.projectorPath ?? CHAT_PROJECTOR_PATH;
+    const projectorArgs = chatProjectorExists(projectorPath)
+      ? [
+          '--mmproj',
+          projectorPath,
+          // Cap each picture to a share of the context window so one image cannot fill it.
+          '--image-max-tokens',
+          String(Math.min(2048, contextSize / 4)),
+        ]
+      : [];
     return [
       ...definition.args.map((arg, index) =>
         definition.args[index - 1] === '--spec-type' && options.speculative === false
@@ -298,6 +314,7 @@ export function engineStartArgs(definition, options = {}) {
             ? String(contextSize)
             : arg,
       ),
+      ...projectorArgs,
       '--parallel',
       '1',
     ];
@@ -671,6 +688,7 @@ export class EngineManager {
         (id === 'segmentation' && definition?.quiesce === 'sam31-v1') ||
         (id === 'motion-hy' && definition?.quiesce === 'hymotion-v1') ||
         (id === 'motion-bricks' && definition?.quiesce === 'motionbricks-v1') ||
+        (id === 'video' && definition?.quiesce === 'h3-guard-v1') ||
         (id === 'asr' && definition?.quiesce === 'asr-guard-v1') ||
         (id === 'game' && definition?.quiesce === 'mammoth-v1')) &&
       this.owns(id)
@@ -682,6 +700,9 @@ export class EngineManager {
         item.id,
         {
           managed: this.owns(item.id),
+          // On-demand engines are never started by start-all or the single-engine start; they
+          // start after a GPU memory check, through their own load operation.
+          startsOnDemand: item.onDemand === true,
           canUnload: this.canOffload(item.id),
           canForceStop:
             !!this.children.get(item.id)?.forceIdentity &&
@@ -939,6 +960,7 @@ export class EngineManager {
       (id === 'segmentation' && definition.quiesce === 'sam31-v1') ||
       (id === 'motion-hy' && definition.quiesce === 'hymotion-v1') ||
       (id === 'motion-bricks' && definition.quiesce === 'motionbricks-v1') ||
+      (id === 'video' && definition.quiesce === 'h3-guard-v1') ||
       (id === 'asr' && definition.quiesce === 'asr-guard-v1') ||
       (id === 'game' && definition.quiesce === 'mammoth-v1')
         ? randomBytes(32).toString('hex')
@@ -1082,23 +1104,30 @@ export class EngineManager {
     }
     return { id, status: 'starting', pid: child.pid, logFile, modelLoading: 'on demand' };
   }
+  // Starts one engine process without loading a model, with the same ownership, port, recovery
+  // and on-demand rules as startAll. Throws for an unknown id.
+  async startOne(id) {
+    const definition = this.definitions.find((item) => item.id === id);
+    if (!definition) {
+      throw Error('Unknown engine.');
+    }
+    if (definition.onDemand) {
+      return {
+        id: definition.id,
+        status: 'on_demand',
+        message: 'Starts after a GPU memory check.',
+      };
+    }
+    try {
+      return await this.start(definition.id);
+    } catch (error) {
+      return { id: definition.id, status: 'failed', message: error.message };
+    }
+  }
   async startAll() {
     return {
       services: await Promise.all(
-        this.definitions.map(async (definition) => {
-          if (definition.onDemand) {
-            return {
-              id: definition.id,
-              status: 'on_demand',
-              message: 'Starts after a GPU memory check.',
-            };
-          }
-          try {
-            return await this.start(definition.id);
-          } catch (error) {
-            return { id: definition.id, status: 'failed', message: error.message };
-          }
-        }),
+        this.definitions.map((definition) => this.startOne(definition.id)),
       ),
     };
   }
@@ -1305,6 +1334,7 @@ export class EngineManager {
     if (
       [
         'images',
+        'video',
         'tts',
         '3d-hunyuan',
         '3d-trellis',

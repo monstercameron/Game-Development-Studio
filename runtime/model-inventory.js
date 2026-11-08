@@ -29,7 +29,6 @@ export const managedModels = Object.freeze([
   { id: 'tts-voicedesign', folder: 'Qwen3-TTS-12Hz-1.7B-VoiceDesign', removable: false },
   { id: 'asr', folder: 'nemotron-speech-streaming-en-0.6b' },
   { id: 'segmentation', folder: 'sam3.1' },
-  { id: 'sam3-base', folder: 'sam3' },
 ]);
 
 async function measureDirectory(root, folder) {

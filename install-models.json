@@ -318,7 +318,7 @@
         "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base"
       ],
       "destination": "models/Qwen3-TTS-12Hz-1.7B-Base",
-      "notes": "Optional, about 4.5 GB. The checkpoint that clones a voice from a short reference clip, used by the Voices page clone mode. Stage without -Activate and follow MODEL_SOURCES.md.",
+      "notes": "Optional, about 4.5 GB. The checkpoint that clones a voice from a short reference clip, used by the Voices page clone mode. -Activate installs it only into a new models/Qwen3-TTS-12Hz-1.7B-Base folder; an existing folder is never replaced. The Python runtime is separate.",
       "downloads": [
         {
           "repo": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
@@ -339,7 +339,7 @@
         "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
       ],
       "destination": "models/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
-      "notes": "Optional, about 4.5 GB. The checkpoint that designs a new voice from a written description, used by the Voices page design mode. Stage without -Activate and follow MODEL_SOURCES.md.",
+      "notes": "Optional, about 4.5 GB. The checkpoint that designs a new voice from a written description, used by the Voices page design mode. -Activate installs it only into a new models/Qwen3-TTS-12Hz-1.7B-VoiceDesign folder; an existing folder is never replaced. The Python runtime is separate.",
       "downloads": [
         {
           "repo": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
@@ -426,6 +426,17 @@
           "files": ["Qwen3.8-27B-Q4_K_M.gguf"]
         }
       ]
+    }
+  ],
+  "linkedRepositories": [
+    {
+      "id": "seedthree",
+      "name": "SeedThree",
+      "repository": "https://github.com/SkyeShark/SeedThree.git",
+      "commit": "cf2eaad39d9b7355ed086aca2a95fb785e539242",
+      "license": "MIT",
+      "destination": "external/SeedThree",
+      "summary": "Procedural tree and plant generator (JavaScript, Three.js). Linked as a git submodule pinned to this commit; Forge does not vendor its files. Fetch with install.ps1 -Vegetation or the Vegetation page. Dependencies are installed inside the checkout with npm ci --ignore-scripts --omit=dev."
     }
   ]
 }

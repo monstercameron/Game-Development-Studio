@@ -88,7 +88,7 @@ test('3D page controls: description mode, background removal and TRELLIS pipelin
     assert.match(container.textContent, /Qwen Image 2\.1/);
     assert.match(container.textContent, /1024\s+×\s+1024, transparent background/);
     assert.match(container.textContent, /builds the 3D model from it with TRELLIS\.2/);
-    assert.match(container.textContent, /one after the other, never together/);
+    assert.match(container.textContent, /Forge frees the first model before loading the second when it can/);
     assert.match(container.textContent, /estimate on this page covers the 3D step only/);
     assert.equal(
       container.querySelector('#three-d-image-steps').getAttribute('aria-invalid'),
@@ -161,10 +161,10 @@ test('3D page controls: description mode, background removal and TRELLIS pipelin
     assert.equal(checkbox().checked, true);
     assert.equal(
       container.querySelector('#three-d-remove-prompt').getAttribute('placeholder'),
-      'the main object',
+      'main object',
     );
     assert.match(container.textContent, /SAM 3\.1 cuts out what you describe/);
-    assert.match(container.textContent, /load one after the other/);
+    assert.match(container.textContent, /frees SAM 3.1 before loading the 3D model when it can/);
     checkbox().click();
     assert.deepEqual(changes.at(-1), { removeBackground: false });
 
@@ -213,11 +213,23 @@ test('3D page controls: description mode, background removal and TRELLIS pipelin
     const help = container.querySelector('#trellis-pipeline-help').textContent;
     assert.match(help, /about 64 GB of free GPU memory/);
     assert.match(help, /about 5 GB of extra checkpoints/);
-    assert.match(help, /not been timed here/);
+    assert.match(help, /One test object took about 9 minutes/);
     const select = container.querySelector('#trellis-pipeline');
     select.value = '1024';
     select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
     assert.deepEqual(changes.at(-1), { trellisPipeline: '1024' });
+
+    // Text-to-3D needs no reference, so the controls must not ask for one.
+    await render(
+      React.createElement(TrellisControls, {
+        draft: { threeDMode: 'text' },
+        onChange,
+        installedPipelines: ['512'],
+      }),
+    );
+    const referenceHelp = container.querySelector('.trellis-controls__reference-help').textContent;
+    assert.match(referenceHelp, /no reference image is needed/);
+    assert.doesNotMatch(referenceHelp, /Requires one PNG/);
 
     // Without a list the component asks the runtime; a missing pipeline is then hidden.
     await render(React.createElement(TrellisControls, { draft: {}, onChange }));

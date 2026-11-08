@@ -1,0 +1,8 @@
+{
+  "errors.button.checking": "Errors: checking",
+  "errors.button.description": "{label}. Open error review.",
+  "errors.button.noneNew": "Errors: none new",
+  "errors.button.text": "Errors",
+  "errors.button.unavailable": "Errors: count unavailable",
+  "errors.button.unread": "Errors: {count} new since last opened"
+}

@@ -45,7 +45,9 @@ class Mesh:
 
 class Pipeline:
     def run(self, provided, **kwargs):
-        assert provided is image and kwargs["seed"] == 23 and kwargs["pipeline_type"] == "512"
+        # The image is a cleaned copy (see clear_faint_alpha), identical for a clean input.
+        assert provided.tobytes() == image.tobytes() and kwargs["seed"] == 23
+        assert kwargs["pipeline_type"] == "512"
         assert all(
             kwargs[name] == {"steps": 3}
             for name in (
@@ -119,6 +121,22 @@ with (
         except ValueError:
             continue
         raise AssertionError("Unsupported pipeline type was accepted.")
+    # After a first-use checkpoint load the job message returns to the render message.
+    ensure.return_value = True
+    notes = []
+    backend.generate_glb(
+        recorder, image, output, texture_size=512, pipeline_type="1024", report=notes.append
+    )
+    assert notes == ["Generating textured 3D model (1024 pipeline)."]
+
+
+haze = Image.new("RGBA", (8, 8), (90, 60, 30, 20))
+haze.putpixel((3, 3), (200, 50, 20, 255))
+haze.putpixel((4, 4), (200, 50, 20, 100))
+cleared = backend.clear_faint_alpha(haze)
+assert cleared.getpixel((0, 0)) == (0, 0, 0, 0)
+assert cleared.getpixel((3, 3)) == (200, 50, 20, 255)
+assert cleared.getpixel((4, 4)) == (200, 50, 20, 100)
 
 
 class Component:
@@ -143,13 +161,14 @@ with (
 ):
     pipeline = types.SimpleNamespace(models={"shape_slat_flow_model_512": Component()})
     messages = []
-    backend.ensure_pipeline_models(pipeline, "1536_cascade", messages.append)
+    assert backend.ensure_pipeline_models(pipeline, "1536_cascade", messages.append) is True
     assert set(pipeline.models) == {
         "shape_slat_flow_model_512",
         "shape_slat_flow_model_1024",
         "tex_slat_flow_model_1024",
     }
     assert len(loaded) == 2 and messages
-    backend.ensure_pipeline_models(pipeline, "1024")  # Already loaded: nothing more to read.
+    # Already loaded: nothing more to read.
+    assert backend.ensure_pipeline_models(pipeline, "1024") is False
     assert len(loaded) == 2
 print("TRELLIS.2 input validation and render controls passed with a substitute renderer.")

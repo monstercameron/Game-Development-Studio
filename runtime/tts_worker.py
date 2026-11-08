@@ -148,13 +148,15 @@ def load_worker(variant):
 def synthesize(request, reference, sampling):
     """Run the checkpoint-specific generation method; the resident model matches the request mode."""
     if request.mode == "clone":
-        # ICL mode: the reference transcript is required by the package when x_vector_only_mode is False.
+        # The package only uses ref_text in ICL mode, and in x-vector mode it still tokenizes a
+        # non-empty transcript into the prompt. Withhold it so a voice-only clone never sees one.
+        voice_only = request.clone_voice_only
         return model.generate_voice_clone(
             text=request.text,
             language=request.language,
             ref_audio=reference,
-            ref_text=request.reference_text,
-            x_vector_only_mode=False,
+            ref_text=None if voice_only else request.reference_text,
+            x_vector_only_mode=voice_only,
             max_new_tokens=request.max_new_tokens,
             **sampling,
         )
@@ -245,6 +247,8 @@ class SpeechRequest(BaseModel):
     # Base64 WAV, FLAC or MP3 bytes; about 4/3 of a 32 MiB staged clip at most.
     reference_audio_base64: str | None = Field(default=None, max_length=45_000_000)
     reference_text: str = Field(default="", max_length=1000)
+    # True clones from the speaker embedding alone: no transcript is used (lower similarity).
+    clone_voice_only: bool = False
     voice_description: str = Field(default="", max_length=500)
     max_new_tokens: int = Field(default=1024, ge=64, le=4096)
     seed: int | None = Field(default=None, ge=0, le=2147483647)
@@ -334,8 +338,11 @@ def generate(request: SpeechRequest):
         raise HTTPException(400, "Unknown voice mode.")
     reference = None
     if request.mode == "clone":
-        if not request.reference_text.strip() or request.reference_audio_base64 is None:
-            raise HTTPException(400, "Cloning needs reference audio and its transcript.")
+        transcript_missing = not request.clone_voice_only and not request.reference_text.strip()
+        if transcript_missing or request.reference_audio_base64 is None:
+            raise HTTPException(
+                400, "Cloning needs reference audio and, unless voice-only, its transcript."
+            )
         reference = decode_reference(request.reference_audio_base64)
     if request.mode == "design" and not request.voice_description.strip():
         raise HTTPException(400, "Designing a voice needs a voice description.")

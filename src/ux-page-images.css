@@ -137,3 +137,29 @@
   grid-row: 1;
   justify-self: start;
 }
+
+/* The toggle's help button follows its title instead of taking a row of its own. */
+.image-video-settings-body .image-video-settings-check > span {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0;
+}
+
+.image-video-settings-body .image-video-settings-check > span > * {
+  grid-column: 1 / -1;
+}
+
+.image-video-settings-body .image-video-settings-check > span > .field-label {
+  grid-column: 1;
+}
+
+.image-video-settings-body .image-video-settings-check > span > .field-help-slot {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+}
+
+/* The shared form-panel label margin (24 px above) outweighed the panel's own reset, which pushed
+   every title below its checkbox or field and doubled the gap between rows. */
+.form-panel .image-video-settings-body .field-label {
+  margin: 0;
+}

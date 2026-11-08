@@ -56,9 +56,10 @@ export function asrLatencyArgs(file = asrLatencyFile()) {
 // Saves the chosen mode and, when Forge owns a running idle engine, restarts it so the mode takes
 // effect. The stop goes through the engine's own guard, which refuses while a transcription session
 // is connected; that refusal leaves the engine running and the mode saved for its next start.
-export async function applyAsrLatency(latencyMs, { read, write, probe, managed, stop, start }) {
+// A running engine is restarted even when the value is unchanged. The saved value can differ from the
+// mode the engine was started with (for example after a refused change), so it cannot prove the mode.
+export async function applyAsrLatency(latencyMs, { write, probe, managed, stop, start }) {
   validateAsrLatency(latencyMs);
-  const previous = read();
   write(latencyMs);
   if (!(await probe())) {
     return {
@@ -66,14 +67,6 @@ export async function applyAsrLatency(latencyMs, { read, write, probe, managed, 
       applied: true,
       restarted: false,
       message: `Saved. The speech engine will use ${latencyMs} ms chunks the next time it starts.`,
-    };
-  }
-  if (latencyMs === previous) {
-    return {
-      latencyMs,
-      applied: true,
-      restarted: false,
-      message: `The speech engine already uses ${latencyMs} ms chunks.`,
     };
   }
   if (!(await managed())) {

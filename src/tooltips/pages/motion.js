@@ -22,6 +22,10 @@ const motion = {
     'Choose the zero-based frame where MotionBricks reads the target pose window. Frame numbers use a 30 fps timebase, and the window needs four frames.',
   'Minimum length tokens':
     'Set the shortest generated transition length. One token represents four frames; choose a value from 6 to 16.',
+  'Target poses to use':
+    'Choose how many of the four target-window poses MotionBricks reads, from 1 to 4. The first pose sets the destination; more poses add velocity and acceleration.',
+  Variations:
+    'Queue 1 to 4 HY-Motion clips as separate jobs. Each uses the next seed after the seed above, or its own random seed when the seed is blank.',
   'Maximum length tokens':
     'Set the longest generated transition length. One token represents four frames; choose a value from 6 to 16 and no less than the minimum.',
 };

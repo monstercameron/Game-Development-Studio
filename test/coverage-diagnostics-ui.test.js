@@ -88,7 +88,12 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
     const normalizedSource = source
       .replace("from './useNav'", "from '../../src/useNav.js'")
       .replace("from './diagnostics-filter.js'", "from '../../src/diagnostics-filter.js'")
-      .replace("import './diagnostics-page.css';", '');
+      .replace("import './diagnostics-page.css';", '')
+      // The developer-tools section has its own tests (error-pipeline-test-ui.test.js).
+      .replace(
+        "import ErrorPipelineTest from './ErrorPipelineTest';",
+        'const ErrorPipelineTest = () => null;',
+      );
     const transformed = await transformWithEsbuild(
       normalizedSource,
       path.join(temporaryDirectory, 'Diagnostics.jsx'),

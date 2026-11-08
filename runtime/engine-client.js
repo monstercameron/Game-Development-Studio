@@ -63,6 +63,9 @@ export class EngineClient {
   start(id, options = {}) {
     return this.call('start', { id, options });
   }
+  startOne(id) {
+    return this.call('startOne', { id });
+  }
   startAll() {
     return this.call('startAll');
   }

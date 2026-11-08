@@ -156,8 +156,9 @@ test('the reference is staged from the finished render and recorded on the reque
   const child = queue.enqueue(model3d(projectId, { jobId: parent.id }));
   // While the parent is open the child keeps waiting and nothing is staged.
   queue.db.prepare("UPDATE jobs SET status='running',remote_id='r' WHERE id=?").run(parent.id);
+  // Force the child to the head of the line (the scheduler orders by rank first).
   queue.db
-    .prepare("UPDATE jobs SET created_at='2000-01-01T00:00:00.000Z' WHERE id=?")
+    .prepare("UPDATE jobs SET created_at='2000-01-01T00:00:00.000Z',queue_rank=-1 WHERE id=?")
     .run(child.id);
   await queue.tick();
   assert.equal(queue.get(child.id).request.references.length, 0);

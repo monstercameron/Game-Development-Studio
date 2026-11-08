@@ -155,6 +155,16 @@ function serviceLabel(service) {
   }
   return 'Service reachable · model status unknown';
 }
+// What the single-service start route answered, in plain words.
+function startNotice(result, name) {
+  if (result.status === 'starting') {
+    return `${name} is starting. It can take a minute to respond; its model loads when a render needs it.`;
+  }
+  if (['already_managed', 'already_running'].includes(result.status)) {
+    return `${name} is already running.`;
+  }
+  return result.message || `${name}: ${String(result.status).replaceAll('_', ' ')}.`;
+}
 function memory(value) {
   return value === null || value === undefined ? '—' : `${(value / 1024).toFixed(1)} GiB`;
 }
@@ -304,6 +314,7 @@ export default function Models({ onNavigate = () => {} }) {
   const [soundError, setSoundError] = useState('');
   const [loadingSound, setLoadingSound] = useState(false);
   const [stoppingService, setStoppingService] = useState(null);
+  const [startingService, setStartingService] = useState(null);
   const forceModel = models.find((model) => model.id === params.get('force'));
   const forceTarget = forceModel ? { id: forceModel.id, name: forceModel.name } : null;
   const setForceTarget = (value) => change({ force: value?.id || null });
@@ -481,6 +492,27 @@ export default function Models({ onNavigate = () => {} }) {
       setNotice(error.message);
     } finally {
       setStoppingService(null);
+    }
+  }
+  // Starts the service process only. The model loads later, when a render needs it.
+  async function startService(id, name) {
+    setStartingService(id);
+    try {
+      const response = await fetch(`/api/runtime/engines/${id}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
+        body: '{}',
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw Error(result.error || `Could not start ${name}.`);
+      }
+      setNotice(startNotice(result, name));
+      await refreshStorage();
+    } catch (error) {
+      setNotice(error.message);
+    } finally {
+      setStartingService(null);
     }
   }
   async function forceStopService() {
@@ -1138,6 +1170,20 @@ export default function Models({ onNavigate = () => {} }) {
                           : 'Start & load model'}
                     </button>
                   )}
+                  {status?.startsOnDemand === false &&
+                    status.status === 'unavailable' &&
+                    !status.managed &&
+                    !status.canForceStop &&
+                    !['unresolved', 'checking'].includes(status.ownershipRecovery) && (
+                      <button
+                        className="catalog-action"
+                        aria-label={`Start ${model.name} service`}
+                        disabled={!!startingService}
+                        onClick={() => startService(status.id, model.name)}
+                      >
+                        {startingService === status.id ? 'Starting…' : 'Start service'}
+                      </button>
+                    )}
                   {status?.canUnload && (
                     <button
                       className="catalog-action"

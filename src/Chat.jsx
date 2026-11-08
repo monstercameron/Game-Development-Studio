@@ -6,7 +6,12 @@ import {
   estimateChatMemory,
 } from '../runtime/chat-memory.js';
 import { saveProjectText } from './save-project-text';
-import { chatStorageKey, normalizeSavedChats } from './chat-project';
+import { EMPTY_SAMPLING, SAMPLING_FIELDS, samplingFromForm } from './chat-sampling-form';
+import { chatStorageKey, chatsForStorage, normalizeSavedChats } from './chat-project';
+import { ChatImageButtons, ChatImageTray } from './ChatImageInput';
+import { useChatImages, useChatVision } from './use-chat-images';
+import { imageInputBlock, savedImageRecord } from './chat-images';
+import { CHAT_PROJECTOR_MIB } from '../runtime/chat-image-limits.js';
 import { checkJsonSyntax, isStructuredJsonFormat } from './chat-output';
 import { createResponseMetrics } from './chat-metrics';
 import ChatMarkdown from './ChatMarkdown';
@@ -21,6 +26,7 @@ import {
   ChevronDown,
   Copy,
   Cpu,
+  Pencil,
   MessageSquarePlus,
   RefreshCw,
   Settings2,
@@ -32,6 +38,7 @@ import {
 } from 'lucide-react';
 import './chat.css';
 import './chat-desktop.css';
+import './chat-history-rename.css';
 
 const exampleSchema = JSON.stringify(
   {
@@ -139,6 +146,9 @@ export default function Chat({ project }) {
     'You are a creative game development assistant. Be clear, practical, and concise.',
   );
   const [temperature, setTemperature] = useState(0.7);
+  const [sampling, setSampling] = useState(EMPTY_SAMPLING);
+  const samplingState = samplingFromForm(sampling, provider);
+  const samplingSet = Object.values(sampling).some((value) => value.trim() !== '');
   const [maxTokens, setMaxTokens] = useState(() =>
     savedNumber(
       'forge-chat-max-output-v1',
@@ -152,6 +162,8 @@ export default function Chat({ project }) {
     ),
   );
   const [chatRuntime, setChatRuntime] = useState(null);
+  const images = useChatImages();
+  const [isDropping, setIsDropping] = useState(false);
   const [effort, setEffort] = useState('auto');
   const DEFAULT_SYSTEM =
     'You are a creative game development assistant. Be clear, practical, and concise.';
@@ -163,7 +175,8 @@ export default function Chat({ project }) {
     Number(maxTokens) !== 2048 ||
     Number(temperature) !== 0.7 ||
     system !== DEFAULT_SYSTEM ||
-    schema !== exampleSchema;
+    schema !== exampleSchema ||
+    samplingSet;
   const optionSummary =
     [
       format !== 'text' ? (format === 'json' ? 'JSON' : 'Schema') : '',
@@ -171,6 +184,7 @@ export default function Chat({ project }) {
       Number(maxTokens) !== 2048 ? `${Number(maxTokens).toLocaleString()} max tokens` : '',
       Number(temperature) !== 0.7 ? `Temperature ${temperature}` : '',
       system !== DEFAULT_SYSTEM ? 'Custom instructions' : '',
+      samplingSet ? 'Sampling set' : '',
     ]
       .filter(Boolean)
       .join(' · ') || 'Defaults';
@@ -182,7 +196,10 @@ export default function Chat({ project }) {
     setTemperature(0.7);
     setSystem(DEFAULT_SYSTEM);
     setSchema(exampleSchema);
+    setSampling(EMPTY_SAMPLING);
     setResetArmed(false);
+    // The confirmation buttons unmount; keep keyboard focus inside the composer options.
+    setTimeout(() => document.querySelector('.chat-options > summary')?.focus(), 0);
   };
   const [speculative, setSpeculative] = useState(true);
   const [schemaOpen, setSchemaOpen] = useRouteToggle('schema');
@@ -204,9 +221,11 @@ export default function Chat({ project }) {
   const [announcement, setAnnouncement] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState('');
+  const [renaming, setRenaming] = useState(null);
   const [memory, setMemory] = useState(null);
   const [savingMessage, setSavingMessage] = useState(null);
   const controller = useRef(null);
+  const renameCancelled = useRef(false);
   const pendingMemory = useRef(null);
   const messageViewport = useRef(null),
     followMessages = useRef(true),
@@ -214,7 +233,8 @@ export default function Chat({ project }) {
   const chat = chats.find((c) => c.id === active) || chats[0];
   useEffect(() => {
     try {
-      localStorage.setItem(key, JSON.stringify(chats));
+      // Pictures are never saved here: only thumbnails and asset references (see chatsForStorage).
+      localStorage.setItem(key, JSON.stringify(chatsForStorage(chats)));
     } catch {
       setError(
         'Could not save this conversation in your browser. Export important text before closing.',
@@ -344,7 +364,6 @@ export default function Chat({ project }) {
       clearInterval(timer);
     };
   }, []);
-  const contextEstimate = estimateChatMemory(contextSize);
   const actualContext =
     chatRuntime?.managed &&
     chatRuntime?.status === 'reachable' &&
@@ -365,6 +384,24 @@ export default function Chat({ project }) {
     setChats((x) => [c, ...x]);
     setActive(c.id);
     setError('');
+  }
+  function cancelRename(id) {
+    renameCancelled.current = true;
+    setRenaming(null);
+    setTimeout(() => document.querySelector(`[data-rename-for="${id}"]`)?.focus(), 0);
+  }
+  function commitRename() {
+    if (renameCancelled.current) {
+      renameCancelled.current = false;
+      return;
+    }
+    const title = renaming?.value.trim().slice(0, 80);
+    const id = renaming?.id;
+    setRenaming(null);
+    if (title && id) {
+      updateChat(id, (c) => ({ ...c, title, titleLocked: true }));
+    }
+    setTimeout(() => document.querySelector(`[data-rename-for="${id}"]`)?.focus(), 0);
   }
   function deleteChat(id) {
     if (busy) {
@@ -391,6 +428,30 @@ export default function Chat({ project }) {
   const connection = { provider, endpoint, apiKey };
   const localQwen = isStudioQwen({ ...connection, model });
   const modelOnline = localQwen && chatRuntime?.status === 'reachable';
+  const vision = useChatVision({ provider, endpoint, serverStatus: chatRuntime?.status });
+  const imageBlock = imageInputBlock({ isLocalQwen: localQwen, vision });
+  // The projector is loaded with the model whenever the server will start with it.
+  const projectorMiB = ['ready', 'starts_with_vision'].includes(vision?.state)
+    ? CHAT_PROJECTOR_MIB
+    : 0;
+  const contextEstimate = estimateChatMemory(contextSize, { projectorMiB });
+  async function attachImageFiles(files) {
+    if (busy) {
+      return;
+    }
+    if (imageBlock) {
+      setError(imageBlock);
+      return;
+    }
+    setError('');
+    const problem = await images.addFiles(files);
+    if (problem) {
+      setError(problem);
+    }
+  }
+  function imageFilesFromTransfer(transfer) {
+    return [...(transfer?.files || [])].filter((file) => file.type.startsWith('image/'));
+  }
   const modelStatus =
     provider === 'openai'
       ? 'OpenAI API · not checked'
@@ -611,6 +672,12 @@ export default function Chat({ project }) {
       setError('Temperature must be a number from 0 to 2.');
       return;
     }
+    if (Object.keys(samplingState.errors).length) {
+      setError(`Check Advanced sampling: ${Object.values(samplingState.errors)[0]}`);
+      setOptionsOpen(true);
+      setAdvancedOpen(true);
+      return;
+    }
     if (
       isStudioQwen({ ...connection, model }) &&
       contextLimit !== null &&
@@ -622,9 +689,18 @@ export default function Chat({ project }) {
       return;
     }
 
+    const attached = images.attachments;
+    if (attached.length && imageBlock) {
+      setError(imageBlock);
+      return;
+    }
     const content = prompt.trim(),
       id = chat.id,
-      user = { role: 'user', content },
+      user = {
+        role: 'user',
+        content,
+        ...(attached.length ? { images: attached.map(savedImageRecord) } : {}),
+      },
       assistant = {
         role: 'assistant',
         content: '',
@@ -673,9 +749,10 @@ export default function Chat({ project }) {
       }
       setStatus('');
       setPrompt((value) => (value.trim() === content ? '' : value));
+      images.clear();
       updateChat(id, (c) => ({
         ...c,
-        title: c.messages.length ? c.title : content.slice(0, 52),
+        title: c.messages.length || c.titleLocked ? c.title : content.slice(0, 52),
         messages: [...c.messages, user, assistant],
       }));
       submitted = true;
@@ -691,10 +768,15 @@ export default function Chat({ project }) {
           effort,
           temperature: Number(temperature),
           maxTokens: outputTokens,
+          ...samplingState.options,
           messages: [
             ...(system.trim() ? [{ role: 'system', content: system.trim() }] : []),
             ...prior,
-            user,
+            {
+              role: 'user',
+              content,
+              ...(attached.length ? { images: attached.map((image) => image.dataUrl) } : {}),
+            },
           ],
         },
         ac.signal,
@@ -861,21 +943,60 @@ export default function Chat({ project }) {
                 className={'chat-history-item ' + (c.id === chat?.id ? 'selected' : '')}
                 key={c.id}
               >
+                {renaming?.id === c.id ? (
+                  <form
+                    className="chat-rename"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      commitRename();
+                    }}
+                  >
+                    <input
+                      aria-label={`Conversation name for ${c.title}`}
+                      value={renaming.value}
+                      maxLength={80}
+                      autoFocus
+                      onChange={(event) => setRenaming({ id: c.id, value: event.target.value })}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          cancelRename(c.id);
+                        }
+                      }}
+                      onBlur={commitRename}
+                    />
+                  </form>
+                ) : (
+                  <button
+                    className="chat-history-select"
+                    onClick={() => {
+                      followMessages.current = true;
+                      setActive(c.id);
+                      setHistoryOpen(false);
+                    }}
+                    disabled={busy}
+                  >
+                    <span>{c.title}</span>
+                    <small>
+                      {c.messages.length
+                        ? `${c.messages.filter((message) => message.role === 'user').length} ${c.messages.filter((message) => message.role === 'user').length === 1 ? 'exchange' : 'exchanges'}`
+                        : 'Draft'}
+                    </small>
+                  </button>
+                )}
                 <button
-                  className="chat-history-select"
+                  className="chat-delete"
+                  data-rename-for={c.id}
+                  title="Rename conversation"
+                  aria-label={`Rename ${c.title}`}
                   onClick={() => {
-                    followMessages.current = true;
-                    setActive(c.id);
-                    setHistoryOpen(false);
+                    renameCancelled.current = false;
+                    setRenaming({ id: c.id, value: c.title });
                   }}
                   disabled={busy}
                 >
-                  <span>{c.title}</span>
-                  <small>
-                    {c.messages.length
-                      ? `${c.messages.filter((message) => message.role === 'user').length} ${c.messages.filter((message) => message.role === 'user').length === 1 ? 'exchange' : 'exchanges'}`
-                      : 'Draft'}
-                  </small>
+                  <Pencil size={14} />
                 </button>
                 <button
                   className="chat-delete"
@@ -1055,6 +1176,28 @@ export default function Chat({ project }) {
                             to try again.
                           </p>
                         )}
+                        {m.role === 'user' && m.images?.length > 0 && (
+                          <ul
+                            className="chat-message-images"
+                            aria-label={`${m.images.length} attached ${m.images.length === 1 ? 'picture' : 'pictures'}`}
+                          >
+                            {m.images.map((image, n) => (
+                              <li key={n}>
+                                <figure>
+                                  {image.thumb ? (
+                                    <img
+                                      src={image.thumb}
+                                      alt={`Attached picture ${n + 1}: ${image.name}`}
+                                    />
+                                  ) : (
+                                    <div className="chat-message-images-missing">No preview</div>
+                                  )}
+                                  <figcaption title={image.name}>{image.name}</figcaption>
+                                </figure>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                         <div className="chat-message-content">
                           {markdownReady ? (
                             <ChatMarkdown content={m.content} />
@@ -1126,19 +1269,67 @@ export default function Chat({ project }) {
                 <p>Strict schema support varies by model and server. Errors are shown above.</p>
               </div>
             )}
-            <form className="chat-composer" onSubmit={send}>
+            <form
+              className={'chat-composer' + (isDropping ? ' is-dropping' : '')}
+              onSubmit={send}
+              onDragOver={(e) => {
+                if (e.dataTransfer?.types?.includes('Files')) {
+                  e.preventDefault();
+                  setIsDropping(true);
+                }
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                  setIsDropping(false);
+                }
+              }}
+              onDrop={(e) => {
+                setIsDropping(false);
+                const files = imageFilesFromTransfer(e.dataTransfer);
+                if (files.length) {
+                  e.preventDefault();
+                  attachImageFiles(files);
+                }
+              }}
+            >
+              <ChatImageTray
+                attachments={images.attachments}
+                onRemove={images.remove}
+                disabled={busy}
+              />
               <textarea
                 ref={composerRef}
                 aria-label="Message"
                 placeholder="Ask about your game…"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
+                onPaste={(e) => {
+                  const files = imageFilesFromTransfer(e.clipboardData);
+                  if (files.length) {
+                    e.preventDefault();
+                    attachImageFiles(files);
+                  }
+                }}
                 onKeyDown={(e) => {
+                  if (e.key === 'Escape' && busy && controller.current) {
+                    e.preventDefault();
+                    controller.current.abort();
+                    return;
+                  }
                   if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     e.currentTarget.form.requestSubmit();
                   }
                 }}
+              />
+              <ChatImageButtons
+                attachments={images.attachments}
+                preparing={images.preparing}
+                blockedReason={imageBlock}
+                busy={busy}
+                project={project}
+                onFiles={attachImageFiles}
+                onProblem={setError}
               />
               <div className="chat-composer-footer">
                 <details
@@ -1283,9 +1474,15 @@ export default function Chat({ project }) {
             <div className="chat-footnote">
               <span role="status" aria-live="polite" aria-atomic="true">
                 {busy
-                  ? 'Generating response. Press Stop to cancel.'
+                  ? status || 'Generating response. Press Stop or Esc to cancel.'
                   : status || 'Enter to send · Shift + Enter for a new line'}
               </span>
+              {localQwen && !modelOnline && !busy && chatRuntime?.status !== 'starting' && (
+                <span className="chat-start-note">
+                  Qwen is not running. Sending starts it on the GPU after a memory check, which can
+                  take a few minutes; it stays loaded until you stop it.
+                </span>
+              )}
               {memory && provider === 'compatible' && modelOnline && (
                 <span>{memory.freeMemoryGiB} GiB system memory free</span>
               )}
@@ -1383,8 +1580,11 @@ export default function Chat({ project }) {
                         ~{(contextEstimate.estimatedGpuMiB / 1024).toFixed(1)} GiB total
                       </strong>
                       <small>
-                        ~{(contextEstimate.contextMiB / 1024).toFixed(1)} GiB for the context cache.
-                        Rough estimate; actual usage varies.
+                        ~{(contextEstimate.contextMiB / 1024).toFixed(1)} GiB for the context cache
+                        {projectorMiB
+                          ? ` and ~${(projectorMiB / 1024).toFixed(1)} GiB for the vision projector`
+                          : ''}
+                        . Rough estimate; actual usage varies.
                       </small>
                     </div>
                     <p className="chat-help">
@@ -1494,6 +1694,62 @@ export default function Chat({ project }) {
                 <p className="chat-help">
                   From 0 to 2. Lower is more predictable; higher is more varied.
                 </p>
+                <fieldset className="chat-sampling">
+                  <legend>Advanced sampling</legend>
+                  <p className="chat-help">
+                    Leave a field blank to use the server default. Top-k and min-p are sent only to
+                    local and compatible servers.
+                  </p>
+                  {SAMPLING_FIELDS.map((field) => {
+                    const inputId = `chat-sampling-${field.key}`;
+                    const helpId = `${inputId}-help`;
+                    const errorId = `${inputId}-error`;
+                    const fieldError = samplingState.errors[field.key];
+                    const describedBy = fieldError ? `${helpId} ${errorId}` : helpId;
+                    const onChange = (event) =>
+                      setSampling((previous) => ({
+                        ...previous,
+                        [field.key]: event.target.value,
+                      }));
+                    return (
+                      <div className="chat-sampling-field" key={field.key}>
+                        <label htmlFor={inputId}>{field.label}</label>
+                        {field.key === 'stop' ? (
+                          <textarea
+                            id={inputId}
+                            rows={2}
+                            value={sampling.stop}
+                            onChange={onChange}
+                            aria-invalid={fieldError ? 'true' : undefined}
+                            aria-describedby={describedBy}
+                            spellCheck="false"
+                          />
+                        ) : (
+                          <input
+                            id={inputId}
+                            type="number"
+                            inputMode="decimal"
+                            min={field.min}
+                            max={field.max}
+                            step={field.step}
+                            value={sampling[field.key]}
+                            onChange={onChange}
+                            aria-invalid={fieldError ? 'true' : undefined}
+                            aria-describedby={describedBy}
+                          />
+                        )}
+                        <small id={helpId} className="chat-help">
+                          {field.help}
+                        </small>
+                        {fieldError && (
+                          <p id={errorId} className="settings-error">
+                            {fieldError}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </fieldset>
               </details>
               <p className="chat-help">
                 For local Qwen, Low, Medium and High set thinking budgets of 256, 768 and 1,536

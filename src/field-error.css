@@ -1,0 +1,28 @@
+/* Inline required-field messages on the creation pages (see FieldError.jsx). */
+.creation-field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ux-space-2, 8px);
+  margin: var(--ux-space-2, 8px) 0 0;
+  color: var(--forge-danger, #ff9b9b);
+  font-size: var(--ux-text-sm, 13px);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.creation-field-error svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.creation-field-error:focus-visible {
+  outline: 2px solid var(--forge-focus, #ffd0b7);
+  outline-offset: 2px;
+  border-radius: var(--ux-radius-sm, 8px);
+}
+
+.form-panel :is(textarea, input[type='text'])[aria-invalid='true'],
+.form-panel .upload-box:has(input[aria-invalid='true']) {
+  border-color: var(--forge-danger-border, #a56262);
+  outline: 1px solid var(--forge-danger, #ff9b9b);
+}

@@ -1,0 +1,17 @@
+{
+  "music.tooltip.abc_score_08956c": "Paste a melody in ABC notation and YuE2 builds the song around it instead of writing its own score. Requires Planning set to Full arrangement or Melody.",
+  "music.tooltip.describe_the_sound_and_style_503dea": "Describe the genre, instruments, mood, and how the music should develop. This text guides YuE2’s musical style.",
+  "music.tooltip.duration_d4c749": "Set the target length of the track. YuE2 may finish before it reaches this duration.",
+  "music.tooltip.duration_in_seconds_388a7b": "Set a custom target length in seconds (1 to 600). It replaces the Duration preset above; the track may finish earlier.",
+  "music.tooltip.guidance_scale_374a8f": "Adjust how strongly YuE2 follows your style and lyrics. The default is automatic; a value other than 1 also enables “Style to avoid.”",
+  "music.tooltip.lyrics_9e1f04": "Enter the words to sing, with optional section tags such as [Verse] or [Chorus]. Lyrics are required; use [Instrumental] for instrumental music.",
+  "music.tooltip.planning_f4a277": "Full arrangement writes a chord-annotated score before the song, Melody writes a melody-only score, and Off skips planning for a faster but less structured result.",
+  "music.tooltip.repetition_penalty_d482ac": "Discourages repeating recent tokens, from 1 (off) to 2. The YuE2 default is 1.2.",
+  "music.tooltip.seed_d07208": "Enter a whole number to repeat a render: the same style, lyrics and settings with the same seed gave an identical track in tests. Leave it blank for a random seed, which Forge records with the track.",
+  "music.tooltip.style_to_avoid_f2faa0": "List instruments or styles you want YuE2 to steer away from. This takes effect only when Guidance scale is not 1.",
+  "music.tooltip.synthesis_steps_618236": "Set how many synthesis steps YuE2 uses. More steps can take longer; the effect on sound quality depends on the model.",
+  "music.tooltip.temperature_efd604": "How adventurous song-token sampling is, from 0 to 5. The YuE2 default is 1; lower values are steadier and higher values are more varied.",
+  "music.tooltip.top_k_58e4d8": "Limits each sampling step to the k likeliest choices (1 to 1000). The YuE2 default is 100.",
+  "music.tooltip.top_p_63e4e9": "Nucleus sampling, above 0 up to 1. Only the likeliest choices that add up to this share are considered. The YuE2 default is 0.95.",
+  "music.tooltip.track_title_eb45f6": "Add an optional title for the track."
+}

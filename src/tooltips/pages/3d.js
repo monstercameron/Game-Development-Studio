@@ -8,9 +8,9 @@ const threeD = {
   'Choose a reference image':
     'Choose one image to guide the 3D model. TRELLIS.2 requires a transparent PNG or WebP unless you remove the background first; Hunyuan also accepts JPEG.',
   'Remove the background first (uses SAM 3.1)':
-    'Queues two renders: SAM 3.1 cuts out the object you name (saved as a transparent PNG in the project), then the 3D model is built from the cutout. The two models load one after the other. Unavailable when the picture already has a transparent background, because there is nothing to remove.',
+    'Queues two renders: SAM 3.1 cuts out the object you name (saved as a transparent PNG in the project), then the 3D model is built from the cutout. Forge frees SAM 3.1 before loading the 3D model when it can (when it started SAM 3.1, nothing else is using it and no other queued render needs it). Unavailable when the picture already has a transparent background, because there is nothing to remove.',
   'What to isolate':
-    'A short description of the object SAM 3.1 should keep, for example “the dragon”. Leave empty for “the main object”. If nothing matches, the 3D render stops with that message.',
+    'A short description of the object SAM 3.1 should keep, for example “the dragon”. Name the thing in a word or two (“apple”, “knight”); generic words such as “object” often match nothing. Leave empty for “main object”, which works on many but not all pictures. If nothing matches, the 3D render stops with that message.',
   'Describe the object':
     'The object to create. Forge first draws it with Qwen Image 2.1 on a transparent background and saves that picture in your project, then builds the 3D model from it. Describe one object, fully in view.',
   'Image steps':
@@ -18,7 +18,7 @@ const threeD = {
   'Image seed':
     'Whole number that repeats the picture with the same description and steps. Leave empty for a random seed. The 3D seed is under Advanced settings.',
   Pipeline:
-    'TRELLIS.2 resolution. 512 is the default and the fastest; 1024, 1024 cascade and 1536 cascade add detail but take longer, wait for more GPU memory and read about 5 GB of extra checkpoints the first time. They have not been timed on this computer.',
+    'TRELLIS.2 resolution. 512 is the default and the fastest; 1024, 1024 cascade and 1536 cascade add detail but take longer, wait for more GPU memory and read about 5 GB of extra checkpoints the first time. On this computer one simple object took about 1 minute at 512, 4 minutes at 1024 and 1024 cascade, and 9 minutes at 1536 cascade.',
   'Painted views (advanced)':
     'How many views the Hunyuan painter renders and combines into the texture. The painter was trained on 6; more views take longer.',
   'View size (advanced)':

@@ -15,6 +15,7 @@ import {
   formatDuration,
 } from './queue-timing.js';
 import './queue-timing.css';
+import { applyWaitingOrder } from './queue-reorder.js';
 
 const TimingContext = createContext(null);
 const MAX_ESTIMATED_JOBS = 50;
@@ -48,6 +49,15 @@ export function QueueTimingProvider({ children }) {
         [...new Set([...previous, ...jobs.map((job) => job.id)])].slice(-500),
       ),
     [jobs],
+  );
+  // Hiding is a browser-only view setting: the render and its history stay in the queue.
+  const hideJobs = useCallback(
+    (ids) => setHiddenIds((previous) => [...new Set([...previous, ...ids])].slice(-500)),
+    [],
+  );
+  const showJobs = useCallback(
+    (ids) => setHiddenIds((previous) => previous.filter((id) => !ids.includes(id))),
+    [],
   );
   const showHidden = useCallback(() => setHiddenIds([]), []);
   const cache = useRef(new Map()),
@@ -130,6 +140,26 @@ export function QueueTimingProvider({ children }) {
       }
     }
   }, []);
+  // The list as last shown, so a move can be undone if the runtime refuses it.
+  const jobsRef = useRef([]);
+  useEffect(() => {
+    jobsRef.current = jobs;
+  }, [jobs]);
+  // Shows a new waiting order at once: a move before the runtime has answered, or the order it
+  // answered with. A poll already in flight is dropped so it cannot undo the change. Returns the
+  // list as it was before.
+  const applyQueueOrder = useCallback((order, ranks = null) => {
+    generation.current += 1;
+    const previous = jobsRef.current;
+    jobsRef.current = applyWaitingOrder(previous, order, ranks);
+    setJobs(jobsRef.current);
+    return previous;
+  }, []);
+  const restoreJobs = useCallback((previous) => {
+    generation.current += 1;
+    jobsRef.current = previous;
+    setJobs(previous);
+  }, []);
   useEffect(() => {
     mounted.current = true;
     refresh();
@@ -153,9 +183,27 @@ export function QueueTimingProvider({ children }) {
       refresh,
       hiddenIds,
       hideCurrent,
+      hideJobs,
+      showJobs,
       showHidden,
+      applyQueueOrder,
+      restoreJobs,
     }),
-    [jobs, estimates, error, loading, forecast, refresh, hiddenIds, hideCurrent, showHidden],
+    [
+      jobs,
+      estimates,
+      error,
+      loading,
+      forecast,
+      refresh,
+      hiddenIds,
+      hideCurrent,
+      hideJobs,
+      showJobs,
+      showHidden,
+      applyQueueOrder,
+      restoreJobs,
+    ],
   );
   return <TimingContext.Provider value={value}>{children}</TimingContext.Provider>;
 }

@@ -348,6 +348,11 @@ test(
         .find((tool) => tool.name === 'forge_offload_model')
         .inputSchema.properties.id.enum.includes('asr'),
     );
+    assert.ok(
+      toolDefinitions
+        .find((tool) => tool.name === 'forge_offload_model')
+        .inputSchema.properties.id.enum.includes('video'),
+    );
     const soundLoad = await waitFor(async () => {
       const result = await httpMcp.callTool({ name: 'forge_load_sound_model', arguments: {} });
       return result.isError ? null : result;
@@ -444,6 +449,31 @@ test(
     const managed = (await again.json()).services[0];
     assert.equal(managed.status, 'already_managed');
     assert.equal(managed.pid, enginePid);
+    // One engine can be started on its own, with the same checks as start-all.
+    const startOne = (id, headers = {}) =>
+      fetch(`${base}/api/runtime/engines/${id}/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Origin: base,
+          'X-Forge-Request': 'runtime',
+          ...headers,
+        },
+        body: '{}',
+      });
+    const single = await startOne('sfx');
+    assert.equal(single.status, 200);
+    const singleResult = await single.json();
+    assert.equal(singleResult.status, 'already_managed');
+    assert.equal(singleResult.pid, enginePid);
+    const unknown = await startOne('nope');
+    assert.equal(unknown.status, 400);
+    assert.match((await unknown.json()).error, /Unknown engine/);
+    assert.equal((await startOne('sfx', { Origin: 'http://evil.example' })).status, 403);
+    assert.equal((await startOne('sfx', { 'X-Forge-Request': 'other' })).status, 403);
+    assert.equal((await startOne('SFX')).status, 404, 'ids are lower case');
+    assert.equal((await fetch(`${base}/api/runtime/engines/sfx/start`)).status, 404);
+    assert.equal(retained.startsOnDemand, false);
     let offloadError = '';
     let stopped;
     try {

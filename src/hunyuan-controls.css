@@ -72,6 +72,11 @@
   cursor: pointer;
 }
 
+/* The shared label margin is for stacked labels; beside a checkbox it pushed the text down. */
+.form-panel .hunyuan-controls__switch .field-label {
+  margin: 0;
+}
+
 .hunyuan-controls__field .hunyuan-controls__switch input {
   width: 24px;
   height: 24px;

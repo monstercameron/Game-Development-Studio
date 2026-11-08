@@ -74,7 +74,6 @@ function harness({ running = true, owned = true, stopError = null, startStatus =
     calls,
     saved: () => saved,
     deps: {
-      read: () => saved,
       write: (value) => {
         calls.push(`write ${value}`);
         saved = value;
@@ -104,18 +103,22 @@ test('changing latency restarts an idle engine that Forge owns', async () => {
   assert.equal(result.latencyMs, 560);
 });
 
-test('latency is saved without a restart when the engine is stopped or already matches', async () => {
+test('latency is saved without a restart when the engine is stopped', async () => {
   const stopped = harness({ running: false });
   const saved = await applyAsrLatency(80, stopped.deps);
   assert.deepEqual(stopped.calls, ['write 80']);
   assert.equal(saved.applied, true);
   assert.equal(saved.restarted, false);
   assert.match(saved.message, /next time it starts/);
+});
 
-  const same = harness();
-  const unchanged = await applyAsrLatency(160, same.deps);
-  assert.deepEqual(same.calls, ['write 160']);
-  assert.equal(unchanged.restarted, false);
+test('an unchanged value restarts a running engine, which may still hold another mode', async () => {
+  // Regression: after a refused change the saved value (160) differed from the running engine (1120),
+  // so an early return reported a mode the engine did not use.
+  const run = harness();
+  const reapplied = await applyAsrLatency(160, run.deps);
+  assert.deepEqual(run.calls, ['write 160', 'stop', 'start']);
+  assert.equal(reapplied.restarted, true);
 });
 
 test('a busy or foreign engine is left running while the choice is kept', async () => {

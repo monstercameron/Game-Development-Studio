@@ -1,0 +1,116 @@
+/* Reordering the waiting line: position badge, handle, Run next / up / down and the drop line. */
+.runtime-queue .queue-position {
+  flex: none;
+  min-width: 2.5ch;
+  padding: var(--forge-space-1, 4px) var(--forge-space-2, 8px);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm, 6px);
+  background: var(--forge-surface-deep);
+  color: var(--forge-text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.runtime-queue .queue-reorder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--forge-space-2, 8px);
+}
+
+.runtime-queue .queue-reorder-handle {
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+  cursor: grab;
+  /* The page must not scroll while a finger drags the handle. */
+  touch-action: none;
+  user-select: none;
+}
+
+.runtime-queue .queue-reorder-button {
+  min-height: 44px;
+}
+
+.runtime-queue .queue-reorder-icon {
+  min-width: 44px;
+  justify-content: center;
+}
+
+.runtime-queue .queue-reorder button[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.runtime-queue .queue-reorder-handle[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.runtime-queue .queue-reorder button:focus-visible {
+  outline: 3px solid var(--forge-focus, #ffd0b7);
+  outline-offset: 3px;
+}
+
+/* A picked-up or dragged row is outlined with a dashed line, not only a colour. */
+.runtime-queue .runtime-job.queue-row-held,
+.runtime-queue .runtime-job.queue-row-dragging {
+  outline: 2px dashed var(--forge-orange);
+  outline-offset: -2px;
+  background: var(--forge-surface-deep);
+}
+
+.runtime-queue .runtime-job.queue-row-dragging {
+  opacity: 0.7;
+}
+
+.runtime-queue .runtime-job.queue-drop-before {
+  box-shadow: 0 -4px 0 0 var(--forge-orange);
+}
+
+.runtime-queue .runtime-job.queue-drop-after {
+  box-shadow: 0 4px 0 0 var(--forge-orange);
+}
+
+.runtime-queue .queue-reorder-help {
+  margin: 0 0 var(--forge-space-2, 8px);
+  color: var(--forge-muted);
+  font-size: var(--ux-text-sm, 0.875rem);
+}
+
+.runtime-queue .queue-reorder-help summary {
+  cursor: pointer;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.runtime-queue .queue-reorder-help p {
+  margin: var(--forge-space-1, 4px) 0 0;
+  max-width: 76ch;
+  line-height: 1.5;
+}
+
+.runtime-queue .queue-reorder-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--forge-space-3, 12px);
+}
+
+@media (max-width: 600px) {
+  .runtime-queue .queue-reorder {
+    flex: 1 1 100%;
+  }
+
+  .runtime-queue .queue-reorder-button:not(.queue-reorder-icon) {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .runtime-queue .runtime-job {
+    transition: box-shadow 120ms ease-out;
+  }
+}

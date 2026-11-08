@@ -69,4 +69,6 @@ secrets.json
 /test/.speech-ui-*/
 /test/.trash-ui-*/
 /test/.vite-jsx-*/
+/test/.jsx-*/
+/test/.video-ui-*/
 /test/.world-studio-ui-*/

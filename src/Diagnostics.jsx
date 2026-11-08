@@ -14,6 +14,7 @@ import {
   Server,
   Terminal,
 } from 'lucide-react';
+import ErrorPipelineTest from './ErrorPipelineTest';
 import { filterLogLines, isErrorLine, isWarnLine } from './diagnostics-filter.js';
 import './diagnostics-page.css';
 
@@ -173,6 +174,16 @@ export default function Diagnostics() {
         Diagnostics<em>.</em>
       </h1>
       <p className="lead">See where services are running and follow their logs in one place.</p>
+      <p className="diagnostics-errors-link">
+        <button
+          type="button"
+          className="outline-button"
+          onClick={() => updateSearch(setParams, { dialog: 'errors' })}
+        >
+          Open error review
+        </button>{' '}
+        Review, copy and fix captured errors and stack traces.
+      </p>
       <div className="diagnostics-layout">
         <section className="panel metadata-panel">
           <div className="panel-heading">
@@ -473,6 +484,7 @@ export default function Diagnostics() {
           </div>
         </section>
       </div>
+      <ErrorPipelineTest onOpenErrors={() => updateSearch(setParams, { dialog: 'errors' })} />
     </div>
   );
 }

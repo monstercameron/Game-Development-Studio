@@ -23,6 +23,8 @@
   --ux-border: 1px solid var(--forge-border);
   --ux-panel-bg: var(--forge-surface);
   --ux-sidebar-queue-width: 340px;
+  --ux-dialog-wide: 1180px;
+  --ux-font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, monospace;
 }
 @media (min-width: 851px) {
   :root {

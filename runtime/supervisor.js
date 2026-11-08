@@ -41,9 +41,11 @@ const ENGINE_OPERATIONS = new Set([
   'clearHyMotionLoadBarrier',
   'clearMotionBricksLoadBarrier',
   'startEngines',
+  'startEngine',
   'cancel',
   'resolve',
   'retry',
+  'move',
   'offload',
   'forceStop',
   'closeModel',
@@ -297,9 +299,9 @@ export function runtimeService({ engineBroker = null } = {}) {
         '/model-storage': 'modelStorage',
         '/asr/latency': 'asrLatency',
       };
-      const match = /^\/jobs\/([a-f0-9-]{36})(?:\/(cancel|resolve|retry))?$/i.exec(url.pathname);
+      const match = /^\/jobs\/([a-f0-9-]{36})(?:\/(cancel|resolve|retry|move))?$/i.exec(url.pathname);
       const modelMatch =
-        /^\/models\/(music|sfx|images|tts|3d-hunyuan|3d-trellis|segmentation|motion-hy|motion-bricks|asr|game)\/offload$/.exec(
+        /^\/models\/(music|sfx|images|video|tts|3d-hunyuan|3d-trellis|segmentation|motion-hy|motion-bricks|asr|game)\/offload$/.exec(
           url.pathname,
         );
       const forceMatch =
@@ -310,6 +312,7 @@ export function runtimeService({ engineBroker = null } = {}) {
         /^\/models\/(music|sfx|images|video|world|tts|3d-hunyuan|3d-trellis|segmentation|motion-hy|motion-bricks|asr|game)\/close$/.exec(
           url.pathname,
         );
+      const startMatch = /^\/engines\/([a-z0-9][a-z0-9-]{0,39})\/start$/.exec(url.pathname);
       const removeMatch =
         /^\/models\/(tts|3d-hunyuan|segmentation|motion-hy|motion-bricks|asr)\/remove$/.exec(
           url.pathname,
@@ -383,6 +386,8 @@ export function runtimeService({ engineBroker = null } = {}) {
           method = 'clearMotionBricksLoadBarrier';
         } else if (url.pathname === '/engines/start-all') {
           method = 'startEngines';
+        } else if (startMatch) {
+          method = 'startEngine';
         } else if (modelMatch) {
           method = 'offload';
         } else if (match && match[2]) {
@@ -436,6 +441,9 @@ export function runtimeService({ engineBroker = null } = {}) {
       if (removeMatch) {
         params.id = removeMatch[1];
       }
+      if (startMatch) {
+        params.id = startMatch[1];
+      }
       try {
         const result = await supervisor.call(
           method,
@@ -466,6 +474,9 @@ export function runtimeService({ engineBroker = null } = {}) {
         );
         if (method === 'decide') {
           return send(result.status, result.result);
+        }
+        if (method === 'move') {
+          return send(result.status, result.body);
         }
         if (
           [

@@ -10,6 +10,7 @@ import {
   videoWarnings,
 } from '../runtime/video-options.js';
 import { videoAspectId, videoFramesFor } from './imageVideoInputs';
+import FieldError from './FieldError';
 import './video-media.css';
 
 const MiB = 1024 * 1024;
@@ -31,7 +32,7 @@ export const VIDEO_SOURCES = [
   },
 ];
 
-function FrameSlot({ slot, label, optional, draft, update, openPicker }) {
+function FrameSlot({ slot, label, optional, draft, update, openPicker, error = '' }) {
   const frames = useVideoFrames();
   const file = frames[slot];
   const descriptor = draft[slot === 'first' ? 'videoFirstFrame' : 'videoLastFrame'];
@@ -80,9 +81,12 @@ function FrameSlot({ slot, label, optional, draft, update, openPicker }) {
         <>
           <label className="upload-box">
             <input
+              id={`video-${slot}-frame`}
               type="file"
               accept="image/png,image/jpeg,image/webp"
               aria-label={`Choose the ${label.toLowerCase()} image`}
+              aria-invalid={error ? 'true' : undefined}
+              aria-describedby={error ? `video-${slot}-frame-error` : undefined}
               onChange={(e) => {
                 choose(e.target.files?.[0]);
                 e.target.value = '';
@@ -117,6 +121,7 @@ function FrameSlot({ slot, label, optional, draft, update, openPicker }) {
           {problem}
         </p>
       )}
+      <FieldError id={`video-${slot}-frame-error`} message={error} />
     </div>
   );
 }
@@ -163,7 +168,14 @@ function ClipList({ kind, items, max, noun, onAdd, onRemove }) {
 
 // part="source" is the choice of what the video starts from; part="details" holds the pictures and
 // clips that choice needs. They sit on either side of the reference image uploader.
-export default function VideoMediaInputs({ draft, update, projects, project, part = 'all' }) {
+export default function VideoMediaInputs({
+  draft,
+  update,
+  projects,
+  project,
+  part = 'all',
+  frameErrors = {},
+}) {
   const [picker, setPicker] = useState(null);
   const source = ['frames', 'text'].includes(draft.videoSource) ? draft.videoSource : 'references';
   const videos = draft.videoClips || [];
@@ -175,6 +187,7 @@ export default function VideoMediaInputs({ draft, update, projects, project, par
     cfg_scale: Number(draft.videoCfg) || (draft.videoNegative?.trim() ? 2 : 1),
     reference_detail: draft.videoRefDetail,
     reference_videos: source === 'references' ? videos : [],
+    max_vram: String(draft.videoMaxVram ?? '') === '' ? undefined : Number(draft.videoMaxVram),
   });
   const addClips = (key, current, max, files) => {
     const next = [...current];
@@ -222,6 +235,7 @@ export default function VideoMediaInputs({ draft, update, projects, project, par
               <FrameSlot
                 slot="first"
                 label="First frame"
+                error={frameErrors.first}
                 draft={draft}
                 update={update}
                 openPicker={() => setPicker('first')}
@@ -229,6 +243,7 @@ export default function VideoMediaInputs({ draft, update, projects, project, par
               <FrameSlot
                 slot="last"
                 label="Last frame"
+                error={frameErrors.last}
                 optional
                 draft={draft}
                 update={update}

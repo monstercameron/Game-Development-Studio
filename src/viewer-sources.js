@@ -3,6 +3,7 @@ import {
   buildSkeletonBody,
   disposeObject3D,
   fetchAssetBytes,
+  isPanoramaShellMesh,
   nextFrame,
   parseModelBytes,
   parseMotionBytes,
@@ -18,7 +19,11 @@ function throwIfAborted(signal) {
   }
 }
 
-export async function loadModelSource(engine, { url, name, signal, onStage, onProgress }) {
+// panoramaHint is true when the stored generation details name the file a WorldGen panorama.
+export async function loadModelSource(
+  engine,
+  { url, name, signal, onStage, onProgress, panoramaHint = false },
+) {
   onStage('Downloading model…');
   const bytes = await fetchAssetBytes(url, { signal, name, onProgress });
   throwIfAborted(signal);
@@ -30,7 +35,16 @@ export async function loadModelSource(engine, { url, name, signal, onStage, onPr
   try {
     throwIfAborted(signal);
     const bounds = new THREE.Box3().setFromObject(root);
-    engine.setContent({ root, bounds, animations, kind });
+    // Stored details are authoritative; the shape check only covers files they do not name.
+    let panorama = null;
+    if (kind === 'mesh') {
+      if (panoramaHint) {
+        panorama = 'metadata';
+      } else if (isPanoramaShellMesh(root)) {
+        panorama = 'geometry';
+      }
+    }
+    engine.setContent({ root, bounds, animations, kind, panorama });
   } catch (error) {
     disposeObject3D(root);
     throw error;

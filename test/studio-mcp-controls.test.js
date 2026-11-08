@@ -167,7 +167,8 @@ test('MCP chat uses the real chat bridge and reports a completed stream and stru
   assert.equal(response.usage.completion_tokens, 2);
   assert.ok(response.firstTokenMs >= 0);
   assert.equal(sent.max_tokens, 128);
-  assert.equal(sent.reasoning_effort, 'high');
+  // The default endpoint is the local Qwen engine, whose template needs xhigh instead of high.
+  assert.equal(sent.reasoning_effort, 'xhigh');
   assert.deepEqual(sent.response_format.json_schema.schema, { type: 'object' });
   complete = false;
   const interrupted = await client.callTool({ name: 'forge_chat', arguments: args });

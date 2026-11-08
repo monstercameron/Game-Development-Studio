@@ -6,25 +6,30 @@ export const TRELLIS_DEFAULT_TRIANGLES = 100000;
 export const TRELLIS_TRIANGLE_RANGE = [5000, 1000000];
 // Resolutions of TRELLIS.2's own pipelines. Mirrors runtime/jobs.js and trellis_manifest.py.
 // gpuGiB is the free GPU memory Forge waits for before a render (an uncalibrated guess for
-// everything above 512, see runtime/trellis-preparation.js).
+// everything above 512, see runtime/trellis-preparation.js). measured is the render time of one
+// simple object (an apple, 12 steps, 100,000 triangles) on this computer, 2026-11-08; it is not
+// an estimate for other pictures.
 export const TRELLIS_DEFAULT_PIPELINE = '512';
 export const TRELLIS_PIPELINES = [
   {
     id: '512',
     label: '512 · default',
     gpuGiB: 24,
+    measured: 'about 1 minute',
     summary: 'The pipeline Forge connected first and the fastest of the four.',
   },
   {
     id: '1024',
     label: '1024 · more detail',
     gpuGiB: 40,
+    measured: 'about 4 minutes',
     summary: 'Builds the structure directly at 1024 resolution. Slower; more detail than 512.',
   },
   {
     id: '1024_cascade',
     label: '1024 cascade · sharper',
     gpuGiB: 48,
+    measured: 'about 4 minutes',
     summary:
       'Builds a 512 structure, then refines it at 1024. Upstream’s default pipeline; slower than 1024.',
   },
@@ -32,6 +37,7 @@ export const TRELLIS_PIPELINES = [
     id: '1536_cascade',
     label: '1536 cascade · most detail',
     gpuGiB: 64,
+    measured: 'about 9 minutes',
     summary:
       'Refines at 1536 resolution. The slowest and largest; TRELLIS.2 lowers the resolution on its own when the object needs too many tokens.',
   },

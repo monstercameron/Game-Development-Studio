@@ -172,3 +172,74 @@ test('video job rejects a completed response with a path outside its remote job 
     false,
   );
 });
+
+test('video job says when a reference did not fit the GPU memory budget', async (t) => {
+  const messages = await runVideoJob(t, {
+    status: {
+      ready: true,
+      files: [],
+      videos: [],
+      job: {
+        id: 'remote-video-1',
+        state: 'failed',
+        message: 'Generation failed (engine exit 1).',
+        details:
+          '[W] model manager cannot make enough memory available on Vulkan0\n' +
+          '[E] failed to encode MiniMax-H3 reference video 1 --- video.cpp:707',
+      },
+    },
+  });
+
+  assert.equal(messages.at(-1).type, 'failed');
+  assert.match(messages.at(-1).error, /GPU memory budget/);
+  assert.match(messages.at(-1).error, /Generation failed \(engine exit 1\)\./);
+});
+
+test('video job keeps the H3 failure text when its log names no memory problem', async (t) => {
+  const messages = await runVideoJob(t, {
+    status: {
+      ready: true,
+      files: [],
+      videos: [],
+      job: {
+        id: 'remote-video-1',
+        state: 'failed',
+        message: 'Generation failed (engine exit 1).',
+        details: '[I] sampling completed, taking 116.88s --- video.cpp:2025',
+      },
+    },
+  });
+
+  assert.deepEqual(messages.at(-1), {
+    jobId: 'forge-job-1',
+    type: 'failed',
+    error: 'Generation failed (engine exit 1).',
+    engineFailure: true,
+  });
+});
+
+test('video job explains a 0xC0000409 crash and marks it as a known engine failure', async (t) => {
+  const messages = await runVideoJob(t, {
+    status: {
+      ready: true,
+      files: [],
+      videos: [],
+      job: {
+        id: 'remote-video-1',
+        state: 'failed',
+        message: 'Generation failed (engine exit 3221226505).',
+        details: '[I] sampling at step 7/8',
+      },
+    },
+  });
+
+  assert.deepEqual(messages.at(-1), {
+    jobId: 'forge-job-1',
+    type: 'failed',
+    error:
+      'The video engine crashed (0xC0000409), often under memory pressure. Retry; if it repeats, offload other models and lower max GPU memory/size.',
+    // Retry then submits a fresh attempt; Forge never does that by itself.
+    engineFailure: true,
+  });
+  assert.equal(messages.filter((message) => message.type === 'accepted').length, 0);
+});

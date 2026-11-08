@@ -35,6 +35,10 @@ const images = {
     'How strongly the LoRA is applied, from 0 to 2. Blank uses 1; lower blends it in more gently.',
   'Reference size target':
     'With “Match the last reference’s shape”, the render is sized to about this side length squared while keeping the reference’s aspect ratio. Blank uses 1024. Larger needs much more GPU memory.',
+  'Transparent background':
+    'Asks Qwen for a PNG with a transparent background, for sprites, icons and stickers. Forge adds Qwen’s recommended wording to your prompt; only your own text is saved. Works best with one clear subject.',
+  'Match the last reference’s shape':
+    'Sizes the render to about one megapixel with the same aspect ratio as the last reference image, instead of the width and height below. Useful for edits. Needs a reference image.',
   'Advanced: KV cache':
     'Reuses the prompt and reference computations on every step, which speeds up edits with references. Turn it off only to compare: the same seed then gives a different but equally valid image.',
   'Advanced: custom sampling schedule':

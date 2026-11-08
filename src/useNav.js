@@ -6,6 +6,7 @@ export const panels = new Set([
   'chat',
   'images',
   '3d',
+  'vegetation',
   'world',
   'motion',
   'video',
@@ -16,6 +17,7 @@ export const panels = new Set([
   'game',
   'queue',
   'assets',
+  'megascans',
   'models',
   'diagnostics',
 ]);

@@ -28,14 +28,14 @@ const videoFormats = [
 const modelFormats = [
   ['glb', 'GLB · one file, game ready'],
   ['gltf', 'glTF · one text file with the data embedded'],
-  ['obj', 'OBJ · with an MTL material and a PNG texture'],
+  ['obj', 'OBJ · with an MTL material, and a PNG texture if the model has one'],
   ['ply', 'PLY · colours stored per vertex'],
   ['stl', 'STL · shape only, for printing'],
 ];
 const modelNotes = {
   glb: 'Repackages the container without changing the model.',
   gltf: 'Repackages the container without changing the model; the data is embedded as text, so the file is about a third larger.',
-  obj: 'Saves the OBJ plus an .mtl file and the colour texture as a PNG beside it, all named after the copy. Metallic and roughness maps and animations are not part of OBJ. Forge’s viewer shows the OBJ shape without its texture.',
+  obj: 'Saves the OBJ plus an .mtl file and, when the model has a colour texture, that texture as a PNG beside it, all named after the copy. An untextured model gets no texture file. Metallic and roughness maps and animations are not part of OBJ. Forge’s viewer shows the OBJ shape without its texture.',
   ply: 'PLY has no textures, so the texture is baked into colours at each vertex, which loses fine detail.',
   stl: 'STL keeps only the shape: no colours, textures or animation.',
 };

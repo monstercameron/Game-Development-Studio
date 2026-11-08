@@ -2,6 +2,9 @@
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { registerExtendedTools } from './mcp-studio-tools.js';
+import { registerMegascansTools } from './mcp-megascans-tools.js';
+import { registerVegetationTools } from './mcp-vegetation-tools.js';
+import { registerErrorsTools } from './mcp-errors-tools.js';
 import {
   MAX_VIDEO_FRAMES,
   validFrameCount,
@@ -9,6 +12,11 @@ import {
   VIDEO_RESOLUTIONS,
 } from './video-options.js';
 import { imageOptionSchema, queueImageRender, registerMediaTools } from './mcp-media-tools.js';
+import {
+  SEGMENTATION_MAX_INSTANCES,
+  SEGMENTATION_OUTPUTS,
+  SEGMENTATION_SELECTIONS,
+} from './sam31-options.js';
 import {
   REMOVE_BACKGROUND_DEFAULT_PROMPT,
   TEXT_TO_3D_IMAGE_SIZE,
@@ -26,7 +34,7 @@ const removeBackgroundSchema = z
       .min(1)
       .max(1000)
       .default(REMOVE_BACKGROUND_DEFAULT_PROMPT)
-      .describe('What SAM 3.1 should isolate, for example "the dragon" or "the main object".'),
+      .describe('What SAM 3.1 should isolate, for example "the dragon". A concrete noun works far better than "the main object".'),
     confidence: z.number().min(0).max(1).default(0.5),
   })
   .optional()
@@ -100,6 +108,9 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
   const readonly = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
   registerExtendedTools(server, { base, read, write, readonly });
   registerMediaTools(server, { read, write, readonly });
+  registerMegascansTools(server, { read, write, readonly });
+  registerVegetationTools(server, { read, write, readonly });
+  registerErrorsTools(server, { read, readonly });
   server.registerTool(
     'forge_models',
     {
@@ -370,7 +381,7 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
     'forge_queue_voice',
     {
       description:
-        'Queue buffered Qwen3-TTS speech. mode "preset" (default) uses one of nine preset speakers with an optional voice direction (instruct, e.g. tone, pace, emotion). mode "clone" copies a voice from reference_audio (the staged ID returned by forge_stage_audio_source for a project WAV, FLAC or MP3 of 3 to 30 seconds) and its exact transcript reference_text; set reference_consent to true only when the user has confirmed they have the right to use that voice. mode "design" creates a voice from voice_description (up to 500 characters). Clone and design need the Base or VoiceDesign checkpoint to be installed; Forge loads it, unloading the resident checkpoint first. Omit seed for a random one (it is recorded with the asset; the same seed and settings repeat a render). Optional temperature, top_p, top_k and repetition_penalty tune sampling, do_sample false switches to greedy decoding, and subtalker_dosample, subtalker_temperature, subtalker_top_p and subtalker_top_k tune the second-stage model that fills in fine acoustic detail; max_new_tokens caps speech length at about 12.5 tokens per second. Output is a 24 kHz mono WAV. Streaming output and speed or pitch controls are not available.',
+        'Queue buffered Qwen3-TTS speech. mode "preset" (default) uses one of nine preset speakers with an optional voice direction (instruct, e.g. tone, pace, emotion). mode "clone" copies a voice from reference_audio (the staged ID returned by forge_stage_audio_source for a project WAV, FLAC or MP3 of 3 to 30 seconds) and its exact transcript reference_text; set reference_consent to true only when the user has confirmed they have the right to use that voice. Set clone_voice_only to true to clone from the voice in the clip alone with no transcript (reference_text is then not needed and not sent); it usually gives lower similarity to the speaker. mode "design" creates a voice from voice_description (up to 500 characters). Clone and design need the Base or VoiceDesign checkpoint to be installed; Forge loads it, unloading the resident checkpoint first. Omit seed for a random one (it is recorded with the asset; the same seed and settings repeat a render). Optional temperature, top_p, top_k and repetition_penalty tune sampling, do_sample false switches to greedy decoding, and subtalker_dosample, subtalker_temperature, subtalker_top_p and subtalker_top_k tune the second-stage model that fills in fine acoustic detail; max_new_tokens caps speech length at about 12.5 tokens per second. Output is a 24 kHz mono WAV. Streaming output and speed or pitch controls are not available.',
       inputSchema: {
         projectId: z.string().uuid(),
         text: z.string().min(1).max(1000),
@@ -378,6 +389,7 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
         reference_audio: z.string().min(1).max(100).optional(),
         reference_text: z.string().min(1).max(1000).optional(),
         reference_consent: z.literal(true).optional(),
+        clone_voice_only: z.literal(true).optional(),
         voice_description: z.string().min(1).max(500).optional(),
         speaker: z
           .enum([
@@ -554,13 +566,15 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
     'forge_queue_segmentation',
     {
       description:
-        'Queue text-prompted SAM 3.1 still-image segmentation using one staged reference. The result is a transparent PNG or mask in the project.',
+        'Queue text-prompted SAM 3.1 still-image segmentation using one staged reference. output picks the PNG saved in the project: transparent (the whole picture with everything else made transparent), mask (white on black), outline (the original with each kept match outlined) or cropped (a transparent cutout trimmed to the kept matches plus a little padding). select chooses which matches are kept: all (default; every match combined), best (only the highest-scoring match), largest (only the match with the most pixels) or top (the max_instances highest-scoring matches; max_instances is required then and not allowed otherwise). When the job finishes, forge_job details.result lists how many matches were found and used and their scores. Only transparent and cropped cutouts can feed a chained 3D job. Match selection and the outline and cropped outputs need the SAM worker started after this update: stop the SAM 3.1 engine and start it again if the job reports an older worker.',
       inputSchema: {
         projectId: z.string().uuid(),
         reference: z.string().min(1),
         prompt: z.string().min(1).max(1000),
-        output: z.enum(['transparent', 'mask']).default('transparent'),
+        output: z.enum(SEGMENTATION_OUTPUTS).default('transparent'),
         confidence: z.number().min(0).max(1).default(0.5),
+        select: z.enum(SEGMENTATION_SELECTIONS).default('all'),
+        max_instances: z.number().int().min(1).max(SEGMENTATION_MAX_INSTANCES).optional(),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
@@ -615,6 +629,7 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
         target_frame: z.number().int().nonnegative(),
         min_tokens: z.number().int().min(6).max(16).default(8),
         max_tokens: z.number().int().min(6).max(16).default(14),
+        num_target_poses: z.number().int().min(1).max(4).default(4),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
@@ -710,8 +725,9 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
     'forge_queue_video',
     {
       description:
-        'Queue an H3 (MiniMax Ref2VA) video render. source "references" (default) builds the video from 1–9 staged reference images, optionally with up to 3 reference_videos (a motion or look to follow, 3 seconds used, called <Video 1>...) and up to 3 reference_audios (a voice to follow, up to 15 seconds, called <Audio 1>...); the prompt refers to images as <Picture 1>, <Picture 2>... in order. source "frames" starts from first_frame (a staged image, required) and optionally ends on last_frame; it cannot be combined with references. source "text" renders from the prompt alone (experimental). aspect landscape, square, portrait, photo (4:3), photo-portrait (3:4) or cinema (21:9); resolution standard (about 0.2 megapixels, the tested default), medium, large or hd (1344 x 768, very slow, untested on this PC). frames must be 17 x n + 5 up to 362 (56, 124, 175, 243 and 311 are about 2, 5, 7, 10 and 13 seconds; 24 fps is fixed by the engine). The video carries generated stereo sound. Optional experimental controls: cfg_scale above 1 with a negative_prompt (the model normally runs unguided and guidance doubles the render time), turbo (a 4-step LoRA adapter), sampler, scheduler, max_vram (GiB of GPU memory for weights, default 6), reference_detail max (full-size references). also_mp4 saves an H.264 copy beside the WebM. Forge checks free GPU memory and saves the video into the selected project. A GPU check is not a reservation. Restart the video engine once after updating Forge, or the new options are refused with a clear message.',
-      inputSchema: {
+        'Queue an H3 (MiniMax Ref2VA) video render. source "references" (default) builds the video from 1–9 staged reference images, optionally with up to 3 reference_videos (a motion or look to follow, 3 seconds used, called <Video 1>...) and up to 3 reference_audios (a voice to follow, up to 15 seconds, called <Audio 1>...); the prompt refers to images as <Picture 1>, <Picture 2>... in order. source "frames" starts from first_frame (a staged image, required) and optionally ends on last_frame; it cannot be combined with references. source "text" renders from the prompt alone (experimental). aspect landscape, square, portrait, photo (4:3), photo-portrait (3:4) or cinema (21:9); resolution standard (about 0.2 megapixels, the tested default), medium, large or hd (1344 x 768, very slow, untested on this PC). frames must be 17 x n + 5 up to 362 (56, 124, 175, 243 and 311 are about 2, 5, 7, 10 and 13 seconds; 24 fps is fixed by the engine, so an fps field is rejected; any unknown field is rejected with a 400 naming it). The video carries generated stereo sound. Optional experimental controls: cfg_scale above 1 with a negative_prompt (the model normally runs unguided and guidance doubles the render time), turbo (a 4-step LoRA adapter), sampler, scheduler, max_vram (GiB of GPU memory for weights, default 6, or 12 when reference_videos are given and max_vram is omitted), reference_detail max (full-size references). also_mp4 saves an H.264 copy beside the WebM. Forge checks free GPU memory and saves the video into the selected project. A GPU check is not a reservation. Restart the video engine once after updating Forge, or the new options are refused with a clear message.',
+      // Strict: an unknown field (for example fps) is an error instead of being dropped.
+      inputSchema: z.strictObject({
         projectId: z.string().uuid(),
         prompt: z.string().min(1).max(4000),
         references: z.array(z.string()).max(9).default([]),
@@ -752,7 +768,7 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
         max_vram: z.number().int().min(4).max(24).optional(),
         reference_detail: z.enum(['match', 'max']).optional(),
         also_mp4: z.boolean().optional(),
-      },
+      }),
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
     ({ projectId, ...request }) =>
@@ -998,6 +1014,7 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
           'images',
           'music',
           'sfx',
+          'video',
           'tts',
           '3d-hunyuan',
           '3d-trellis',
@@ -1043,6 +1060,32 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
     ({ id }) => write(`/api/runtime/jobs/${id}/cancel`, {}),
   );
   server.registerTool(
+    'forge_move_job',
+    {
+      description:
+        'Change when a waiting render will start. Only renders in the waiting line (queued, waiting for their engine or for memory, with no engine job yet) can move; running, preparing, interrupted, needs-attention, failed, cancelled and finished renders cannot. Give exactly one of: to ("next" or "top" put it first in the waiting line, "end" last), before or after (another waiting render ID), or direction ("up" or "down" one place). The order takes effect for the next render to start; a running render is never interrupted. A render that uses the result of an earlier render is placed right after it, and renders waiting for a moved render move with it; the response says so. Pass expectedRank (the queueRank from forge_jobs, or null) to refuse the move with a 409 if someone else already moved that render. Returns the new order of waiting render IDs.',
+      inputSchema: {
+        id: z.string().uuid(),
+        to: z.enum(['next', 'top', 'end']).optional(),
+        before: z.string().uuid().optional(),
+        after: z.string().uuid().optional(),
+        direction: z.enum(['up', 'down']).optional(),
+        expectedRank: z.number().finite().nullable().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    ({ id, ...move }) => {
+      const given = ['to', 'before', 'after', 'direction'].filter((key) => move[key] !== undefined);
+      if (given.length !== 1) {
+        return {
+          isError: true,
+          content: [{ type: 'text', text: 'Give exactly one of to, before, after or direction.' }],
+        };
+      }
+      return write(`/api/runtime/jobs/${id}/move`, move);
+    },
+  );
+  server.registerTool(
     'forge_retry_job',
     {
       description:
@@ -1058,7 +1101,7 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
       description:
         'Ask the local Mammoth-1 System One service for a structured game decision. The service must already be running and its model loaded.',
       inputSchema: {
-        state: z.unknown().optional(),
+        state: z.string().trim().min(1).max(200000),
         model: z.string().default('mammoth-1'),
         questions: z.record(z.string(), z.unknown()),
       },

@@ -18,7 +18,11 @@ import {
 import { stageProjectClip } from '../runtime/clips.js';
 import { buildJobMetadata } from '../runtime/asset-metadata.js';
 import { audioPayload } from '../src/audio-payload.js';
-import { cloneReferenceLengthProblem, readClipDurationSeconds } from '../src/voice-modes.js';
+import {
+  cloneReferenceLengthProblem,
+  readClipDurationSeconds,
+  voiceModeFieldErrors,
+} from '../src/voice-modes.js';
 import { describeSettings, reusePlan } from '../src/generation-details.js';
 
 const ttsJobPath = fileURLToPath(new URL('../runtime/tts-job.js', import.meta.url));
@@ -583,4 +587,208 @@ test('the clip duration is read in the browser and never blocks when unreadable'
     throw Error('object URLs are unavailable');
   };
   assert.equal(await readClipDurationSeconds(clip), null, 'a browser refusal resolves to null');
+});
+
+test('voice-only cloning needs no transcript and never stores or sends one', async (t) => {
+  const { queue, projectId } = await makeQueue(t);
+  const reference = `${randomUUID()}.wav`;
+  const voiceOnly = queue.enqueue({
+    type: 'voices',
+    projectId,
+    request: {
+      text: 'Hello',
+      mode: 'clone',
+      reference_audio: reference,
+      reference_consent: true,
+      clone_voice_only: true,
+    },
+  });
+  assert.equal(voiceOnly.request.clone_voice_only, true);
+  assert.equal(voiceOnly.request.reference_audio, reference);
+  assert.equal(Object.hasOwn(voiceOnly.request, 'reference_text'), false);
+
+  const withTranscript = queue.enqueue({
+    type: 'voices',
+    projectId,
+    request: {
+      text: 'Hello',
+      mode: 'clone',
+      reference_audio: reference,
+      reference_text: 'Words that are dropped.',
+      reference_consent: true,
+      clone_voice_only: true,
+    },
+  });
+  assert.equal(Object.hasOwn(withTranscript.request, 'reference_text'), false);
+
+  // A transcript clone keeps its original shape: the flag is stored only when it is on.
+  const transcriptClone = queue.enqueue({
+    type: 'voices',
+    projectId,
+    request: {
+      text: 'Hello',
+      mode: 'clone',
+      reference_audio: reference,
+      reference_text: 'Words in the clip.',
+      reference_consent: true,
+      clone_voice_only: false,
+    },
+  });
+  assert.equal(Object.hasOwn(transcriptClone.request, 'clone_voice_only'), false);
+  assert.equal(transcriptClone.request.reference_text, 'Words in the clip.');
+
+  const base = {
+    text: 'Hello',
+    mode: 'clone',
+    reference_audio: reference,
+    reference_consent: true,
+  };
+  assert.throws(
+    () => queue.enqueue({ type: 'voices', projectId, request: { ...base, reference_text: '' } }),
+    /exact words/,
+    'a transcript clone still needs its transcript',
+  );
+  assert.throws(
+    () =>
+      queue.enqueue({
+        type: 'voices',
+        projectId,
+        request: { ...base, clone_voice_only: 'yes' },
+      }),
+    /true or false/,
+  );
+  assert.throws(
+    () =>
+      queue.enqueue({
+        type: 'voices',
+        projectId,
+        request: { ...base, clone_voice_only: true, reference_consent: false },
+      }),
+    /right to use this voice/,
+    'voice-only cloning still needs consent',
+  );
+  assert.throws(
+    () =>
+      queue.enqueue({
+        type: 'voices',
+        projectId,
+        request: { ...base, clone_voice_only: true, reference_audio: '../x.wav' },
+      }),
+    /WAV, FLAC or MP3/,
+    'voice-only cloning still needs a project clip',
+  );
+});
+
+test('voice-only clone fields: the client drops the transcript requirement and matches the server', async () => {
+  const clone = {
+    voiceMode: 'clone',
+    voiceReferenceId: 'reference-1',
+    voiceReferenceSeconds: 6,
+    voiceConsent: true,
+    voiceReferenceText: '',
+  };
+  assert.match(voiceModeFieldErrors(clone).transcript, /exact words/);
+  assert.equal(voiceModeFieldErrors({ ...clone, voiceCloneVoiceOnly: true }).transcript, '');
+  assert.match(
+    voiceModeFieldErrors({ ...clone, voiceCloneVoiceOnly: true, voiceConsent: false }).consent,
+    /right to use this voice/,
+    'voice-only cloning still needs consent',
+  );
+  const withoutClip = voiceModeFieldErrors({
+    ...clone,
+    voiceCloneVoiceOnly: true,
+    voiceReferenceId: '',
+  });
+  assert.match(withoutClip.reference, /WAV, FLAC or MP3/, 'the clip is still required');
+});
+
+test('voice-only clone payload sends the flag and no transcript', async (t) => {
+  const { projectId } = await makeQueue(t);
+  const reference = `${randomUUID()}.wav`;
+  const draft = {
+    prompt: 'Hello',
+    options: ['Ryan', 'English'],
+    voiceMode: 'clone',
+    voiceReferenceId: reference,
+    voiceReferenceSeconds: 6,
+    voiceConsent: true,
+    voiceReferenceText: 'Typed but not sent.',
+    voiceCloneVoiceOnly: true,
+  };
+  const seeded = () => 4;
+  const payload = audioPayload('voices', projectId, draft, { seedGenerator: seeded });
+  assert.equal(payload.request.clone_voice_only, true);
+  assert.equal(payload.request.reference_audio, reference);
+  assert.equal(Object.hasOwn(payload.request, 'reference_text'), false);
+  assert.equal(payload.request.reference_consent, true);
+
+  const transcriptClone = audioPayload(
+    'voices',
+    projectId,
+    { ...draft, voiceCloneVoiceOnly: false, voiceReferenceText: 'Words in the clip.' },
+    { seedGenerator: seeded },
+  );
+  assert.equal(Object.hasOwn(transcriptClone.request, 'clone_voice_only'), false);
+  assert.equal(transcriptClone.request.reference_text, 'Words in the clip.');
+  assert.throws(
+    () =>
+      audioPayload(
+        'voices',
+        projectId,
+        { ...draft, voiceCloneVoiceOnly: false, voiceReferenceText: '' },
+        { seedGenerator: seeded },
+      ),
+    /exact words/,
+  );
+});
+
+test('voice-only renders record the flag, not a transcript, and Reuse restores the checkbox', async (t) => {
+  const { queue, projectId } = await makeQueue(t);
+  const voiceOnly = queue.enqueue({
+    type: 'voices',
+    projectId,
+    request: {
+      text: 'Hello',
+      mode: 'clone',
+      reference_audio: `${randomUUID()}.wav`,
+      reference_consent: true,
+      clone_voice_only: true,
+    },
+  });
+  const job = {
+    ...voiceOnly,
+    id: randomUUID(),
+    status: 'completed',
+    startedAt: null,
+    finishedAt: null,
+  };
+  const record = buildJobMetadata(job, 'voices/vo.wav');
+  assert.equal(record.settings.clone_voice_only, true);
+  assert.equal(Object.hasOwn(record.settings, 'reference_text'), false);
+  assert.equal(record.model.version, TTS_CHECKPOINTS.base.folder);
+
+  const meta = {
+    type: 'voices',
+    job: { type: 'voices' },
+    prompt: { text: 'Hello', secondary: '' },
+    seed: 5,
+    settings: { ...record.settings },
+  };
+  const plan = reusePlan(meta);
+  assert.equal(plan.draft.voiceMode, 'clone');
+  assert.equal(plan.draft.voiceCloneVoiceOnly, true);
+  assert.equal(plan.draft.voiceReferenceText, '');
+  const row = describeSettings(meta).find((item) => item.key === 'clone_voice_only');
+  assert.deepEqual(
+    { label: row.label, value: row.value },
+    { label: 'Voice only (no transcript)', value: 'On' },
+  );
+
+  const transcriptRender = buildJobMetadata(
+    { ...job, request: { text: 'Hi', mode: 'clone', reference_text: 'Words.' } },
+    'voices/t.wav',
+  );
+  const restored = reusePlan({ ...meta, settings: { ...transcriptRender.settings } });
+  assert.equal(restored.draft.voiceCloneVoiceOnly, false);
+  assert.equal(restored.draft.voiceReferenceText, 'Words.');
 });

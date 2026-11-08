@@ -92,3 +92,34 @@ test('previous failed attempt requires a fresh worker before retry', async () =>
   assert.equal((await f.load(f.mark)).body.code, 'previous_load_failed');
   assert.deepEqual(f.calls, []);
 });
+
+test('a GPU refusal is decided before the Mammoth worker is started', async () => {
+  let started = false;
+  const f = fixture({
+    hardware: async () => ({ devices: [{ freeMiB: 1000 }] }),
+    startEngine: async () => {
+      started = true;
+      return { status: 'starting' };
+    },
+  });
+  const result = await f.load(f.mark);
+  assert.equal(result.body.code, 'insufficient_gpu_memory');
+  assert.equal(started, false);
+  assert.deepEqual(f.calls, []);
+});
+
+test('a host-memory refusal is decided before the Mammoth worker is started', async () => {
+  let started = false;
+  const f = fixture({
+    freeMemory: () => 512 * 1024 ** 2,
+    startEngine: async () => {
+      started = true;
+      return { status: 'starting' };
+    },
+  });
+  const result = await f.load(f.mark);
+  assert.equal(result.status, 409);
+  assert.equal(result.body.code, 'insufficient_host_memory');
+  assert.equal(started, false);
+  assert.deepEqual(f.calls, []);
+});

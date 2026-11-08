@@ -2,6 +2,12 @@ import CredentialSettings from './CredentialSettings';
 import AssetPicker from './AssetPicker';
 import { IMAGE_EXTENSIONS, TRELLIS_EXTENSIONS, POSE_EXTENSIONS } from './asset-picker.js';
 import FieldHelp from './tooltips/FieldHelp';
+import SegmentationMatchControls from './SegmentationMatchControls.jsx';
+import {
+  SEGMENTATION_CONFIDENCE_DEFAULT,
+  SEGMENTATION_EXPORTS,
+  confidenceProblem,
+} from './segmentation-settings.js';
 import fieldTooltips from './tooltips';
 import { chatProjectKey } from './chat-project';
 import AssetThumbnail, { isVisualAsset } from './AssetThumbnail';
@@ -18,6 +24,7 @@ import useDialogFocus from './useDialogFocus';
 import Diagnostics from './Diagnostics';
 import { RecentProjects, NewProjectDialog } from './Projects';
 import Gallery from './Gallery';
+import Megascans from './Megascans';
 import PreviewArea from './PreviewArea';
 import { draftJob, reusePlan } from './generation-details';
 import Models from './Models';
@@ -41,6 +48,7 @@ import { ThreeDBackgroundOption, ThreeDModeSwitch } from './ThreeDInputs';
 import { enqueueTextTo3d, enqueueThreeD } from './three-d-enqueue';
 import { alphaStatusFor } from './image-alpha';
 import HyMotionControls from './HyMotionControls';
+import { hyMotionVariationCount } from './hymotion-settings.js';
 import MotionBricksControls from './MotionBricksControls';
 import SpeechTranscriber from './SpeechTranscriber';
 import AudioSettings from './AudioSettings';
@@ -50,6 +58,8 @@ import { clearVideoFrames, getVideoFrames } from './video-media-store';
 import SoundSource from './SoundSource';
 import VoiceModeControls from './VoiceModeControls';
 import { firstVoiceModeError, voiceModeFieldErrors } from './voice-modes.js';
+import FieldError from './FieldError';
+import { creationFieldErrors, validationSummary } from './creation-validation.js';
 import AsrLatency from './AsrLatency';
 import { useImageLoras } from './useImageLoras.js';
 import MemoryAlerts from './MemoryAlerts';
@@ -57,6 +67,8 @@ import MiniPlayer from './MiniPlayer';
 import PageErrorBoundary from './PageErrorBoundary';
 import ModelPlaque from './ModelPlaque';
 import WorldStudio from './WorldStudio';
+import Vegetation from './Vegetation';
+import { stashReuse } from './vegetation-settings';
 import {
   QueueTimingProvider,
   QueueTimingBadge,
@@ -66,6 +78,13 @@ import {
 import { estimateFromNearbyHistory, formatDuration } from './queue-timing.js';
 import { pageQueueStatus } from './nav-queue-status';
 import './clientLogging';
+import { reportNoticeError } from './error-capture.js';
+import ErrorsButton from './ErrorsButton';
+import ErrorsDialog from './ErrorsDialog';
+import AiAssistSettings from './AiAssistSettings';
+import { I18nProvider } from './i18n/index.js';
+import LanguageMenu from './i18n/LanguageMenu';
+import { shippedCatalogs } from './i18n/shipped-catalogs.js';
 import {
   ArrowRight,
   AudioLines,
@@ -91,6 +110,7 @@ import {
   PanelLeftOpen,
   Mic2,
   Music2,
+  PackageOpen,
   PersonStanding,
   Plus,
   Radio,
@@ -100,6 +120,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Terminal,
+  Trees,
   X,
   Zap,
 } from 'lucide-react';
@@ -127,7 +148,7 @@ import './ux-page-3d.css';
 import './ux-page-world.css';
 import './ux-page-motion.css';
 import './ux-page-video.css';
-import { videoFormatSummary } from './imageVideoInputs';
+import { videoBudgetLabel, videoFormatSummary } from './imageVideoInputs';
 import './ux-page-music.css';
 import './ux-page-sfx.css';
 import './ux-page-voices.css';
@@ -151,6 +172,7 @@ const nav = [
   { id: 'chat', label: 'Chat', icon: MessageSquareText },
   { id: 'images', label: 'Images', icon: ImageIcon },
   { id: '3d', label: '3D models', icon: Box },
+  { id: 'vegetation', label: 'Vegetation', icon: Trees },
   { id: 'world', label: 'Worlds', icon: Cloud },
   { id: 'motion', label: 'Motion', icon: PersonStanding },
   { id: 'video', label: 'Video', icon: Clapperboard },
@@ -320,7 +342,7 @@ const configs = {
     button: 'Add segmentation to queue',
     options: [
       ['Selection', 'Text prompt'],
-      ['Export', 'Transparent PNG', 'Mask PNG'],
+      ['Export', ...SEGMENTATION_EXPORTS.map(([label]) => label)],
     ],
     tip: 'Use a short description of the object you want to select.',
   },
@@ -445,6 +467,9 @@ function App() {
   const [submittingMusic, setSubmittingMusic] = useState(false);
   const [renderEstimate, setRenderEstimate] = useState(null),
     [estimateError, setEstimateError] = useState('');
+  // Scope and request keys keep the last estimate on screen while a new one loads.
+  const estimateScope = useRef('');
+  const estimateRequestKey = useRef('');
   const [videoFiles, setVideoFiles] = useState([]);
   const [imageFiles, setImageFiles] = useState([]);
   const imageLoras = useImageLoras(section === 'images');
@@ -481,10 +506,21 @@ function App() {
   const [notice, setNotice] = useState('');
   // Counts failed Voices submits. The voice fields show their errors only after the first one.
   const [voiceSubmitAttempts, setVoiceSubmitAttempts] = useState(0);
+  // The last failed submit: which page, which field to focus, and how many attempts so far.
+  const [submitAttempt, setSubmitAttempt] = useState({
+    section: '',
+    forDraft: false,
+    count: 0,
+    focusId: '',
+    errorId: '',
+  });
   const [advanced, setAdvanced] = useRouteToggle('advanced');
   const settingsOpen = routeParams.get('dialog') === 'settings';
   const setSettingsOpen = (value) =>
     updateSearch(setRouteParams, { dialog: value ? 'settings' : null });
+  const errorsOpen = routeParams.get('dialog') === 'errors';
+  const setErrorsOpen = (value) =>
+    updateSearch(setRouteParams, { dialog: value ? 'errors' : null, error: null });
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState('');
@@ -573,6 +609,10 @@ function App() {
       const t = setTimeout(() => setNotice(''), 2800);
       return () => clearTimeout(t);
     }
+  }, [notice]);
+  // Error toasts are also kept in the Errors review (src/error-capture.js decides which are errors).
+  useEffect(() => {
+    reportNoticeError(notice);
   }, [notice]);
   useEffect(() => {
     const onComplete = (e) => {
@@ -703,8 +743,15 @@ function App() {
   };
   useEffect(() => {
     let active = true;
-    setRenderEstimate(null);
-    setEstimateError('');
+    // Clear the estimate only when the page, project or model changes. Typing in a field or a
+    // queue poll must not flash "Checking…" while the next estimate is fetched.
+    const scopeKey = `${section}|${estimateProjectId || ''}|${draft?.model || currentModel || ''}`;
+    if (estimateScope.current !== scopeKey) {
+      estimateScope.current = scopeKey;
+      estimateRequestKey.current = '';
+      setRenderEstimate(null);
+      setEstimateError('');
+    }
     if (!supportsRender) {
       return;
     }
@@ -725,24 +772,34 @@ function App() {
         if (!estimateProjectId) {
           if (active) {
             setRenderEstimate(nearby);
-            if (!nearby) {
-              setEstimateError('Select a project to check for matching renders.');
-            }
+            setEstimateError(nearby ? '' : 'Select a project to check for matching renders.');
           }
           return;
         }
+        // Skip the request when nothing that affects the estimate changed (for example a queue
+        // poll that returned the same jobs).
+        const requestKey = JSON.stringify([
+          type,
+          estimateProjectId,
+          input.request,
+          renderQueueVersion,
+          completedHistory?.length ?? 0,
+        ]);
+        if (estimateRequestKey.current === requestKey) {
+          return;
+        }
+        estimateRequestKey.current = requestKey;
         estimateRender(type, estimateProjectId, draft)
           .then((result) => {
-            if (active) {
+            if (estimateRequestKey.current === requestKey) {
               setRenderEstimate(result.available ? result : nearby || result);
+              setEstimateError('');
             }
           })
           .catch(() => {
-            if (active) {
+            if (estimateRequestKey.current === requestKey) {
               setRenderEstimate(nearby);
-              if (!nearby) {
-                setEstimateError('Could not check render timing.');
-              }
+              setEstimateError(nearby ? '' : 'Could not check render timing.');
             }
           });
       } catch (reason) {
@@ -823,14 +880,60 @@ function App() {
         ?.focus();
     }, 0);
   };
-  const addJob = () => {
-    const motionBricks = section === 'motion' && draft.model === 'NVIDIA MotionBricks';
-    if (section === '3d' && !draft.refs.length) {
-      setNotice('Add a reference image for your 3D draft.');
+  // Required-field problems are collected on a failed submit and shown beside each field. They
+  // are recomputed on every render, so a message clears as soon as its field is fixed.
+  const validationInput = (forDraft) => ({
+    section,
+    draft,
+    forDraft,
+    model: draft.model || current.model,
+    files: {
+      imageFiles,
+      videoFiles,
+      shapeFiles,
+      segmentationFiles,
+      motionPoseFile,
+      videoFrames: getVideoFrames(),
+    },
+  });
+  const shownProblems =
+    submitAttempt.section === section && submitAttempt.count > 0
+      ? creationFieldErrors(validationInput(submitAttempt.forDraft))
+      : [];
+  const problemFor = (field) => shownProblems.find((problem) => problem.field === field);
+  const describedBy = (field, ...others) =>
+    [...others, problemFor(field)?.id].filter(Boolean).join(' ') || undefined;
+  // Returns true when the page is not ready: the toast only summarises, the messages sit beside
+  // the fields, and focus moves to the first invalid one.
+  const blockInvalidSubmit = (forDraft = false) => {
+    const problems = creationFieldErrors(validationInput(forDraft));
+    if (!problems.length) {
+      return false;
+    }
+    setSubmitAttempt((previous) => ({
+      section,
+      forDraft,
+      count: previous.count + 1,
+      focusId: problems[0].focusId,
+      errorId: problems[0].id,
+    }));
+    if (section === 'voices') {
+      setVoiceSubmitAttempts((count) => count + 1);
+    }
+    setNotice(validationSummary(problems));
+    return true;
+  };
+  useEffect(() => {
+    if (!submitAttempt.count) {
       return;
     }
-    if (section !== '3d' && !motionBricks && !draft.prompt.trim()) {
-      setNotice('Add a description to create a draft.');
+    const target =
+      document.getElementById(submitAttempt.focusId) ||
+      document.getElementById(submitAttempt.errorId);
+    target?.focus();
+  }, [submitAttempt]);
+  const addJob = () => {
+    if (blockInvalidSubmit(true)) {
       return;
     }
     if (section === 'game') {
@@ -918,11 +1021,7 @@ function App() {
     event.target.value = '';
   };
   const renderMusic = async () => {
-    if (!selectProject()) {
-      return;
-    }
-    if (!draft.prompt.trim() || !draft.second.trim()) {
-      setNotice('Add a music style and lyrics to queue a render.');
+    if (!selectProject() || blockInvalidSubmit()) {
       return;
     }
     setSubmittingMusic(true);
@@ -937,11 +1036,7 @@ function App() {
     }
   };
   const renderSound = async () => {
-    if (!selectProject()) {
-      return;
-    }
-    if (!draft.prompt.trim()) {
-      setNotice('Add a sound description to queue a render.');
+    if (!selectProject() || blockInvalidSubmit()) {
       return;
     }
     setSubmittingMusic(true);
@@ -956,22 +1051,10 @@ function App() {
     }
   };
   const renderShape = async () => {
-    if (!selectProject()) {
+    if (!selectProject() || blockInvalidSubmit()) {
       return;
     }
     const fromText = draft.threeDMode === 'text';
-    if (!fromText && (shapeFiles.length !== 1 || draft.refs.length !== 1)) {
-      setNotice(
-        draft.refs.length
-          ? 'Choose the reference image again before rendering.'
-          : 'Choose a reference image before rendering.',
-      );
-      return;
-    }
-    if (!fromText && shapeFiles[0].size > 10 * 1024 * 1024) {
-      setNotice('Use an image, up to 10 MiB.');
-      return;
-    }
     setSubmittingMusic(true);
     try {
       const fallbackModel = current.model;
@@ -999,19 +1082,7 @@ function App() {
     }
   };
   const renderSegmentation = async () => {
-    if (!selectProject()) {
-      return;
-    }
-    if (!draft.prompt.trim()) {
-      setNotice('Describe what to isolate.');
-      return;
-    }
-    if (segmentationFiles.length !== 1 || draft.refs.length !== 1) {
-      setNotice('Choose the reference image again before segmenting.');
-      return;
-    }
-    if (segmentationFiles[0].size > 10 * 1024 * 1024) {
-      setNotice('Use an image, up to 10 MiB.');
+    if (!selectProject() || blockInvalidSubmit()) {
       return;
     }
     setSubmittingMusic(true);
@@ -1026,31 +1097,25 @@ function App() {
     }
   };
   const renderMotion = async () => {
-    if (!selectProject()) {
+    if (!selectProject() || blockInvalidSubmit()) {
       return;
     }
     const bricks = draft.model === 'NVIDIA MotionBricks';
-    if (bricks && !motionPoseFile) {
-      setNotice('Choose a SOMA BVH file before rendering.');
-      return;
-    }
-    if (bricks && motionPoseFile.size > 10 * 1024 * 1024) {
-      setNotice('Use a BVH under 10 MiB.');
-      return;
-    }
-    if (!bricks && !draft.prompt.trim()) {
-      setNotice('Describe the human motion.');
-      return;
-    }
     setSubmittingMusic(true);
     try {
       if (bricks) {
         await enqueueMotionBricks(activeProject.id, draft, motionPoseFile);
+        setNotice('Motion clip added to the durable queue.');
       } else {
+        const variations = hyMotionVariationCount(draft);
         await enqueueMotion(activeProject.id, draft);
+        setNotice(
+          variations > 1
+            ? `${variations} motion clips added to the durable queue.`
+            : 'Motion clip added to the durable queue.',
+        );
       }
       setRenderQueueVersion((v) => v + 1);
-      setNotice('Motion clip added to the durable queue.');
     } catch (error) {
       setNotice(`Could not queue motion: ${error.message}`);
     } finally {
@@ -1058,11 +1123,7 @@ function App() {
     }
   };
   const renderVoice = async () => {
-    if (!selectProject()) {
-      return;
-    }
-    if (!draft.prompt.trim()) {
-      setNotice('Add dialogue to queue a voice render.');
+    if (!selectProject() || blockInvalidSubmit()) {
       return;
     }
     const voiceError = firstVoiceModeError(voiceModeFieldErrors(draft));
@@ -1083,22 +1144,7 @@ function App() {
     }
   };
   const renderImage = async () => {
-    if (!selectProject()) {
-      return;
-    }
-    if (!draft.prompt.trim()) {
-      setNotice('Add an image description to queue a render.');
-      return;
-    }
-    if (draft.refs.length !== imageFiles.length) {
-      setNotice('Choose the image references again before rendering.');
-      return;
-    }
-    if (
-      imageFiles.some((f) => f.size > 10 * 1024 * 1024) ||
-      imageFiles.reduce((n, f) => n + f.size, 0) > 40 * 1024 * 1024
-    ) {
-      setNotice('Use reference images under 10 MiB each and 40 MiB in total.');
+    if (!selectProject() || blockInvalidSubmit()) {
       return;
     }
     setSubmittingMusic(true);
@@ -1123,52 +1169,8 @@ function App() {
     !(section === 'video' && ['frames', 'text'].includes(draft.videoSource)) &&
     !(section === '3d' && draft.threeDMode === 'text');
   const renderVideo = async () => {
-    if (!selectProject()) {
+    if (!selectProject() || blockInvalidSubmit()) {
       return;
-    }
-    if (!draft.prompt.trim()) {
-      setNotice('Add a video description to queue a render.');
-      document.getElementById('prompt')?.focus();
-      return;
-    }
-    const videoSource = ['frames', 'text'].includes(draft.videoSource)
-      ? draft.videoSource
-      : 'references';
-    const hasClips = Boolean(draft.videoClips?.length || draft.videoAudios?.length);
-    if (videoSource === 'frames') {
-      const { first, last } = getVideoFrames();
-      if (!first || (draft.videoLastFrame && !last)) {
-        setNotice(
-          draft.videoFirstFrame
-            ? 'Choose the first and last frame files again before queuing.'
-            : 'Add a first frame to queue a video from frames.',
-        );
-        return;
-      }
-    } else if (videoSource === 'references') {
-      if (!draft.refs.length && !hasClips) {
-        setNotice(
-          'Add 1–9 reference images, or a reference video or audio clip, to queue a video.',
-        );
-        document.querySelector('.editor-page .upload-box input[type="file"]')?.focus();
-        return;
-      }
-      if (draft.refs.length && !videoFiles.length) {
-        setNotice('Choose the video reference images again before queuing.');
-        document.querySelector('.editor-page .upload-box input[type="file"]')?.focus();
-        return;
-      }
-      if (videoFiles.length !== draft.refs.length) {
-        setNotice('Choose the video reference images again before queuing.');
-        return;
-      }
-      if (
-        videoFiles.some((f) => f.size > 10 * 1024 * 1024) ||
-        videoFiles.reduce((n, f) => n + f.size, 0) > 40 * 1024 * 1024
-      ) {
-        setNotice('Use reference images under 10 MiB each and 40 MiB in total.');
-        return;
-      }
     }
     setSubmittingMusic(true);
     try {
@@ -1234,6 +1236,13 @@ function App() {
     const plan = reusePlan(meta);
     if (!plan) {
       setNotice('These settings cannot be reused on a creation page.');
+      return;
+    }
+    if (plan.section === 'vegetation') {
+      // The Vegetation page reads this once when it opens and moves it into its address.
+      stashReuse(plan.vegetation);
+      switchTo('vegetation', { project: projectId || null });
+      setNotice('Vegetation page opened with the settings from the asset.');
       return;
     }
     if (plan.section === 'world') {
@@ -1367,15 +1376,27 @@ function App() {
           aria-label="Asset library"
           title="Asset library"
           className={'nav-item ' + (section === 'assets' ? 'active' : '')}
+          aria-current={section === 'assets' ? 'page' : undefined}
           onClick={() => switchTo('assets')}
         >
           <FolderOpen size={17} />
           <span>Asset library</span>
         </button>
         <button
+          aria-label="Megascans"
+          title="Megascans"
+          className={'nav-item ' + (section === 'megascans' ? 'active' : '')}
+          aria-current={section === 'megascans' ? 'page' : undefined}
+          onClick={() => switchTo('megascans')}
+        >
+          <PackageOpen size={17} />
+          <span>Megascans</span>
+        </button>
+        <button
           aria-label="Models and services"
           title="Models and services"
           className={'nav-item ' + (section === 'models' ? 'active' : '')}
+          aria-current={section === 'models' ? 'page' : undefined}
           onClick={() => switchTo('models')}
         >
           <Layers3 size={17} />
@@ -1385,6 +1406,7 @@ function App() {
           aria-label="Diagnostics"
           title="Diagnostics"
           className={'nav-item ' + (section === 'diagnostics' ? 'active' : '')}
+          aria-current={section === 'diagnostics' ? 'page' : undefined}
           onClick={() => switchTo('diagnostics')}
         >
           <Terminal size={17} />
@@ -1442,10 +1464,14 @@ function App() {
                 {section === 'overview'
                   ? 'Overview'
                   : current?.title ||
-                    (section === 'chat'
+                    (section === 'megascans'
+                    ? 'Megascans'
+                    : section === 'chat'
                       ? 'Chat'
                       : section === 'world'
                         ? 'Worlds'
+                        : section === 'vegetation'
+                          ? 'Vegetation'
                         : section === 'queue'
                           ? 'Render queue'
                           : section === 'assets'
@@ -1469,6 +1495,8 @@ function App() {
             )}
           </div>
           <div className="top-actions">
+            <LanguageMenu section={section} allowPseudo={import.meta.env.DEV} />
+            <ErrorsButton onOpen={() => setErrorsOpen(true)} isOpen={errorsOpen} />
             <QueueTimingBadge onOpen={() => switchTo('queue')} />
             <button
               type="button"
@@ -1586,6 +1614,7 @@ function App() {
                   'Shapes from a reference image, optionally painted',
                   'yellow',
                 ],
+                ['vegetation', Trees, 'Vegetation', 'Procedural trees and shrubs, no GPU', 'mint'],
                 ['world', Cloud, 'Worlds', 'Explorable 3D scenes from text or images', 'violet'],
                 [
                   'motion',
@@ -1678,6 +1707,7 @@ function App() {
                 supportsRender={supportsRender}
                 isGame={section === 'game'}
                 hasModelSelector={['3d', 'motion'].includes(section)}
+                budget={section === 'video' ? videoBudgetLabel(draft) : null}
               />
             </div>
             <div className={'creation-context' + (activeProject ? ' has-project' : '')}>
@@ -1752,6 +1782,7 @@ function App() {
                       <ThreeDModeSwitch
                         draft={draft}
                         onChange={update}
+                        descriptionError={problemFor('description')?.message}
                         trellis={(draft.model || current.model) === 'TRELLIS.2'}
                       />
                     </>
@@ -1765,7 +1796,11 @@ function App() {
                         id="motion-model"
                         className="model3d-select"
                         value={draft.model || current.model}
-                        onChange={(e) => update({ model: e.target.value })}
+                        onChange={(e) => {
+                          update({ model: e.target.value });
+                          // The page reads the model from the link, like the 3D model picker.
+                          updateSearch(setRouteParams, { model: e.target.value });
+                        }}
                       >
                         <option>HY-Motion 1.0</option>
                         <option>NVIDIA MotionBricks</option>
@@ -1810,12 +1845,15 @@ function App() {
                           }
                           value={draft.prompt}
                           onChange={(e) => update({ prompt: e.target.value })}
+                          aria-invalid={problemFor('prompt') ? 'true' : undefined}
+                          aria-describedby={describedBy('prompt')}
                           placeholder={
                             section === 'motion' && draft.model === 'NVIDIA MotionBricks'
                               ? 'Optional notes about the target pose or scene...'
                               : current.placeholder
                           }
                         />
+                        <FieldError id="prompt-error" message={problemFor('prompt')?.message} />
                         <div className="prompt-foot">
                           <span>
                             <Sparkles size={13} />{' '}
@@ -1841,6 +1879,7 @@ function App() {
                       onChange={update}
                       file={motionPoseFile}
                       onFile={setMotionPoseFile}
+                      sourceError={problemFor('pose')?.message}
                       onLibrary={() => updateSearch(setRouteParams, { picker: 'pose' })}
                     />
                   )}
@@ -1855,8 +1894,11 @@ function App() {
                         value={draft.second}
                         onChange={(e) => update({ second: e.target.value })}
                         maxLength={20000}
+                        aria-invalid={problemFor('lyrics') ? 'true' : undefined}
+                        aria-describedby={describedBy('lyrics')}
                         placeholder="[Verse] Write your lyrics here..."
                       />
+                      <FieldError id="extra-error" message={problemFor('lyrics')?.message} />
                       <p className="helper">
                         Use section tags such as [Verse] or [Chorus]. Write [Instrumental] for an
                         instrumental track.
@@ -1926,7 +1968,10 @@ function App() {
                       </div>
                       <label className="upload-box">
                         <input
+                          id="reference-file"
                           type="file"
+                          aria-invalid={problemFor('reference') ? 'true' : undefined}
+                          aria-describedby={describedBy('reference')}
                           accept={
                             section === '3d' &&
                             (draft.model || current.model) === 'TRELLIS.2' &&
@@ -1961,6 +2006,7 @@ function App() {
                       >
                         <FolderOpen size={15} /> Choose from asset library
                       </button>
+                      <FieldError id="reference-error" message={problemFor('reference')?.message} />
                       {draft.refs.length > 0 && (
                         <div className="ref-list">
                           {draft.refs.map((ref, i) => (
@@ -2025,6 +2071,10 @@ function App() {
                   {section === 'video' && (
                     <VideoMediaInputs
                       part="details"
+                      frameErrors={{
+                        first: problemFor('firstFrame')?.message,
+                        last: problemFor('lastFrame')?.message,
+                      }}
                       draft={draft}
                       update={update}
                       projects={projects}
@@ -2090,21 +2140,35 @@ function App() {
                     </p>
                   )}
                   {section === 'segmentation' && (
-                    <label>
+                    <label htmlFor="segmentation-confidence">
                       <span className="field-label">Confidence threshold</span>
                       <input
+                        id="segmentation-confidence"
+                        className="segmentation-confidence"
                         type="number"
                         min="0"
                         max="1"
                         step="0.05"
-                        value={draft.confidence ?? 0.5}
+                        inputMode="decimal"
+                        value={draft.confidence ?? SEGMENTATION_CONFIDENCE_DEFAULT}
+                        aria-invalid={confidenceProblem(draft.confidence) ? 'true' : undefined}
+                        aria-describedby="segmentation-confidence-help"
                         onChange={(e) => update({ confidence: e.target.value })}
                       />
-                      <p className="helper">
-                        Use 0 to 1 (default 0.5). Lower values can include more objects; higher
-                        values are more selective.
+                      <p
+                        id="segmentation-confidence-help"
+                        className={
+                          confidenceProblem(draft.confidence) ? 'helper field-error' : 'helper'
+                        }
+                        role={confidenceProblem(draft.confidence) ? 'alert' : undefined}
+                      >
+                        {confidenceProblem(draft.confidence) ||
+                          'Use 0 to 1 (default 0.5). Lower values can include more objects, and 0 selects almost everything; higher values are more selective, and 1 usually finds nothing.'}
                       </p>
                     </label>
+                  )}
+                  {section === 'segmentation' && (
+                    <SegmentationMatchControls draft={draft} onChange={update} />
                   )}
                   <AudioSettings
                     section={section}
@@ -2383,6 +2447,16 @@ function App() {
               </div>
             </div>
           </div>
+        ) : section === 'vegetation' ? (
+          <PageErrorBoundary name="Vegetation">
+            <Vegetation
+              project={activeProject}
+              projects={projects}
+              onRefresh={refreshProjects}
+              onNewProject={() => setNewProjectOpen(true)}
+              onOpenLibrary={() => switchTo('assets')}
+            />
+          </PageErrorBoundary>
         ) : section === 'world' ? (
           <PageErrorBoundary name="World studio">
             <WorldStudio
@@ -2418,6 +2492,16 @@ function App() {
             error={projectsError}
             onReuse={reuseSettings}
           />
+        ) : section === 'megascans' ? (
+          <PageErrorBoundary name="Megascans">
+            <Megascans
+              project={activeProject}
+              projects={projects}
+              onSelect={setSelectedProjectId}
+              onRefresh={refreshProjects}
+              onOpenLibrary={() => switchTo('assets')}
+            />
+          </PageErrorBoundary>
         ) : section === 'queue' ? (
           <div className="page queue-page">
             <div className="editor-title">
@@ -2477,6 +2561,7 @@ function App() {
         )}
       </main>
       {routeParams.get('picker') === 'images' &&
+        !projectsLoading &&
         ['images', 'video', '3d', 'segmentation'].includes(section) && (
           <AssetPicker
             title="Choose reference images"
@@ -2531,6 +2616,13 @@ function App() {
         <NewProjectDialog onClose={() => setNewProjectOpen(false)} onCreate={createProject} />
       )}{' '}
       {settingsOpen && <StudioSettings onClose={() => setSettingsOpen(false)} />}{' '}
+      {errorsOpen && (
+        <ErrorsDialog
+          onClose={() => setErrorsOpen(false)}
+          onOpenSettings={() => updateSearch(setRouteParams, { dialog: 'settings', error: null })}
+          onOpenJob={() => switchTo('queue')}
+        />
+      )}
       {notice && (
         <div className="toast" role="status">
           <Check size={15} />
@@ -2726,6 +2818,7 @@ function StudioSettings({ onClose }) {
           </p>
         </div>
         <CredentialSettings />
+        <AiAssistSettings />
       </section>
     </div>
   );
@@ -2796,7 +2889,11 @@ createRoot(document.getElementById('root')).render(
       <Route
         element={
           <QueueTimingProvider>
-            <App />
+            <PageErrorBoundary name="the studio">
+              <I18nProvider catalogs={shippedCatalogs}>
+                <App />
+              </I18nProvider>
+            </PageErrorBoundary>
           </QueueTimingProvider>
         }
       >

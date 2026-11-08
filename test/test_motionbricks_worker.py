@@ -78,6 +78,8 @@ class WorkerTests(unittest.TestCase):
         with (
             patch.object(worker, "files_ready", return_value=True),
             patch.object(worker, "available_memory", return_value=2 * 1024**3),
+            # The host floor policy can lower the requirement; the test needs the full 7 GiB check.
+            patch.object(worker, "host_bytes_needed", side_effect=lambda required: required),
             patch.object(backend, "load_model") as loader,
         ):
             self.assertEqual(http(self.base, "/api/model/load", {"rig": "soma"})[0], 202)

@@ -2,16 +2,18 @@ import { Worker } from 'node:worker_threads';
 import net from 'node:net';
 import { configuredServices, inspectService } from './catalog.js';
 import { JobQueue, engineUrl } from './jobs.js';
+import { QueueMoveError, describeMove } from './queue-order.js';
 import { decide } from './game.js';
 import { createModelLoader } from './model-load.js';
 import { DEFAULT_CHAT_CONTEXT, validateChatContext } from './chat-memory.js';
 import { planChatLoad } from './chat-load-plan.js';
+import { CHAT_PROJECTOR_MIB, chatProjectorExists } from './chat-vision.js';
 import { createAutoMemoryManager } from './auto-memory.js';
 import { EngineManager } from './engines.js';
 import { EngineClient } from './engine-client.js';
 import { stopExternalModel } from './external-model-stop.js';
 import { createMusicPreparation } from './music-preparation.js';
-import { createServicePreparation } from './service-preparation.js';
+import { createServicePreparation, autoStartsService } from './service-preparation.js';
 import { createRecoverService } from './recover-service.js';
 import { createVideoPreparation } from './video-preparation.js';
 import { createImagePreparation } from './image-preparation.js';
@@ -156,6 +158,8 @@ async function serviceStates() {
       busy,
       canUnload,
       canForceStop: !!ownership[service.id]?.canForceStop,
+      // False only when the engine manager says a plain start is allowed; unknown stays true.
+      startsOnDemand: ownership[service.id]?.startsOnDemand !== false,
       ...(ownership[service.id]?.ownershipRecovery
         ? { ownershipRecovery: ownership[service.id].ownershipRecovery }
         : {}),
@@ -325,14 +329,7 @@ const prepareMotionBricksRender = createMotionBricksRenderPreparation({
 });
 const prepareService = createServicePreparation({
   startEngine: (id) => engines.start(id),
-  autoStart: (type) =>
-    type === 'images'
-      ? !process.env.FORGE_IMAGE_URL || process.env.FORGE_AUTO_START_IMAGE === '1'
-      : type === 'video'
-        ? !process.env.FORGE_VIDEO_URL
-        : type === 'world'
-          ? !process.env.FORGE_WORLD_URL
-          : !process.env.FORGE_SFX_URL,
+  autoStart: (type) => autoStartsService(type, process.env),
 });
 const prepareVideo = createVideoPreparation({
   hardware: () => hardware(true),
@@ -414,6 +411,7 @@ const queue = new JobQueue({
   prepareImage,
   recoverService,
   autoMemory,
+  refreshHardware: () => hardware(true),
   onQueueLog: (record) => console.log(JSON.stringify({ source: 'queue', ...record })),
   onModelLoadBarrier: (engine) => ensureModelLoadMonitor(engine),
 });
@@ -548,6 +546,8 @@ async function manualChatLoad({ speculative = true, contextSize = DEFAULT_CHAT_C
       hardware: () => hardware(true),
       services: memoryServiceStates,
       contextSize,
+      // The engine passes the projector to the server only when the file exists.
+      projectorMiB: chatProjectorExists() ? CHAT_PROJECTOR_MIB : 0,
     });
     if (plan.code !== 'ready') {
       return { status: 409, body: plan };
@@ -748,7 +748,6 @@ async function manualAsrLoad() {
 // The latency mode is read when the speech engine starts, so changing it restarts an idle engine.
 async function setAsrLatency({ latencyMs }) {
   return applyAsrLatency(latencyMs, {
-    read: () => readAsrLatency(),
     write: (value) => writeAsrLatency(value),
     probe: () => probeAsr(asrBase),
     managed: async () => Boolean((await engines.status()).asr?.managed),
@@ -1202,6 +1201,35 @@ const handlers = {
   cancel: async ({ id }) => ({ job: queue.cancel(id) }),
   clearWaiting: async ({ confirmation }) => queue.clearWaiting(confirmation),
   retry: async ({ id }) => ({ job: queue.retry(id) }),
+  // Answers with its own status so a conflict can carry the fresh order back to the client.
+  move: async ({ id, ...input }) => {
+    try {
+      const result = queue.move(id, input);
+      return {
+        status: 200,
+        body: {
+          moved: result.moved,
+          position: result.to,
+          count: result.count,
+          order: result.waiting.order,
+          ranks: result.waiting.ranks,
+          clamped: result.clamped !== null,
+          carried: result.carried,
+          renumbered: result.renumbered,
+          message: describeMove('the render', result),
+          job: result.job,
+        },
+      };
+    } catch (error) {
+      if (!(error instanceof QueueMoveError)) {
+        throw error;
+      }
+      return {
+        status: error.status,
+        body: { error: error.message, code: error.code, ...(error.extra || {}) },
+      };
+    }
+  },
   resolve: async ({ id, confirmRemoteNotRunning }) => ({
     job: queue.resolve(id, confirmRemoteNotRunning),
   }),
@@ -1231,6 +1259,12 @@ const handlers = {
   clearHyMotionLoadBarrier,
   clearMotionBricksLoadBarrier,
   startEngines: async () => engines.startAll(),
+  startEngine: async ({ id }) => {
+    if (typeof id !== 'string') {
+      throw Error('Unknown engine.');
+    }
+    return engines.startOne(id);
+  },
   offload: async ({ id }) => {
     queue.suspend(id);
     try {

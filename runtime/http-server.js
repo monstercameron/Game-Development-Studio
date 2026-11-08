@@ -15,6 +15,10 @@ import { toNodeHandler } from '@modelcontextprotocol/node';
 import { EngineBroker } from './engine-broker.js';
 import { attachAsrStreamProxy } from './asr-stream-proxy.js';
 import { trayStatusService } from './tray-status.js';
+import { megascansService } from './megascans-service.js';
+import { errorsService } from './errors-service.js';
+import { i18nService } from './i18n-service.js';
+import { vegetationService } from './vegetation-service.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -52,6 +56,10 @@ for (const service of [
   projectsService(),
   chatService(),
   credentialService(),
+  megascansService(),
+  errorsService(),
+  i18nService(),
+  vegetationService(),
   runtimeService({ engineBroker }),
 ]) {
   service.configureServer(host);

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import FieldError from './FieldError';
 import { alphaStatusFor, fileKey, measureTransparency } from './image-alpha.js';
 import {
   REMOVE_BACKGROUND_DEFAULT_PROMPT,
@@ -11,7 +12,7 @@ import './three-d-inputs.css';
 const IMAGE_STEP_RANGE = [1, 100];
 
 // "Start from": a reference picture, or a description that Qwen Image turns into a picture first.
-export function ThreeDModeSwitch({ draft, onChange, trellis }) {
+export function ThreeDModeSwitch({ draft, onChange, trellis, descriptionError = '' }) {
   const text = draft.threeDMode === 'text';
   const modelName = trellis ? 'TRELLIS.2' : 'Hunyuan3D 2.1';
   const steps = draft.textImageSteps === undefined ? TEXT_TO_3D_IMAGE_STEPS : draft.textImageSteps;
@@ -59,9 +60,13 @@ export function ThreeDModeSwitch({ draft, onChange, trellis }) {
             maxLength={TEXT_PROMPT_LIMIT}
             value={draft.prompt ?? ''}
             placeholder="A weathered wooden barrel with iron bands, stylised game prop, whole object in view"
-            aria-describedby="three-d-text-help"
+            aria-invalid={descriptionError ? 'true' : undefined}
+            aria-describedby={
+              descriptionError ? 'three-d-text-help three-d-text-prompt-error' : 'three-d-text-help'
+            }
             onChange={(event) => onChange({ prompt: event.target.value })}
           />
+          <FieldError id="three-d-text-prompt-error" message={descriptionError} />
           <p id="three-d-text-help" className="three-d-inputs__hint">
             One object, fully in view, works best. Forge first draws it with Qwen Image 2.1 (1024 ×
             1024, transparent background, always on), saves that picture in your project, then
@@ -111,10 +116,11 @@ export function ThreeDModeSwitch({ draft, onChange, trellis }) {
                 : `Image steps: 1 to 100, default ${TEXT_TO_3D_IMAGE_STEPS}. More steps take longer. The 3D settings below (and the 3D seed) apply to the model step.`}
           </p>
           <p className="three-d-inputs__memory">
-            Two models run, one after the other, never together: Qwen Image draws the picture, then{' '}
-            {modelName} builds the model. Forge checks GPU and system memory before each, and may
-            unload an idle model to make room, so the second stage can include a model load. The
-            estimate on this page covers the 3D step only.
+            Two models run one after the other: Qwen Image draws the picture, then {modelName}{' '}
+            builds the model. Forge frees the first model before loading the second when it can
+            (when it started that model, nothing else is using it, and no other queued render needs
+            it), and checks GPU and system memory before each, so the second stage can include a
+            model load. The estimate on this page covers the 3D step only.
           </p>
         </div>
       )}
@@ -171,12 +177,14 @@ export function ThreeDBackgroundOption({ draft, onChange, file, trellis }) {
         {alreadyTransparent
           ? 'This picture already has a transparent background, so there is nothing to remove. Forge uses it as it is.'
           : checked
-            ? 'Queues two renders: SAM 3.1 cuts out what you describe (saved as a transparent PNG in your project), then the 3D model is built from the cutout. The two models load one after the other. If SAM 3.1 finds nothing, the 3D render stops with that message.'
+            ? 'Queues two renders: SAM 3.1 cuts out what you describe (saved as a transparent PNG in your project), then the 3D model is built from the cutout. Forge frees SAM 3.1 before loading the 3D model when it can. If SAM 3.1 finds nothing, the 3D render stops with that message.'
             : alpha === 'opaque'
               ? trellis
                 ? 'This picture has no transparent background, and TRELLIS.2 rejects it. Tick this box to cut the object out first.'
                 : 'This picture has no transparent background. Hunyuan3D treats an opaque picture as all object, so the background becomes part of the model unless you remove it.'
-              : 'Cuts the object out of an ordinary picture before the 3D step. Skip it when the picture already has a transparent background.'}
+              : trellis
+                ? 'Cuts the object out of an ordinary picture before the 3D step. Tick it before choosing a JPEG: TRELLIS.2 only lists PNG and WebP files until then. Skip it when the picture already has a transparent background.'
+                : 'Cuts the object out of an ordinary picture before the 3D step. Skip it when the picture already has a transparent background.'}
       </p>
       {checked && (
         <div className="three-d-background__prompt">
@@ -192,8 +200,9 @@ export function ThreeDBackgroundOption({ draft, onChange, file, trellis }) {
             />
           </label>
           <p className="three-d-inputs__hint">
-            A short noun phrase, for example “the dragon” or “the wooden chest”. Empty means “
-            {REMOVE_BACKGROUND_DEFAULT_PROMPT}”.
+            Name the object in a word or two, for example “dragon” or “wooden chest”. Generic words
+            such as “object” often find nothing and then the 3D render stops. Empty means “
+            {REMOVE_BACKGROUND_DEFAULT_PROMPT}”, which works on many pictures but not all.
           </p>
         </div>
       )}

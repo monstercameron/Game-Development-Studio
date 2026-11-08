@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readReferences } from './references.js';
 import { stagedClipPath } from './clips.js';
-import { VIDEO_ASPECTS, TURBO_ADAPTER, videoDimensions } from './video-options.js';
+import { VIDEO_ASPECTS, TURBO_ADAPTER, videoDimensions, videoMaxVramGiB } from './video-options.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // Prepared reference clips and frames are handed to H3 through this folder only. The H3 engine
@@ -249,10 +249,15 @@ export async function buildSubmission(projectFolder, jobId, request) {
       forge.negative_prompt = request.negative_prompt;
     }
   }
-  for (const key of ['sampler', 'scheduler', 'max_vram', 'reference_detail']) {
+  for (const key of ['sampler', 'scheduler', 'reference_detail']) {
     if (request[key]) {
       forge[key] = request[key];
     }
+  }
+  // The chosen budget, or the larger one reference clips need (see videoMaxVramGiB).
+  const maxVram = videoMaxVramGiB(request);
+  if (maxVram) {
+    forge.max_vram = maxVram;
   }
   body.forge = forge;
   // H3 limits the whole request to 60 MB; staged images are already capped at 40 MB.

@@ -1,1 +1,20 @@
 /* ux-page-segmentation: refinements for the segmentation page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* The confidence field was an unstyled browser number box next to 44 px controls. */
+.form-panel .segmentation-confidence {
+  box-sizing: border-box;
+  width: 8rem;
+  min-height: 44px;
+  padding: var(--forge-space-2-5, 10px) var(--forge-space-3, 12px);
+  border: 1px solid var(--forge-control-border, #684b5b);
+  border-radius: var(--forge-radius-control, 8px);
+  font: inherit;
+}
+
+.form-panel .segmentation-confidence[aria-invalid='true'] {
+  border-color: var(--forge-danger, #ffaaaa);
+}
+
+.form-panel .helper.field-error {
+  color: var(--forge-danger, #ffaaaa);
+}

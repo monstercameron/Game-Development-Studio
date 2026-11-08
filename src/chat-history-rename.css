@@ -1,0 +1,21 @@
+/* Inline rename field in the conversation list, and the start-on-send note. */
+.chat-rename {
+  flex: 1;
+  min-width: 0;
+  padding: var(--forge-space-1-5);
+}
+.chat-rename input {
+  width: 100%;
+  min-height: 38px;
+  padding: var(--forge-space-value-7) var(--forge-space-2-5);
+  border: 1px solid var(--forge-focus);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-control-bg);
+  color: var(--forge-text);
+  font: inherit;
+}
+.chat-start-note {
+  display: block;
+  margin-top: var(--forge-space-1-5);
+  color: var(--forge-muted);
+}

@@ -55,3 +55,17 @@
   pointer-events: none;
   z-index: 200;
 }
+
+/* The 20 px circle keeps its look; an invisible ring brings the pointer target to 24 px. */
+.field-help-trigger {
+  position: relative;
+}
+
+@media (min-width: 851px) {
+  .field-help-trigger::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+  }
+}

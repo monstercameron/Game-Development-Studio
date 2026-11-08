@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="252" height="30" viewBox="0 0 252 30" role="img" aria-labelledby="t">
+  <title id="t">Built on NVIDIA RTX Spark</title>
+  <rect width="252" height="30" rx="6" fill="#161616"/>
+  <rect width="88" height="30" rx="6" fill="#76b900"/>
+  <rect x="80" width="10" height="30" fill="#76b900"/>
+  <g font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="0.6" text-anchor="middle">
+    <text x="44" y="19.5" fill="#0b0b0b">BUILT ON</text>
+    <text x="170" y="19.5" fill="#ffffff">NVIDIA RTX SPARK</text>
+  </g>
+</svg>

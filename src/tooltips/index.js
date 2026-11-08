@@ -10,6 +10,7 @@ import sfx from './pages/sfx';
 import voices from './pages/voices';
 import segmentation from './pages/segmentation';
 import world from './pages/world';
+import vegetation from './pages/vegetation';
 import game from './pages/game';
 import assets from './pages/assets';
 import models from './pages/models';
@@ -28,6 +29,7 @@ export default {
   voices,
   segmentation,
   world,
+  vegetation,
   game,
   assets,
   models,

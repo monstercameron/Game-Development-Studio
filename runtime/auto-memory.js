@@ -13,7 +13,16 @@ const guarded = new Set([
 
 export function createAutoMemoryManager({ services, offload, now = Date.now, cooldownMs = 60000 }) {
   const failures = new Map();
-  return async function makeRoom({ target, upcoming = [], isCurrent, announce, reserve, release }) {
+  // `only` limits the choice to one engine: a chained render frees the model it just finished with.
+  return async function makeRoom({
+    target,
+    only = null,
+    upcoming = [],
+    isCurrent,
+    announce,
+    reserve,
+    release,
+  }) {
     const states = await services();
     if (!isCurrent()) {
       return { status: 'cancelled' };
@@ -22,6 +31,7 @@ export function createAutoMemoryManager({ services, offload, now = Date.now, coo
       (item) =>
         guarded.has(item.id) &&
         item.id !== target &&
+        (only === null || item.id === only) &&
         item.status === 'reachable' &&
         item.managed === true &&
         item.canUnload === true &&

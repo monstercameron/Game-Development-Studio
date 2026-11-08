@@ -154,7 +154,7 @@ test('the 3D page queues chained text-to-3D and background-removal renders', asy
     assert.ok(document.querySelector('#three-d-text-prompt'));
     assert.equal(document.querySelector('#three-d-remove-background'), null);
     assert.doesNotMatch(document.body.textContent, /Choose a reference image/);
-    assert.match(document.body.textContent, /never together/);
+    assert.match(document.body.textContent, /frees the first model before loading the second when it can/);
 
     // Fill the description, pick the 1024 pipeline and queue it.
     const prompt = document.querySelector('#three-d-text-prompt');
@@ -202,7 +202,7 @@ test('the 3D page queues chained text-to-3D and background-removal renders', asy
     );
     assert.equal(
       document.querySelector('#three-d-remove-prompt').getAttribute('placeholder'),
-      'the main object',
+      'main object',
     );
     const photo = new dom.window.File([new Uint8Array(20)], 'photo.jpg', { type: 'image/jpeg' });
     await act(async () => {

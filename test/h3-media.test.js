@@ -272,6 +272,8 @@ test(
     assert.deepEqual(body.forge.ref_video_audios, ['job-clips/video-audio-1.wav']);
     assert.deepEqual(body.forge.ref_audios, ['job-clips/audio-1.wav']);
     assert.equal(body.forge.images, 'references');
+    // Encoding a reference clip needs more than the engine's usual 6 GiB budget (video-options.js).
+    assert.equal(body.forge.max_vram, 12);
     const frames = await fs.readdir(path.join(inputRoot, 'job-clips', 'video-1'));
     // 2.5 s at 24 fps is 60 frames; MiniMax counts frames as 17 n + 5, so 56 are kept.
     assert.equal(frames.length, 56);

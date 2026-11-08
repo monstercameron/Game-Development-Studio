@@ -140,6 +140,12 @@ export default function GenerationDetails({ project, asset, onReuse, compact = f
       ) : (
         <>
           <dl className="generation-facts">
+            {(asset.name || asset.title) && (
+              <div>
+                <dt>File name</dt>
+                <dd className="generation-file-name">{asset.name || asset.title}</dd>
+              </div>
+            )}
             {model && (
               <div>
                 <dt>Model</dt>

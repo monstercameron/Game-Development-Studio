@@ -6,6 +6,7 @@ import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { BVHLoader } from 'three/addons/loaders/BVHLoader.js';
 import { parsePlyPreview } from './ply-preview';
 import { ViewerError, byteLimitFor, fileExtension } from './viewer-core';
+import { SHELL_SAMPLE_LIMIT, detectPanoramaShell } from './viewer-panorama';
 
 // Loading, statistics and disposal helpers shared by the interactive viewer and the
 // static thumbnail renderer.
@@ -125,6 +126,45 @@ export function parseMotionBytes(bytes) {
     throw new ViewerError('EMPTY', 'This motion file has no playable skeleton.');
   }
   return { bones: motion.skeleton.bones, clip: motion.clip, root };
+}
+
+// Corners of the sampled triangles in world space, nine numbers per triangle. Sampling keeps
+// the panorama shape check cheap on multi-million triangle meshes.
+export function collectWorldTriangles(root, maxTriangles = SHELL_SAMPLE_LIMIT) {
+  const meshes = [];
+  let total = 0;
+  root.traverse((object) => {
+    const position = object.geometry?.getAttribute?.('position');
+    if (object.isMesh && position) {
+      meshes.push(object);
+      total += Math.floor((object.geometry.index?.count ?? position.count) / 3);
+    }
+  });
+  const stride = Math.max(1, Math.ceil(total / maxTriangles));
+  const values = [];
+  const corner = new THREE.Vector3();
+  for (const mesh of meshes) {
+    const { geometry, matrixWorld } = mesh;
+    const position = geometry.getAttribute('position');
+    const index = geometry.index;
+    const count = Math.floor((index?.count ?? position.count) / 3);
+    for (let triangle = 0; triangle < count; triangle += stride) {
+      for (let vertex = 0; vertex < 3; vertex++) {
+        const slot = triangle * 3 + vertex;
+        corner
+          .fromBufferAttribute(position, index ? index.getX(slot) : slot)
+          .applyMatrix4(matrixWorld);
+        values.push(corner.x, corner.y, corner.z);
+      }
+    }
+  }
+  return values;
+}
+
+// Shape-based fallback for a mesh whose stored details do not identify it as a panorama.
+export function isPanoramaShellMesh(root) {
+  root.updateMatrixWorld(true);
+  return detectPanoramaShell(collectWorldTriangles(root)).isShell;
 }
 
 // Cheap one-pass statistics: counts come straight from buffer attributes.

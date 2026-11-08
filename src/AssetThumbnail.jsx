@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box, Clapperboard, Image as ImageIcon } from 'lucide-react';
+import { Box, Clapperboard, Image as ImageIcon, ImageOff } from 'lucide-react';
 import './asset-thumbnail.css';
 import './ux-viewer.css';
 
@@ -110,11 +110,16 @@ export default function AssetThumbnail({ asset, project, className = '' }) {
       data-category={asset.category}
       aria-hidden="true"
     >
-      {source ? (
-        <img src={source} alt="" loading="lazy" />
+      {source && !failed ? (
+        <img src={source} alt="" loading="lazy" onError={() => setFailed(true)} />
       ) : (
-        <span className="asset-thumbnail-placeholder" data-pending={failed ? undefined : ''}>
-          <Icon size={30} />
+        <span
+          className="asset-thumbnail-placeholder"
+          data-state={failed ? 'failed' : 'loading'}
+          data-pending={failed ? undefined : ''}
+          title={failed ? 'Preview unavailable' : undefined}
+        >
+          {failed ? <ImageOff size={30} /> : <Icon size={30} />}
           <small>
             {failed
               ? asset.category === '3D'

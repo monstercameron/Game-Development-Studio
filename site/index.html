@@ -11,21 +11,35 @@
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#17040f" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#fbf6f3" media="(prefers-color-scheme: light)" />
+    <link rel="canonical" href="https://monstercameron.github.io/Game-Development-Studio/" />
     <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://monstercameron.github.io/Game-Development-Studio/" />
     <meta property="og:site_name" content="Forge" />
     <meta property="og:title" content="Forge — Game Development Studio" />
     <meta
       property="og:description"
       content="Create, organize and iterate on game assets in one local studio, with a durable render queue and MCP tools for agents. Early-stage; validated on Windows ARM64 with NVIDIA GPUs."
     />
-    <meta property="og:image" content="assets/studio-overview.png" />
+    <meta
+      property="og:image"
+      content="https://monstercameron.github.io/Game-Development-Studio/assets/studio-overview.png"
+    />
     <meta property="og:image:width" content="1600" />
     <meta property="og:image:height" content="1000" />
     <meta
       property="og:image:alt"
-      content="The Forge overview with demo projects and sample artwork"
+      content="The Forge overview with two demo projects and the bundled sample artwork"
     />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Forge — Game Development Studio" />
+    <meta
+      name="twitter:description"
+      content="Create, organize and iterate on game assets in one local studio, with a durable render queue and MCP tools for agents. Early-stage; validated on Windows ARM64 with NVIDIA GPUs."
+    />
+    <meta
+      name="twitter:image"
+      content="https://monstercameron.github.io/Game-Development-Studio/assets/studio-overview.png"
+    />
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
     <script src="site.js" defer></script>
@@ -43,12 +57,15 @@
         <nav class="site-nav" aria-label="Sections">
           <ul>
             <li><a href="#about">About</a></li>
+            <li><a href="#hardware">Hardware</a></li>
             <li><a href="#workspaces">Workspaces</a></li>
+            <li><a href="#features">Features</a></li>
             <li><a href="#models">Models</a></li>
             <li><a href="#architecture">Architecture</a></li>
             <li><a href="#install">Install</a></li>
             <li><a href="#api">API &amp; MCP</a></li>
             <li><a href="#faq">FAQ</a></li>
+            <li><a href="#roadmap">Roadmap</a></li>
           </ul>
         </nav>
         <a class="header-gh" href="https://github.com/monstercameron/Game-Development-Studio"
@@ -71,8 +88,13 @@
             </p>
             <div class="hero-actions">
               <a class="button button-primary" href="#install">Install guide</a>
-              <a class="button button-quiet" href="#models">See the 15 models</a>
+              <a class="button button-quiet" href="#models">See the 16 models</a>
             </div>
+            <p class="spark-badge">
+              <span class="spark-dot" aria-hidden="true"></span>
+              Built and tested on <strong>NVIDIA RTX Spark</strong>
+              <span class="spark-sep" aria-hidden="true">·</span> native Windows on ARM64
+            </p>
             <p class="hero-note">
               <span class="badge badge-exp">Early-stage</span>
               The app and queue start without model weights, but rendering needs separately
@@ -90,17 +112,19 @@
                 src="assets/studio-overview.png"
                 width="1600"
                 height="1000"
-                alt="The Forge overview: a sidebar of workspaces, demo projects, and recent sample assets on a dark aubergine interface."
+                alt="The Forge overview: a sidebar of workspaces, a Demo Project header with sample artwork, and recent project cards on a dark aubergine interface."
                 fetchpriority="high"
               />
             </div>
-            <figcaption>The Forge overview with demo projects and sample artwork.</figcaption>
+            <figcaption>
+              The Forge overview with two demo projects and the bundled sample artwork.
+            </figcaption>
           </figure>
         </div>
 
         <div class="wrap">
           <ul class="facts" aria-label="Project facts">
-            <li><strong>15</strong><span>catalog models, plus supporting checkpoints</span></li>
+            <li><strong>16</strong><span>models, plus supporting checkpoints</span></li>
             <li><strong>13</strong><span>engine services on fixed loopback ports</span></li>
             <li><strong>1</strong><span>durable, sequential render queue in SQLite</span></li>
             <li>
@@ -109,6 +133,39 @@
             <li><strong>Node 24+</strong><span>React 19 · Vite 6 · Express 5 · Electron</span></li>
             <li><strong>MIT</strong><span>source license; models keep their own terms</span></li>
           </ul>
+        </div>
+      </section>
+
+      <!-- HARDWARE -->
+      <section class="section" id="hardware" aria-labelledby="hardware-title">
+        <div class="wrap">
+          <p class="kicker">Hardware</p>
+          <h2 id="hardware-title">Built on NVIDIA RTX Spark<span class="dot">.</span></h2>
+          <div class="spark-grid">
+            <div class="prose">
+              <p>
+                Forge is developed and tested on an <strong>NVIDIA RTX Spark N1X</strong> system: a
+                Blackwell GPU with 6,144 cores and 96 GB of GPU memory (98,304 MiB as reported by
+                the driver), running Windows 11 on ARM64 natively, with no WSL and no CPU inference.
+                Every <em>Tested</em> status on this page was measured on that one machine, and its
+                memory limits are why Forge loads one model at a time and checks GPU memory before
+                each render.
+              </p>
+              <p>
+                Other hardware has not been validated to the same level. The figures beside this
+                text are single runs on this machine, not benchmarks.
+              </p>
+            </div>
+            <ul class="spark-stats" aria-label="Measured on NVIDIA RTX Spark N1X">
+              <li><strong>96 GB</strong><span>GPU memory available to the engines</span></li>
+              <li>
+                <strong>21 s</strong><span>Qwen Image 2.1, 1024 × 1024, 12 steps (warm)</span>
+              </li>
+              <li><strong>70 s</strong><span>TRELLIS.2 textured model, 512 pipeline</span></li>
+              <li><strong>20 s</strong><span>HY-Motion, 3 s clip, 50 steps</span></li>
+              <li><strong>9 s</strong><span>Stable Audio 3, 5 s sound effect</span></li>
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -155,7 +212,7 @@
                 <h3>Not yet for</h3>
                 <ul class="crosses">
                   <li>Anyone expecting a one-command, clean-machine AI installer.</li>
-                  <li>Verified macOS or Linux model inference.</li>
+                  <li>Model inference on macOS or Linux, which has not been tested.</li>
                   <li>Exposure to an untrusted network: it is a local, loopback service.</li>
                 </ul>
               </div>
@@ -177,11 +234,12 @@
                 height="1000"
                 loading="lazy"
                 decoding="async"
-                alt="The Image studio: a creative-direction prompt, reference image controls, the Qwen Image 2.1 render model with an estimated ~48 GiB GPU load, and a recent potion artwork."
+                alt="The Image studio: a prompt, a reference image, aspect ratio and quality controls with an inline help popover, an estimated render time bar, and a recent potion artwork."
               />
               <figcaption>
-                Create images with project context, reference inputs and recent creations alongside
-                the controls.
+                Create images with project context and a reference image. Field help opens inline,
+                and the estimate bar says &ldquo;Not enough history&rdquo; until the project has
+                completed renders to compare.
               </figcaption>
             </figure>
             <figure>
@@ -191,7 +249,7 @@
                 height="1000"
                 loading="lazy"
                 decoding="async"
-                alt="The asset library showing the bundled sample collection in a grid with search and filters."
+                alt="The asset library showing the bundled sample collection: three sample images and a sound effect, with search, type filters, sort and view controls."
               />
               <figcaption>
                 Search, filter and preview assets in the library; the screenshot shows the bundled
@@ -206,7 +264,7 @@
       <section class="section" id="workspaces" aria-labelledby="ws-title">
         <div class="wrap">
           <p class="kicker">Workspaces</p>
-          <h2 id="ws-title">Fourteen places to work<span class="dot">.</span></h2>
+          <h2 id="ws-title">Places to work<span class="dot">.</span></h2>
           <p class="section-lead">
             Each panel has its own path (such as <code>/images</code>, <code>/3d</code>,
             <code>/assets</code> or <code>/models</code>), and Back, Forward and refresh restore the
@@ -218,26 +276,28 @@
               <h3>Images</h3>
               <p>
                 Generate characters, scenes and game art from a prompt and up to 10 optional
-                reference images. Override width, height (multiples of 32) and sampling steps.
+                reference images, with multi-reference edits, transparent output and variations.
+                Override width, height (multiples of 32) and sampling steps.
               </p>
               <p class="ws-model"><a href="#model-qwen-image">Qwen Image 2.1</a></p>
             </li>
             <li class="ws">
               <h3>3D models</h3>
               <p>
-                Turn a reference image into an untextured GLB shape, or queue an experimental
-                textured model from a transparent PNG or WebP.
+                Turn a reference image into an untextured GLB shape with Hunyuan3D 2.1, optionally
+                with a PBR texture pass, or make a textured GLB with TRELLIS.2 from a transparent
+                PNG or WebP. Convert results to GLB, glTF, OBJ, PLY or STL.
               </p>
               <p class="ws-model">
                 <a href="#model-hunyuan">Hunyuan3D 2.1</a> · <a href="#model-trellis">TRELLIS.2</a>
-                <span class="badge badge-exp">experimental</span>
               </p>
             </li>
             <li class="ws">
               <h3>Worlds</h3>
               <p>
-                Generate an environment from text, one image or a 360° panorama, or reconstruct a
-                Gaussian-splat scene from 1–8 views. Exports PLY with an interactive splat preview.
+                Generate an environment from text, one image or a 360° panorama with WorldGen (splat
+                PLY or GLB mesh), or reconstruct a Gaussian-splat scene from 1–8 views with HY-World
+                2.0. Splats open in an interactive preview; panorama meshes have an inside view.
               </p>
               <p class="ws-model">
                 <a href="#model-worldgen">WorldGen</a> · <a href="#model-hyworld">HY-World 2.0</a>
@@ -246,20 +306,21 @@
             <li class="ws">
               <h3>Character motion</h3>
               <p>
-                Text-to-motion as a 30 fps BVH skeleton, and SOMA pose-to-pose transitions from BVH
-                files. Rigging and retargeting are not connected.
+                Text-to-motion as a 30 fps BVH skeleton with HY-Motion 1.0, and keyframe-conditioned
+                transitions between SOMA poses with MotionBricks. Rigging and retargeting are not
+                connected.
               </p>
               <p class="ws-model">
                 <a href="#model-hymotion">HY-Motion 1.0</a> ·
                 <a href="#model-motionbricks">MotionBricks</a>
-                <span class="badge badge-exp">experimental</span>
               </p>
             </li>
             <li class="ws">
               <h3>Video</h3>
               <p>
-                Animate 1–9 reference images into short WebM clips, with H3’s supported 8, 12, 20 or
-                30 sampling steps.
+                Animate 1–9 reference images, with optional reference videos and audio, into short
+                WebM clips. Convert any video to MP4 or GIF. First- and last-frame modes need an
+                optional checkpoint that is not installed.
               </p>
               <p class="ws-model"><a href="#model-h3">MiniMax H3 Ref2VA</a></p>
             </li>
@@ -267,23 +328,26 @@
               <h3>Music</h3>
               <p>
                 Create music from a style and lyrics (use <code>[Instrumental]</code> for none),
-                with duration, steps, guidance, negative style and title controls.
+                extend a track, re-synthesize it with a new seed, or score a melody. Duration,
+                steps, guidance, negative style and title controls.
               </p>
               <p class="ws-model"><a href="#model-yue2">YuE2</a></p>
             </li>
             <li class="ws">
               <h3>Sound effects</h3>
               <p>
-                Generate sound effects and ambient audio from a prompt with custom duration and
-                generation steps. Requires gated model access.
+                Generate sound effects and ambient audio from a prompt. Start from an existing sound
+                to make a variation, replace a region, or continue it. Requires gated model access.
               </p>
               <p class="ws-model"><a href="#model-stable-audio">Stable Audio 3</a></p>
             </li>
             <li class="ws">
               <h3>Voices</h3>
               <p>
-                Turn dialogue into speech with nine preset speakers, and transcribe English live
-                from a microphone or from audio files up to two minutes and 25 MiB.
+                Turn dialogue into speech with nine preset voices, a voice designed from a
+                description, or a cloned voice from a 3–30 second clip (you confirm you have the
+                right to use it). Transcribe English live from a microphone or from audio files up
+                to two minutes and 25 MiB.
               </p>
               <p class="ws-model">
                 <a href="#model-tts">Qwen3-TTS</a> · <a href="#model-asr">Nemotron ASR</a>
@@ -292,36 +356,54 @@
             <li class="ws">
               <h3>Segmentation</h3>
               <p>
-                Describe an object in a PNG, JPEG or WebP image and save a transparent cutout or
-                mask to the project’s <code>masks/</code> folder.
+                Describe an object in a PNG, JPEG or WebP image and save a transparent cutout, mask,
+                outline or cropped image to the project. Choose the best, largest or top-N matches.
               </p>
               <p class="ws-model"><a href="#model-sam">SAM 3.1</a></p>
             </li>
             <li class="ws">
               <h3>Game logic</h3>
               <p>
-                Send game state with a choice, score or yes/no question and get a structured
-                decision back for a game character.
+                Send game state with a choice, score or yes/no questions (several per request) and
+                get a structured decision back for a game character.
               </p>
               <p class="ws-model"><a href="#model-mammoth">Mammoth-1</a></p>
             </li>
             <li class="ws">
               <h3>Chat</h3>
               <p>
-                Streamed conversations with text, JSON or strict JSON-schema replies, thinking
-                effort, and project-scoped browser history. OpenAI-compatible servers also work.
+                Streamed conversations with text, JSON or strict JSON-schema replies, sampling
+                controls and thinking levels, with project-scoped browser history. OpenAI-compatible
+                servers also work.
               </p>
               <p class="ws-model"><a href="#model-chat">Qwen3.8-27B</a></p>
+            </li>
+            <li class="ws">
+              <h3>Vegetation</h3>
+              <p>
+                Grow 20 tree, shrub and cactus species to GLB with SeedThree, on the CPU. Controls
+                come from SeedThree’s own schema, and the design can be saved as a SeedThree preset.
+              </p>
+              <p class="ws-model"><a href="#model-vegetation">SeedThree</a></p>
+            </li>
+            <li class="ws ws-tool">
+              <h3>Megascans</h3>
+              <p>
+                Browse a cached catalog of free Quixel Megascans 3D models from Fab and download a
+                file into a project, after you accept its licence once.
+              </p>
+              <p class="ws-model">Built; live download check pending</p>
             </li>
             <li class="ws ws-tool">
               <h3>Asset library</h3>
               <p>
-                Search, filter, sort, preview, rate, keep, rename and download. Deletion goes to
-                recoverable project trash. Convert images and audio to new copies.
+                Search and filter by generation details, preview, rate, keep, rename and download.
+                Reuse settings queues the same request again. Deletion goes to recoverable project
+                trash. Convert images, audio and 3D models to new copies.
               </p>
               <p class="ws-model">
                 PNG · JPG · WebP · GIF · WAV · MP3 · FLAC · OGG · MP4 · WebM · GLB · glTF · FBX ·
-                BVH
+                BVH · OBJ · PLY · STL
               </p>
             </li>
             <li class="ws ws-tool">
@@ -340,7 +422,148 @@
               </p>
               <p class="ws-model">Logs may contain prompts and local paths</p>
             </li>
+            <li class="ws ws-tool">
+              <h3>Errors review</h3>
+              <p>
+                Captures browser, queue, server and engine errors with redaction, copy buttons and
+                fingerprints for repeats. An optional GPT fix suggestion and GitHub issues are
+                described under Features.
+              </p>
+              <p class="ws-model">Unit and end-to-end tests use fakes</p>
+            </li>
           </ol>
+        </div>
+      </section>
+
+      <!-- FEATURES -->
+      <section class="section section-band" id="features" aria-labelledby="features-title">
+        <div class="wrap">
+          <p class="kicker">Features</p>
+          <h2 id="features-title">What the studio does now<span class="dot">.</span></h2>
+          <p class="section-lead">
+            Each item carries its state. <span class="badge badge-ok">Tested</span> ran on the real
+            engine or service on this machine. <span class="badge badge-info">Built</span> is in the
+            app and covered by tests or an isolated copy, but not yet exercised end to end on the
+            real engine. <span class="badge badge-part">Pending</span> is the open check named in
+            the item. Nothing here is a mock or a disabled control.
+          </p>
+          <div class="cols-3">
+            <div class="card">
+              <h3>Asset metadata and Reuse</h3>
+              <p>
+                <span class="badge badge-info">Built</span>
+              </p>
+              <p>
+                Each project keeps generation details for every asset (model, prompt, settings, seed
+                and timings) in its own SQLite database. Search by those details, and use Reuse
+                settings to queue the same request again.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Render queue page</h3>
+              <p>
+                <span class="badge badge-info">Built</span>
+              </p>
+              <p>
+                Renders are grouped as Processing, Waiting in line, Needs attention, Failed and
+                Finished. Failed rows can be dismissed. Queue timing shows in the header on every
+                page.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Reordering the waiting line</h3>
+              <p>
+                <span class="badge badge-info"
+                  >Built; checked on an isolated copy of the studio</span
+                >
+              </p>
+              <p>
+                Move a waiting render with <strong>Run next</strong>, the up and down buttons, or a
+                keyboard-operable drag handle. Running, finished and interrupted renders cannot be
+                moved, and a render that uses another render’s output stays after it.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Queue chaining</h3>
+              <p>
+                <span class="badge badge-info">Built</span>
+              </p>
+              <p>
+                A job can wait for an earlier job’s output. For example, remove a background with
+                SAM 3.1 before a 3D render, or generate an image with Qwen Image before a 3D render.
+                Forge places the dependent job right after the one it needs.
+              </p>
+            </div>
+            <div class="card">
+              <h3>One engine at a time</h3>
+              <p>
+                <span class="badge badge-info">Built</span>
+              </p>
+              <p>
+                Loads are admitted one engine at a time. Admission checks free GPU memory against
+                each model’s size and refuses ambiguous multi-GPU readings. A finished first model
+                in a chain is unloaded, and a soft host-RAM check warns before a load starves
+                Windows. Each engine has start, load, offload and stop controls.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Interface</h3>
+              <p>
+                <span class="badge badge-info">Built</span>
+              </p>
+              <p>
+                Inline help beside parameters, a compact side menu, a mini player (never, once or
+                loop), a 3D viewer, mobile layouts, and hidden engine consoles.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Error review and fix suggestions</h3>
+              <p>
+                <span class="badge badge-part">Pending real OpenAI and GitHub</span>
+              </p>
+              <p>
+                Captures browser, queue, server and engine errors, redacts paths and secrets, and
+                groups repeats. A GPT fix suggestion is sent only after you preview the request and
+                choose to send it. GitHub issues are offered only for fixes you mark as working. The
+                flows are unit and end-to-end tested with fakes; they have not yet been exercised
+                with the real OpenAI or GitHub services.
+              </p>
+            </div>
+            <div class="card">
+              <h3>AI assist settings</h3>
+              <p>
+                <span class="badge badge-info">Built</span>
+              </p>
+              <p>
+                The OpenAI key is stored encrypted with your Windows account, and each feature has
+                its own model id. The defaults <code>gpt-6.1-sol</code> and <code>gpt-6-luna</code>
+                are names you supplied; they may not exist for your key. Check model asks OpenAI
+                whether the id is valid.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Agents over MCP</h3>
+              <p>
+                <span class="badge badge-info">Built</span>
+              </p>
+              <p>
+                An MCP server exposes the queue, assets, asset metadata and models over Streamable
+                HTTP or the stdio bridge. Destructive actions are guarded, and agents are told to
+                ask you first.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Native Windows only</h3>
+              <p>
+                <span class="badge badge-ok">Tested on the target machine</span>
+              </p>
+              <p>
+                Windows ARM64 with an NVIDIA Blackwell GPU, run natively without WSL. Inference is
+                GPU-only: Forge does not fall back to CPU inference. CPU work is limited to
+                preprocessing and file operations.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -357,6 +580,24 @@
             figures are the catalog’s estimates, not reservations or benchmarks. Listing a model
             does not mean it is installed, running, or verified on your machine.
           </p>
+
+          <div class="shots shots-single">
+            <figure>
+              <img
+                src="assets/models.png"
+                width="1600"
+                height="1000"
+                loading="lazy"
+                decoding="async"
+                alt="The Models and services catalog showing model cards with category, status, notes, estimated GPU budget and file status."
+              />
+              <figcaption>
+                The in-app catalog on a source checkout with no model weights installed: each card
+                reports its model files as not found, next to its estimated GPU budget and any
+                access or preview notes.
+              </figcaption>
+            </figure>
+          </div>
 
           <div class="model-browser">
             <fieldset class="filters">
@@ -398,20 +639,26 @@
                 <input type="radio" name="ws" id="f-chat" value="chat" /><label for="f-chat"
                   >Chat</label
                 >
+                <input type="radio" name="ws" id="f-veg" value="veg" /><label for="f-veg"
+                  >Vegetation</label
+                >
                 <input type="radio" name="ws" id="f-exp" value="exp" /><label for="f-exp"
                   >Experimental only</label
                 >
               </div>
             </fieldset>
+
             <p class="model-count" id="model-count" role="status" aria-live="polite">
-              16 cards: 15 catalog models and one group of supporting checkpoints.
+              17 cards: 16 models and one group of supporting checkpoints.
             </p>
 
             <div class="legend" aria-label="Status legend">
-              <span class="badge badge-ok">Verified</span> recorded as verified through Forge, with
-              the noted limits · <span class="badge badge-part">Partial</span> tested or connected,
-              with open items · <span class="badge badge-exp">Experimental</span> early path; see
-              notes
+              <span class="badge badge-ok">Tested</span> ran on the real engine on this machine,
+              with the noted limits ·
+              <span class="badge badge-part">Partly experimental</span> tested, with open items or
+              experimental parts · <span class="badge badge-exp">Experimental</span>
+              works with known quality or reliability limits. Listing a model does not mean it is
+              installed or running on your machine.
             </div>
 
             <div class="model-grid">
@@ -425,9 +672,12 @@
                 <header>
                   <p class="model-ws">Images</p>
                   <h3 id="mt-qwen-image">Qwen Image 2.1</h3>
-                  <span class="badge badge-ok">Verified through Forge</span>
+                  <span class="badge badge-part">Tested · camera LoRA experimental</span>
                 </header>
-                <p class="model-purpose">Generate characters, scenes and game art.</p>
+                <p class="model-purpose">
+                  Text or image to image: characters, scenes and game art, multi-reference edits,
+                  transparent output, variations and an optional LoRA.
+                </p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
@@ -473,6 +723,7 @@
                       One isolated 512×512, 12-step run sampled a peak of 34,900 MiB across all GPU
                       processes; other settings can use more.
                     </li>
+                    <li>The camera-angle LoRA fully applies, but its results are experimental.</li>
                     <li>
                       An optional negative prompt enables guidance above 1; real negative-prompt
                       inference has not yet been verified in Forge.
@@ -484,8 +735,7 @@
                   </ul>
                 </details>
                 <p class="model-src">
-                  Sources: model-catalog.js, catalog.js, STUDIO_GUIDE.md, MODEL_SOURCES.md,
-                  install-models.json
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, MODEL_SOURCES.md, install-models.json
                 </p>
               </article>
 
@@ -494,17 +744,19 @@
                 <header>
                   <p class="model-ws">3D models</p>
                   <h3 id="mt-hunyuan">Hunyuan3D 2.1</h3>
-                  <span class="badge badge-ok">Verified · shape only</span>
+                  <span class="badge badge-part">Tested · texture seams experimental</span>
                 </header>
-                <p class="model-purpose">Turn a reference image into an untextured 3D shape.</p>
+                <p class="model-purpose">
+                  Turn a reference image into a 3D shape, with an optional PBR texture pass.
+                </p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
-                    <dd>Reference image → untextured GLB</dd>
+                    <dd>Reference image → untextured GLB, or a textured GLB with Paint PBR</dd>
                   </div>
                   <div>
                     <dt>Engine</dt>
-                    <dd>Hunyuan3D shape worker (isolated) · <code>:8283</code></dd>
+                    <dd>Hunyuan3D shape and texture workers (isolated) · <code>:8283</code></dd>
                   </div>
                   <div>
                     <dt>GPU</dt>
@@ -544,8 +796,8 @@
                       steps and resolution 128. Resolutions 256 and 384 are experimental.
                     </li>
                     <li>
-                      Texture generation is not connected; the texture model has not been installed
-                      or tested.
+                      The Paint PBR texture stage ran on the real engine; UV seams remain, so the
+                      texture stage is experimental.
                     </li>
                     <li>
                       A Pillow preprocessing fallback replaces OpenCV and has not been shown
@@ -560,27 +812,23 @@
               </article>
 
               <!-- TRELLIS.2 -->
-              <article
-                class="model"
-                id="model-trellis"
-                data-ws="3d exp"
-                aria-labelledby="mt-trellis"
-              >
+              <article class="model" id="model-trellis" data-ws="3d" aria-labelledby="mt-trellis">
                 <header>
                   <p class="model-ws">3D models</p>
                   <h3 id="mt-trellis">TRELLIS.2</h3>
-                  <span class="badge badge-exp">Experimental · render unverified</span>
+                  <span class="badge badge-ok">Tested</span>
                 </header>
-                <p class="model-purpose">Create experimental textured 3D models from an image.</p>
+                <p class="model-purpose">Create textured 3D models from a transparent image.</p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
-                    <dd>Transparent PNG or WebP reference → textured GLB</dd>
+                    <dd>Transparent PNG or WebP reference → textured GLB with WebP textures</dd>
                   </div>
                   <div>
                     <dt>Engine</dt>
                     <dd>
-                      TRELLIS.2 worker, native Windows ARM64 port, 512 pipeline · <code>:8285</code>
+                      TRELLIS.2 worker, native Windows ARM64 port · <code>:8285</code>; pipelines
+                      512, 1024, 1024 cascade and 1536 cascade
                     </dd>
                   </div>
                   <div>
@@ -619,22 +867,19 @@
                   <summary>Verification &amp; limits</summary>
                   <ul>
                     <li>
-                      A complete render has not been verified, and its memory budget is not
-                      calibrated.
+                      All four pipelines rendered on the real engine on this machine. On one test
+                      image, the 512 pipeline took 70 s (43 s when warm), 1024 took 3 min 43 s
+                      including its first-use load, the 1024 cascade 4 min 15 s and the 1536 cascade
+                      9 min 10 s.
                     </li>
                     <li>
-                      A real test loaded the offline 512 pipeline and ran DINOv3 feature extraction
-                      on CUDA. Queue, HTTP, MCP and UI were tested with a substitute renderer.
-                    </li>
-                    <li>
-                      CuMesh, FlexGEMM, O-Voxel and nvdiffrast were built for Windows ARM64 and
-                      exercised with small CUDA operations. Upstream documents Linux support; this
-                      is not upstream Windows support.
+                      Upstream documents Linux support; this is native Windows ARM64, not upstream
+                      Windows support.
                     </li>
                     <li>
                       Upstream’s background-removal model (briaai/RMBG-2.0) returned HTTP 403 for
-                      the saved account, so input must already be transparent; the segmentation
-                      panel can prepare it.
+                      the saved account, so input must already be transparent. SAM 3.1 can prepare
+                      it.
                     </li>
                   </ul>
                 </details>
@@ -654,7 +899,7 @@
                 <header>
                   <p class="model-ws">Worlds</p>
                   <h3 id="mt-worldgen">WorldGen</h3>
-                  <span class="badge badge-part">CUDA queue tested</span>
+                  <span class="badge badge-ok">Tested</span>
                 </header>
                 <p class="model-purpose">
                   Generate a 3D environment from text, one image, or a 360° panorama.
@@ -662,7 +907,7 @@
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
-                    <dd>Text, image or panorama → Gaussian-splat PLY or mesh PLY</dd>
+                    <dd>Text, image or panorama → Gaussian-splat PLY or GLB mesh</dd>
                   </div>
                   <div>
                     <dt>Engine</dt>
@@ -742,7 +987,7 @@
                 <header>
                   <p class="model-ws">Worlds</p>
                   <h3 id="mt-hyworld">HY-World 2.0</h3>
-                  <span class="badge badge-part">CUDA queue tested</span>
+                  <span class="badge badge-ok">Tested</span>
                 </header>
                 <p class="model-purpose">
                   Reconstruct a 3D Gaussian-splat scene from one or more images.
@@ -805,15 +1050,17 @@
               <article
                 class="model"
                 id="model-hymotion"
-                data-ws="motion exp"
+                data-ws="motion"
                 aria-labelledby="mt-hymotion"
               >
                 <header>
                   <p class="model-ws">Character motion</p>
                   <h3 id="mt-hymotion">HY-Motion 1.0</h3>
-                  <span class="badge badge-exp">Experimental</span>
+                  <span class="badge badge-ok">Tested</span>
                 </header>
-                <p class="model-purpose">Generate human motion from a text description.</p>
+                <p class="model-purpose">
+                  Generate human motion from a text description, with variations.
+                </p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
@@ -860,13 +1107,12 @@
                   <ul>
                     <li>Checkpoint and both encoders verified against upstream file hashes.</li>
                     <li>
-                      One standalone Windows ARM64 test produced a 45-frame clip with eight sampling
-                      steps; motion quality has not been assessed.
+                      Motion quality has not been assessed beyond the test clips; treat results as
+                      drafts to review in the viewer.
                     </li>
                     <li>
-                      An isolated real queue attempt stopped safely when system memory fell below
-                      the encoder-loading threshold; the detailed notes list a complete real queued
-                      render as unverified.
+                      The queue refuses to load the encoders when free system memory is below the 9
+                      GiB threshold.
                     </li>
                     <li>Automatic rigging and retargeting are not connected.</li>
                   </ul>
@@ -888,7 +1134,10 @@
                   <h3 id="mt-motionbricks">NVIDIA MotionBricks</h3>
                   <span class="badge badge-exp">Experimental</span>
                 </header>
-                <p class="model-purpose">Create transitions between SOMA motion poses.</p>
+                <p class="model-purpose">
+                  Create motion from keyframes: transitions between SOMA poses, with 1–4 target
+                  poses.
+                </p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
@@ -938,8 +1187,8 @@
                       NVIDIA’s evaluation-only sample poses; visual quality has not been assessed.
                     </li>
                     <li>
-                      No endpoint correction or character retargeting. G1 CUDA inference and the
-                      ONNX paths are not connected.
+                      No endpoint correction or character retargeting, so transitions can leave gaps
+                      at the endpoints. G1 CUDA inference and the ONNX paths are not connected.
                     </li>
                     <li>
                       Input BVH must be Y-up in centimetres, contain the 30 named SOMA joints, use
@@ -957,18 +1206,23 @@
               </article>
 
               <!-- H3 -->
-              <article class="model" id="model-h3" data-ws="video" aria-labelledby="mt-h3">
+              <article class="model" id="model-h3" data-ws="video exp" aria-labelledby="mt-h3">
                 <header>
                   <p class="model-ws">Video</p>
                   <h3 id="mt-h3">MiniMax H3 Ref2VA</h3>
-                  <span class="badge badge-ok">Verified through Forge</span>
+                  <span class="badge badge-exp">Experimental · not production-ready</span>
                 </header>
-                <p class="model-purpose">Animate reference images into short video clips.</p>
+                <p class="model-purpose">
+                  Animate reference images, with optional reference videos and audio, into short
+                  clips.
+                </p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
                     <dd>
-                      Text prompt and 1–9 reference images (10 MiB each, 40 MiB total) → WebM video
+                      Text prompt, 1–9 reference images (10 MiB each, 40 MiB total), up to 3
+                      reference videos and up to 3 reference audio clips → WebM video (MP4 or GIF by
+                      conversion)
                     </dd>
                   </div>
                   <div>
@@ -980,7 +1234,10 @@
                   </div>
                   <div>
                     <dt>GPU</dt>
-                    <dd>~6 GiB render — H3’s configured VRAM limit plus 2 GiB reserve</dd>
+                    <dd>
+                      ~6 GiB render by default; 12 GiB when reference clips are used (H3’s
+                      configured VRAM limit plus a reserve)
+                    </dd>
                   </div>
                   <div>
                     <dt>Upstream</dt>
@@ -1014,15 +1271,20 @@
                   <summary>Verification &amp; limits</summary>
                   <ul>
                     <li>
-                      The exact source of the installed model copies has not been established from
-                      local metadata.
+                      Tested on the real engine, but intermittent engine crashes made 2 of 6 default
+                      renders fail, so it is not production-ready. Retry submits a fresh attempt.
                     </li>
                     <li>
-                      The current service fixes resolution by aspect and does not expose a seed.
+                      Frame counts up to 311 are offered; the 362-frame maximum has not been tested
+                      here, because free host RAM fell below 1 GB on a 5-second render.
                     </li>
                     <li>
-                      H3 exposes only its current job; if it no longer recognizes an accepted job,
-                      Forge stops the queue for review.
+                      First-frame, last-frame and text-only modes need the separate FL2VA
+                      checkpoint, which is not installed, so they are unavailable.
+                    </li>
+                    <li>
+                      The turbo LoRA (4 steps) and the negative-prompt and guidance controls are
+                      experimental; whether every tensor of the turbo LoRA applies is unverified.
                     </li>
                   </ul>
                 </details>
@@ -1037,9 +1299,12 @@
                 <header>
                   <p class="model-ws">Music</p>
                   <h3 id="mt-yue2">YuE2</h3>
-                  <span class="badge badge-ok">Verified through Forge</span>
+                  <span class="badge badge-ok">Tested</span>
                 </header>
-                <p class="model-purpose">Create music from a style direction and lyrics.</p>
+                <p class="model-purpose">
+                  Create music from a style direction and lyrics, extend a track, re-synthesize it
+                  with a new seed, or score a melody.
+                </p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
@@ -1102,13 +1367,19 @@
                 <header>
                   <p class="model-ws">Sound effects</p>
                   <h3 id="mt-stable-audio">Stable Audio 3 Medium</h3>
-                  <span class="badge badge-ok">Verified · gated access</span>
+                  <span class="badge badge-ok">Tested · gated access</span>
                 </header>
-                <p class="model-purpose">Generate sound effects and ambient audio.</p>
+                <p class="model-purpose">
+                  Generate sound effects and ambient audio, or vary, replace a region of, or
+                  continue an existing sound.
+                </p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
-                    <dd>Text prompt with custom duration and steps → sound-effect audio</dd>
+                    <dd>
+                      Text prompt with custom duration and steps, optionally with a source sound →
+                      sound-effect audio
+                    </dd>
                   </div>
                   <div>
                     <dt>Engine</dt>
@@ -1152,6 +1423,10 @@
                   <summary>Verification &amp; limits</summary>
                   <ul>
                     <li>
+                      Replace and continue re-render the sound rather than copy it, so the result is
+                      new audio.
+                    </li>
+                    <li>
                       The token is used only by Forge’s own managed sound worker and is not written
                       to the queue, MCP calls or Forge logs.
                     </li>
@@ -1167,16 +1442,18 @@
               <article class="model" id="model-tts" data-ws="voices" aria-labelledby="mt-tts">
                 <header>
                   <p class="model-ws">Voices</p>
-                  <h3 id="mt-tts">Qwen3-TTS CustomVoice</h3>
-                  <span class="badge badge-ok">Verified · preset voices</span>
+                  <h3 id="mt-tts">Qwen3-TTS 1.7B</h3>
+                  <span class="badge badge-ok">Tested</span>
                 </header>
-                <p class="model-purpose">Turn dialogue into speech with preset voices.</p>
+                <p class="model-purpose">
+                  Turn dialogue into speech with preset voices, a designed voice, or a cloned voice.
+                </p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
                     <dd>
-                      Dialogue text, one of nine preset speakers, optional voice direction →
-                      completed WAV
+                      Dialogue text and a voice (one of nine presets, a voice description, or a
+                      cloned 3–30 second clip) → completed 24 kHz mono WAV
                     </dd>
                   </div>
                   <div>
@@ -1185,7 +1462,9 @@
                   </div>
                   <div>
                     <dt>GPU</dt>
-                    <dd>~12 GiB load · +8 GiB render</dd>
+                    <dd>
+                      ~12 GiB load · +8 GiB render; clone and design use an 8 GiB working budget
+                    </dd>
                   </div>
                   <div>
                     <dt>Upstream</dt>
@@ -1193,7 +1472,8 @@
                       <a href="https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
                         >Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice</a
                       >
-                      · <a href="https://github.com/QwenLM/Qwen3-TTS">source</a>
+                      · <a href="https://github.com/QwenLM/Qwen3-TTS">source</a>. Clone and design
+                      use the Base and VoiceDesign checkpoints.
                     </dd>
                   </div>
                   <div>
@@ -1202,7 +1482,10 @@
                   </div>
                   <div>
                     <dt>Install</dt>
-                    <dd><code>-Models tts</code> (supports <code>-Activate</code>)</dd>
+                    <dd>
+                      <code>-Models tts</code> (supports <code>-Activate</code>); clone and design
+                      need <code>-Models tts-base</code> or <code>tts-voicedesign</code>
+                    </dd>
                   </div>
                   <div>
                     <dt>MCP</dt>
@@ -1213,8 +1496,22 @@
                   <summary>Verification &amp; limits</summary>
                   <ul>
                     <li>
-                      Returns a completed file, not a live stream. Voice cloning and voice design
-                      need other models and are not connected.
+                      The same seed, text and settings repeat a preset render bit for bit (checked
+                      on this machine). Output is a completed file, not a live stream.
+                    </li>
+                    <li>
+                      Cloning needs the exact words spoken in the clip, typed by you (Forge does not
+                      transcribe it), and a confirmation that you have the right to use the voice.
+                      Forge copies the clip and records the transcript.
+                    </li>
+                    <li>
+                      Clone and design were rendered on their real checkpoints on 2026-11-08; the
+                      clone’s pitch and spectral shape followed its reference clip. That was
+                      measured numerically, not judged by ear.
+                    </li>
+                    <li>
+                      The worker holds one checkpoint at a time, so switching between preset, clone
+                      and design waits for GPU memory.
                     </li>
                     <li>
                       Its environment shares CUDA libraries from the Snapdargon-DJ runtime, so it is
@@ -1232,14 +1529,15 @@
                 <header>
                   <p class="model-ws">Voices · speech to text</p>
                   <h3 id="mt-asr">Nemotron Speech Streaming 0.6B</h3>
-                  <span class="badge badge-part">Connected</span>
+                  <span class="badge badge-part">Tested on files · no live mic test</span>
                 </header>
-                <p class="model-purpose">Transcribe spoken English from audio or a microphone.</p>
+                <p class="model-purpose">Transcribe spoken English from audio files.</p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
                     <dd>
-                      Microphone audio or a project WAV → English transcript (partial and final)
+                      Project WAV or uploaded audio → English transcript with word timing and
+                      punctuation; four latency modes (80, 160, 560 and 1120 ms)
                     </dd>
                   </div>
                   <div>
@@ -1288,6 +1586,10 @@
                   <ul>
                     <li>Model and runtime verified against upstream SHA-256 checksums.</li>
                     <li>
+                      Transcription of files was tested. Live microphone transcription has not been
+                      tested on this machine.
+                    </li>
+                    <li>
                       Not automatically restarted after a crash, because a restart needs a fresh GPU
                       check.
                     </li>
@@ -1307,14 +1609,18 @@
                 <header>
                   <p class="model-ws">Segmentation</p>
                   <h3 id="mt-sam">Meta SAM 3.1</h3>
-                  <span class="badge badge-ok">Verified · still images</span>
+                  <span class="badge badge-ok">Tested · still images</span>
                 </header>
-                <p class="model-purpose">Select and isolate objects in an image.</p>
+                <p class="model-purpose">
+                  Select and isolate objects in an image from a text description: cutout, mask,
+                  outline or cropped output.
+                </p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
                     <dd>
-                      One PNG, JPEG or WebP image and a text description → transparent PNG or mask
+                      One PNG, JPEG or WebP image and a text description → transparent PNG, mask,
+                      outline or cropped image
                     </dd>
                   </div>
                   <div>
@@ -1350,11 +1656,14 @@
                   <summary>Verification &amp; limits</summary>
                   <ul>
                     <li>
-                      A real Windows ARM64 test isolated a truck in Meta’s example image and saved a
-                      transparent PNG through MCP and the queue. That single sample does not
-                      establish general quality.
+                      Tested on the real engine: a truck in Meta’s example image was isolated and
+                      saved as a transparent PNG through MCP and the queue. Quality beyond the
+                      tested images is not established.
                     </li>
-                    <li>Point and box prompts and video tracking are not connected.</li>
+                    <li>
+                      Best, largest and top-N matches can be chosen. Point and box prompts and video
+                      tracking are not connected.
+                    </li>
                     <li>
                       The Python 3.14 / NumPy 2 environment is outside SAM’s declared NumPy range
                       and remains experimental.
@@ -1371,13 +1680,18 @@
                 <header>
                   <p class="model-ws">Game logic</p>
                   <h3 id="mt-mammoth">Mammoth-1</h3>
-                  <span class="badge badge-part">Requests verified</span>
+                  <span class="badge badge-ok">Tested</span>
                 </header>
-                <p class="model-purpose">Test structured decisions for game characters.</p>
+                <p class="model-purpose">
+                  Structured yes/no, choice and score decisions for game characters.
+                </p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
-                    <dd>Game state and a choice, score or yes/no question → structured decision</dd>
+                    <dd>
+                      Game state and several choice, score or yes/no questions → structured
+                      decisions
+                    </dd>
                   </div>
                   <div>
                     <dt>Engine</dt>
@@ -1417,6 +1731,10 @@
                       A real request through Forge has been verified using the existing external
                       Mammoth decision bridge.
                     </li>
+                    <li>
+                      The engine refuses a state plus its longest question above 4,096 tokens; Forge
+                      does not pre-check the count.
+                    </li>
                     <li>A full managed GPU model load has not yet been verified.</li>
                     <li>Never automatically stopped by the queue’s memory manager.</li>
                   </ul>
@@ -1431,13 +1749,13 @@
                 <header>
                   <p class="model-ws">Chat</p>
                   <h3 id="mt-chat">Qwen3.8-27B</h3>
-                  <span class="badge badge-part">Connected · MTP unverified</span>
+                  <span class="badge badge-part">Tested · MTP and image input unverified</span>
                 </header>
                 <p class="model-purpose">Chat and create structured data for your game.</p>
                 <dl class="facts-list">
                   <div>
                     <dt>In → out</dt>
-                    <dd>Chat messages, optional JSON schema → text or structured JSON</dd>
+                    <dd>Chat messages, optional JSON schema → streamed text or structured JSON</dd>
                   </div>
                   <div>
                     <dt>Engine</dt>
@@ -1484,6 +1802,7 @@
                 <details>
                   <summary>Verification &amp; limits</summary>
                   <ul>
+                    <li>Image input is being added and is not yet verified. Do not rely on it.</li>
                     <li>
                       MTP speculative decoding is requested at startup; activation and performance
                       have not been verified.
@@ -1505,11 +1824,85 @@
                 </p>
               </article>
 
+              <!-- SeedThree -->
+              <article
+                class="model"
+                id="model-vegetation"
+                data-ws="veg"
+                aria-labelledby="mt-vegetation"
+              >
+                <header>
+                  <p class="model-ws">Vegetation · procedural, not neural</p>
+                  <h3 id="mt-vegetation">SeedThree</h3>
+                  <span class="badge badge-ok">Tested on CPU</span>
+                </header>
+                <p class="model-purpose">
+                  Grow trees, shrubs and cacti as flat-coloured GLB models.
+                </p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>
+                      Species, seed, triangle budget and controls → GLB and a SeedThree preset; 1–4
+                      variations
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>SeedThree generator in a separate Node process · CPU only</dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>None: no GPU or model memory is used</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://github.com/SkyeShark/SeedThree">SkyeShark/SeedThree</a>,
+                      linked at one pinned commit (<code>0.1.0-alpha</code>)
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>MIT (SeedThree). Linked, not bundled or forked.</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd>
+                      Fetch SeedThree on the Vegetation page, or
+                      <code>install.ps1 -Vegetation</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd>Listed in the MCP guide</dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      SeedThree is alpha software. Exports have flat materials only: no textures,
+                      wind animation or billboard levels of detail, and opaque leaf quads.
+                    </li>
+                    <li>
+                      Same species, seed and settings give byte-identical files on this machine.
+                      This is procedural generation, not a neural model.
+                    </li>
+                    <li>
+                      “Describe it” can send your sentence to OpenAI or the local chat model, only
+                      when you choose that provider.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">Sources: VEGETATION.md, STUDIO_GUIDE.md, MCP.md</p>
+              </article>
+
               <!-- Supporting -->
               <article
                 class="model model-support"
                 id="model-support"
-                data-ws="3d seg motion worlds"
+                data-ws="3d seg motion worlds video"
                 aria-labelledby="mt-support"
               >
                 <header>
@@ -1534,18 +1927,16 @@
                     >; image encoder for TRELLIS.2. Access approval required.
                   </li>
                   <li>
-                    <strong>SAM 3 checkpoint</strong> —
-                    <a href="https://huggingface.co/facebook/sam3">facebook/sam3</a>; optional, with
-                    its own access requirements. Its presence does not establish that the SAM 3.1
-                    worker uses it.
-                  </li>
-                  <li>
                     <strong>CLIP ViT-L/14 and Qwen3-8B</strong> — text encoders stored under
                     <code>models/HY-Motion/</code>.
                   </li>
                   <li>
                     <strong>FLUX.1 components, panorama LoRAs and DA-2</strong> — required by
                     WorldGen and restored with its own scripts.
+                  </li>
+                  <li>
+                    <strong>Qwen3-TTS Base and VoiceDesign</strong> — optional staged checkpoints
+                    for voice cloning and voice design.
                   </li>
                 </ul>
                 <p class="model-src">
@@ -1807,10 +2198,27 @@
           <h2 id="queue-title">One queue that remembers<span class="dot">.</span></h2>
           <p class="section-lead">
             Image, music, sound-effect, video, voice, Hunyuan shape, SAM segmentation, HY-Motion and
-            MotionBricks jobs (plus experimental TRELLIS.2 and world renders) run sequentially and
-            are stored in <code>.forge-runtime/jobs.sqlite</code>. Queue leases and accepted remote
-            IDs keep a crash from silently submitting duplicate work.
+            MotionBricks jobs (plus TRELLIS.2 and world renders) run sequentially and are stored in
+            <code>.forge-runtime/jobs.sqlite</code>. Queue leases and accepted remote IDs keep a
+            crash from silently submitting duplicate work.
           </p>
+
+          <div class="shots shots-single">
+            <figure>
+              <img
+                src="assets/render-queue.png"
+                width="1600"
+                height="1000"
+                loading="lazy"
+                decoding="async"
+                alt="The render queue listing three waiting image renders with drag, run next, move up, move down and cancel controls, above a recently finished render."
+              />
+              <figcaption>
+                Waiting renders in order, with controls to reorder or cancel each one. The rows are
+                demo entries from an isolated copy with no engine running, so nothing was rendered.
+              </figcaption>
+            </figure>
+          </div>
 
           <ol class="flow" aria-label="Job lifecycle">
             <li>
@@ -1906,6 +2314,9 @@
     ├── music/
     ├── sfx/
     ├── voices/
+    ├── 3d/
+    ├── motion/
+    ├── text/
     └── masks/</code></pre>
               <p>
                 Created per project with sanitized names. Generated motion goes to
@@ -2048,7 +2459,8 @@
                       <td>
                         <code>forge_jobs</code> <code>forge_job</code>
                         <code>forge_estimate_render</code> <code>forge_estimate_queue</code>
-                        <code>forge_cancel_queued_job</code> <code>forge_retry_job</code>
+                        <code>forge_cancel_queued_job</code> <code>forge_move_job</code>
+                        <code>forge_retry_job</code>
                         <code>forge_resolve_interrupted_job</code>
                       </td>
                     </tr>
@@ -2164,7 +2576,7 @@
                     <td><span class="badge badge-ok">Targeted</span></td>
                     <td>
                       The observed installation was assembled on an NVIDIA RTX Spark N1X, natively,
-                      without WSL.
+                      without WSL. Inference is GPU-only: Forge does not fall back to CPU inference.
                     </td>
                   </tr>
                   <tr>
@@ -2445,7 +2857,12 @@ npm run format:check        # Prettier</code></pre>
                 MotionBricks has separate source and model licenses; its sample poses are for
                 evaluation and testing only.
               </li>
-              <li>Stable Audio 3, SAM 3 / 3.1 and DINOv3 are gated and require approved access.</li>
+              <li>Stable Audio 3, SAM 3.1 and DINOv3 are gated and require approved access.</li>
+              <li>
+                Megascans downloads from Fab are subject to Fab’s terms and each listing’s licence.
+                You accept them in the studio before any download.
+              </li>
+              <li>SeedThree (vegetation) is MIT-licensed; it is linked, not bundled.</li>
             </ul>
           </div>
         </div>
@@ -2457,6 +2874,28 @@ npm run format:check        # Prettier</code></pre>
           <p class="kicker">FAQ</p>
           <h2 id="faq-title">Straight answers<span class="dot">.</span></h2>
           <div class="faq">
+            <details>
+              <summary>Can I download Megascans models?</summary>
+              <p>
+                The portal can browse a cached catalog and download a file into a project after you
+                accept Fab’s terms and the listing’s licence yourself. The download path is built,
+                but a live download through the new code is still pending a check.
+              </p>
+            </details>
+            <details>
+              <summary>Does vegetation need a GPU?</summary>
+              <p>
+                No. SeedThree runs on the CPU and makes flat-coloured GLB models. It is procedural
+                generation, not a neural model, and it has no textures or wind animation.
+              </p>
+            </details>
+            <details>
+              <summary>Is MiniMax H3 video reliable enough to rely on?</summary>
+              <p>
+                No. It rendered on the real engine, but intermittent engine crashes failed 2 of 6
+                default renders, so it is experimental. Retry submits a fresh attempt.
+              </p>
+            </details>
             <details>
               <summary>Will cloning the repository give me working AI models?</summary>
               <p>
@@ -2477,9 +2916,10 @@ npm run format:check        # Prettier</code></pre>
             <details>
               <summary>Is TRELLIS.2 ready to use?</summary>
               <p>
-                Not yet. It is an experimental queue workflow on a native Windows ARM64 port. The
-                pipeline has loaded and its DINOv3 encoder has run on CUDA, but a complete textured
-                render and its memory budget remain unverified.
+                Yes, for the tested workflows. All four pipelines (512, 1024, 1024 cascade and 1536
+                cascade) rendered on the real engine on this machine and produced textured GLB files
+                with WebP textures. It runs as a native Windows ARM64 port; upstream documents Linux
+                support only.
               </p>
             </details>
             <details>
@@ -2492,9 +2932,10 @@ npm run format:check        # Prettier</code></pre>
             <details>
               <summary>Can I clone a voice?</summary>
               <p>
-                No. The integrated Qwen3-TTS CustomVoice model uses nine preset speakers with
-                optional voice direction. Voice cloning and voice design need other models and are
-                not connected.
+                Yes, with a 3–30 second clip and your confirmation that you have the right to use
+                the voice. You type the exact words spoken in the clip; Forge does not transcribe it
+                and records the transcript, not the audio. Cloning and designed voices use optional
+                checkpoints that are staged separately.
               </p>
             </details>
             <details>
@@ -2540,6 +2981,91 @@ npm run format:check        # Prettier</code></pre>
           </div>
         </div>
       </section>
+      <!-- ROADMAP -->
+      <section class="section" id="roadmap" aria-labelledby="roadmap-title">
+        <div class="wrap">
+          <p class="kicker">Roadmap</p>
+          <h2 id="roadmap-title">Planned, not built<span class="dot">.</span></h2>
+          <p class="section-lead">
+            These entries are planned integrations. None is available in Forge, and none has been
+            run on this machine. Each lists its main open question, as recorded in the roadmap
+            guide.
+          </p>
+          <div class="cols-3">
+            <div class="card">
+              <h3>OmniSVG</h3>
+              <p>Text and image to SVG. <span class="badge badge-exp">Not started</span></p>
+              <p>
+                Open: whether its CairoSVG and native Cairo dependencies install on Windows ARM64,
+                and which weights to ship as the default.
+              </p>
+            </div>
+            <div class="card">
+              <h3>AVTR-1</h3>
+              <p>
+                Talking and listening portrait avatars.
+                <span class="badge badge-exp">Not started</span>
+              </p>
+              <p>
+                Open: the renderer and streamer use a noncommercial licence, and the stack is
+                Linux-first; Windows ARM64 feasibility is unknown.
+              </p>
+            </div>
+            <div class="card">
+              <h3>MoCapAnything V2</h3>
+              <p>
+                Video to BVH motion for arbitrary skeletons.
+                <span class="badge badge-exp">Not started</span>
+              </p>
+              <p>
+                Open: whether it runs natively on Windows ARM64, and which rigs fail, as the authors
+                note.
+              </p>
+            </div>
+            <div class="card">
+              <h3>UniMate</h3>
+              <p>Text to animation for any rig. <span class="badge badge-exp">Not started</span></p>
+              <p>
+                Open: whether its dependencies install natively on Windows ARM64, and the weights
+                licence.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Pixal3D</h3>
+              <p>
+                Pixel-aligned 3D from one or several images, on the TRELLIS.2 backbone.
+                <span class="badge badge-exp">Not started</span>
+              </p>
+              <p>
+                Open: whether it runs natively on Windows ARM64, and whether the natten dependency
+                builds for the Blackwell GPU.
+              </p>
+            </div>
+            <div class="card">
+              <h3>ACE-Step 1.5</h3>
+              <p>
+                Fast local music generation, cover, repaint and stems.
+                <span class="badge badge-exp">Not started</span>
+              </p>
+              <p>
+                Open: whether it replaces YuE2 or sits beside it, the weights licence, and whether
+                it installs on Windows ARM64.
+              </p>
+            </div>
+            <div class="card">
+              <h3>VOSR and FiDeSR</h3>
+              <p>
+                Diffusion super-resolution upscalers for images and textures.
+                <span class="badge badge-exp">Not started</span>
+              </p>
+              <p>
+                Open: which candidate suits game art, the weights licences (FiDeSR’s is missing),
+                and the main risk: torch 2.0.1 and xformers 0.0.20 predate the Blackwell GPU.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="site-footer">
@@ -2550,6 +3076,10 @@ npm run format:check        # Prettier</code></pre>
             <span class="brand-name">forge<span class="dot">.</span></span>
           </a>
           <p>Game Development Studio · v0.1.0 · an early-stage, open-source project.</p>
+          <p class="trademark-note">
+            NVIDIA, RTX and RTX Spark are trademarks of NVIDIA Corporation. Forge is an independent
+            project and is not affiliated with, sponsored by or endorsed by NVIDIA.
+          </p>
         </div>
         <nav aria-label="Documentation">
           <h2 class="footer-h">Docs</h2>
@@ -2583,6 +3113,9 @@ npm run format:check        # Prettier</code></pre>
         <nav aria-label="Project">
           <h2 class="footer-h">Project</h2>
           <ul>
+            <li>
+              <a href="https://monstercameron.github.io/Game-Development-Studio/">Project site</a>
+            </li>
             <li>
               <a href="https://github.com/monstercameron/Game-Development-Studio"
                 >GitHub repository</a

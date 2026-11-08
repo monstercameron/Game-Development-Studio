@@ -305,6 +305,23 @@
   display: none;
 }
 
+/* Note under the summary chip while a WorldGen panorama mesh is open. */
+.vw-panorama-note {
+  position: absolute;
+  z-index: 2;
+  top: 40px;
+  left: 10px;
+  max-width: min(520px, calc(100% - 20px));
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid rgb(255 240 233 / 16%);
+  border-radius: 8px;
+  background: rgb(24 8 20 / 78%);
+  color: #fff1ec;
+  font-size: var(--ux-text-xs, 12px);
+  pointer-events: none;
+}
+
 /* ---- loading, error, empty -------------------------------------------------- */
 .vw-overlay,
 .viewer-message {

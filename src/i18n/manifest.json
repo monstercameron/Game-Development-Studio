@@ -1,0 +1,3879 @@
+{
+  "version": 1,
+  "generatedBy": "tools/i18n-extract.mjs",
+  "namespaces": {
+    "3d": {
+      "strings": 27,
+      "hash": "94bfa2e51965c8a2"
+    },
+    "assets": {
+      "strings": 59,
+      "hash": "c79d5546c5724fa5"
+    },
+    "chat": {
+      "strings": 21,
+      "hash": "84755d9377b873bf"
+    },
+    "common": {
+      "strings": 17,
+      "hash": "4decb1316524f339"
+    },
+    "diagnostics": {
+      "strings": 21,
+      "hash": "2a593574f3b93fb6"
+    },
+    "errors": {
+      "strings": 6,
+      "hash": "1fd60b94d013077f"
+    },
+    "game": {
+      "strings": 9,
+      "hash": "3e5465a0b93a4129"
+    },
+    "i18n": {
+      "strings": 79,
+      "hash": "a03191adfec7ddbd"
+    },
+    "images": {
+      "strings": 28,
+      "hash": "802cf6d1d582c212"
+    },
+    "models": {
+      "strings": 46,
+      "hash": "fe6d532bf0269945"
+    },
+    "motion": {
+      "strings": 16,
+      "hash": "0e1a412b0228c782"
+    },
+    "music": {
+      "strings": 15,
+      "hash": "63ae06c92e7e5f43"
+    },
+    "overview": {
+      "strings": 38,
+      "hash": "90499fb7e7292256"
+    },
+    "segmentation": {
+      "strings": 16,
+      "hash": "a960dec64aefedf4"
+    },
+    "sfx": {
+      "strings": 10,
+      "hash": "ae54bbeccae52e31"
+    },
+    "vegetation": {
+      "strings": 49,
+      "hash": "5814a6db0f7c7db5"
+    },
+    "video": {
+      "strings": 23,
+      "hash": "35d0936f949aadd6"
+    },
+    "voices": {
+      "strings": 49,
+      "hash": "07b53175e3bd4af7"
+    },
+    "world": {
+      "strings": 13,
+      "hash": "6e5b40fc0806a393"
+    }
+  },
+  "keys": {
+    "3d.tooltip.advanced_settings_1eb415": {
+      "hash": "5eeaa54716db8551",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.choose_a_reference_image_c700e8": {
+      "hash": "63ef9200a5afb9c4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.creative_notes_draft_only_a50400": {
+      "hash": "8b63a630eebffe9e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.denoising_steps_d51281": {
+      "hash": "a674cc5ce8e951b8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.describe_the_object_43f9a6": {
+      "hash": "576034f03d0af3db",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.guidance_scale_374a8f": {
+      "hash": "6a817b03e31e7092",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.image_seed_d839c5": {
+      "hash": "69ebc5f3dc747b89",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.image_steps_04c1d7": {
+      "hash": "7d671220b4aebdf7",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.octree_resolution_4dc817": {
+      "hash": "d981217927c77ce2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.paint_texture_experimental_226d7b": {
+      "hash": "2b16ad9e9223bc78",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.painted_views_advanced_e11fa7": {
+      "hash": "523f3a2b0bd134ac",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.pipeline_a4a986": {
+      "hash": "1a4630175f206419",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.reference_image_4fa20a": {
+      "hash": "53c11db05da94365",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.remove_the_background_first_uses_sam_3_1_45b6b2": {
+      "hash": "907511eb33298696",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.seed_d07208": {
+      "hash": "f4c3d6dc6ac682e5",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.texture_map_size_175564": {
+      "hash": "da3e96e691c285c3",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.texture_size_4cca98": {
+      "hash": "567030dac3f31553",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.triangle_budget_ad930f": {
+      "hash": "76bd381b7d991beb",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.view_size_advanced_4526cb": {
+      "hash": "1ccbb46d4d8fdee2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.what_to_isolate_fc8cb3": {
+      "hash": "ec1c3a2e4ce12db2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.x1024_px_b18e61": {
+      "hash": "d591726a9dcc8fb4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.x128_tested_618e71": {
+      "hash": "5ad043c0e01b0c20",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.x2048_px_835f4b": {
+      "hash": "a6b9dd6039f3ca8b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.x256_experimental_ac6ed4": {
+      "hash": "f79fb7ab6a5a2121",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.x384_experimental_63a486": {
+      "hash": "ac6a129d6daff4b9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.x3d_model_946da7": {
+      "hash": "e58db2f9c226452f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "3d.tooltip.x512_px_6f0e70": {
+      "hash": "308110c973f13cad",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/3d.js"
+      ]
+    },
+    "assets.tooltip.all_75afe3": {
+      "hash": "f20b5cf502377657",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.asset_rating_158801": {
+      "hash": "804deddd993da270",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.asset_type_b438b3": {
+      "hash": "f9b16d4c9ffa54f6",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.audio_889714": {
+      "hash": "a0470818d8b1a391",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.cancel_35afca": {
+      "hash": "fad16b304f50f88d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.cancel_waiting_renders_35ec4f": {
+      "hash": "2df0a987451a2ea4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.choose_collection_7e08f3": {
+      "hash": "8bd3b35fb1d7e581",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.clear_04a57f": {
+      "hash": "201ecfaca85ecb46",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.clear_filters_240d53": {
+      "hash": "c0d392ae29a5a323",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.clear_search_5a13e9": {
+      "hash": "20f306f88978f57a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.clear_trash_85a60f": {
+      "hash": "fd33aa951ca9a5fa",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.clear_waiting_renders_1a9f60": {
+      "hash": "4ef6e7f924041fef",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.close_cd86ac": {
+      "hash": "dd2cd11bfe9e6681",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.close_converter_a7e917": {
+      "hash": "ddb616f6d52eb1a1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.close_preview_670417": {
+      "hash": "47f9dc3016d354d7",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.convert_92e292": {
+      "hash": "0912a6ddce97eb15",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.convert_asset_2ea65b": {
+      "hash": "f3f9a4297f452f8e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.convert_save_copy_d2ee20": {
+      "hash": "499f54a836512e95",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.copy_file_location_d4a751": {
+      "hash": "817aec6f4c9b2732",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.copy_render_error_2e1d5c": {
+      "hash": "b09096a882c6d3e8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.delete_5797ea": {
+      "hash": "d722ff9dc4815de8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.display_layout_17cf49": {
+      "hash": "aae0b35b12cdbcff",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.download_6964bb": {
+      "hash": "3db6e10eb5827582",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.file_name_keep_its_extension_b9b530": {
+      "hash": "6e7ff30c0c11f26f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.free_gpu_memory_1112f0": {
+      "hash": "3e7dee9c38e777da",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.grid_view_00c3eb": {
+      "hash": "4b409a3652269056",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.hide_current_rows_d1f945": {
+      "hash": "4dff1b5fb5a284b1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.images_17ec53": {
+      "hash": "e9397d46e209ec03",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.jpeg_quality_5e706c": {
+      "hash": "d21328c58203180f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.list_view_bcd94b": {
+      "hash": "c6bbb5ee8be1a237",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.masks_4f3846": {
+      "hash": "8d13c3580233622d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.move_to_trash_45f1d7": {
+      "hash": "d5b6580184ca795f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.new_project_3459af": {
+      "hash": "0668ce2550749add",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.next_asset_0d0410": {
+      "hash": "655e81367fcbd127",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.output_format_a529df": {
+      "hash": "fbbb4896ca5bbfbb",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.permanently_delete_trash_cbf04d": {
+      "hash": "7af2dcea6497da67",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.previous_asset_bc4b35": {
+      "hash": "881f34e73b724d91",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.project_trash_c591e2": {
+      "hash": "f7fad203b35354a4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.rate_1_out_of_5_af9a33": {
+      "hash": "36eb9dd933a6cf0f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.rate_2_out_of_5_21c886": {
+      "hash": "1d37ee51399e4c14",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.rate_3_out_of_5_df8171": {
+      "hash": "1b9fe5da509f5df1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.rate_4_out_of_5_f9029e": {
+      "hash": "560a16de0a4a7f7e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.rate_5_out_of_5_134fec": {
+      "hash": "4f00c499e6d46c45",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.refresh_render_queue_5d6506": {
+      "hash": "eb3d8aaf21ad7ca2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.rename_c80631": {
+      "hash": "a84b28a7c9e18620",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.render_queue_5092bb": {
+      "hash": "3f499b4a1d263ff1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.restore_0ff87f": {
+      "hash": "c9e42946b9a52f91",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.retry_8036af": {
+      "hash": "46e61777ee820526",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.review_status_9598ca": {
+      "hash": "922fbf17f09644dd",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.save_name_7692ac": {
+      "hash": "8ded6a308b0c6556",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.search_assets_6f4dd5": {
+      "hash": "681c5d58acccc81a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.show_hidden_6cbdd1": {
+      "hash": "846db1099cb04fca",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.show_more_cdacae": {
+      "hash": "a3462c24d20eb092",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.sort_assets_bf215a": {
+      "hash": "6dee9ca43e80d448",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.transparency_background_efcf2e": {
+      "hash": "a61bb975b49e544c",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.type_clear_to_confirm_f7f612": {
+      "hash": "94f8592740e6465b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.video_5b67c8": {
+      "hash": "a897166dc1cc666e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.view_and_manage_renders_across_projects_77fa6f": {
+      "hash": "3f499b4a1d263ff1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "assets.tooltip.x3d_1befa7": {
+      "hash": "e43aa5b6e18f5584",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/assets.js"
+      ]
+    },
+    "chat.tooltip.context_size_6d4b03": {
+      "hash": "67e589fa8f6feb69",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.high_be0a06": {
+      "hash": "85c2e8f8cb662c87",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.json_object_a3c7af": {
+      "hash": "29362fd55470d01b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.json_schema_86eae0": {
+      "hash": "d6bcfa7c07c79e60",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.low_b1dd95": {
+      "hash": "643e0521e1463a03",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.max_output_4a27a3": {
+      "hash": "6838c6f51b68f697",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.maximum_output_tokens_c44c99": {
+      "hash": "516793484436b086",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.medium_09be5f": {
+      "hash": "9872b028a799d05c",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.message_ae0ed9": {
+      "hash": "70aee630ad66edf2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.model_default_eca203": {
+      "hash": "138ca995770df9dd",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.model_id_917545": {
+      "hash": "d76e11c258668b49",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.off_0dc6b4": {
+      "hash": "0a4c2d6a071a1e26",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.openai_api_key_5a16aa": {
+      "hash": "9b0aa1ef22988b71",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.provider_35a888": {
+      "hash": "a0e743476be33559",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.response_55a982": {
+      "hash": "6b680f28b669b2d9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.server_address_096002": {
+      "hash": "1636a6aeda4ed3b4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.speculative_decoding_d89a30": {
+      "hash": "9c85c7d1b95ca9a5",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.system_instructions_ae0232": {
+      "hash": "88741f1e79e401b2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.temperature_efd604": {
+      "hash": "36105a6fc2b2ae52",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.text_3e142d": {
+      "hash": "ba05e128760c4c23",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "chat.tooltip.thinking_468242": {
+      "hash": "a8fcf73002fa05b4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/chat.js"
+      ]
+    },
+    "common.action.cancel": {
+      "hash": "c0774c185060fc13",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx",
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "common.action.done": {
+      "hash": "16552c2580bbe8b8",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "common.fieldHelp.button": {
+      "hash": "714918c42250cc62",
+      "kind": "text",
+      "files": [
+        "src/tooltips/FieldHelp.jsx"
+      ]
+    },
+    "common.fieldHelp.layoutName": {
+      "hash": "d66862a901e208db",
+      "kind": "text",
+      "files": [
+        "src/tooltips/FieldHelp.jsx"
+      ]
+    },
+    "common.fieldHelp.ratingFallback": {
+      "hash": "961171c8b95dc70c",
+      "kind": "text",
+      "files": [
+        "src/tooltips/FieldHelp.jsx"
+      ]
+    },
+    "common.fieldHelp.ratingName": {
+      "hash": "bb9d6244f591b9fa",
+      "kind": "text",
+      "files": [
+        "src/tooltips/FieldHelp.jsx"
+      ]
+    },
+    "common.tooltip.choose_project_a6a19b": {
+      "hash": "f7a028c3cca98072",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "common.tooltip.confidence_threshold_ceb1e9": {
+      "hash": "f358cba7ffc645d9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "common.tooltip.current_project_2b8d60": {
+      "hash": "26288a10a848cb63",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "common.tooltip.enable_desktop_notifications_c775fb": {
+      "hash": "5d51a5e0b412de10",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "common.tooltip.keep_computer_awake_945bd5": {
+      "hash": "0cea73c911fcdfaa",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "common.tooltip.project_for_this_creation_793b8a": {
+      "hash": "4ce8e40ea6eca7fc",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "common.tooltip.project_name_0bbe9c": {
+      "hash": "6e621d758f9430db",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "common.tooltip.seed_d07208": {
+      "hash": "3e3583cd5c6ff6a9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "common.tooltip.send_test_notification_8a7bcd": {
+      "hash": "97feaad81b2d606c",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "common.tooltip.when_a_render_completes_20a24f": {
+      "hash": "0d44594724ace224",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "common.tooltip.when_the_render_queue_completes_cbbd89": {
+      "hash": "911cbd589b6635ea",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/common.js"
+      ]
+    },
+    "diagnostics.tooltip.copy_server_details_591b09": {
+      "hash": "e6531ff1bff13f2d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.copy_visible_logs_c9faaf": {
+      "hash": "0d8d390877c8a4c1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.engine_addresses_c93277": {
+      "hash": "bb16e0e1277674e5",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.errors_only_fafb79": {
+      "hash": "e9e3f304846c4945",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.filter_log_lines_58ea57": {
+      "hash": "a8387499beb5c41a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.http_process_id_40207d": {
+      "hash": "467474e859d120c3",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.live_stream_9edb36": {
+      "hash": "fd05bcf05a75ec5b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.log_source_8ca1be": {
+      "hash": "8d9e156466cb480f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.logs_api_ecfeb9": {
+      "hash": "b37c33b94d98a6a8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.not_responding_255286": {
+      "hash": "99f7983a7e8530ce",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.pause_log_stream_099dbe": {
+      "hash": "deae056caea372a2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.port_status_962ada": {
+      "hash": "cb226d1a120feeff",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.project_folder_537443": {
+      "hash": "d5a88988b47dc522",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.recent_service_logs_29b6ef": {
+      "hash": "4d0aac57fdc94051",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.refresh_server_details_c16981": {
+      "hash": "bc65544ebe544a99",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.responding_5090d4": {
+      "hash": "90695baf7bc2fd38",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.resume_log_stream_eae294": {
+      "hash": "a865a5d80959b6b1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.runtime_756aa7": {
+      "hash": "6b5fdbb448765056",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.started_97b582": {
+      "hash": "cff54a24d1aa0df8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.studio_address_2e83cd": {
+      "hash": "b775893d8649be52",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "diagnostics.tooltip.supervisor_process_id_3f965f": {
+      "hash": "231f5be26c70ae3c",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/diagnostics.js"
+      ]
+    },
+    "errors.button.checking": {
+      "hash": "df4d4515ca2984bf",
+      "kind": "text",
+      "files": [
+        "src/ErrorsButton.jsx"
+      ]
+    },
+    "errors.button.description": {
+      "hash": "6ff16e0d7fa86e26",
+      "kind": "text",
+      "files": [
+        "src/ErrorsButton.jsx"
+      ]
+    },
+    "errors.button.noneNew": {
+      "hash": "23f98030cea7519a",
+      "kind": "text",
+      "files": [
+        "src/ErrorsButton.jsx"
+      ]
+    },
+    "errors.button.text": {
+      "hash": "b92720ff88a1bcfd",
+      "kind": "text",
+      "files": [
+        "src/ErrorsButton.jsx"
+      ]
+    },
+    "errors.button.unavailable": {
+      "hash": "c1cdb05e219520ab",
+      "kind": "text",
+      "files": [
+        "src/ErrorsButton.jsx"
+      ]
+    },
+    "errors.button.unread": {
+      "hash": "1fab28ace705452a",
+      "kind": "text",
+      "files": [
+        "src/ErrorsButton.jsx"
+      ]
+    },
+    "game.tooltip.copy_displayed_result_a0a67f": {
+      "hash": "3a75f83ff8412e2d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/game.js"
+      ]
+    },
+    "game.tooltip.describe_the_current_game_state_488030": {
+      "hash": "1602bd33ed334c67",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/game.js"
+      ]
+    },
+    "game.tooltip.question_00a700": {
+      "hash": "f9a106a9f0ea2f00",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/game.js"
+      ]
+    },
+    "game.tooltip.question_and_choices_731faf": {
+      "hash": "ea87bf031f746f23",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/game.js"
+      ]
+    },
+    "game.tooltip.question_type_e19501": {
+      "hash": "00a4411e8200a36a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/game.js"
+      ]
+    },
+    "game.tooltip.response_55a982": {
+      "hash": "0b83da1487c547aa",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/game.js"
+      ]
+    },
+    "game.tooltip.run_decision_f75818": {
+      "hash": "af99074453bf068e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/game.js"
+      ]
+    },
+    "game.tooltip.start_load_mammoth_f9c729": {
+      "hash": "c3f79b9af55a8d1d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/game.js"
+      ]
+    },
+    "game.tooltip.stop_managed_mammoth_31e262": {
+      "hash": "ee7e1848a8555531",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/game.js"
+      ]
+    },
+    "i18n.dialog.back": {
+      "hash": "672e94a2944c51a9",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.backToSummary": {
+      "hash": "d3f730891535e66c",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.cancelRun": {
+      "hash": "169ff95fdaf0da2e",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.cancelled": {
+      "hash": "7e156b69ec8508a2",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.close": {
+      "hash": "b9afe1f8b411dae1",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.codeEnglish": {
+      "hash": "81f9b9775bdd39ef",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.codeHelp": {
+      "hash": "80a0dd0920b34347",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.codeInvalid": {
+      "hash": "0e0943d5c3a8a203",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.codeLabel": {
+      "hash": "86ecee0eb615ef6f",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.codeUnknown": {
+      "hash": "dd363b5a5e69babc",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.codeValid": {
+      "hash": "90398e0c2243f489",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.colChanged": {
+      "hash": "78fcb96591993b4d",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.colEdited": {
+      "hash": "36e033c4db728060",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.colNew": {
+      "hash": "62b63be68a51ee91",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.colSection": {
+      "hash": "dba6a7b56cf7083f",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.colTranslated": {
+      "hash": "9038577a29293fd5",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.confirmDeleteLanguage": {
+      "hash": "ffb3e92e9f372d83",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.confirmResetPage": {
+      "hash": "bc17e00b8c7ece4f",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.deleteLanguage": {
+      "hash": "d2d2e1a2c3a9bdb5",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.kicker": {
+      "hash": "3ba2176bab71c340",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.listLabel": {
+      "hash": "e6140fcdf1d77968",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.localUnsupported": {
+      "hash": "38067178ffe2a31e",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.noKey": {
+      "hash": "c9fbe63e4a00f62e",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.noMatch": {
+      "hash": "a4e33a175ebc3f83",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.nothingToSend": {
+      "hash": "6a9380157ed9e03f",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.openSettings": {
+      "hash": "f19a868cef500141",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.privacy": {
+      "hash": "fbb6ef4b0cd11548",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.progress": {
+      "hash": "269ed84f16b0d66f",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.progressLabel": {
+      "hash": "ebe56a815069d105",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.removed": {
+      "hash": "2857c12f8e985f8d",
+      "kind": "plural",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.resetPage": {
+      "hash": "600bccd8c8ba52a5",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.review": {
+      "hash": "a373cfea4fb2fc5f",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.reviewStrings": {
+      "hash": "2a8099d17696b1f2",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.searchLabel": {
+      "hash": "42251cce4450fc8a",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.send": {
+      "hash": "7acb867b09f54bac",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.sentHeading": {
+      "hash": "fd585c21afa1a0d2",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.sentSummary": {
+      "hash": "cc94653fd65c33d0",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.tableCaption": {
+      "hash": "3847f50f9d280f40",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.title": {
+      "hash": "3a8bd0d753015097",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.dialog.use": {
+      "hash": "ba91aeb0469172b1",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.menu.button": {
+      "hash": "67cd100f41b93d33",
+      "kind": "text",
+      "files": [
+        "src/i18n/LanguageMenu.jsx"
+      ]
+    },
+    "i18n.menu.buttonTitle": {
+      "hash": "1fa24b4905737a8d",
+      "kind": "text",
+      "files": [
+        "src/i18n/LanguageMenu.jsx"
+      ]
+    },
+    "i18n.menu.loading": {
+      "hash": "0693d9aee271f1b7",
+      "kind": "text",
+      "files": [
+        "src/i18n/LanguageMenu.jsx"
+      ]
+    },
+    "i18n.menu.machineNotice": {
+      "hash": "8aab7939b8ec9418",
+      "kind": "text",
+      "files": [
+        "src/i18n/LanguageMenu.jsx"
+      ]
+    },
+    "i18n.menu.machineShort": {
+      "hash": "8e7ed4909d917966",
+      "kind": "text",
+      "files": [
+        "src/i18n/LanguageMenu.jsx"
+      ]
+    },
+    "i18n.menu.showOriginal": {
+      "hash": "f9af6741af5855b2",
+      "kind": "text",
+      "files": [
+        "src/i18n/LanguageMenu.jsx"
+      ]
+    },
+    "i18n.menu.showTranslation": {
+      "hash": "bb3213faafd82aa6",
+      "kind": "text",
+      "files": [
+        "src/i18n/LanguageMenu.jsx"
+      ]
+    },
+    "i18n.menu.title": {
+      "hash": "1fa24b4905737a8d",
+      "kind": "text",
+      "files": [
+        "src/i18n/LanguageMenu.jsx"
+      ]
+    },
+    "i18n.menu.translate": {
+      "hash": "b0881e6c0d731ccf",
+      "kind": "text",
+      "files": [
+        "src/i18n/LanguageMenu.jsx"
+      ]
+    },
+    "i18n.menu.translateHint": {
+      "hash": "c42642d5ff402d3c",
+      "kind": "text",
+      "files": [
+        "src/i18n/LanguageMenu.jsx"
+      ]
+    },
+    "i18n.reason.control": {
+      "hash": "f8b8f861f4466b0a",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.reason.empty": {
+      "hash": "e51997847fe654da",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.reason.length": {
+      "hash": "6b77d4c03af200ba",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.reason.markup": {
+      "hash": "0ff3158a207def95",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.reason.missing": {
+      "hash": "242f89f7f6e7aacc",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.reason.placeholder": {
+      "hash": "46a415a8133639e6",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.reason.plural": {
+      "hash": "6c77a7713b81d44e",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.reason.product": {
+      "hash": "8eed03dd23acaf0a",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.reason.tags": {
+      "hash": "4502985d03d8be9c",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.reason.type": {
+      "hash": "5f6f57c48ac297d4",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.report.kept": {
+      "hash": "174cb19b1b39d752",
+      "kind": "plural",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.report.notTranslated": {
+      "hash": "ff4b2675474e5d3b",
+      "kind": "plural",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.report.review": {
+      "hash": "8aab7939b8ec9418",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.report.translated": {
+      "hash": "4cd1c28e9234c4e2",
+      "kind": "plural",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.empty": {
+      "hash": "91c0f6ee03d5e9fd",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.filter": {
+      "hash": "9d3929d53c27a990",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.inputLabel": {
+      "hash": "cd25d9f009ac1aa5",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.kindMachine": {
+      "hash": "8e7ed4909d917966",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.kindMissing": {
+      "hash": "b396580cb48db0a0",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.kindOverride": {
+      "hash": "a7a95df3ff990b33",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.kindStale": {
+      "hash": "813867f049710d71",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.limited": {
+      "hash": "818087d301276138",
+      "kind": "plural",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.loading": {
+      "hash": "3373a90ea402a7fa",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.pluralReadOnly": {
+      "hash": "e4b12dfe08673aba",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.remove": {
+      "hash": "ad0721906c1c04bf",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.removed": {
+      "hash": "052bde8c3648d0e2",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.save": {
+      "hash": "c1db83d165ed908a",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.saved": {
+      "hash": "cb46c1b4193a9e7d",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "i18n.review.section": {
+      "hash": "dba6a7b56cf7083f",
+      "kind": "text",
+      "files": [
+        "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "images.tooltip.add_reference_images_1c9fe9": {
+      "hash": "53b43a6c21be5322",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.advanced_custom_sampling_schedule_5e48a0": {
+      "hash": "29d42180f0e78c06",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.advanced_kv_cache_61acaa": {
+      "hash": "1ea2bda39a472a14",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.advanced_settings_1eb415": {
+      "hash": "b121e1f3cef771c6",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.aspect_ratio_3081a8": {
+      "hash": "327a1440b789e36d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.balanced_c0cc60": {
+      "hash": "e6a925d6ba7fa93f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.describe_what_you_want_to_create_84b899": {
+      "hash": "088a7f8b9a0a9dca",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.draft_89eb71": {
+      "hash": "f81e980ecae5f22a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.fine_tune_image_d31ce0": {
+      "hash": "ad55d7b8a1673484",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.height_in_pixels_33ee40": {
+      "hash": "91eb43bf145f0495",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.high_quality_361987": {
+      "hash": "887a6e8f8d5e7538",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.landscape_16_9_b45ced": {
+      "hash": "47bf29b7c9906710",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.lora_938981": {
+      "hash": "3cb285f9c7bf6fa5",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.lora_strength_667841": {
+      "hash": "9c7264fbcdc3052d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.match_the_last_reference_s_shape_699060": {
+      "hash": "e54bf3bfecfd4241",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.negative_prompt_32377b": {
+      "hash": "f00d413bbcdedb59",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.negative_prompt_guidance_c51df8": {
+      "hash": "11db7eb4a1db8d5a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.portrait_9_16_b544e2": {
+      "hash": "67fa1ad8fd17a107",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.project_7b5fea": {
+      "hash": "b5e3af2e75f196aa",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.quality_cb7fbe": {
+      "hash": "9bb69e6691201178",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.reference_images_4c1737": {
+      "hash": "f42c7996df9f374a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.reference_size_target_73d221": {
+      "hash": "0acc33bc50360a48",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.sampling_steps_40d9b3": {
+      "hash": "1206c8b009b7cb4e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.seed_d07208": {
+      "hash": "2876cfd23cc398ea",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.square_1_1_6d518f": {
+      "hash": "69daf804a71be775",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.transparent_background_be3c47": {
+      "hash": "1a3f4405300ab141",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.variations_7be51e": {
+      "hash": "cea26a59ff8f35db",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "images.tooltip.width_in_pixels_b88e16": {
+      "hash": "f710f44575fdc07b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/images.js"
+      ]
+    },
+    "models.forceStop.barrierReview": {
+      "hash": "6ce22ffe338c1ebf",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.close": {
+      "hash": "09362c8493ae0921",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.confirm": {
+      "hash": "0830488982f8d66c",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.confirmTitle": {
+      "hash": "3b8afc8d24b4fca9",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.eligibility": {
+      "hash": "0246c57e5875e68e",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.interrupted": {
+      "hash": "a3ade06505352ff3",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.kicker": {
+      "hash": "27f3e24555ad5fe4",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.progress": {
+      "hash": "1913defcd82ca7e8",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.stoppedBody": {
+      "hash": "6b7600c152f571a4",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.stoppedTitle": {
+      "hash": "8cd9dcc2eb4a057c",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.stopping": {
+      "hash": "8bf9629ee4245acf",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.summary": {
+      "hash": "8d30258fdf05ce3c",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.unconfirmed": {
+      "hash": "786981cb1880990a",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.unconfirmedHelp": {
+      "hash": "f40a846ac89d1a26",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.warning": {
+      "hash": "f77de81ad6a1f1ff",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.tooltip.check_memory_load_821109": {
+      "hash": "91c087981a2a095c",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.clear_after_checking_7c5e11": {
+      "hash": "a8702d28302638b9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.clear_model_search_d3ab21": {
+      "hash": "5d69f25c2ec5b456",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.close_force_stop_dialog_d9321e": {
+      "hash": "fe3f317cb5ba5d97",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.close_memory_dialog_cc7b42": {
+      "hash": "1ac85c5f702741e7",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.file_size_d62906": {
+      "hash": "d06cebd0b5391eba",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.filter_model_category_dded87": {
+      "hash": "8257f12ebcd28b15",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.force_stop_f7a9a1": {
+      "hash": "9634e09f1d59cd10",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.force_stop_service_120229": {
+      "hash": "b232266ebc5e9f62",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.free_97a522": {
+      "hash": "364be868454a90e4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.free_now_dc848a": {
+      "hash": "b39ceded87a93d48",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.gpu_memory_6cb741": {
+      "hash": "19426df4f554c6e6",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.hugging_face_read_token_d12f01": {
+      "hash": "5193f898c19209e1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.location_5bc08d": {
+      "hash": "a9f089e081c9ffb8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.measured_file_size_7323e0": {
+      "hash": "a588101c4ec8968f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.model_folder_9912fb": {
+      "hash": "e5784aad31b94fc9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.models_and_services_using_memory_1f823b": {
+      "hash": "460fcf60ee104b75",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.needed_bd2901": {
+      "hash": "570df41cd41dad6e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.not_enough_gpu_memory_bca937": {
+      "hash": "184ff417a9605b2c",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.permanently_delete_model_02daf0": {
+      "hash": "ba4dcecf43d6870a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.remove_model_a973d1": {
+      "hash": "a99b69d5914554ad",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.remove_model_files_b4058a": {
+      "hash": "fc16a132a4a268e8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.retry_memory_check_d6fc67": {
+      "hash": "cb07a3dd13c111f7",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.retry_removal_43de24": {
+      "hash": "5be49117dfbca0cb",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.search_models_eae504": {
+      "hash": "3e0198a311cc0f98",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.short_by_43a442": {
+      "hash": "1643db5688ae7cc1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.start_connected_services_c4378e": {
+      "hash": "ada81a42a4e9b70e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.stop_selected_service_retry_5d65ae": {
+      "hash": "4b1fcaad0fb44c8a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.stop_service_c806b6": {
+      "hash": "e63063bcd3c8bf74",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.total_aa59d0": {
+      "hash": "0e64dd9ef70bdcbf",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "models.tooltip.used_67cbd1": {
+      "hash": "1534d09caa2b7848",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/models.js"
+      ]
+    },
+    "motion.tooltip.advanced_settings_1eb415": {
+      "hash": "d7bea642ceabb940",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.choose_a_soma_bvh_file_80f479": {
+      "hash": "a977d64d651cc6b9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.describe_the_motion_6cbae0": {
+      "hash": "60785ab3c820c373",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.duration_in_seconds_388a7b": {
+      "hash": "5f7b967e2151305e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.guidance_74122b": {
+      "hash": "a1681f4a273b57d7",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.maximum_length_tokens_b7d44c": {
+      "hash": "1c3713f96a2769c8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.minimum_length_tokens_e9df4f": {
+      "hash": "58b6b92ee337acc6",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.motion_model_c65fac": {
+      "hash": "01040a551a79f961",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.remove_pose_file_d98441": {
+      "hash": "279010a4c2c96953",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.sampling_steps_40d9b3": {
+      "hash": "8ffb61989beb94b8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.seed_d07208": {
+      "hash": "f069ff0ec3ca3ec9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.soma_motion_clip_931fd9": {
+      "hash": "6d85825793124578",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.starting_window_920171": {
+      "hash": "0dfc5d8f68bee951",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.target_poses_to_use_fc6841": {
+      "hash": "0ecdb048743c6d9a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.target_window_daba34": {
+      "hash": "e2a320ad0bab74f1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "motion.tooltip.variations_7be51e": {
+      "hash": "6f70d4803f1a028e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/motion.js"
+      ]
+    },
+    "music.tooltip.abc_score_08956c": {
+      "hash": "e258d6cef630d9d3",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.describe_the_sound_and_style_503dea": {
+      "hash": "c418407408862743",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.duration_d4c749": {
+      "hash": "8a820578f56ba401",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.duration_in_seconds_388a7b": {
+      "hash": "f9d6cb7636759e79",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.guidance_scale_374a8f": {
+      "hash": "990d0b382869a23d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.lyrics_9e1f04": {
+      "hash": "748969aeed79b423",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.planning_f4a277": {
+      "hash": "ed94db2f5c00affb",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.repetition_penalty_d482ac": {
+      "hash": "f53f442a27058acf",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.seed_d07208": {
+      "hash": "d25b868c3e39e688",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.style_to_avoid_f2faa0": {
+      "hash": "e96f130606b28eba",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.synthesis_steps_618236": {
+      "hash": "a75ce1c9357eda38",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.temperature_efd604": {
+      "hash": "b2b8133049a82829",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.top_k_58e4d8": {
+      "hash": "93f906262b996289",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.top_p_63e4e9": {
+      "hash": "c49097b566e509b9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "music.tooltip.track_title_eb45f6": {
+      "hash": "b504e9d3784e1455",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/music.js"
+      ]
+    },
+    "overview.tooltip.about_this_preview_bacb65": {
+      "hash": "36be4146d8a780ba",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.cancel_35afca": {
+      "hash": "7dfa9cca672aa68b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.character_motion_332105": {
+      "hash": "957fb01768d17f8e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.choose_a_tool_a5ade1": {
+      "hash": "0ddf38f217a86441",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.close_project_dialog_9d35f0": {
+      "hash": "7dfa9cca672aa68b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.close_settings_8deb8e": {
+      "hash": "27ff1e453d48b9dd",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.create_a_project_a4f773": {
+      "hash": "0f1a9bb1a8fd30a9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.create_an_asset_ee6f26": {
+      "hash": "1cfd09a98c731ed9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.create_an_image_dede65": {
+      "hash": "85a89a12cb000768",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.create_project_2c36aa": {
+      "hash": "41cf4aa9b1fe10a8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.current_project_2b8d60": {
+      "hash": "db36d38c1f6253fe",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.desktop_notifications_4aa812": {
+      "hash": "d068681d899a8997",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.enable_desktop_notifications_c775fb": {
+      "hash": "6509ddb88cbdb067",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.explore_the_library_5c2680": {
+      "hash": "3a75c4601097249e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.game_logic_948fa3": {
+      "hash": "a6caaec229cca3f2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.images_17ec53": {
+      "hash": "281c2ced560be5fc",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.keep_computer_awake_945bd5": {
+      "hash": "f4ba9a9ff20aed35",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.music_584a1d": {
+      "hash": "4da012b24511881d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.new_project_3459af": {
+      "hash": "0f1a9bb1a8fd30a9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.notifications_and_power_728795": {
+      "hash": "f5166bf0f24f553a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.open_538b10": {
+      "hash": "e51544f68019dda3",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.open_asset_library_7485aa": {
+      "hash": "711311109ae4a487",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.overview_6a494f": {
+      "hash": "3cec1e36bc24aab4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.pause_draft_queue_942155": {
+      "hash": "70d7277ac2f7b1fe",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.project_name_0bbe9c": {
+      "hash": "41bdfc4ecd82266f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.remove_draft_d9b09a": {
+      "hash": "d55949199e07e58e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.resume_draft_queue_bbd8d2": {
+      "hash": "90f9da73d5a32c6f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.segmentation_e85d45": {
+      "hash": "d44c7374e1f2cf18",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.send_test_notification_8a7bcd": {
+      "hash": "8c37ba491a2e7031",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.sound_effects_d40ba6": {
+      "hash": "b440418741d3dc54",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.start_with_a_spark_fb2e47": {
+      "hash": "5fb02f7384ab6e8c",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.video_5b67c8": {
+      "hash": "53619dcefcd532b6",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.view_project_assets_8c1a68": {
+      "hash": "711311109ae4a487",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.voices_99069c": {
+      "hash": "cea35e62ab1c762d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.when_a_render_completes_20a24f": {
+      "hash": "112693d61391e8d3",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.when_the_render_queue_completes_cbbd89": {
+      "hash": "986e546b65f54662",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.worlds_bf957b": {
+      "hash": "886898e6629376b0",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "overview.tooltip.x3d_models_b89dfe": {
+      "hash": "5ffa99aa2f0320d1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/overview.js"
+      ]
+    },
+    "segmentation.tooltip.add_to_render_queue_a17477": {
+      "hash": "7ff41b4be23d48f6",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.choose_a_reference_image_c700e8": {
+      "hash": "5ebf66d133f1f818",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.confidence_threshold_ceb1e9": {
+      "hash": "be8cd93a7a430cba",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.cropped_cutout_png_c98e07": {
+      "hash": "96e7ad405af0c7ad",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.download_6964bb": {
+      "hash": "6d2d196199ab25cd",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.estimated_render_time_ab4aab": {
+      "hash": "4c1f14fe98a6bfba",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.export_e86349": {
+      "hash": "5f882073e9748acd",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.mask_png_710280": {
+      "hash": "e057f5fa111e47c6",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.most_matches_to_keep_672c80": {
+      "hash": "a62fa5f70633853c",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.outline_overlay_png_92aedc": {
+      "hash": "f346d43056e14b7a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.preview_fdda4c": {
+      "hash": "4baba9f548202aab",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.recent_creations_806cc5": {
+      "hash": "b4a7bd3328d81dfc",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.reference_image_4fa20a": {
+      "hash": "fe07fbf77f5db091",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.transparent_png_3d3c2e": {
+      "hash": "c3397df1eba02f28",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.what_would_you_like_to_isolate_54f0d6": {
+      "hash": "697d3b33b5d6d2c2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "segmentation.tooltip.which_matches_8918d7": {
+      "hash": "10828f69c501cf10",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/segmentation.js"
+      ]
+    },
+    "sfx.tooltip.change_amount_297c87": {
+      "hash": "94280315f62011f0",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "sfx.tooltip.describe_the_sound_16bb4b": {
+      "hash": "077ace81589b2478",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "sfx.tooltip.duration_d4c749": {
+      "hash": "51db82b7163096ab",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "sfx.tooltip.duration_in_seconds_388a7b": {
+      "hash": "8c1eba645d1488c8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "sfx.tooltip.generation_steps_4a49ea": {
+      "hash": "6be2ae38353c4341",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "sfx.tooltip.quality_cb7fbe": {
+      "hash": "0d543b650bcfe63d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "sfx.tooltip.replace_from_seconds_8277f9": {
+      "hash": "f8de6cce8eb217d1",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "sfx.tooltip.replace_to_seconds_a687f5": {
+      "hash": "8593bd7295b2ce9f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "sfx.tooltip.seed_d07208": {
+      "hash": "47f728247ee25ec8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "sfx.tooltip.start_from_an_existing_sound_c139da": {
+      "hash": "303dc58a27f2e3c6",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "vegetation.tooltip.arm_bend_33386f": {
+      "hash": "f26bad2276524994",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.arm_curl_up_2d6992": {
+      "hash": "3340ff51047c6ddf",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.arm_frequency_450014": {
+      "hash": "4df69029eba69973",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.arm_length_m_c6f448": {
+      "hash": "9b410d973bab4133",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.arm_splay_bee9a5": {
+      "hash": "9810b97a14cb2831",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.branch_angle_703efa": {
+      "hash": "e0d75672311b3f16",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.branch_density_863e46": {
+      "hash": "d9c3b0f9438b3e12",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.branch_levels_8d2d81": {
+      "hash": "986ec82ba9a2dec7",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.branchiness_b3804e": {
+      "hash": "d7c5b0b390775fca",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.column_growth_m_seg_cc81ae": {
+      "hash": "668176a85dc87b02",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.column_segments_239e6f": {
+      "hash": "4f943955c5e5e167",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.column_thickness_0e8113": {
+      "hash": "5eb4a8c1168a4910",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.crown_shape_adef0b": {
+      "hash": "4d33a165615f9bce",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.crown_spread_16fb5c": {
+      "hash": "2fa1a42facdfea96",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.describe_the_plant_174ff4": {
+      "hash": "ec81fc159e610368",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.feeder_spacing_m_d40f36": {
+      "hash": "c1b4dc18e9a5cf8e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.fork_generations_1f8afb": {
+      "hash": "7df3bc96affe9fc2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.fork_spread_05d298": {
+      "hash": "6045841180bb7bbe",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.gnarliness_565a83": {
+      "hash": "ac4c38a93af122af",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.height_m_eb6014": {
+      "hash": "21646adf1f16170a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.leaf_angle_f30d94": {
+      "hash": "08fd9d570e12ca74",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.leaf_billboard_874707": {
+      "hash": "58c3887cf63b5ad3",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.leaf_size_558175": {
+      "hash": "efe1e426845e9649",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.leaf_size_variance_3418de": {
+      "hash": "97420794f5f7b63b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.leaf_start_23a51b": {
+      "hash": "ed7a9bd26c90b366",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.leaves_branch_d43415": {
+      "hash": "6697f4da619eb074",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.primary_scaffolds_a43721": {
+      "hash": "96643f74156679a0",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.rib_depth_d67209": {
+      "hash": "f379e9a3bc0e01c4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.ribs_737e46": {
+      "hash": "f1958d75e95de454",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.rosette_size_25a759": {
+      "hash": "eeff2ddf1443222e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.rosette_variation_8120b0": {
+      "hash": "cad8cc1643f684b3",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.seed_d07208": {
+      "hash": "54eba353b90a8830",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.segment_length_m_70d7ec": {
+      "hash": "4cb77561edc06b85",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.show_leaves_8b5743": {
+      "hash": "12d4c478ed9fb156",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.species_c6e1cc": {
+      "hash": "9b5091d9a5520f4f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.spine_density_090a16": {
+      "hash": "0b29ca2861674392",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.spray_size_af90e3": {
+      "hash": "1e9e425300a71dce",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.sprays_per_twig_f428ee": {
+      "hash": "61d1b4b54eb00ad7",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.stem_splay_b85c3a": {
+      "hash": "86cdad91cb6ff699",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.stems_from_crown_166e11": {
+      "hash": "480e3c043c9d25e7",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.triangle_budget_ad930f": {
+      "hash": "42215258525859e2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.trunk_height_m_1432a8": {
+      "hash": "49828ce5b341bbb5",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.trunk_thickness_ee53a7": {
+      "hash": "6942c4824cd943fc",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.trunks_cfbc4d": {
+      "hash": "d4a222329f15be29",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.trunks_rare_1_53bb76": {
+      "hash": "4141bff8fa7fcb42",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.upsweep_4f8350": {
+      "hash": "9362133ed95e0860",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.variations_7be51e": {
+      "hash": "a86f1ea29a098355",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.vine_length_m_a17e4b": {
+      "hash": "3ea5936665476d62",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "vegetation.tooltip.vine_spacing_m_741f22": {
+      "hash": "1641c05b54daa4ce",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/vegetation.js"
+      ]
+    },
+    "video.tooltip.add_reference_images_1c9fe9": {
+      "hash": "ea4754c9b5e61ba7",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.also_save_an_mp4_h_264_70ac72": {
+      "hash": "700b149729035b2b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.also_use_the_sound_of_the_reference_vide_0d8383": {
+      "hash": "a616dfd61d264c47",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.aspect_ratio_3081a8": {
+      "hash": "010e5632eac9f478",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.choose_the_first_frame_66ccb2": {
+      "hash": "e7dced2ebc83a3b8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.choose_the_last_frame_527b6d": {
+      "hash": "38f18eac40ead57b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.describe_your_scene_4eeb48": {
+      "hash": "4804f9f4368f03a9",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.duration_d4c749": {
+      "hash": "eba5621f29f4cbcf",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.fine_tune_video_f2b3fc": {
+      "hash": "6be845e98ad63e97",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.first_and_last_frame_f26105": {
+      "hash": "9ed36cd4a838bfa5",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.gpu_memory_budget_gib_21e1da": {
+      "hash": "27b79e5043f34e0d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.guidance_74122b": {
+      "hash": "103d823a0d5a17f8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.negative_prompt_32377b": {
+      "hash": "6422f534fca70876",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.picture_size_5b5964": {
+      "hash": "ca61f1d4683f457f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.reference_detail_845457": {
+      "hash": "d572c608bee866e7",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.reference_images_4c1737": {
+      "hash": "f06093f4c162254c",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.sampler_904a39": {
+      "hash": "cd1824c64efcab55",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.sampling_steps_40d9b3": {
+      "hash": "0ca053586608fc4f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.scheduler_c020c6": {
+      "hash": "6e24ff653366406d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.seed_d07208": {
+      "hash": "01fe63c36cbf9303",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.text_only_experimental_2f91f9": {
+      "hash": "7930d43c29ab5d5a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.turbo_adapter_experimental_ff909b": {
+      "hash": "4805b97f4d8e2920",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "video.tooltip.video_format_18e010": {
+      "hash": "c94f6c16b9b3075e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/video.js"
+      ]
+    },
+    "voices.tooltip.add_to_render_queue_a17477": {
+      "hash": "45e6734452f20d11",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.aiden_93cddc": {
+      "hash": "17008105bc225873",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.auto_126bef": {
+      "hash": "0b1f1ab383c39444",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.cancel_35afca": {
+      "hash": "36c4f15e57bb8a7d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.chinese_7e11ec": {
+      "hash": "09b89475241c4ba4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.choose_audio_file_1ef8ba": {
+      "hash": "b593e4a2cf940497",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.clone_a_voice_9fc9cc": {
+      "hash": "1266380482bf2eab",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.copy_text_6426ce": {
+      "hash": "b64f0ce5a97c98e2",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.design_a_voice_d399f5": {
+      "hash": "bbef0ee707e0a288",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.dylan_495598": {
+      "hash": "ea63fc64689eafcb",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.english_1b9ae0": {
+      "hash": "c5830b3408b014cf",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.eric_a88d02": {
+      "hash": "d4a1635007910e18",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.fine_detail_sampling_0fe1f8": {
+      "hash": "58dad394a2c45c69",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.fine_detail_temperature_995b76": {
+      "hash": "ea863fdea8518e83",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.fine_detail_top_k_5b77b8": {
+      "hash": "8b8e2f9ab5b20667",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.fine_detail_top_p_6277c3": {
+      "hash": "84fc15b2296e509d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.fine_tune_voice_3ab400": {
+      "hash": "f07dbe889580b1a4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.french_7cbd6c": {
+      "hash": "5bc15db59f52137f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.german_111008": {
+      "hash": "d919d96d03a95a1d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.italian_f03995": {
+      "hash": "09a9313594223365",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.japanese_940c2e": {
+      "hash": "906c764869cb857e",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.korean_ad70bf": {
+      "hash": "a28ac251f9d68e98",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.language_9a73db": {
+      "hash": "0d28b25c9adc8b49",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.live_speech_to_text_f94898": {
+      "hash": "05911c2c9b5cea9b",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.only_clone_voices_you_have_the_right_to_bbd169": {
+      "hash": "2ab8d374f508e5b4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.ono_anna_32ddf2": {
+      "hash": "28dc2f12980aca65",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.portuguese_e6d67d": {
+      "hash": "9c74af47d786dc32",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.preset_voice_24205c": {
+      "hash": "6632f0de0383f1a3",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.project_7b5fea": {
+      "hash": "eb10869c39609aa4",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.recognition_options_2a95ad": {
+      "hash": "32b0a32dd94f4585",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.reference_transcript_optional_29ebfb": {
+      "hash": "e229f0981847418d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.reference_transcript_required_109a87": {
+      "hash": "6c4fa0b15fa159ac",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.russian_475923": {
+      "hash": "e685d4ece90b0000",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.ryan_c2af04": {
+      "hash": "737864d535568566",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.sampling_mode_89d898": {
+      "hash": "235bf227ad32bdac",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.serena_1046a6": {
+      "hash": "d0e5150542f0ce19",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.sohee_0cb6fc": {
+      "hash": "73836f95e12e4d28",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.spanish_b81982": {
+      "hash": "8f77542a9135195d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.speech_token_limit_a029f5": {
+      "hash": "aac7d0b9a236fa98",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.start_microphone_364764": {
+      "hash": "1f7e42c55722a4ee",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.stop_finish_6ea773": {
+      "hash": "d159a43ed8f92781",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.uncle_fu_d0b6dd": {
+      "hash": "024aff0cfbdbd125",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.use_as_voice_text_f1ab2d": {
+      "hash": "697b7eaba532314f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.vivian_d207f1": {
+      "hash": "0ddac7f3f853d357",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.voice_27d1a4": {
+      "hash": "46bcc70797f9c807",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.voice_description_7946a7": {
+      "hash": "f05a5f97232abf6f",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.voice_direction_04556d": {
+      "hash": "bf2c0969cc977f51",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.voice_only_no_transcript_lower_similarit_ce551a": {
+      "hash": "6b83ecd9b0088943",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "voices.tooltip.what_should_your_character_say_1ec36b": {
+      "hash": "9c16f9e40a96e105",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/voices.js"
+      ]
+    },
+    "world.tooltip.describe_your_world_414c8c": {
+      "hash": "1dc37f36c93c4a8d",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.description_optional_31e717": {
+      "hash": "0dad8e7dc6efe5fe",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.drop_least_confident_points_54ca80": {
+      "hash": "034d1ec61139503a",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.generation_steps_4a49ea": {
+      "hash": "f4b14964c42110b8",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.output_ee7643": {
+      "hash": "233e2f1790e682ba",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.panorama_width_e50ec3": {
+      "hash": "f2989dbd2c8d39df",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.prompt_guidance_c484ea": {
+      "hash": "9a9260fedc3ae2ac",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.remove_sky_f71530": {
+      "hash": "7b7cfefe9f106f43",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.resolution_per_view_da98b7": {
+      "hash": "a1699196f2c0be84",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.save_the_generated_panorama_5003d1": {
+      "hash": "3ecb5268894f9175",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.seed_d07208": {
+      "hash": "e79e6fed250aae87",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.splat_limit_8ca5ab": {
+      "hash": "d104972a8b29a685",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    },
+    "world.tooltip.starting_point_7d91b4": {
+      "hash": "35fd6335bb2644dd",
+      "kind": "text",
+      "files": [
+        "src/tooltips/pages/world.js"
+      ]
+    }
+  }
+}

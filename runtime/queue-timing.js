@@ -73,6 +73,9 @@ export function work(type, request) {
       return number(request.max_tokens);
     case 'segmentation':
       return 1;
+    case 'vegetation':
+      // Time depends on the species and budget, which the exact-profile estimate already matches.
+      return 1;
     default:
       return null;
   }

@@ -7,7 +7,9 @@
 //
 // A later step takes its reference from an earlier one with request.referenceFrom = { step }.
 
-export const REMOVE_BACKGROUND_DEFAULT_PROMPT = 'the main object';
+// SAM 3.1 grounds concrete nouns. In a check on four pictures "main object" found the subject in
+// three, while "the main object", "object" and "subject" found nothing, so name the thing when you can.
+export const REMOVE_BACKGROUND_DEFAULT_PROMPT = 'main object';
 export const TEXT_TO_3D_IMAGE_SIZE = 1024;
 export const TEXT_TO_3D_IMAGE_STEPS = 25;
 export const TEXT_TO_3D_MODELS = ['hunyuan', 'trellis'];

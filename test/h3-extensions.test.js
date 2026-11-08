@@ -515,3 +515,23 @@ test('first-frame and text modes use an FL2VA checkpoint when one is installed',
     false,
   );
 });
+
+test('video options name the field that is out of range', () => {
+  const reference = [image];
+  assert.throws(
+    () => normalize({ references: reference, sampler: 'dpm' }),
+    /Choose a sampler from euler, res_multistep/,
+  );
+  assert.throws(
+    () => normalize({ references: reference, scheduler: 'karras' }),
+    /Choose a scheduler from simple, beta, discrete/,
+  );
+  assert.throws(
+    () => normalize({ references: reference, reference_detail: 'low' }),
+    /Reference detail must be match or max/,
+  );
+  assert.throws(
+    () => normalize({ references: reference, max_vram: 3 }),
+    /GPU memory budget must be a whole number of GiB from 4 to 24/,
+  );
+});

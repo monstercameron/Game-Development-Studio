@@ -132,7 +132,7 @@ export const modelCatalog = [
     panel: 'video',
     purpose:
       'Animate reference images, reference clips and voices, or a first and last frame, into short video clips with sound.',
-    gpu: '~6 GiB render',
+    gpu: '~6 GiB render · ~12 GiB with reference clips',
     inputs: [
       'Text prompt',
       '1–9 reference images, or a first and last frame',
@@ -318,22 +318,6 @@ export const modelCatalog = [
     engine: 'TRELLIS.2 worker',
     mcpTools: [],
     usedBy: ['3d-trellis'],
-  },
-  {
-    id: 'sam3-base',
-    name: 'SAM 3 checkpoint',
-    category: 'Supporting checkpoint',
-    folder: 'sam3',
-    role: 'checkpoint',
-    purpose:
-      'Additional SAM checkpoint stored in the model folder; it is not a separate selectable studio tool.',
-    inputs: [],
-    outputs: [],
-    engine: null,
-    mcpTools: [],
-    notes: [
-      'Its presence alone does not establish that it is loaded or used by the SAM 3.1 worker.',
-    ],
   },
 ];
 export function modelCatalogDefinitions() {

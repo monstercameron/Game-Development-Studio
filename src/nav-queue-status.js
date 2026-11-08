@@ -3,6 +3,7 @@ const pageTypes = {
   images: ['images'],
   '3d': ['3d', 'trellis'],
   world: ['world'],
+  vegetation: ['vegetation'],
   motion: ['motion', 'motion-bricks'],
   video: ['video'],
   music: ['music'],

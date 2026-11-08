@@ -1,6 +1,12 @@
 // Pure helpers for showing a file's generation details and for reusing them.
 // The metadata record is produced by runtime/asset-metadata.js.
 import { VIDEO_ASPECTS, VIDEO_FRAME_PRESETS, VIDEO_RESOLUTIONS } from '../runtime/video-options.js';
+import {
+  SEGMENTATION_EXPORTS,
+  SEGMENTATION_MATCH_CHOICES,
+  matchChoice,
+  segmentationExportLabel,
+} from './segmentation-settings.js';
 
 const settingLabels = {
   seed: 'Seed',
@@ -40,6 +46,11 @@ const settingLabels = {
   remove_sky: 'Sky removed',
   confidence_percentile: 'Least-confident points dropped (%)',
   confidence: 'Confidence',
+  select: 'Which matches',
+  max_instances: 'Most matches kept',
+  matches_found: 'Matches found',
+  matches_used: 'Matches used',
+  match_scores: 'Scores of kept matches',
   speaker: 'Voice',
   language: 'Language',
   max_new_tokens: 'Token limit',
@@ -47,12 +58,14 @@ const settingLabels = {
   target_frame: 'Target frame',
   min_tokens: 'Min tokens',
   max_tokens: 'Max tokens',
+  num_target_poses: 'Target poses used',
   model: 'Engine option',
   conversion_format: 'Converted to',
   turbo: 'Turbo adapter',
   sampler: 'Sampler',
   scheduler: 'Scheduler',
   max_vram: 'GPU memory budget (GiB)',
+  max_vram_automatic: 'GPU budget set by Forge for reference clips',
   reference_detail: 'Reference detail',
   use_clip_audio: 'Sound of reference videos used',
   also_mp4: 'MP4 copy saved',
@@ -76,7 +89,32 @@ const settingLabels = {
   subtalker_top_p: 'Fine-detail top-p',
   subtalker_top_k: 'Fine-detail top-k',
   reference_text: 'Reference transcript',
+  clone_voice_only: 'Voice only (no transcript)',
+  species: 'Species',
+  budget: 'Triangle budget',
+  lod: 'Level of detail',
+  triangles: 'Triangles',
+  vertices: 'Vertices',
+  height_m: 'Plant height (m)',
+  width_m: 'Plant width (m)',
+  depth_m: 'Plant depth (m)',
+  glb_bytes: 'File size',
+  grow_ms: 'Growing time',
+  export_ms: 'Export time',
+  peak_rss_mib: 'Peak memory of the generator',
+  seedthree_version: 'SeedThree version',
+  seedthree_commit: 'SeedThree commit',
 };
+// A vegetation render records each control as p_<id> (dots written as double underscores).
+function vegetationControlLabel(key) {
+  const words = key
+    .slice(2)
+    .split('__')
+    .filter((part) => part !== 'paramOverrides')
+    .map((part) => (/^\d+$/.test(part) ? `L${part}` : part.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()))
+    .join(' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 // Bookkeeping that is stored with a render but means nothing to read: grouping IDs, the engine's
 // own job ID, and the staged copy of a source sound (the "Source sound use" row says it was used).
 const videoSources = {
@@ -138,6 +176,13 @@ const worldValueNames = {
   mesh: 'Mesh (PLY)',
   glb: 'Mesh (GLB)',
 };
+// SAM 3.1 segmentation records plain ids for the saved picture and which matches were kept.
+const segmentationOutputNames = Object.fromEntries(
+  SEGMENTATION_EXPORTS.map(([label, id]) => [id, label]),
+);
+const matchSelectionNames = Object.fromEntries(
+  SEGMENTATION_MATCH_CHOICES.map(([label, id]) => [id, label]),
+);
 function formatValue(key, value) {
   if (key === 'aspect' && VIDEO_ASPECTS[value]) {
     return VIDEO_ASPECTS[value].label;
@@ -181,6 +226,34 @@ function formatValue(key, value) {
   if (key === 'output' && worldValueNames[value]) {
     return worldValueNames[value];
   }
+  if (key === 'output' && segmentationOutputNames[value]) {
+    return segmentationOutputNames[value];
+  }
+  if (key === 'select' && matchSelectionNames[value]) {
+    return matchSelectionNames[value];
+  }
+  if (key === 'species' && typeof value === 'string') {
+    const words = value.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  }
+  if (key === 'budget' && typeof value === 'string') {
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  }
+  if (['triangles', 'vertices'].includes(key) && Number.isFinite(Number(value))) {
+    return Number(value).toLocaleString('en-US');
+  }
+  if (key === 'glb_bytes' && Number.isFinite(Number(value))) {
+    return `${(Number(value) / 1048576).toFixed(2)} MiB`;
+  }
+  if (['grow_ms', 'export_ms'].includes(key) && Number.isFinite(Number(value))) {
+    return `${Number(value).toLocaleString('en-US')} ms`;
+  }
+  if (key === 'peak_rss_mib' && Number.isFinite(Number(value))) {
+    return `${Number(value).toLocaleString('en-US')} MiB`;
+  }
+  if (key === 'seedthree_commit' && typeof value === 'string') {
+    return value.slice(0, 10);
+  }
   return String(value);
 }
 // Settings as [{ key, label, value }] in a stable, readable order. The seed
@@ -212,7 +285,9 @@ export function describeSettings(meta) {
     label:
       key === 'source' && videoSources[settings[key]]
         ? 'Starts from'
-        : settingLabels[key] || key.replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase()),
+        : meta?.type === 'vegetation' && key.startsWith('p_')
+          ? vegetationControlLabel(key)
+          : settingLabels[key] || key.replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase()),
     // A variation reads "2 of 4"; its group ID and count are not shown on their own.
     value:
       key === 'variation_index' && settings.variation_count
@@ -232,6 +307,10 @@ export function describeSource(meta) {
   }
   if (meta.source === 'job') {
     return meta.backfilled ? 'Generated (recovered from render history)' : 'Generated';
+  }
+  // Megascans imports record the seller; other imports have no source details.
+  if (meta.source === 'import' && meta.settings?.seller) {
+    return `Imported from Fab / ${meta.settings.seller}`;
   }
   return meta.source === 'import' ? 'Imported' : 'Unknown';
 }
@@ -392,6 +471,7 @@ export function reusePlan(meta) {
         voiceDescription: voiceMode === 'design' ? text(meta.prompt.secondary) : '',
         voiceReferenceText: voiceMode === 'clone' ? str(s.reference_text) : '',
         voiceConsent: false,
+        voiceCloneVoiceOnly: voiceMode === 'clone' && s.clone_voice_only === true,
         // Reuse merges into the saved draft, so clear a clip left from earlier: it would not match
         // the restored transcript. The restored transcript is unbound, so the first clip chosen
         // after reuse keeps it.
@@ -474,6 +554,8 @@ export function reusePlan(meta) {
         targetFrame: str(s.target_frame),
         minTokens: str(s.min_tokens),
         maxTokens: str(s.max_tokens),
+        // Renders made before this setting existed used all four target poses.
+        targetPoses: str(s.num_target_poses ?? 4),
       },
     };
   }
@@ -483,7 +565,27 @@ export function reusePlan(meta) {
       draft: {
         prompt,
         confidence: str(s.confidence),
-        options: ['Text prompt', s.output === 'mask' ? 'Mask PNG' : 'Transparent PNG'],
+        options: ['Text prompt', segmentationExportLabel(s.output)],
+        matches: matchChoice(s.select),
+        maxInstances: s.select === 'top' ? str(s.max_instances) : '',
+      },
+    };
+  }
+  if (type === 'vegetation') {
+    return {
+      section: 'vegetation',
+      draft: {},
+      // The Vegetation page validates this against SeedThree's schema before using it.
+      // Control values were stored as p_<id> with dots written as double underscores.
+      vegetation: {
+        species: s.species,
+        seed,
+        budget: s.budget,
+        params: Object.fromEntries(
+          Object.entries(s)
+            .filter(([key]) => key.startsWith('p_'))
+            .map(([key, value]) => [key.slice(2).replaceAll('__', '.'), value]),
+        ),
       },
     };
   }

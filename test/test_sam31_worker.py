@@ -44,6 +44,14 @@ def wait_for(predicate, timeout=8):
     raise AssertionError("Timed out waiting for SAM worker.")
 
 
+def wait_for_completed(base, job_id):
+    def finished():
+        value = json.loads(http(base, "/api/jobs/" + job_id)[1])
+        return value if value.get("status") == "completed" else None
+
+    return wait_for(finished)
+
+
 class Sam31WorkerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -78,7 +86,7 @@ class Sam31WorkerTests(unittest.TestCase):
 
     def test_worker_checks_memory_before_importing_or_loading_model(self):
         with (
-            patch.object(worker, "free_host_memory", return_value=2 * 1024**3),
+            patch.object(worker, "free_host_memory", return_value=1024**3),
             patch.object(worker, "load_detector") as loader,
         ):
             self.assertEqual(http(self.base, "/api/model/load", body={})[0], 202)
@@ -91,6 +99,75 @@ class Sam31WorkerTests(unittest.TestCase):
             self.assertIn("free system memory", status["error"])
             self.assertFalse(status["loaded"])
             loader.assert_not_called()
+
+    def test_status_lists_the_match_selection_feature(self):
+        status = json.loads(http(self.base, "/api/status")[1])
+        self.assertIn(worker.MATCH_SELECTION_FEATURE, status["features"])
+
+    def test_match_selection_fields_are_validated_before_any_work_starts(self):
+        stream = io.BytesIO()
+        Image.new("RGB", (2, 2)).save(stream, format="PNG")
+        image = "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode()
+        base = {"image": image, "prompt": "tree"}
+        with (
+            patch.object(worker, "require_memory"),
+            patch.object(worker, "load_detector", return_value=object()),
+            patch.object(worker, "run_segmentation") as segment,
+        ):
+            http(self.base, "/api/model/load", body={})
+            wait_for(lambda: json.loads(http(self.base, "/api/status")[1])["loaded"])
+            for extra in [
+                {"select": "some"},
+                {"select": "top"},
+                {"select": "top", "max_instances": 0},
+                {"select": "top", "max_instances": 51},
+                {"select": "top", "max_instances": "2"},
+                {"select": "best", "max_instances": 2},
+                {"output": "sticker"},
+            ]:
+                with self.subTest(extra=extra):
+                    self.assertEqual(
+                        http(self.base, "/api/generate", body={**base, **extra})[0], 422
+                    )
+            segment.assert_not_called()
+            self.assertEqual(json.loads(http(self.base, "/api/status")[1])["phase"], "ready")
+
+    def test_match_selection_and_output_reach_the_segmentation_call(self):
+        stream = io.BytesIO()
+        Image.new("RGB", (2, 2)).save(stream, format="PNG")
+        image = "data:image/png;base64," + base64.b64encode(stream.getvalue()).decode()
+        received = []
+
+        def fake_segment(model, picture, request):
+            received.append((request.output, request.select, request.max_instances))
+            return Image.new("RGBA", (2, 2)), {"instances": 3, "used": 2, "matches": []}
+
+        with (
+            patch.object(worker, "require_memory"),
+            patch.object(worker, "load_detector", return_value=object()),
+            patch.object(worker, "run_segmentation", side_effect=fake_segment),
+        ):
+            http(self.base, "/api/model/load", body={})
+            wait_for(lambda: json.loads(http(self.base, "/api/status")[1])["loaded"])
+            for extra, expected in [
+                ({}, ("transparent", "all", None)),
+                (
+                    {"output": "outline", "select": "top", "max_instances": 2},
+                    ("outline", "top", 2),
+                ),
+                ({"output": "cropped", "select": "largest"}, ("cropped", "largest", None)),
+            ]:
+                with self.subTest(extra=extra):
+                    status, result = http(
+                        self.base, "/api/generate", body={"image": image, "prompt": "tree", **extra}
+                    )
+                    self.assertEqual(status, 202)
+                    job = wait_for_completed(self.base, json.loads(result)["id"])
+                    self.assertEqual(job["metadata"]["used"], 2)
+                    wait_for(
+                        lambda: json.loads(http(self.base, "/api/status")[1])["phase"] == "ready"
+                    )
+                    self.assertEqual(received[-1], expected)
 
     def test_load_segment_and_guard_active_work(self):
         entered, release = threading.Event(), threading.Event()

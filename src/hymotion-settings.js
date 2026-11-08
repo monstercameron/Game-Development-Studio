@@ -21,6 +21,11 @@ function number(value, fallback, label, min, max, integer = false) {
   return result;
 }
 
+// Variations are queued as separate jobs, so the count stays out of the engine request.
+export function hyMotionVariationCount(draft) {
+  return number(draft.motionVariations, 1, 'Variations', 1, 4, true);
+}
+
 export function hyMotionRequest(draft) {
   return {
     model: 'hy-motion',

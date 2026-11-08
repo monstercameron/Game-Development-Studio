@@ -1,4 +1,5 @@
 import { FolderOpen, Plus, X } from 'lucide-react';
+import FieldError from './FieldError';
 import './motionbricks-controls.css';
 
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
@@ -15,11 +16,20 @@ function formatFileSize(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(2)} MiB`;
 }
 
-export default function MotionBricksControls({ draft, onChange, file, onFile, onLibrary }) {
+export default function MotionBricksControls({
+  draft,
+  onChange,
+  file,
+  onFile,
+  onLibrary,
+  sourceError = '',
+}) {
   const contextFrame = draft.contextFrame ?? 0;
   const targetFrame = draft.targetFrame ?? 20;
   const minTokens = draft.minTokens ?? 8;
   const maxTokens = draft.maxTokens ?? 14;
+  const targetPoses = draft.targetPoses ?? 4;
+  const targetPosesInvalid = !isOptionalInteger(targetPoses, 1, 4);
   const contextFrameInvalid = !isOptionalInteger(contextFrame, 0);
   const targetFrameInvalid = !isOptionalInteger(targetFrame, 0);
   const minTokensInvalid = !isOptionalInteger(minTokens, 6, 16);
@@ -51,11 +61,17 @@ export default function MotionBricksControls({ draft, onChange, file, onFile, on
         <div className="motionbricks-source-actions">
           <label className="upload-box motionbricks-upload">
             <input
+              id="motionbricks-file"
               type="file"
               accept=".bvh"
               aria-label="Choose a SOMA BVH file"
               aria-required="true"
-              aria-describedby="motionbricks-source-guidance"
+              aria-invalid={sourceError ? 'true' : undefined}
+              aria-describedby={
+                sourceError
+                  ? 'motionbricks-source-guidance motionbricks-source-error'
+                  : 'motionbricks-source-guidance'
+              }
               onChange={(event) => {
                 const selected = event.target.files?.[0];
                 if (selected) {
@@ -77,6 +93,7 @@ export default function MotionBricksControls({ draft, onChange, file, onFile, on
             <FolderOpen size={15} aria-hidden="true" /> Choose from asset library
           </button>
         </div>
+        <FieldError id="motionbricks-source-error" message={sourceError} />
         {file && (
           <div className="motionbricks-selected-source" role="status" aria-live="polite">
             <div className="motionbricks-selected-copy">
@@ -156,6 +173,35 @@ export default function MotionBricksControls({ draft, onChange, file, onFile, on
             {targetFrameInvalid && (
               <span className="motionbricks-error" id="motionbricks-target-error">
                 Enter a whole frame number of 0 or greater.
+              </span>
+            )}
+          </div>
+          <div>
+            <label className="field-label" htmlFor="motionbricks-target-poses">
+              Target poses to use
+            </label>
+            <input
+              id="motionbricks-target-poses"
+              type="number"
+              min="1"
+              max="4"
+              step="1"
+              value={targetPoses}
+              aria-invalid={targetPosesInvalid || undefined}
+              aria-describedby={
+                targetPosesInvalid
+                  ? 'motionbricks-poses-help motionbricks-poses-error'
+                  : 'motionbricks-poses-help'
+              }
+              onChange={(event) => onChange({ targetPoses: event.target.value })}
+            />
+            <p className="helper motionbricks-field-help" id="motionbricks-poses-help">
+              1–4 of the target window’s poses. The first pose sets the destination; more poses add
+              velocity and acceleration. Blank uses 4.
+            </p>
+            {targetPosesInvalid && (
+              <span className="motionbricks-error" id="motionbricks-poses-error">
+                Enter a whole number from 1 to 4.
               </span>
             )}
           </div>

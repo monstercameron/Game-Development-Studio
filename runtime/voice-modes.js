@@ -51,8 +51,9 @@ export function checkpointLoadedFor(health, request) {
 }
 
 // Keeps only the fields that belong to a mode. Preset requests keep their original speaker and
-// direction fields; cloning stores the staged reference ID and its transcript; design stores the
-// description. Consent is required to clone but is not stored in the request.
+// direction fields; cloning stores the staged reference ID and its transcript, or only the ID and
+// clone_voice_only when the clone uses the speaker embedding alone; design stores the description.
+// Consent is required to clone but is not stored in the request.
 export function voiceModeFields(input) {
   const mode = input.mode ?? 'preset';
   if (!VOICE_MODES.includes(mode)) {
@@ -77,6 +78,14 @@ export function voiceModeFields(input) {
     !CLONE_REFERENCE_PATTERN.test(input.reference_audio)
   ) {
     throw Error('Choose a WAV, FLAC or MP3 reference clip from the project.');
+  }
+  if (input.clone_voice_only !== undefined && typeof input.clone_voice_only !== 'boolean') {
+    throw Error('Voice-only cloning must be true or false.');
+  }
+  // Voice-only cloning uses the speaker embedding alone, so the transcript is neither required nor
+  // kept: a transcript sent with it would be ignored by the worker and would misdescribe the render.
+  if (input.clone_voice_only === true) {
+    return { mode, reference_audio: input.reference_audio, clone_voice_only: true };
   }
   const transcript = typeof input.reference_text === 'string' ? input.reference_text.trim() : '';
   if (!transcript || transcript.length > CLONE_TRANSCRIPT_MAX) {

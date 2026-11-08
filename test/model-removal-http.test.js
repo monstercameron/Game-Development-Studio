@@ -70,6 +70,8 @@ test(
       await fs.copyFile(path.join(app, file), path.join(root, file));
     }
     await fs.cp(path.join(app, 'runtime'), path.join(root, 'runtime'), { recursive: true });
+    // The i18n catalog module in runtime/ shares its message formatter with the browser code.
+    await fs.cp(path.join(app, 'src', 'i18n'), path.join(root, 'src', 'i18n'), { recursive: true });
     await fs.symlink(path.join(app, 'node_modules'), path.join(root, 'node_modules'), 'junction');
     await fs.mkdir(path.join(root, 'dist'));
     await fs.writeFile(path.join(root, 'dist', 'index.html'), '<!doctype html><title>test</title>');

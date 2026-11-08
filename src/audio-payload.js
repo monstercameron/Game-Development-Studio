@@ -275,11 +275,16 @@ function voiceModeRequest(draft, shared, speaker) {
     if (lengthProblem) {
       throw Error(lengthProblem);
     }
+    // Voice-only cloning sends no transcript; the server would ignore one, so none is sent.
+    const transcript =
+      draft.voiceCloneVoiceOnly === true
+        ? { clone_voice_only: true }
+        : { reference_text: String(draft.voiceReferenceText ?? '') };
     return {
       ...shared,
       mode,
       reference_audio: reference,
-      reference_text: String(draft.voiceReferenceText ?? ''),
+      ...transcript,
       reference_consent: true,
     };
   }

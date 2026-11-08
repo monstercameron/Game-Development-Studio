@@ -198,7 +198,33 @@ def _heading(positions):
     return np.arctan2(forward[0], forward[2])
 
 
-def encode_pose_windows(clip, context_frame, target_frame, *, min_tokens=8, max_tokens=14):
+POSES_PER_TOKEN = 4
+
+
+def condition_masks(num_target_poses):
+    """Return the slot masks that MotionBricks' conditions kernel writes for SOMA.
+
+    Eight slots hold four context poses and four target poses. The first num_target_poses target
+    slots count as given. Local root values stay unknown at the last context slot and at the last
+    given target slot, because their velocities need a neighbouring pose.
+    """
+    given = np.zeros((1, 2 * POSES_PER_TOKEN), np.int32)
+    given[0, : POSES_PER_TOKEN + num_target_poses] = 1
+    local_root = given.copy()
+    local_root[0, POSES_PER_TOKEN - 1] = 0
+    local_root[0, POSES_PER_TOKEN + num_target_poses - 1] = 0
+    return given, local_root
+
+
+def encode_pose_windows(
+    clip, context_frame, target_frame, *, min_tokens=8, max_tokens=14, num_target_poses=4
+):
+    if (
+        isinstance(num_target_poses, bool)
+        or not isinstance(num_target_poses, int)
+        or not 1 <= num_target_poses <= POSES_PER_TOKEN
+    ):
+        raise ValueError("Target poses to use must be a whole number from 1 to 4.")
     if any(
         isinstance(v, bool) or not isinstance(v, int) or v < 0
         for v in (context_frame, target_frame)
@@ -263,13 +289,14 @@ def encode_pose_windows(clip, context_frame, target_frame, *, min_tokens=8, max_
         local_pose[0, i, 87:] = np.concatenate([r[i, :, :, 0], r[i, :, :, 1]], axis=1).reshape(-1)
     allowed = np.zeros((1, 11), np.int32)
     allowed[0, min_tokens - 6 : max_tokens - 5] = 1
+    given, local_root_known = condition_masks(num_target_poses)
     tensors = {
         "global_root_values": global_root,
         "local_root_values": local_root,
         "local_poses": local_pose,
-        "has_global_root_values": np.ones((1, 8), np.int32),
-        "has_local_root_values": np.ones((1, 8), np.int32),
-        "has_local_poses": np.ones((1, 8), np.int32),
+        "has_global_root_values": given,
+        "has_local_root_values": local_root_known,
+        "has_local_poses": given.copy(),
         "allowed_pred_num_tokens": allowed,
     }
     return tensors, {"alignment": align.as_matrix(), "origin": origin}

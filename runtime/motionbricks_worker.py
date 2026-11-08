@@ -211,6 +211,7 @@ class BvhRequest(BaseModel):
     target_frame: int = Field(ge=0, strict=True)
     min_tokens: int = Field(default=8, ge=6, le=16, strict=True)
     max_tokens: int = Field(default=14, ge=6, le=16, strict=True)
+    num_target_poses: int = Field(default=4, ge=1, le=4, strict=True)
 
 
 @app.get("/api/status")
@@ -293,6 +294,7 @@ def generate_bvh(request: BvhRequest):
             request.target_frame,
             min_tokens=request.min_tokens,
             max_tokens=request.max_tokens,
+            num_target_poses=request.num_target_poses,
         )
     except (TypeError, ValueError) as error:
         raise HTTPException(400, str(error)) from error

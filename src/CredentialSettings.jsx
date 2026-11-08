@@ -3,7 +3,11 @@ import { KeyRound } from 'lucide-react';
 import './credential-settings.css';
 
 const providers = [
-  { id: 'openai', label: 'OpenAI', hint: 'Used for OpenAI chat requests.' },
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    hint: 'Used for OpenAI chat and, only when you ask, AI assist such as error fix suggestions.',
+  },
   {
     id: 'huggingface',
     label: 'Hugging Face',
@@ -112,6 +116,8 @@ export default function CredentialSettings() {
         {providers.map(({ id, label, hint }) => {
           const savedStatus = status?.find((item) => item.provider === id);
           const saved = savedStatus?.saved;
+          // Visible text stays short; the accessible name adds the provider so the two buttons differ.
+          const saveText = busy === id ? 'Working…' : saved ? 'Replace key' : 'Save key';
           return (
             <form
               key={id}
@@ -143,14 +149,16 @@ export default function CredentialSettings() {
                 <button
                   type="submit"
                   className="outline-button"
+                  aria-label={`${saveText} for ${label}`}
                   disabled={!!busy || !values[id].trim()}
                 >
-                  {busy === id ? 'Working…' : saved ? 'Replace key' : 'Save key'}
+                  {saveText}
                 </button>
                 {saved && (
                   <button
                     type="button"
                     className="ghost-button"
+                    aria-label={`Remove key for ${label}`}
                     disabled={!!busy}
                     onClick={() => remove(id)}
                   >

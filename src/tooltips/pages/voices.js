@@ -14,6 +14,10 @@ export default {
     'Describe the voice in up to 500 characters: age, gender, tone, accent, pace and emotion. Each render with the same description and seed repeats; without a seed, the voice can vary.',
   'Reference transcript (required)':
     'The exact words spoken in the reference clip. Cloning uses the transcript with the audio to match the voice, so a wrong or partial transcript lowers the match. Up to 1,000 characters.',
+  'Reference transcript (optional)':
+    'Not needed for a voice-only clone, which ignores this text. Otherwise it is the exact words spoken in the reference clip. Up to 1,000 characters.',
+  'Voice only - no transcript, lower similarity':
+    'Copy the voice from the clip alone, without a transcript. Forge does not send the transcript, so you do not need to type it. The result usually sounds less like the speaker than a transcript-matched clone.',
   'Only clone voices you have the right to use.':
     'Confirm that you have permission to use this person’s voice. Forge requires this before queuing a clone.',
   Ryan: 'Dynamic, rhythmic English-speaking male voice. Best for English dialogue.',

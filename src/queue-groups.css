@@ -1,0 +1,76 @@
+/* Render queue sections: heading row, group notes, dismiss controls and "Show more". */
+.queue-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ux-space-3);
+  flex-wrap: wrap;
+}
+
+.queue-group-heading > h3 {
+  margin-bottom: var(--ux-space-2);
+}
+
+.queue-group-heading > h3:focus-visible {
+  outline: 2px solid var(--forge-focus, #ffad8d);
+  outline-offset: 3px;
+  border-radius: var(--ux-radius-sm);
+}
+
+.queue-group-note {
+  margin: 0 0 var(--ux-space-2);
+  color: var(--forge-muted);
+  font-size: var(--ux-text-sm);
+  line-height: 1.5;
+}
+
+/* Failed renders are informational: the queue keeps moving, so they are not styled as alarms. */
+.queue-group-failed .queue-group-heading > h3 {
+  color: var(--forge-muted);
+}
+
+.runtime-job-failed {
+  border-inline-start: 3px solid var(--forge-danger-border);
+}
+
+.runtime-queue .text-action {
+  min-height: 36px;
+  padding: var(--ux-space-1) var(--ux-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--ux-radius-sm);
+  background: transparent;
+  color: var(--forge-orange-hover, var(--forge-text));
+  font: inherit;
+  font-size: var(--ux-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.runtime-queue .text-action:hover {
+  border-color: var(--forge-border);
+  background: var(--forge-surface-deep);
+}
+
+.runtime-queue .text-action:focus-visible,
+.runtime-queue .queue-dismiss:focus-visible {
+  outline: 2px solid var(--forge-focus, #ffad8d);
+  outline-offset: 2px;
+}
+
+.queue-group-more {
+  margin-top: var(--ux-space-2);
+}
+
+.queue-hidden-note,
+.queue-dismissal {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+  color: var(--forge-muted);
+  font-size: var(--ux-text-sm);
+}
+
+.queue-hidden-note {
+  margin: var(--ux-space-4) 0 0;
+}

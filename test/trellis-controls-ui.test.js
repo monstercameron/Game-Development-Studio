@@ -49,7 +49,7 @@ test('TRELLIS.2 controls explain requirements and associate step errors with the
     });
 
     assert.match(container.textContent, /Experimental/);
-    assert.match(container.textContent, /not yet calibrated/i);
+    assert.match(container.textContent, /memory use is not calibrated/i);
     assert.match(container.textContent, /Triangle budget/);
     assert.match(container.textContent, /100,000 triangles · default/);
     assert.match(container.textContent, /transparent background \(alpha channel\)/i);

@@ -1,0 +1,23 @@
+{
+  "diagnostics.tooltip.copy_server_details_591b09": "Copy the displayed server and service information as JSON.",
+  "diagnostics.tooltip.copy_visible_logs_c9faaf": "Copy the log sources and lines currently shown after filtering.",
+  "diagnostics.tooltip.engine_addresses_c93277": "Local addresses checked for the connected studio engines.",
+  "diagnostics.tooltip.errors_only_fafb79": "Show error lines and nearby traceback or stack details. Text filtering also applies.",
+  "diagnostics.tooltip.filter_log_lines_58ea57": "Show only log lines that contain this text. Matching is case-insensitive.",
+  "diagnostics.tooltip.http_process_id_40207d": "The process ID of the studio web server.",
+  "diagnostics.tooltip.live_stream_9edb36": "The local endpoint that streams new log snapshots while connected.",
+  "diagnostics.tooltip.log_source_8ca1be": "Show logs from every source or choose one studio or engine to inspect.",
+  "diagnostics.tooltip.logs_api_ecfeb9": "The local endpoint that returns a snapshot of recent logs.",
+  "diagnostics.tooltip.not_responding_255286": "No process accepted a connection at this address during the check.",
+  "diagnostics.tooltip.pause_log_stream_099dbe": "Stop receiving new log snapshots. Choose Resume to reconnect.",
+  "diagnostics.tooltip.port_status_962ada": "Shows whether a process accepts a connection at each listed address. It does not identify that process.",
+  "diagnostics.tooltip.project_folder_537443": "The folder containing the studio application.",
+  "diagnostics.tooltip.recent_service_logs_29b6ef": "Recent output from the selected studio and engine log sources. Some sources may be unavailable.",
+  "diagnostics.tooltip.refresh_server_details_c16981": "Reload the studio address, process information, and service reachability checks.",
+  "diagnostics.tooltip.responding_5090d4": "A process accepted a connection at this address; the check does not confirm its identity.",
+  "diagnostics.tooltip.resume_log_stream_eae294": "Reconnect to the live log stream and receive new snapshots.",
+  "diagnostics.tooltip.runtime_756aa7": "The Node.js version and operating system details used by the studio server.",
+  "diagnostics.tooltip.started_97b582": "When this studio server process started.",
+  "diagnostics.tooltip.studio_address_2e83cd": "The local web address where this studio is running.",
+  "diagnostics.tooltip.supervisor_process_id_3f965f": "The process ID of the helper that manages studio services, when one is running."
+}

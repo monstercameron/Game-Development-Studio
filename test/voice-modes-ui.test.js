@@ -521,10 +521,12 @@ test('the transcript restored by Reuse settings survives the first clip choice',
     const videoOptionsModule = pathToFileURL(
       path.join(repositoryRoot, 'runtime', 'video-options.js'),
     ).href;
-    const generationSource = (await readFile(generationSourcePath, 'utf8')).replace(
-      "from '../runtime/video-options.js'",
-      `from '${videoOptionsModule}'`,
-    );
+    const segmentationSettingsModule = pathToFileURL(
+      path.join(repositoryRoot, 'src', 'segmentation-settings.js'),
+    ).href;
+    const generationSource = (await readFile(generationSourcePath, 'utf8'))
+      .replace("from '../runtime/video-options.js'", `from '${videoOptionsModule}'`)
+      .replace("from './segmentation-settings.js'", `from '${segmentationSettingsModule}'`);
     const generationTransformed = await transformWithEsbuild(
       generationSource,
       generationSourcePath,
@@ -877,6 +879,31 @@ test('a failed voice submit shows each missing field inline and focuses the firs
       /Describe the voice in 1–500 characters\./,
     );
     assert.equal(document.activeElement, description, 'focus moves to the empty description');
+
+    // Voice only makes the transcript optional: its field has no error and reads as optional, while
+    // the clip and consent errors still show.
+    await paint(
+      {
+        voiceMode: 'clone',
+        voiceReferenceId: 'reference-1',
+        voiceReferenceName: 'clip.wav',
+        voiceReferenceText: '',
+        voiceConsent: false,
+        voiceCloneVoiceOnly: true,
+      },
+      2,
+    );
+    assert.equal(document.querySelector('#voiceCloneVoiceOnly').checked, true);
+    assert.equal(document.querySelector('#voiceReferenceText').getAttribute('aria-invalid'), null);
+    assert.equal(document.querySelector('#voiceReferenceText-error'), null);
+    assert.match(
+      document.querySelector('label[for="voiceReferenceText"] span').textContent,
+      /Reference transcript \(optional\)/,
+    );
+    assert.match(
+      document.querySelector('#voiceConsent-error').textContent,
+      /Confirm that you have the right to use this voice/,
+    );
 
     // Fixing the fields clears every error, even after a failed submit.
     await paint(

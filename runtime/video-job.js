@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { saveAsset } from './job-io.js';
 import { videoProgress } from './video-progress.js';
+import { failureMessage } from './video-failure.js';
 import { buildSubmission, h3SupportsExtensions, removeJobInputs } from './video-media.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -133,8 +134,11 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       }
       const current = state.job?.id === remoteId ? state.job : null;
       if (current?.state === 'failed') {
+        // H3's own answer is final, so Retry submits a fresh attempt instead of asking H3 about
+        // this job again. Forge never resubmits it by itself.
         await end('failed', {
-          error: String(current.message || 'H3 Studio failed.').slice(0, 2000),
+          error: failureMessage(current),
+          engineFailure: true,
         });
         return;
       }

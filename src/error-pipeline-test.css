@@ -1,0 +1,86 @@
+/* Diagnostics, Developer tools: Test the error pipeline. */
+.error-test {
+  margin-top: var(--forge-space-6);
+}
+.error-test > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--forge-space-3);
+  min-height: 44px;
+  cursor: pointer;
+}
+.error-test-title {
+  font-weight: 700;
+}
+.error-test-body {
+  display: grid;
+  gap: var(--forge-space-5);
+  margin-top: var(--forge-space-4);
+}
+.error-test-body > p {
+  max-width: 78ch;
+  margin: 0;
+  color: var(--forge-muted);
+  font-size: var(--forge-font-body);
+  line-height: 1.5;
+}
+.error-test-group h3,
+.error-test-group h4 {
+  margin: 0 0 var(--forge-space-3);
+  font-size: var(--forge-font-body);
+}
+.error-test-group ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: var(--forge-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.error-test-group li {
+  display: grid;
+  align-content: start;
+  gap: var(--forge-space-2);
+}
+.error-test-group .helper,
+.error-test-status {
+  margin: 0;
+  font-size: var(--forge-font-support);
+  line-height: 1.5;
+}
+.error-test-status {
+  min-height: 1.5em;
+  overflow-wrap: anywhere;
+}
+.error-test-status.sent {
+  color: var(--forge-success-text);
+}
+.error-test-status.failed {
+  color: var(--forge-danger);
+}
+.error-test-status:empty {
+  display: none;
+}
+.error-test-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--forge-space-3);
+}
+.error-test-sandbox {
+  margin-top: var(--forge-space-4);
+  padding: var(--forge-space-4);
+  border: 1px dashed var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+}
+.error-test-sandbox .page-error {
+  margin: 0 0 var(--forge-space-3);
+  padding-block: var(--forge-space-2);
+}
+.error-test-sandbox .page-error h1 {
+  font-size: var(--forge-font-body);
+}
+.error-test-sandbox .page-error .lead {
+  font-size: var(--forge-font-support);
+}

@@ -1,0 +1,50 @@
+/* Code block copy buttons and tables inside rendered chat Markdown. */
+.chat-code-block {
+  position: relative;
+}
+.chat-code-copy {
+  position: absolute;
+  top: var(--forge-space-1-5);
+  right: var(--forge-space-1-5);
+  z-index: 1;
+  min-height: 28px;
+  padding: 2px var(--forge-space-2);
+  border: 1px solid var(--forge-control-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-control-bg);
+  color: var(--forge-text);
+  font: inherit;
+  font-size: var(--forge-font-size-12);
+  cursor: pointer;
+}
+.chat-code-copy:hover {
+  border-color: var(--forge-focus);
+}
+.chat-code-copy:focus-visible,
+.chat-table-wrap:focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 2px;
+}
+.chat-code-block pre {
+  padding-top: 36px;
+}
+.chat-table-wrap {
+  max-width: 100%;
+  margin: var(--forge-space-2-5) 0;
+  overflow-x: auto;
+}
+.chat-table-wrap table {
+  border-collapse: collapse;
+  font-size: var(--forge-font-support);
+}
+.chat-table-wrap th,
+.chat-table-wrap td {
+  padding: var(--forge-space-1-5) var(--forge-space-2-5);
+  border: 1px solid var(--forge-border);
+  vertical-align: top;
+}
+.chat-table-wrap th {
+  background: var(--forge-surface-deep);
+  color: var(--forge-text-strong);
+  text-align: left;
+}

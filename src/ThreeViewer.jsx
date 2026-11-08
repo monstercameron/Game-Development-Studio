@@ -32,6 +32,7 @@ export function useViewerPrefs() {
 }
 
 const motionQuery = () => window.matchMedia?.('(prefers-reduced-motion: reduce)');
+const NO_PANORAMA = { detected: false, inside: false, source: null };
 
 // Owns one engine for one asset: creates it, runs the source loader, mirrors its state
 // into React for the shell, and tears everything down when the asset changes.
@@ -59,6 +60,8 @@ export default function ThreeViewer({
   const [info, setInfo] = useState({ stats: null, caps: {}, kind: null, byteLength: null });
   const [playback, setPlayback] = useState(null);
   const [activeView, setActiveView] = useState(null);
+  const [panorama, setPanorama] = useState(NO_PANORAMA);
+  const panoramaHint = meta?.panorama === true;
   const [attempt, setAttempt] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(() => !!motionQuery()?.matches);
   const [motionOptIn, setMotionOptIn] = useState(false);
@@ -103,6 +106,7 @@ export default function ThreeViewer({
     }
     setPlayback(null);
     setActiveView(null);
+    setPanorama(NO_PANORAMA);
     setInfo({ stats: null, caps: {}, kind: null, byteLength: null });
     if (!url) {
       setState({
@@ -143,6 +147,7 @@ export default function ThreeViewer({
         const result = await source(engine, {
           url,
           name,
+          panoramaHint,
           signal: controller.signal,
           session: { time: timeRef?.current || 0 },
           onStage: (stage) => setState((previous) => ({ ...previous, stage })),
@@ -162,6 +167,7 @@ export default function ThreeViewer({
           }
         }
         ready = true;
+        setPanorama(engine.panoramaState());
         setInfo({
           stats: engine.stats,
           caps: engine.caps,
@@ -199,7 +205,7 @@ export default function ThreeViewer({
     // The loader inputs are the only reasons to rebuild the engine; preferences are
     // applied to the running engine below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [host, url, name, source, attempt]);
+  }, [host, url, name, source, attempt, panoramaHint]);
 
   useEffect(() => {
     engineRef.current?.applyPrefs(effectivePrefs);
@@ -213,6 +219,10 @@ export default function ThreeViewer({
       orbit: (azimuth, polar) => engineRef.current?.orbitBy(azimuth, polar),
       pan: (dx, dy) => engineRef.current?.panBy(dx, dy),
       zoom: (direction) => engineRef.current?.zoomBy(direction > 0 ? 0.8 : 1.25),
+      setPanoramaInside: (inside) => {
+        engineRef.current?.setPanoramaInside(inside);
+        setPanorama(engineRef.current?.panoramaState() || NO_PANORAMA);
+      },
       snapshot: () =>
         engineRef.current
           ? engineRef.current.snapshot()
@@ -254,6 +264,7 @@ export default function ThreeViewer({
       playback={playback}
       playbackActions={playbackActions}
       activeView={activeView}
+      panorama={panorama}
       actions={actions}
       chrome={chrome}
       fallback={

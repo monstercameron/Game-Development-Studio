@@ -1,0 +1,18 @@
+{
+  "segmentation.tooltip.add_to_render_queue_a17477": "Queue this segmentation for the selected project. A reference image and description are required.",
+  "segmentation.tooltip.choose_a_reference_image_c700e8": "Select one PNG, JPEG, or WebP image from your computer. You must select it again after refreshing the page.",
+  "segmentation.tooltip.confidence_threshold_ceb1e9": "Set how confident SAM must be before including a match. Lower values may include more objects; higher values are more selective. Use a value from 0 to 1.",
+  "segmentation.tooltip.cropped_cutout_png_c98e07": "Save a transparent cutout trimmed to the selected objects with a small margin, instead of the full image size. It can also feed a chained 3D render.",
+  "segmentation.tooltip.download_6964bb": "Save the selected segmentation result to your computer.",
+  "segmentation.tooltip.estimated_render_time_ab4aab": "Shows an estimate when Forge has enough history from similar renders. Actual time can vary.",
+  "segmentation.tooltip.export_e86349": "Choose the picture to save: a transparent cutout, a black-and-white mask, the original with the selection outlined, or a cutout trimmed to the selection.",
+  "segmentation.tooltip.mask_png_710280": "Save a black-and-white mask: selected areas are white and everything else is black.",
+  "segmentation.tooltip.most_matches_to_keep_672c80": "How many of the highest-scoring matches to keep, from 1 to 50. If SAM finds fewer, all of them are kept.",
+  "segmentation.tooltip.outline_overlay_png_92aedc": "Save the original image with a colored outline around each selected object. Nothing is made transparent; use it to check what SAM selected.",
+  "segmentation.tooltip.preview_fdda4c": "Open this saved segmentation result in the preview.",
+  "segmentation.tooltip.recent_creations_806cc5": "Browse and download segmentation results saved in the selected project.",
+  "segmentation.tooltip.reference_image_4fa20a": "Choose one PNG, JPEG, or WebP image up to 10 MiB and 20 megapixels. SAM finds the objects you describe in this image.",
+  "segmentation.tooltip.transparent_png_3d3c2e": "Save the original image with unselected areas made transparent. Selected objects keep their original colors.",
+  "segmentation.tooltip.what_would_you_like_to_isolate_54f0d6": "Describe the object or objects to select in the reference image. Short, specific descriptions work best.",
+  "segmentation.tooltip.which_matches_8918d7": "SAM often finds several matches. Combine them all, keep only the one it is most sure about, keep only the biggest, or keep a chosen number of the best-scoring ones."
+}

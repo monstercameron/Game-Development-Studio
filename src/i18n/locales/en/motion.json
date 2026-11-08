@@ -1,0 +1,18 @@
+{
+  "motion.tooltip.advanced_settings_1eb415": "Open the optional seed setting for HY-Motion.",
+  "motion.tooltip.choose_a_soma_bvh_file_80f479": "Select a BVH motion clip. MotionBricks uses its poses to create a transition; it does not rig or retarget a character.",
+  "motion.tooltip.describe_the_motion_6cbae0": "Describe the action, pace, and style you want HY-Motion to generate. It creates a 30 fps skeletal BVH clip; it does not rig or retarget a character.",
+  "motion.tooltip.duration_in_seconds_388a7b": "Set the HY-Motion clip length from 1 to 12 seconds. Longer clips take more time and memory.",
+  "motion.tooltip.guidance_74122b": "Set how closely HY-Motion follows your description, from 0 to 20. Higher guidance can constrain the motion more strongly.",
+  "motion.tooltip.maximum_length_tokens_b7d44c": "Set the longest generated transition length. One token represents four frames; choose a value from 6 to 16 and no less than the minimum.",
+  "motion.tooltip.minimum_length_tokens_e9df4f": "Set the shortest generated transition length. One token represents four frames; choose a value from 6 to 16.",
+  "motion.tooltip.motion_model_c65fac": "Choose how to create motion: HY-Motion makes a human BVH clip from text; MotionBricks makes a transition from poses in a SOMA BVH file.",
+  "motion.tooltip.remove_pose_file_d98441": "Clear the selected BVH file so you can choose another one.",
+  "motion.tooltip.sampling_steps_40d9b3": "Set how many refinement steps HY-Motion uses, from 1 to 100. More steps can take longer.",
+  "motion.tooltip.seed_d07208": "Use the same number with the same prompt and settings to help reproduce an HY-Motion result. Leave blank to use the default seed.",
+  "motion.tooltip.soma_motion_clip_931fd9": "Choose the source BVH motion file for MotionBricks. It must use a Y-up SOMA skeleton in centimeters, be 30, 60, or 120 fps, and be no larger than 10 MiB.",
+  "motion.tooltip.starting_window_920171": "Choose the zero-based frame where MotionBricks reads the starting pose window. Frame numbers use a 30 fps timebase, and the window needs four frames.",
+  "motion.tooltip.target_poses_to_use_fc6841": "Choose how many of the four target-window poses MotionBricks reads, from 1 to 4. The first pose sets the destination; more poses add velocity and acceleration.",
+  "motion.tooltip.target_window_daba34": "Choose the zero-based frame where MotionBricks reads the target pose window. Frame numbers use a 30 fps timebase, and the window needs four frames.",
+  "motion.tooltip.variations_7be51e": "Queue 1 to 4 HY-Motion clips as separate jobs. Each uses the next seed after the seed above, or its own random seed when the seed is blank."
+}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { buildJobMetadata } from '../runtime/asset-metadata.js';
 import { describeSettings, reusePlan } from '../src/generation-details.js';
-import { jobHint } from '../src/job-hints.js';
+import { friendlyAssetName, jobHint } from '../src/job-hints.js';
 
 const jobBase = {
   id: randomUUID(),
@@ -191,4 +191,13 @@ test('queue hints say what a job builds on', () => {
     'Continuing a source sound',
   );
   assert.equal(jobHint({ type: 'voices', request: { text: 'x' } }), '');
+});
+
+test('generated file names become short labels and named files stay as they are', () => {
+  const id = '4be74c56-1cbb-40b7-9a09-55d984de0618';
+  assert.equal(friendlyAssetName(`music/forge-${id}.flac`, 'track'), 'track 4be74c56');
+  assert.equal(friendlyAssetName(`images\\forge-${id}-panorama.png`, 'image'), 'image 4be74c56');
+  assert.equal(friendlyAssetName('music/theme song.flac', 'track'), 'theme song.flac');
+  assert.equal(friendlyAssetName('', 'track', 'a track'), 'a track');
+  assert.equal(friendlyAssetName(null), '');
 });

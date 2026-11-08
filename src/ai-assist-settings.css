@@ -1,0 +1,17 @@
+/* AI assist rows in the Studio settings dialog. */
+.ai-assist-row {
+  display: grid;
+  gap: var(--ux-space-1);
+  margin-top: var(--ux-space-3);
+  padding: var(--ux-space-3);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+}
+.ai-assist-row select,
+.ai-assist-row input {
+  min-height: var(--ux-target-min);
+}
+.ai-assist-row button {
+  justify-self: start;
+  margin-top: var(--ux-space-1);
+}

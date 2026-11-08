@@ -38,7 +38,7 @@
   cursor: not-allowed;
 }
 
-.three-d-background__switch .field-label {
+.form-panel .three-d-background__switch .field-label {
   margin: 0;
 }
 
@@ -84,14 +84,23 @@
   gap: var(--forge-space-3, 12px);
 }
 
+/* The label text and its help icon share the first row; the input takes the full second row. */
 .three-d-text__fields label,
 .three-d-background__prompt label {
   display: grid;
-  gap: var(--forge-space-2, 8px);
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  column-gap: 0;
+  row-gap: var(--forge-space-2, 8px);
 }
 
-.three-d-text .field-label,
-.three-d-background__prompt .field-label {
+.three-d-text__fields label > :is(input, select, textarea),
+.three-d-background__prompt label > :is(input, select, textarea) {
+  grid-column: 1 / -1;
+}
+
+.form-panel .three-d-text .field-label,
+.form-panel .three-d-background__prompt .field-label {
   margin: 0;
 }
 

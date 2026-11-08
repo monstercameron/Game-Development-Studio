@@ -98,7 +98,7 @@ test('3D MCP tools chain background removal and text-to-3D and pass pipelines', 
   );
   chain = requests.at(-1);
   assert.equal(chain.path, '/api/runtime/jobs/chain');
-  assert.equal(chain.body.steps[0].request.prompt, 'the main object');
+  assert.equal(chain.body.steps[0].request.prompt, 'main object');
   assert.equal(chain.body.steps[1].type, '3d');
   assert.equal(chain.body.steps[1].request.texture, true);
   assert.equal(chain.body.steps[1].request.model, 'hunyuan');

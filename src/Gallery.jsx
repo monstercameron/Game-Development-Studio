@@ -12,6 +12,7 @@ import useDialogFocus from './useDialogFocus';
 import RuntimeQueue from './RuntimeQueue';
 import GenerationDetails from './GenerationDetails';
 import { matchesMeta, useAssetMetaIndex, useMetaSearch } from './asset-meta-index';
+import { friendlyAssetLabel } from './asset-labels.js';
 import { RepeatButton, ShrinkButton } from './MiniPlayer';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -102,9 +103,9 @@ function fileKind(asset) {
   return extension ? `${extension} · ${asset.category}` : asset.category;
 }
 function NativeImageThumb({ asset }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [asset.file]);
-  if (failed) {
+  const [state, setState] = useState('loading');
+  useEffect(() => setState('loading'), [asset.file]);
+  if (state === 'failed') {
     return (
       <span className="gallery-thumb-icon" role="img" aria-label="Preview unavailable">
         <Image size={30} aria-hidden="true" />
@@ -113,7 +114,17 @@ function NativeImageThumb({ asset }) {
     );
   }
   return (
-    <img src={asset.file} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
+    <>
+      {state === 'loading' && <span className="asset-skeleton" aria-hidden="true" />}
+      <img
+        src={asset.file}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setState('loaded')}
+        onError={() => setState('failed')}
+      />
+    </>
   );
 }
 
@@ -128,7 +139,10 @@ function AssetPreview({
   onConverted,
   onReuse = null,
   viewerNav = null,
+  displayName = '',
+  panorama = false,
 }) {
+  const name = displayName || asset.title;
   const [, setParams] = useSearchParams();
   const [converting, setConverting] = useRouteToggle('convert');
   const [message, setMessage] = useState('');
@@ -139,7 +153,8 @@ function AssetPreview({
   const [busy, setBusy] = useState(false);
   const closeRef = useRef(null),
     ratingStarsRef = useRef(null);
-  const [focusAfterRatingClear, setFocusAfterRatingClear] = useState(false);
+  // Set after a rating change so focus returns to the star group once the save finishes.
+  const [ratingFocus, setRatingFocus] = useState(null);
   const dialog = useDialogFocus({
     onClose: () => {
       if (editing || confirmDelete) {
@@ -164,11 +179,16 @@ function AssetPreview({
     setImagePreviewFailed(false);
   }, [asset.id, asset.file, asset.sample, asset.title]);
   useLayoutEffect(() => {
-    if (focusAfterRatingClear && !asset.modelRating) {
-      ratingStarsRef.current?.querySelector('button:not(:disabled)')?.focus();
-      setFocusAfterRatingClear(false);
+    if (!ratingFocus || busy) {
+      return;
     }
-  }, [focusAfterRatingClear, asset.modelRating]);
+    // Saving disables the star buttons, which drops focus to the body. Restore it on the chosen
+    // star, or on the first star after Clear.
+    const stars = ratingStarsRef.current?.querySelectorAll('button') || [];
+    const target = ratingFocus.rating ? stars[ratingFocus.rating - 1] : stars[0];
+    target?.focus();
+    setRatingFocus(null);
+  }, [ratingFocus, busy]);
   useEffect(() => {
     const handle = (e) => {
       if (e.key === 'Escape') {
@@ -222,9 +242,7 @@ function AssetPreview({
             ? 'Sample rating saved in this browser.'
             : 'Asset rating saved to the project.',
         );
-        if (extra.rating === null) {
-          setFocusAfterRatingClear(true);
-        }
+        setRatingFocus({ rating: extra.rating });
       } else if (type === 'trash') {
         onClose();
       }
@@ -241,7 +259,7 @@ function AssetPreview({
         className="gallery-modal"
         role="dialog"
         aria-modal="true"
-        aria-label={`Preview ${asset.title}`}
+        aria-label={`Preview ${name}`}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
@@ -284,6 +302,7 @@ function AssetPreview({
               name={asset.title}
               size={asset.size}
               navigation={viewerNav}
+              panorama={panorama}
             />
           ) : asset.category === 'Text' ? (
             <TextAssetPreview asset={asset} />
@@ -337,7 +356,12 @@ function AssetPreview({
                 {asset.sample ? 'SAMPLE ASSET' : asset.category.toUpperCase()} · {position + 1} /{' '}
                 {total}
               </span>
-              <h2>{asset.title}</h2>
+              <h2>{name}</h2>
+              {name !== asset.title && (
+                <p className="gallery-file-name">
+                  File name: <code>{asset.title}</code>
+                </p>
+              )}
               <p>{asset.sample ? asset.description : project?.name}</p>
             </div>
             <a
@@ -791,7 +815,9 @@ export default function Gallery({
         <div className="gallery-location">
           <span>{isSample ? 'EXAMPLE ASSETS' : 'PROJECT FOLDER'}</span>
           <strong>
-            {isSample ? 'A few pieces to explore' : project?.folder || 'Project unavailable'}
+            {isSample
+              ? 'A few pieces to explore'
+              : project?.folder || (loading ? 'Loading project…' : 'Project unavailable')}
           </strong>
         </div>
         <div className="gallery-total">
@@ -919,6 +945,7 @@ export default function Gallery({
           <div className={layout === 'grid' ? 'gallery-grid' : 'gallery-list'}>
             {filtered.slice(0, visibleCount).map((asset) => {
               const Icon = iconFor(asset.category);
+              const naming = friendlyAssetLabel(asset, metaIndex[asset.id]);
               return (
                 <button
                   className="gallery-card"
@@ -966,11 +993,11 @@ export default function Gallery({
                   </div>
                   <div className="gallery-card-info">
                     <div className="gallery-card-title">
-                      <strong title={asset.title}>{asset.title}</strong>
+                      <strong title={naming.fileName}>{naming.label}</strong>
                       <Icon size={16} />
                     </div>
                     <span title={asset.sample ? asset.detail : asset.id}>
-                      {asset.sample ? asset.detail : asset.id}
+                      {asset.sample ? asset.detail : naming.secondary}
                     </span>
                     {metaIndex[asset.id]?.model && (
                       <span className="gallery-card-model" title={metaIndex[asset.id].model}>
@@ -1020,10 +1047,12 @@ export default function Gallery({
           position={previewIndex}
           total={filtered.length}
           project={isSample ? null : localProject}
+          displayName={friendlyAssetLabel(preview, metaIndex[preview.id]).label}
           onMutate={changeAsset}
           onConverted={reloadProject}
           onReuse={onReuse ? (meta) => onReuse(meta, scope) : null}
           viewerNav={viewerNav}
+          panorama={!!metaIndex[preview.id]?.panorama}
           onClose={() => setPreviewId(null)}
           onStep={(offset) => setPreviewId(filtered[previewIndex + offset]?.id || previewId)}
         />

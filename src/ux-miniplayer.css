@@ -210,6 +210,11 @@ button.iteration-icon.mini-shrink {
 .mini-repeat-anchor {
   display: inline-flex;
 }
+/* The caption clips its text spans with an ellipsis; the repeat button wrapper is not text. */
+.iteration-caption .mini-repeat-anchor {
+  flex: 0 0 auto;
+  overflow: visible;
+}
 .mini-repeat {
   display: inline-flex;
   align-items: center;

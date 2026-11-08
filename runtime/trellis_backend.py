@@ -29,6 +29,7 @@ os.environ["FLEX_GEMM_AUTOSAVE_AUTOTUNE_CACHE"] = "0"
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 from accelerate import init_empty_weights  # noqa: E402
+from PIL import Image  # noqa: E402
 from safetensors.torch import load_file  # noqa: E402
 from trellis_manifest import (  # noqa: E402
     COMPONENTS,
@@ -157,12 +158,13 @@ def ensure_pipeline_models(pipeline, pipeline_type, report=None):
 
     They stay on the CPU like the base models: the pipeline runs in low_vram mode and moves one
     model at a time to the GPU while it samples. The caller checks host memory beforehand.
+    Returns True when checkpoints were read, False when everything was already loaded.
     """
     if pipeline_type not in PIPELINE_TYPES:
         raise ValueError(f"Unsupported TRELLIS.2 pipeline: {pipeline_type}.")
     needed = [key for key in PIPELINE_EXTRAS[pipeline_type] if key not in pipeline.models]
     if not needed:
-        return
+        return False
     if pipeline_type not in pipelines_available():
         raise RuntimeError(f"The TRELLIS.2 {pipeline_type} checkpoints are not installed.")
     config = json.loads((MODEL / "pipeline.json").read_text(encoding="utf-8"))["args"]
@@ -174,6 +176,7 @@ def ensure_pipeline_models(pipeline, pipeline_type, report=None):
             report(f"Loading the {pipeline_type} checkpoints (first use of this pipeline).")
         pipeline.models[key] = _load_component(MODEL / EXTRA_COMPONENTS[key])
     gc.collect()
+    return True
 
 
 def validate_transparent(image):
@@ -189,6 +192,18 @@ def validate_transparent(image):
     ys, xs = np.where(alpha > 204)
     if xs.max() == xs.min() or ys.max() == ys.min():
         raise ValueError("The visible foreground is too small.")
+
+
+# Qwen Image's transparent output leaves a faint haze (alpha 1 to 25 over about half the frame).
+# Upstream premultiplies colour by alpha, so the haze became a dark slab under the model. Alpha
+# below this value counts as background.
+FAINT_ALPHA = 32
+
+
+def clear_faint_alpha(image):
+    pixels = np.array(image.convert("RGBA"))
+    pixels[pixels[:, :, 3] < FAINT_ALPHA] = 0
+    return Image.fromarray(pixels, "RGBA")
 
 
 # Upstream's default is 1,000,000 triangles, which is far too heavy for a game asset. The
@@ -215,6 +230,7 @@ def generate_glb(
     if pipeline_type not in PIPELINE_TYPES:
         raise ValueError(f"Unsupported TRELLIS.2 pipeline: {pipeline_type}.")
     validate_transparent(image)
+    image = clear_faint_alpha(image)
     if not isinstance(seed, int) or not 0 <= seed <= 2147483647:
         raise ValueError("Invalid seed.")
     if not isinstance(steps, int) or not 1 <= steps <= 50 or texture_size not in (512, 1024, 2048):
@@ -225,7 +241,9 @@ def generate_glb(
         raise ValueError("Triangle target must be between 5,000 and 1,000,000.")
     import o_voxel
 
-    ensure_pipeline_models(pipeline, pipeline_type, report)
+    if ensure_pipeline_models(pipeline, pipeline_type, report) and report:
+        # The loading message would otherwise stay on the job for the whole render.
+        report(f"Generating textured 3D model ({pipeline_type} pipeline).")
     with torch.inference_mode():
         mesh = pipeline.run(
             image,

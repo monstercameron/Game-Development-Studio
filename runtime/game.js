@@ -12,6 +12,11 @@ export async function decide(input) {
   ) {
     throw Error('Provide between 1 and 16 named questions.');
   }
+  // Mammoth answers a request without state (it decided on an empty game state in a live check), so
+  // Forge must refuse it here rather than return a decision about nothing.
+  if (typeof input.state !== 'string' || !input.state.trim()) {
+    throw Error('Provide a game state as text.');
+  }
   const bytes = Buffer.byteLength(JSON.stringify(input));
   if (bytes > 210000) {
     throw Error('Decision request is too large.');

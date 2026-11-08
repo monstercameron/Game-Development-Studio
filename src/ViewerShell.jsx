@@ -7,6 +7,7 @@ import {
   Download,
   Eye,
   Focus,
+  Globe,
   Grid3x3,
   Keyboard,
   Layers,
@@ -36,6 +37,7 @@ import {
   resolveShortcut,
   snapshotFilename,
 } from './viewer-core';
+import { describePanoramaView } from './viewer-panorama';
 import { topModal } from './modal-layer';
 import './ux-viewer.css';
 
@@ -150,11 +152,13 @@ export default function ViewerShell({
   playback,
   playbackActions,
   activeView,
+  panorama = null,
   actions,
   chrome = {},
   fallback,
   children,
 }) {
+  const insideView = !!panorama?.inside;
   const mode = chrome.mode || 'inline';
   const inspectorKey = mode === 'workbench' ? 'inspectorWorkbench' : 'inspectorInline';
   const inspectorOpen = prefs[inspectorKey];
@@ -248,6 +252,11 @@ export default function ViewerShell({
   const showView = (id) => {
     actions.view(id);
     say(`${VIEW_PRESETS.find((preset) => preset.id === id)?.label} view`);
+  };
+  const togglePanorama = () => {
+    const inside = !panorama?.inside;
+    actions.setPanoramaInside(inside);
+    say(inside ? 'Viewing from inside the panorama' : 'Viewing from outside');
   };
   const setInspector = (open) => setPref(inspectorKey, open);
 
@@ -502,6 +511,15 @@ export default function ViewerShell({
             />
           )}
           {!compact && viewSelect}
+          {panorama?.detected && (
+            <Tool
+              icon={Globe}
+              label="View from inside"
+              pressed={panorama.inside}
+              disabled={!ready}
+              onClick={togglePanorama}
+            />
+          )}
         </div>
         <div className="vw-group" role="group" aria-label="Display" hidden={narrow}>
           {!narrow && toggleButton('autoRotate')}
@@ -551,8 +569,9 @@ export default function ViewerShell({
         >
           <div ref={stageRef} className="vw-canvas" />
           <p id={hintId} className="sr-only">
-            Drag to orbit, right-drag or Control plus arrow keys to pan, scroll or plus and minus to
-            zoom, Shift plus arrow keys to orbit. Press question mark for every shortcut.
+            {insideView
+              ? 'Drag to look around, scroll or plus and minus to change the field of view, Shift plus arrow keys to turn. Press question mark for every shortcut.'
+              : 'Drag to orbit, right-drag or Control plus arrow keys to pan, scroll or plus and minus to zoom, Shift plus arrow keys to orbit. Press question mark for every shortcut.'}
           </p>
           {ready && summary && (
             <div className="vw-chip" aria-hidden="true">
@@ -561,13 +580,25 @@ export default function ViewerShell({
           )}
           {ready && (
             <div className="vw-hint" aria-hidden="true">
-              <span>Drag to orbit</span>
-              <span>Right-drag to pan</span>
-              <span>Scroll to zoom</span>
+              {insideView ? (
+                <>
+                  <span>Drag to look around</span>
+                  <span>Scroll to change field of view</span>
+                </>
+              ) : (
+                <>
+                  <span>Drag to orbit</span>
+                  <span>Right-drag to pan</span>
+                  <span>Scroll to zoom</span>
+                </>
+              )}
               <span>
                 <kbd>?</kbd> shortcuts
               </span>
             </div>
+          )}
+          {ready && panorama?.detected && (
+            <p className="vw-panorama-note">{describePanoramaView(panorama)}</p>
           )}
           {state.status === 'loading' && (
             <div className="vw-overlay vw-loading" role="status">

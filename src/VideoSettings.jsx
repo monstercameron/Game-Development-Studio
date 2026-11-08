@@ -1,4 +1,6 @@
 import {
+  DEFAULT_VIDEO_MAX_VRAM_GIB,
+  REFERENCE_CLIP_MAX_VRAM_GIB,
   REFERENCE_DETAILS,
   VIDEO_RESOLUTIONS,
   VIDEO_SAMPLERS,
@@ -35,6 +37,12 @@ export default function VideoSettings({ draft, update, contentId }) {
       : rangeError(draft.videoCfg, 1.1, 6, false)
     : '';
   const vramError = rangeError(draft.videoMaxVram, 4, 24, true);
+  // Reference clips need more GPU memory than the engine's usual budget (see video-options.js).
+  const hasReferenceClips =
+    (draft.videoSource || 'references') === 'references' && (draft.videoClips?.length || 0) > 0;
+  const automaticVram = hasReferenceClips
+    ? REFERENCE_CLIP_MAX_VRAM_GIB
+    : DEFAULT_VIDEO_MAX_VRAM_GIB;
   const warnings = videoWarnings({
     aspect,
     resolution,
@@ -216,6 +224,7 @@ export default function VideoSettings({ draft, update, contentId }) {
             <span className="field-label">Sampler</span>
             <select
               id="video-sampler"
+              aria-describedby="video-sampler-help"
               value={draft.videoSampler || ''}
               onChange={(e) => update({ videoSampler: e.target.value })}
             >
@@ -226,12 +235,13 @@ export default function VideoSettings({ draft, update, contentId }) {
                 </option>
               ))}
             </select>
-            <small>MiniMax&rsquo;s workflow uses res_multistep.</small>
+            <small id="video-sampler-help">MiniMax&rsquo;s workflow uses res_multistep.</small>
           </label>
           <label htmlFor="video-scheduler">
             <span className="field-label">Scheduler</span>
             <select
               id="video-scheduler"
+              aria-describedby="video-scheduler-help"
               value={draft.videoScheduler || ''}
               onChange={(e) => update({ videoScheduler: e.target.value })}
             >
@@ -242,7 +252,9 @@ export default function VideoSettings({ draft, update, contentId }) {
                 </option>
               ))}
             </select>
-            <small>MiniMax suggests beta or normal (discrete) over simple.</small>
+            <small id="video-scheduler-help">
+              MiniMax suggests beta or normal (discrete) over simple.
+            </small>
           </label>
           <label htmlFor="video-max-vram">
             <span className="field-label">GPU memory budget (GiB)</span>
@@ -252,15 +264,19 @@ export default function VideoSettings({ draft, update, contentId }) {
               min="4"
               max="24"
               step="1"
-              placeholder="6"
+              placeholder={String(automaticVram)}
               aria-describedby={`video-max-vram-help${vramError ? ' video-max-vram-error' : ''}`}
               aria-invalid={vramError ? 'true' : undefined}
               value={draft.videoMaxVram ?? ''}
               onChange={(e) => update({ videoMaxVram: e.target.value })}
             />
             <small id="video-max-vram-help">
-              4–24. How much GPU memory the engine may keep model weights in; blank uses 6. More can
-              be faster but competes with other models.
+              4–24. How much GPU memory the engine may keep model weights in. Blank uses{' '}
+              {automaticVram}
+              {hasReferenceClips
+                ? ` because this video has reference clips (${DEFAULT_VIDEO_MAX_VRAM_GIB} without them)`
+                : ` (${REFERENCE_CLIP_MAX_VRAM_GIB} when the video has reference clips)`}
+              . More can be faster but competes with other models.
             </small>
             {vramError && (
               <small id="video-max-vram-error" className="image-video-settings-error" role="alert">
@@ -272,6 +288,7 @@ export default function VideoSettings({ draft, update, contentId }) {
             <span className="field-label">Reference detail</span>
             <select
               id="video-ref-detail"
+              aria-describedby="video-ref-detail-help"
               value={draft.videoRefDetail || ''}
               onChange={(e) => update({ videoRefDetail: e.target.value })}
             >
@@ -282,7 +299,9 @@ export default function VideoSettings({ draft, update, contentId }) {
                 </option>
               ))}
             </select>
-            <small>Full size keeps more of a character&rsquo;s identity but is much heavier.</small>
+            <small id="video-ref-detail-help">
+              Full size keeps more of a character&rsquo;s identity but is much heavier.
+            </small>
           </label>
         </div>
       </details>

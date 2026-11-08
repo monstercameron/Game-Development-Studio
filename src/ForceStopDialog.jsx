@@ -1,8 +1,10 @@
 import { CircleAlert, LoaderCircle, OctagonX, X } from 'lucide-react';
+import { T, useT } from './i18n/index.js';
 import useDialogFocus from './useDialogFocus';
 import './force-stop.css';
 
 export default function ForceStopDialog({ name, working, result, error, onClose, onForceStop }) {
+  const { t } = useT();
   const dialog = useDialogFocus({
     onClose: () => {
       if (!working) {
@@ -33,13 +35,19 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
       >
         <div className="settings-head">
           <div>
-            <span className="force-stop-kicker">Emergency control</span>
-            <h2 id="force-stop-title">{result ? 'Service stopped' : `Force stop ${name}?`}</h2>
+            <span className="force-stop-kicker">
+              {t('models.forceStop.kicker', 'Emergency control')}
+            </span>
+            <h2 id="force-stop-title">
+              {result
+                ? t('models.forceStop.stoppedTitle', 'Service stopped')
+                : t('models.forceStop.confirmTitle', 'Force stop {name}?', { name })}
+            </h2>
           </div>
           <button
             type="button"
             className="icon-btn"
-            aria-label="Close force stop dialog"
+            aria-label={t('models.forceStop.close', 'Close force stop dialog')}
             disabled={working}
             onClick={onClose}
           >
@@ -49,64 +57,88 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
         {result ? (
           <>
             <p id="force-stop-result">
-              Forge stopped the verified process tree. GPU and system memory may take a moment to
-              update.
+              {t(
+                'models.forceStop.stoppedBody',
+                'Forge stopped the verified process tree. GPU and system memory may take a moment to update.',
+              )}
             </p>
             {result.interruptedJobId && (
               <p className="force-stop-warning">
                 <CircleAlert size={18} />
                 <span>
-                  The affected render is marked <strong>interrupted</strong>. Review it in the
-                  render queue before continuing.
+                  <T
+                    id="models.forceStop.interrupted"
+                    en="The affected render is marked <b>interrupted</b>. Review it in the render queue before continuing."
+                    components={{ b: <strong /> }}
+                  />
                 </span>
               </p>
             )}
             {result.barrierNeedsReview && (
               <p className="force-stop-warning">
                 <CircleAlert size={18} />
-                <span>A model-load check still needs review in Models & services.</span>
+                <span>
+                  {t(
+                    'models.forceStop.barrierReview',
+                    'A model-load check still needs review in Models & services.',
+                  )}
+                </span>
               </p>
             )}
           </>
         ) : (
           <>
             <p id="force-stop-summary">
-              Try <strong>Stop service</strong> first. Use force stop only if the normal stop does
-              not work.
+              <T
+                id="models.forceStop.summary"
+                en="Try <b>Stop service</b> first. Use force stop only if the normal stop does not work."
+                components={{ b: <strong /> }}
+              />
             </p>
             <div className="force-stop-warning" id="force-stop-warning">
               <CircleAlert size={18} />
               <span>
-                <strong>Active work may be lost.</strong> Forge will stop this service and its
-                processes immediately. Any affected render will pause the queue for review. Model
-                files and saved assets stay on disk.
+                <T
+                  id="models.forceStop.warning"
+                  en="<b>Active work may be lost.</b> Forge will stop this service and its processes immediately. Any affected render will pause the queue for review. Model files and saved assets stay on disk."
+                  components={{ b: <strong /> }}
+                />
               </span>
             </div>
             <p className="helper">
-              Only a process whose identity and ownership Forge can verify is eligible. Memory may
-              take a moment to be released.
+              {t(
+                'models.forceStop.eligibility',
+                'Only a process whose identity and ownership Forge can verify is eligible. Memory may take a moment to be released.',
+              )}
             </p>
           </>
         )}
         {error && (
           <div className="force-stop-error" role="alert">
-            <strong>Forge did not confirm that the service stopped.</strong>
+            <strong>
+              {t('models.forceStop.unconfirmed', 'Forge did not confirm that the service stopped.')}
+            </strong>
             <p>
-              The process may still be running. Check service status, the render queue, and
-              Diagnostics before trying again.
+              {t(
+                'models.forceStop.unconfirmedHelp',
+                'The process may still be running. Check service status, the render queue, and Diagnostics before trying again.',
+              )}
             </p>
             <p>{error}</p>
           </div>
         )}
         {working && (
           <p className="force-stop-progress" role="status" aria-live="polite">
-            Forge is checking the service and verifying the stop. Keep this dialog open.
+            {t(
+              'models.forceStop.progress',
+              'Forge is checking the service and verifying the stop. Keep this dialog open.',
+            )}
           </p>
         )}
         <div className="project-dialog-actions">
           {result ? (
             <button type="button" className="primary" onClick={onClose}>
-              Done
+              {t('common.action.done', 'Done')}
             </button>
           ) : (
             <>
@@ -116,7 +148,7 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
                 disabled={working}
                 onClick={onClose}
               >
-                Cancel
+                {t('common.action.cancel', 'Cancel')}
               </button>
               <button
                 type="button"
@@ -129,7 +161,9 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
                 ) : (
                   <OctagonX size={16} />
                 )}{' '}
-                {working ? `Stopping ${name}…` : `Force stop ${name}`}
+                {working
+                  ? t('models.forceStop.stopping', 'Stopping {name}…', { name })
+                  : t('models.forceStop.confirm', 'Force stop {name}', { name })}
               </button>
             </>
           )}

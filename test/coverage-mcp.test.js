@@ -18,7 +18,6 @@ test('catalog keeps service and storage observations separate and removal eligib
       entries: [
         { id: 'tts', installed: true, bytes: 50, files: 2, removable: false },
         { id: 'images', installed: true, bytes: 100, files: 4, removable: true },
-        { id: 'sam3-base', installed: true, bytes: 20, files: 1, removable: true },
       ],
     },
     managedIds: ['3d-hunyuan', 'chat'],
@@ -35,7 +34,6 @@ test('catalog keeps service and storage observations separate and removal eligib
   assert.equal(models.get('chat').service.status, 'unavailable');
   assert.equal(models.get('tts').storage.removable, false);
   assert.equal(models.get('images').storage.removable, false);
-  assert.equal(models.get('sam3-base').storage.removable, false);
   assert.equal(models.get('3d-hunyuan').storage.managed, true);
   assert.equal(models.get('3d-hunyuan').storage.installed, null);
   assert.equal(models.get('music').storage.installed, null);

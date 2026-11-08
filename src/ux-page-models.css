@@ -28,3 +28,11 @@
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
+
+/* model-catalog.css sets 26px values after its 600px rule, so phone widths need this override.
+   At 26px the three GPU values in a 77px column overlap each other. */
+@media (max-width: 600px) {
+  .catalog-memory-values strong {
+    font-size: var(--forge-font-size-17);
+  }
+}

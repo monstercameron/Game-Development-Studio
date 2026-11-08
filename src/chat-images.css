@@ -1,0 +1,124 @@
+/* Picture attachments in the Chat composer and transcript. */
+.chat-image-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--forge-space-2);
+  margin: 0 0 var(--forge-space-2);
+  padding: 0;
+  list-style: none;
+}
+.chat-image-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--forge-space-2);
+  max-width: 220px;
+  padding: var(--forge-space-1-5);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-surface);
+  color: var(--forge-text);
+  font-size: var(--forge-font-size-12);
+}
+.chat-image-chip img {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.chat-image-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-image-remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--forge-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--forge-text);
+  cursor: pointer;
+}
+.chat-image-remove:hover:not(:disabled) {
+  border-color: var(--forge-focus);
+}
+.chat-image-remove:focus-visible,
+.chat-image-attach:focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 2px;
+}
+.chat-image-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--forge-space-2);
+}
+.chat-image-attach {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--forge-space-1-5);
+  min-height: 38px;
+  padding: var(--forge-space-value-7) var(--forge-space-2-5);
+  border: 1px solid var(--forge-control-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-control-bg);
+  color: var(--forge-text);
+  font: inherit;
+  font-size: var(--forge-font-support);
+  cursor: pointer;
+}
+.chat-image-attach:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.chat-image-reason {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--forge-muted);
+  font-size: var(--forge-font-size-12);
+  line-height: 1.4;
+}
+.chat-message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--forge-space-2);
+  margin: 0 0 var(--forge-space-2);
+  padding: 0;
+  list-style: none;
+}
+.chat-message-images figure {
+  margin: 0;
+}
+.chat-message-images img,
+.chat-message-images-missing {
+  display: block;
+  width: 96px;
+  height: 96px;
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+  object-fit: cover;
+}
+.chat-message-images-missing {
+  display: grid;
+  place-items: center;
+  border-style: dashed;
+  color: var(--forge-muted);
+  font-size: var(--forge-font-size-12);
+  text-align: center;
+}
+.chat-message-images figcaption {
+  max-width: 96px;
+  overflow: hidden;
+  color: var(--forge-muted);
+  font-size: var(--forge-font-size-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-composer.is-dropping {
+  border-color: var(--forge-focus);
+}

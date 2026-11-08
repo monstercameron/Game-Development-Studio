@@ -5,7 +5,13 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runtime"))
-from motionbricks_bvh import JOINTS, decode_bvh, encode_pose_windows, parse_bvh
+from motionbricks_bvh import (
+    JOINTS,
+    condition_masks,
+    decode_bvh,
+    encode_pose_windows,
+    parse_bvh,
+)
 
 
 def fixture():
@@ -92,6 +98,25 @@ class MotionBricksBvhTests(unittest.TestCase):
         self.assertEqual(saved.stride, 1)
         np.testing.assert_allclose(saved.frames[:, 0], 3.0, atol=1e-5)
         np.testing.assert_allclose(saved.frames[:, 1], 100.0, atol=1e-5)
+
+    def test_condition_masks_follow_upstream_slots(self):
+        clip = parse_bvh(fixture())
+        inputs, _ = encode_pose_windows(clip, 0, 6, min_tokens=8, max_tokens=10)
+        self.assertEqual(inputs["has_global_root_values"].tolist(), [[1] * 8])
+        self.assertEqual(inputs["has_local_root_values"].tolist(), [[1, 1, 1, 0, 1, 1, 1, 0]])
+        for count in (1, 2, 3):
+            with self.subTest(num_target_poses=count):
+                given, local_root = condition_masks(count)
+                self.assertEqual(given[0].tolist(), [1, 1, 1, 1] + [1] * count + [0] * (4 - count))
+                last_target = 4 + count - 1
+                self.assertEqual(local_root[0, last_target], 0)
+                self.assertEqual(local_root[0, 3], 0)
+        inputs, _ = encode_pose_windows(clip, 0, 6, min_tokens=8, max_tokens=10, num_target_poses=1)
+        self.assertEqual(inputs["has_local_poses"].tolist(), [[1, 1, 1, 1, 1, 0, 0, 0]])
+        self.assertEqual(inputs["has_local_root_values"].tolist(), [[1, 1, 1, 0, 0, 0, 0, 0]])
+        for invalid in (0, 5, True, 1.0):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                encode_pose_windows(clip, 0, 6, num_target_poses=invalid)
 
     def test_rejects_incompatible_and_malformed_input(self):
         text = fixture()

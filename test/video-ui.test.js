@@ -71,6 +71,7 @@ async function render(file, props, { replacements = {}, extra = {} } = {}) {
 
 const mediaReplacements = {
   './AssetPicker': './AssetPicker.mjs',
+  './FieldError': './FieldError.mjs',
   './asset-picker.js': url('src', 'asset-picker.js'),
   './video-media-store': url('src', 'video-media-store.js'),
   '../runtime/video-options.js': url('runtime', 'video-options.js'),
@@ -84,7 +85,16 @@ export default function AssetPicker({ title, extensions, maxFiles, onSelect, onC
     React.createElement('button', { type: 'button', id: 'close', onClick: onClose }, 'Close'));
 }
 `;
-const mediaOptions = { replacements: mediaReplacements, extra: { 'AssetPicker.mjs': pickerStub } };
+// The inline error component only adds a message and an icon; the slots' own behaviour is under test.
+const fieldErrorStub = `import React from 'react';
+export default function FieldError({ id, message }) {
+  return message ? React.createElement('p', { id, role: 'alert' }, message) : null;
+}
+`;
+const mediaOptions = {
+  replacements: mediaReplacements,
+  extra: { 'AssetPicker.mjs': pickerStub, 'FieldError.mjs': fieldErrorStub },
+};
 const click = (window, element) =>
   act(async () => element.dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
 const library = (window, name, pathName, size = 1000) => {
@@ -424,6 +434,45 @@ test('experimental controls are labelled, validated and passed through', async (
     assert.match(view.container.querySelector('#video-also-mp4-help').textContent, /AAC sound/);
   } finally {
     await view.cleanup();
+  }
+});
+
+test('the GPU memory budget field says what a blank value will use', async () => {
+  const plain = await settings({ options: [] });
+  try {
+    const field = plain.container.querySelector('#video-max-vram');
+    assert.equal(field.getAttribute('placeholder'), '6');
+    assert.match(
+      plain.container.querySelector('#video-max-vram-help').textContent,
+      /Blank uses 6 \(12 when the video has reference clips\)\./,
+    );
+  } finally {
+    await plain.cleanup();
+  }
+  const withClips = await settings({ options: [], videoClips: [{ path: 'video/a.webm' }] });
+  try {
+    const field = withClips.container.querySelector('#video-max-vram');
+    assert.equal(field.getAttribute('placeholder'), '12');
+    assert.match(
+      withClips.container.querySelector('#video-max-vram-help').textContent,
+      /Blank uses 12 because this video has reference clips \(6 without them\)\. More can be faster/,
+    );
+  } finally {
+    await withClips.cleanup();
+  }
+  // Clips are not used with first and last frames, so the usual budget applies.
+  const frames = await settings({
+    options: [],
+    videoSource: 'frames',
+    videoClips: [{ path: 'video/a.webm' }],
+  });
+  try {
+    assert.equal(
+      frames.container.querySelector('#video-max-vram').getAttribute('placeholder'),
+      '6',
+    );
+  } finally {
+    await frames.cleanup();
   }
 });
 

@@ -61,7 +61,7 @@ export function useRuntimeNotifications() {
               id: job.id,
               name:
                 job.request.title ||
-                `${{ sfx: 'Sound effect', music: 'Music asset', images: 'Image', video: 'Video', voices: 'Voice', '3d': '3D shape', trellis: '3D model', motion: 'Motion clip', 'motion-bricks': 'Motion transition', segmentation: 'Segmentation' }[job.type] || 'Asset'} ready in your project.`,
+                `${{ sfx: 'Sound effect', music: 'Music asset', images: 'Image', video: 'Video', voices: 'Voice', '3d': '3D shape', trellis: '3D model', motion: 'Motion clip', 'motion-bricks': 'Motion transition', segmentation: 'Segmentation', vegetation: 'Plant model' }[job.type] || 'Asset'} ready in your project.`,
             });
           }
           if (

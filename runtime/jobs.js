@@ -5,12 +5,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { recordConversion, recordJobOutput } from './asset-metadata.js';
+import { planChainUnload } from './chain-unload.js';
 import { normalizeImageExtras } from './image-options.js';
 import { normalizeDerivedMusic, resolveDerivedMusic } from './music-derived.js';
 import { normalizeSoundSource } from './sfx-request.js';
+import { SEGMENTATION_OUTPUTS, cleanMatchReport, normalizeSelection } from './sam31-options.js';
 import { normalizeVideoRequest } from './video-options.js';
 import { stageProjectAsset } from './references.js';
+import { quickCheckoutStatus, loadSchemaSync } from './vegetation-runner.js';
+import { cleanVegetationResult, normalizeVegetationRequest } from './vegetation-request.js';
 import { checkpointForRequest, checkpointLoadedFor, voiceModeFields } from './voice-modes.js';
+import { NEXT_RANK_SQL, moveQueuedJob, parseMoveRequest } from './queue-order.js';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtimeDir = process.env.FORGE_RUNTIME_DIR || path.join(appRoot, '.forge-runtime');
@@ -47,6 +52,12 @@ export const CHAIN_CHILD_TYPES = ['3d', 'trellis', 'segmentation', 'images', 'vi
 export const CHAIN_PARENT_TYPES = ['images', 'segmentation'];
 const CHAIN_WAITING_STAGE = 'Waiting for the render it depends on.';
 export const DEPENDENCY_FAILED_STAGE = 'Dependency failed.';
+// A job worker marks a failure it read from the engine itself (a finished, known outcome) with
+// this value in the job details. retry() then submits a fresh attempt instead of asking the
+// engine about the old job, which a restarted engine may no longer remember. Failures whose
+// outcome is unknown stay without the marker and are only ever re-checked.
+export const ENGINE_FAILED_OUTCOME = 'engine_failed';
+const KNOWN_ENGINE_FAILURE_SQL = `(status='failed' AND remote_id IS NOT NULL AND json_valid(details) AND json_extract(details,'$.outcome')='${ENGINE_FAILED_OUTCOME}')`;
 const WAITING_STATUSES = ['queued', 'waiting_engine', 'waiting_memory'];
 const OPEN_STATUSES = [
   'queued',
@@ -127,12 +138,22 @@ function validateType(input, root = projectsRoot) {
       'motion',
       'motion-bricks',
       'world',
+      'vegetation',
     ].includes(input.type) ||
     typeof input.projectId !== 'string' ||
     !input.request ||
     typeof input.request !== 'object'
   ) {
     throw Error('Expected a supported render job with projectId and request.');
+  }
+  if (input.type === 'vegetation') {
+    findProject(input.projectId, root);
+    // SeedThree's own schema (cached per commit) decides which species and controls exist.
+    return {
+      type: 'vegetation',
+      projectId: input.projectId,
+      request: normalizeVegetationRequest(input.request, loadSchemaSync()),
+    };
   }
   if (input.type === 'world') {
     const {
@@ -302,7 +323,14 @@ function validateType(input, root = projectsRoot) {
     };
   }
   if (input.type === 'motion-bricks') {
-    const { pose, context_frame, target_frame, min_tokens = 8, max_tokens = 14 } = input.request;
+    const {
+      pose,
+      context_frame,
+      target_frame,
+      min_tokens = 8,
+      max_tokens = 14,
+      num_target_poses = 4,
+    } = input.request;
     if (typeof pose !== 'string' || !/^[a-f0-9-]{36}\.bvh$/i.test(pose)) {
       throw Error('Provide a staged SOMA BVH pose file.');
     }
@@ -319,11 +347,23 @@ function validateType(input, root = projectsRoot) {
     ) {
       throw Error('Invalid pose windows or token limits.');
     }
+    // Earlier MotionBricks requests had no count, so they keep the four-pose default.
+    if (!Number.isInteger(num_target_poses) || num_target_poses < 1 || num_target_poses > 4) {
+      throw Error('Target poses to use must be a whole number from 1 to 4.');
+    }
     findProject(input.projectId, root);
     return {
       type: 'motion-bricks',
       projectId: input.projectId,
-      request: { pose, context_frame, target_frame, min_tokens, max_tokens },
+      request: {
+        pose,
+        context_frame,
+        target_frame,
+        min_tokens,
+        max_tokens,
+        // The four-pose default is omitted so earlier requests, history and details keep matching.
+        ...(num_target_poses !== 4 ? { num_target_poses } : {}),
+      },
     };
   }
   if (input.type === 'motion') {
@@ -367,7 +407,14 @@ function validateType(input, root = projectsRoot) {
     };
   }
   if (input.type === 'segmentation') {
-    const { prompt, references, output = 'transparent', confidence = 0.5 } = input.request;
+    const {
+      prompt,
+      references,
+      output = 'transparent',
+      confidence = 0.5,
+      select,
+      max_instances: maxInstances,
+    } = input.request;
     if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 1000) {
       throw Error('Segmentation description must contain 1–1000 characters.');
     }
@@ -380,7 +427,7 @@ function validateType(input, root = projectsRoot) {
       throw Error('Provide one staged reference image.');
     }
     if (
-      !['transparent', 'mask'].includes(output) ||
+      !SEGMENTATION_OUTPUTS.includes(output) ||
       typeof confidence !== 'number' ||
       !Number.isFinite(confidence) ||
       confidence < 0 ||
@@ -388,11 +435,12 @@ function validateType(input, root = projectsRoot) {
     ) {
       throw Error('Invalid segmentation output or confidence.');
     }
+    const selection = normalizeSelection({ select, max_instances: maxInstances });
     findProject(input.projectId, root);
     return {
       type: 'segmentation',
       projectId: input.projectId,
-      request: { prompt: prompt.trim(), references, output, confidence },
+      request: { prompt: prompt.trim(), references, output, confidence, ...selection },
     };
   }
   if (input.type === '3d') {
@@ -498,6 +546,7 @@ function validateType(input, root = projectsRoot) {
       reference_audio,
       reference_text,
       reference_consent,
+      clone_voice_only,
       voice_description,
     } = input.request;
     if (
@@ -585,6 +634,7 @@ function validateType(input, root = projectsRoot) {
           reference_audio,
           reference_text,
           reference_consent,
+          clone_voice_only,
           voice_description,
         }),
         // Pick the random seed here so the render is reproducible and the seed lands in the asset's details.
@@ -829,6 +879,9 @@ function publicJob(row) {
     finishedAt: row.finished_at,
     // The earlier render this one waits for (see request.referenceFrom); null for older rows.
     dependsOn: row.depends_on || null,
+    // Stored place in the waiting line; null for rows from before ranks existed. Compare for
+    // equality only (the move request's expectedRank); the list itself is already in order.
+    queueRank: row.queue_rank ?? null,
   };
 }
 function profile(type, request) {
@@ -844,6 +897,7 @@ function profile(type, request) {
     motion: ['duration', 'steps'],
     'motion-bricks': ['min_tokens', 'max_tokens'],
     world: ['model', 'mode', 'output', 'resolution'],
+    vegetation: ['species', 'budget'],
   }[type];
   const values = keys.map((key) => request[key]);
   if (['images', 'video', 'world'].includes(type)) {
@@ -969,6 +1023,10 @@ export class JobQueue {
     prepareImage = null,
     recoverService = null,
     autoMemory = null,
+    // true or false overrides FORGE_CHAIN_UNLOAD; null reads it (default on). See chain-unload.js.
+    chainUnload = null,
+    // Re-reads GPU memory after a chained render freed a model so the next admission sees it.
+    refreshHardware = null,
     onModelLoadBarrier = null,
     onQueueLog = null,
     // Finds where a finished output lives now (it may have been renamed); tests can replace it.
@@ -996,6 +1054,10 @@ export class JobQueue {
     this.prepareImage = prepareImage;
     this.recoverService = recoverService;
     this.autoMemory = autoMemory;
+    this.chainUnload = chainUnload;
+    this.refreshHardware = refreshHardware;
+    // Chained renders that already had their one chance to free the earlier model (this process).
+    this.chainUnloadAttempted = new Set();
     this.onModelLoadBarrier = onModelLoadBarrier;
     this.onQueueLog = onQueueLog;
     fs.mkdirSync(directory, { recursive: true });
@@ -1034,6 +1096,23 @@ export class JobQueue {
     this.db.exec(
       'CREATE INDEX IF NOT EXISTS jobs_status_created ON jobs(status,created_at); CREATE INDEX IF NOT EXISTS jobs_history_lookup ON jobs(type,status,updated_at); CREATE INDEX IF NOT EXISTS jobs_depends_on ON jobs(depends_on);',
     );
+    // queue_rank: the explicit place of a job in the line (see queue-order.js). Rows written
+    // before this column existed keep NULL and sort by insertion order, as they always did.
+    if (!columns.includes('queue_rank')) {
+      try {
+        this.db.exec('ALTER TABLE jobs ADD COLUMN queue_rank REAL');
+      } catch (error) {
+        if (
+          !this.db
+            .prepare('PRAGMA table_info(jobs)')
+            .all()
+            .some((item) => item.name === 'queue_rank')
+        ) {
+          throw error;
+        }
+      }
+    }
+    this.db.exec('CREATE INDEX IF NOT EXISTS jobs_queue_rank ON jobs(queue_rank)');
     const ownerColumns = this.db
       .prepare('PRAGMA table_info(runtime_owner)')
       .all()
@@ -1090,7 +1169,7 @@ export class JobQueue {
   list() {
     return this.db
       .prepare(
-        `SELECT * FROM jobs ORDER BY CASE WHEN status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','submitting','running','finalizing','interrupted') THEN 0 ELSE 1 END, CASE WHEN status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','submitting','running','finalizing','interrupted') THEN created_at END ASC, CASE WHEN status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','submitting','running','finalizing','interrupted') THEN rowid END ASC, created_at DESC, rowid DESC LIMIT 200`,
+        `SELECT * FROM jobs ORDER BY CASE WHEN status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','submitting','running','finalizing','interrupted') THEN 0 ELSE 1 END, CASE WHEN status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','submitting','running','finalizing','interrupted') THEN COALESCE(queue_rank,rowid) END ASC, CASE WHEN status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','submitting','running','finalizing','interrupted') THEN created_at END ASC, CASE WHEN status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','submitting','running','finalizing','interrupted') THEN rowid END ASC, created_at DESC, rowid DESC LIMIT 200`,
       )
       .all()
       .map(publicJob);
@@ -1128,6 +1207,7 @@ export class JobQueue {
       'motion',
       'motion-bricks',
       'world',
+      'vegetation',
     ]);
     const statuses = new Set([
       'queued',
@@ -1180,7 +1260,7 @@ export class JobQueue {
   insertJob(value, id, now, dependsOn = null) {
     this.db
       .prepare(
-        'INSERT INTO jobs(id,type,project_id,request,status,stage,created_at,updated_at,depends_on) VALUES(?,?,?,?,?,?,?,?,?)',
+        `INSERT INTO jobs(id,type,project_id,request,status,stage,created_at,updated_at,depends_on,queue_rank) VALUES(?,?,?,?,?,?,?,?,?,${NEXT_RANK_SQL})`,
       )
       .run(
         id,
@@ -1207,8 +1287,13 @@ export class JobQueue {
     if (!CHAIN_PARENT_TYPES.includes(parent.type)) {
       throw Error('Only an image or a cutout render can supply a reference.');
     }
-    if (parent.type === 'segmentation' && parent.request?.output !== 'transparent') {
-      throw Error('Only a transparent cutout can be used as a reference, not a mask.');
+    if (
+      parent.type === 'segmentation' &&
+      !['transparent', 'cropped'].includes(parent.request?.output)
+    ) {
+      throw Error(
+        'Only a transparent cutout (or a cropped one) can be used as a reference, not a mask or an outline.',
+      );
     }
     if (['failed', 'cancelled'].includes(parent.status)) {
       throw Error(`The render to take the reference from has already ${parent.status}.`);
@@ -1350,9 +1435,12 @@ export class JobQueue {
     }
   }
   cancel(id) {
+    if (this.cancelRunningVegetation(id)) {
+      return this.get(id);
+    }
     const result = this.db
       .prepare(
-        "UPDATE jobs SET status='cancelled',updated_at=? WHERE id=? AND status IN ('queued','waiting_engine','waiting_memory','needs_attention') AND remote_id IS NULL",
+        "UPDATE jobs SET status='cancelled',stage='Cancelled.',updated_at=? WHERE id=? AND status IN ('queued','waiting_engine','waiting_memory','needs_attention') AND remote_id IS NULL",
       )
       .run(new Date().toISOString(), id);
     if (!result.changes) {
@@ -1384,13 +1472,16 @@ export class JobQueue {
     const now = new Date().toISOString();
     const result = this.db
       .prepare(
-        "UPDATE jobs SET status=CASE WHEN remote_id IS NULL THEN 'queued' ELSE 'running' END,stage=CASE WHEN remote_id IS NULL THEN 'Queued for retry.' ELSE 'Rechecking the existing engine job.' END,error=NULL,details=NULL,finished_at=NULL,started_at=CASE WHEN remote_id IS NULL THEN NULL ELSE started_at END,updated_at=? WHERE id=? AND status IN ('failed','needs_attention','waiting_memory')",
+        // SQLite evaluates every SET expression against the row as it was before the update, so
+        // the known-failure test below sees the old remote_id even though remote_id is cleared.
+        `UPDATE jobs SET status=CASE WHEN remote_id IS NULL OR ${KNOWN_ENGINE_FAILURE_SQL} THEN 'queued' ELSE 'running' END,stage=CASE WHEN remote_id IS NULL OR ${KNOWN_ENGINE_FAILURE_SQL} THEN 'Queued for retry.' ELSE 'Rechecking the existing engine job.' END,remote_id=CASE WHEN ${KNOWN_ENGINE_FAILURE_SQL} THEN NULL ELSE remote_id END,error=NULL,details=NULL,finished_at=NULL,started_at=CASE WHEN remote_id IS NULL OR ${KNOWN_ENGINE_FAILURE_SQL} THEN NULL ELSE started_at END,updated_at=? WHERE id=? AND status IN ('failed','needs_attention','waiting_memory')`,
       )
       .run(now, id);
     if (!result.changes) {
       throw Error('Only failed or waiting jobs can be retried.');
     }
     this.memoryRetryAt.delete(id);
+    this.chainUnloadAttempted.delete(id);
     const retried = this.get(id);
     this.logLifecycle(retried.remoteId ? 'retry_recheck' : 'retry_queued', retried);
     this.requeueDependents(id);
@@ -1458,7 +1549,7 @@ export class JobQueue {
         : publicJob(
             this.db
               .prepare(
-                "SELECT * FROM jobs WHERE status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','submitting','running','finalizing','interrupted') ORDER BY created_at,rowid LIMIT 1",
+                "SELECT * FROM jobs WHERE status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','submitting','running','finalizing','interrupted') ORDER BY COALESCE(queue_rank,rowid),created_at,rowid LIMIT 1",
               )
               .get(),
           );
@@ -1729,13 +1820,13 @@ export class JobQueue {
         .get(token.owner, token.epoch, Date.now()) &&
       this.db
         .prepare(
-          "SELECT id,status FROM jobs WHERE status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','running','finalizing','interrupted') ORDER BY created_at,rowid LIMIT 1",
+          "SELECT id,status FROM jobs WHERE status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','running','finalizing','interrupted') ORDER BY COALESCE(queue_rank,rowid),created_at,rowid LIMIT 1",
         )
         .get()?.id === job.id &&
       this.get(job.id)?.status === 'waiting_memory';
     const upcoming = this.db
       .prepare(
-        "SELECT type FROM jobs WHERE id!=? AND status IN ('queued','waiting_engine','waiting_memory') ORDER BY created_at,rowid",
+        "SELECT type FROM jobs WHERE id!=? AND status IN ('queued','waiting_engine','waiting_memory') ORDER BY COALESCE(queue_rank,rowid),created_at,rowid",
       )
       .all(job.id)
       .map((item) => engineId(item.type));
@@ -1791,6 +1882,132 @@ export class JobQueue {
         token,
       );
     }
+  }
+  // Moves one waiting render within the waiting line (see queue-order.js). Only its rank changes,
+  // so a render that is already claimed or running is untouched and the new order applies to the
+  // next claim.
+  move(id, input) {
+    const result = moveQueuedJob(this.db, id, parseMoveRequest(input));
+    const job = this.get(id);
+    if (result.moved) {
+      this.logMove(job, result);
+    }
+    return { ...result, job };
+  }
+  logMove(job, result) {
+    if (typeof this.onQueueLog !== 'function') {
+      return;
+    }
+    try {
+      this.onQueueLog({
+        event: 'queue_move',
+        type: job.type,
+        status: job.status,
+        jobId: job.id,
+        position: result.to,
+        count: result.count,
+      });
+    } catch {
+      // Queue logging must never alter durable queue behavior.
+    }
+  }
+  logChainUnload(job, parent, outcome) {
+    if (typeof this.onQueueLog !== 'function') {
+      return;
+    }
+    try {
+      this.onQueueLog({
+        event: 'chain_unload',
+        type: job.type,
+        parentType: parent.type,
+        outcome,
+        jobId: job.id,
+      });
+    } catch {
+      // Queue logging must never alter durable queue behavior.
+    }
+  }
+  // A chained render is about to start: free the model of the render it took its input from
+  // (Qwen Image or SAM 3.1) so the two models are not resident together. This goes through the
+  // same guarded offload as "make room" (Forge-owned, loaded, idle, reserved while it stops), and
+  // only when no other open job needs that engine. It is best effort: a refusal or a failure is
+  // reported in the stage and never fails the job. Returns false when the job is no longer the
+  // one to start (cancelled, lease lost) so the tick ends. Runs once per job and process.
+  async freeChainParent(job, token) {
+    if (!this.autoMemory || this.chainUnloadAttempted.has(job.id)) {
+      return true;
+    }
+    const parent = this.get(job.dependsOn);
+    if (!parent || parent.status !== 'completed') {
+      return true;
+    }
+    const upcoming = this.db
+      .prepare(
+        `SELECT type FROM jobs WHERE id!=? AND status IN (${OPEN_STATUSES.map(() => '?').join(',')}) ORDER BY COALESCE(queue_rank,rowid),created_at,rowid`,
+      )
+      .all(job.id, ...OPEN_STATUSES)
+      .map((item) => engineId(item.type));
+    const plan = planChainUnload({
+      parentType: parent.type,
+      childEngine: engineId(job.type),
+      upcomingEngines: upcoming,
+      enabled: typeof this.chainUnload === 'boolean' ? this.chainUnload : undefined,
+    });
+    this.chainUnloadAttempted.add(job.id);
+    if (!plan.engine) {
+      this.logChainUnload(job, parent, `skipped_${plan.skip}`);
+      return true;
+    }
+    const isCurrent = () =>
+      !this.stopped &&
+      !this.active &&
+      !this.modelLoadInProgress &&
+      !!this.db
+        .prepare('SELECT 1 FROM runtime_owner WHERE id=1 AND owner=? AND epoch=? AND expires>?')
+        .get(token.owner, token.epoch, Date.now()) &&
+      this.db
+        .prepare(
+          "SELECT id FROM jobs WHERE status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','running','finalizing','interrupted') ORDER BY COALESCE(queue_rank,rowid),created_at,rowid LIMIT 1",
+        )
+        .get()?.id === job.id &&
+      WAITING_STATUSES.includes(this.get(job.id)?.status);
+    const name = engineName(parent.type);
+    let result;
+    try {
+      result = await this.autoMemory({
+        target: engineId(job.type),
+        only: plan.engine,
+        upcoming,
+        isCurrent,
+        reserve: (id) => this.suspend(id, true),
+        release: (id) => this.resume(id),
+        announce: () =>
+          this.updatePending(
+            job.id,
+            { stage: `Freeing memory from the finished ${name} render...` },
+            token,
+          ),
+      });
+    } catch (error) {
+      result = { status: 'failed', error: error.message };
+    }
+    this.logChainUnload(job, parent, result.status);
+    if (result.status === 'stopped') {
+      try {
+        await this.refreshHardware?.();
+      } catch (error) {
+        console.error('Could not re-read GPU memory after freeing a model:', error.message);
+      }
+      this.updatePending(
+        job.id,
+        { stage: `Freed memory from the finished ${name} render.` },
+        token,
+      );
+    } else if (result.status === 'failed') {
+      const warning = `Could not free memory from the finished ${name} render; continuing.`;
+      this.updatePending(job.id, { stage: `${warning} ${result.error || ''}`.trim() }, token);
+    }
+    return isCurrent();
   }
   lease() {
     const now = Date.now();
@@ -1983,7 +2200,7 @@ export class JobQueue {
       let job = publicJob(
         this.db
           .prepare(
-            "SELECT * FROM jobs WHERE status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','running','finalizing','interrupted') ORDER BY created_at, rowid LIMIT 1",
+            "SELECT * FROM jobs WHERE status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','running','finalizing','interrupted') ORDER BY COALESCE(queue_rank,rowid),created_at,rowid LIMIT 1",
           )
           .get(),
       );
@@ -2001,6 +2218,17 @@ export class JobQueue {
         if (!job) {
           return;
         }
+      }
+      // The earlier model is no longer needed once its output is staged; free it before this
+      // render's model is admitted and loaded.
+      if (!job.remoteId && job.dependsOn && !(await this.freeChainParent(job, token))) {
+        return;
+      }
+      // Vegetation uses no engine, model or GPU memory: SeedThree runs in an isolated child
+      // process. It has no remote job, so a row left running by an earlier runtime is grown again.
+      if (job.type === 'vegetation') {
+        this.startVegetation(job, token);
+        return;
       }
       // Resume known remote jobs; new jobs wait for an already-loaded engine.
       if (!job.remoteId) {
@@ -2219,7 +2447,7 @@ export class JobQueue {
         }
         const gpuPreparation =
           job.type === 'video'
-            ? this.prepareVideo
+            ? this.prepareVideo && (() => this.prepareVideo(job.request))
             : job.type === 'images' && this.prepareImage
               ? () => this.prepareImage(job.request, health.status === 'ready')
               : job.type === '3d' && this.prepareHunyuanRender
@@ -2370,6 +2598,93 @@ export class JobQueue {
       this.polling = false;
     }
   }
+  // Starts a vegetation job: no engine health check and no memory admission, because the work is
+  // CPU only and bounded by the child's own timeout and heap cap (see vegetation-runner.js).
+  startVegetation(job, token) {
+    try {
+      findProject(job.projectId, this.projects);
+    } catch (error) {
+      this.update(
+        job.id,
+        { status: 'failed', stage: 'Project unavailable.', error: error.message },
+        token,
+      );
+      return;
+    }
+    const checkout = quickCheckoutStatus();
+    if (!checkout.ready) {
+      this.update(
+        job.id,
+        {
+          status: 'failed',
+          stage: 'SeedThree is not ready.',
+          error: checkout.message,
+          finished_at: new Date().toISOString(),
+        },
+        token,
+      );
+      return;
+    }
+    const now = new Date().toISOString();
+    const claimed = this.db
+      .prepare(
+        "UPDATE jobs SET status='running',stage=?,error=NULL,details=NULL,started_at=?,finished_at=NULL,updated_at=? WHERE id=? AND status IN ('queued','waiting_engine','waiting_memory','running') AND EXISTS (SELECT 1 FROM runtime_owner WHERE id=1 AND owner=? AND epoch=? AND expires>?)",
+      )
+      .run(
+        job.status === 'running' ? 'Growing the plant again after a restart.' : 'Starting SeedThree.',
+        now,
+        now,
+        job.id,
+        token.owner,
+        token.epoch,
+        Date.now(),
+      );
+    if (!claimed.changes) {
+      return;
+    }
+    this.logLifecycle('status_transition', this.get(job.id), 'running');
+    try {
+      this.launch(job, token);
+    } catch (error) {
+      this.update(
+        job.id,
+        {
+          status: 'failed',
+          stage: 'Failed.',
+          error: `Could not start worker: ${error.message}`,
+          finished_at: new Date().toISOString(),
+        },
+        token,
+      );
+    }
+  }
+  // Cancels the vegetation job that is growing now. The worker is asked to stop first so it can
+  // remove its staged files; it is ended after a short grace period if it does not exit.
+  cancelRunningVegetation(id) {
+    const job = this.get(id);
+    if (job?.type !== 'vegetation' || job.status !== 'running' || this.active?.id !== id) {
+      return false;
+    }
+    const now = new Date().toISOString();
+    const changed = this.db
+      .prepare(
+        "UPDATE jobs SET status='cancelled',stage='Cancelled.',finished_at=?,updated_at=? WHERE id=? AND status='running' AND EXISTS (SELECT 1 FROM runtime_owner WHERE id=1 AND owner=? AND epoch=? AND expires>?)",
+      )
+      .run(now, now, id, this.owner, this.epoch, Date.now());
+    if (!changed.changes) {
+      return false;
+    }
+    const { child } = this.active;
+    this.active.forced = true;
+    try {
+      child.send({ type: 'cancel' });
+    } catch {
+      // The worker already ended; the kill below is then a no-op.
+    }
+    setTimeout(() => child.kill(), 3000).unref();
+    this.logLifecycle('cancelled', this.get(id));
+    return true;
+  }
   launch(job, token) {
     const projectFolder = findProject(job.projectId, this.projects);
     const workerFile = {
@@ -2384,6 +2699,7 @@ export class JobQueue {
       motion: './hymotion-job.js',
       'motion-bricks': './motionbricks-job.js',
       world: './world-job.js',
+      vegetation: './vegetation-job.js',
     }[job.type];
     const child = fork(new URL(workerFile, import.meta.url), [], {
       execArgv: [],
@@ -2419,9 +2735,27 @@ export class JobQueue {
           stage: typeof message.stage === 'string' ? message.stage.slice(0, 300) : 'Completed.',
           error: null,
         },
-        failed: { status: 'failed', error: message.error, stage: 'Failed.' },
+        failed: {
+          status: 'failed',
+          error: message.error,
+          stage: 'Failed.',
+          ...(message.engineFailure === true
+            ? { details: JSON.stringify({ outcome: ENGINE_FAILED_OUTCOME }) }
+            : {}),
+        },
         interrupted: { status: 'interrupted', error: message.error, stage: 'Needs attention.' },
       }[message.type];
+      const matchReport = message.type === 'complete' ? cleanMatchReport(message.result) : null;
+      if (matchReport) {
+        changes.details = JSON.stringify({ result: matchReport });
+      }
+      const vegetationResult =
+        message.type === 'complete' && job.type === 'vegetation'
+          ? cleanVegetationResult(message.result)
+          : null;
+      if (vegetationResult) {
+        changes.details = JSON.stringify({ result: vegetationResult });
+      }
       if (!changes) {
         return;
       }
@@ -2476,6 +2810,18 @@ export class JobQueue {
             },
             token,
             'uncertain_recovery',
+          );
+        } else if (job.type === 'vegetation' && current?.status === 'running') {
+          // There is no remote job to ask about: the worker died, so say so and let Retry run it.
+          this.update(
+            job.id,
+            {
+              status: 'failed',
+              stage: 'Failed.',
+              error: 'The vegetation worker stopped unexpectedly. Retry to grow the plant again.',
+              finished_at: new Date().toISOString(),
+            },
+            token,
           );
         } else if (current?.remoteId) {
           this.update(
@@ -2570,6 +2916,7 @@ function engineName(type) {
       'motion-hy': 'HY-Motion',
       'motion-bricks': 'MotionBricks',
       world: 'World generation',
+      vegetation: 'SeedThree',
     }[type] || 'engine'
   );
 }

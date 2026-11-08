@@ -1,9 +1,12 @@
 import { saveProjectText } from './save-project-text';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Copy, Gamepad2, LoaderCircle, Save } from 'lucide-react';
 import {
-  decisionSummary,
+  decisionSummaries,
   gameDecisionRequest,
+  gameQuestion,
+  MAX_GAME_QUESTIONS,
+  mammothStateDetail,
   presentGameDecision,
 } from './game-decision-input.js';
 import MemoryDialog from './MemoryDialog.jsx';
@@ -40,11 +43,16 @@ function errorText(detail) {
 
 export default function GameDecision({ draft, project, onSaved }) {
   const [result, setResult] = useState(null),
-    [summary, setSummary] = useState(null),
+    [summaries, setSummaries] = useState([]),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [copied, setCopied] = useState(false);
   const [timings, setTimings] = useState(readTimings);
+  // Extra questions are about the same game state; they stay in this panel and are not saved
+  // with the draft.
+  const [extraQuestions, setExtraQuestions] = useState([]);
+  const nextExtraId = useRef(0);
+  const extraBaseId = useId();
   const [service, setService] = useState(null);
   const [statusError, setStatusError] = useState('');
   const [saving, setSaving] = useState(false),
@@ -168,7 +176,7 @@ export default function GameDecision({ draft, project, onSaved }) {
   async function run() {
     let request;
     try {
-      request = gameDecisionRequest(draft);
+      request = gameDecisionRequest(draft, extraQuestions);
     } catch (error) {
       setError(error.message);
       return;
@@ -176,7 +184,7 @@ export default function GameDecision({ draft, project, onSaved }) {
     setBusy(true);
     setError('');
     setResult(null);
-    setSummary(null);
+    setSummaries([]);
     setCopied(false);
     setSavedPath('');
     try {
@@ -189,7 +197,7 @@ export default function GameDecision({ draft, project, onSaved }) {
       if (!response.ok) {
         throw Error(errorText(data.detail) || data.error || 'Mammoth could not answer.');
       }
-      setSummary(decisionSummary(data, request));
+      setSummaries(decisionSummaries(data, request));
       const elapsed = data?.metrics?.server_ms;
       if (typeof elapsed === 'number' && Number.isFinite(elapsed) && elapsed >= 0) {
         setTimings((previous) => {
@@ -213,6 +221,29 @@ export default function GameDecision({ draft, project, onSaved }) {
     }
   }
   const shown = presentGameDecision(result, draft.options?.[1]);
+  const extraErrors = extraQuestions.map((item) => {
+    try {
+      gameQuestion(item.mode, item.text);
+      return '';
+    } catch (reason) {
+      return reason.message;
+    }
+  });
+  function addExtraQuestion() {
+    setExtraQuestions((previous) =>
+      previous.length + 1 >= MAX_GAME_QUESTIONS
+        ? previous
+        : [...previous, { id: (nextExtraId.current += 1), mode: 'Choice', text: '' }],
+    );
+  }
+  function updateExtraQuestion(id, changes) {
+    setExtraQuestions((previous) =>
+      previous.map((item) => (item.id === id ? { ...item, ...changes } : item)),
+    );
+  }
+  function removeExtraQuestion(id) {
+    setExtraQuestions((previous) => previous.filter((item) => item.id !== id));
+  }
   const decisionType =
     draft.options?.[0] === 'Yes / No' ? 'noul' : draft.options?.[0]?.toLowerCase();
   const similar = timings
@@ -308,18 +339,7 @@ export default function GameDecision({ draft, project, onSaved }) {
         <span className="game-service-indicator" aria-hidden="true" />
         <div>
           <strong>{serviceState}</strong>
-          <span>
-            {statusError ||
-              (service?.managed === false
-                ? service.state === 'error'
-                  ? 'Check the Mammoth application for the load failure. Forge cannot manage this service.'
-                  : 'Started outside Forge. Forge will leave this service running when you stop it.'
-                : service?.managed
-                  ? service.state === 'error'
-                    ? 'Stop the managed service, then start Mammoth again to retry the load.'
-                    : 'Managed by Forge. Stop only unloads the managed Mammoth service.'
-                  : 'Start or load Mammoth before running a decision.')}
-          </span>
+          <span>{mammothStateDetail(service, statusError)}</span>
         </div>
       </div>
       <p className="helper">
@@ -327,6 +347,68 @@ export default function GameDecision({ draft, project, onSaved }) {
           ? 'Yes / No returns the probability that the answer is yes.'
           : 'Choice returns the most likely option with a probability for each option.'}
       </p>
+      <fieldset className="game-extra-questions">
+        <legend>Additional questions about the same state</legend>
+        <p className="helper">
+          Each extra question is answered in the same request, up to {MAX_GAME_QUESTIONS} questions
+          in total. Choice and Score questions use the same rules as the main question. These are
+          not saved with the draft.
+        </p>
+        {extraQuestions.map((item, index) => {
+          const errorId = `${extraBaseId}-error-${item.id}`;
+          const errorText = extraErrors[index];
+          return (
+            <div className="game-extra-question" key={item.id}>
+              <label>
+                Question {index + 2} type
+                <select
+                  value={item.mode}
+                  onChange={(event) => updateExtraQuestion(item.id, { mode: event.target.value })}
+                >
+                  <option value="Choice">Choice</option>
+                  <option value="Score">Score</option>
+                  <option value="Yes / No">Yes / No</option>
+                </select>
+              </label>
+              <label>
+                Question {index + 2} text
+                <textarea
+                  rows={3}
+                  value={item.text}
+                  aria-invalid={errorText ? 'true' : undefined}
+                  aria-describedby={errorText ? errorId : undefined}
+                  onChange={(event) => updateExtraQuestion(item.id, { text: event.target.value })}
+                />
+              </label>
+              {errorText && (
+                <p id={errorId} className="settings-error" role="alert">
+                  {errorText}
+                </p>
+              )}
+              <button
+                type="button"
+                className="text-action danger"
+                onClick={() => removeExtraQuestion(item.id)}
+              >
+                Remove question {index + 2}
+              </button>
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          className="outline-button"
+          onClick={addExtraQuestion}
+          disabled={extraQuestions.length + 1 >= MAX_GAME_QUESTIONS}
+        >
+          Add question
+        </button>
+        {extraQuestions.length + 1 >= MAX_GAME_QUESTIONS && (
+          <p className="helper">
+            Mammoth accepts at most {MAX_GAME_QUESTIONS} questions per request.
+          </p>
+        )}
+      </fieldset>
       <div className="queue-timing-summary">
         <strong>
           Estimated decision time:{' '}
@@ -393,11 +475,16 @@ export default function GameDecision({ draft, project, onSaved }) {
       )}
       {result && (
         <>
-          {summary && (
-            <p className="game-summary" role="status">
-              <strong>{summary.title}</strong>
-              {summary.detail && <span>{summary.detail}</span>}
-            </p>
+          {summaries.map(({ name, summary }, index) =>
+            summary ? (
+              <p className="game-summary" role="status" key={name}>
+                <strong>
+                  {summaries.length > 1 ? `Question ${index + 1}: ` : ''}
+                  {summary.title}
+                </strong>
+                {summary.detail && <span>{summary.detail}</span>}
+              </p>
+            ) : null,
           )}
           <p className="helper">
             {draft.options?.[1] === 'Compact'

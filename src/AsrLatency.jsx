@@ -22,7 +22,9 @@ async function call(method, body) {
 
 // Streaming latency of the speech engine. It is read when the engine starts, so applying a change
 // restarts an idle engine; while a transcription is running the control is disabled.
-export default function AsrLatency({ disabled = false }) {
+const ignoreSavedLatency = () => {};
+
+export default function AsrLatency({ disabled = false, onSaved = ignoreSavedLatency }) {
   const id = useId();
   const [saved, setSaved] = useState(null);
   const [choice, setChoice] = useState(160);
@@ -37,6 +39,7 @@ export default function AsrLatency({ disabled = false }) {
         if (active) {
           setSaved(result.latencyMs);
           setChoice(result.latencyMs);
+          onSaved(result.latencyMs);
         }
       })
       .catch(() => {
@@ -45,7 +48,7 @@ export default function AsrLatency({ disabled = false }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [onSaved]);
 
   async function apply() {
     setBusy(true);
@@ -54,6 +57,7 @@ export default function AsrLatency({ disabled = false }) {
     try {
       const result = await call('POST', { latencyMs: choice });
       setSaved(result.latencyMs);
+      onSaved(result.latencyMs);
       setMessage(result.message);
     } catch (reason) {
       setError(reason.message);

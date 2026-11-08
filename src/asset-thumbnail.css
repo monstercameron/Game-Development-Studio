@@ -43,3 +43,66 @@
 .iteration-recent .asset-visual-thumbnail > img {
   object-fit: contain;
 }
+
+/* Loading placeholder: a soft moving highlight, so an empty box reads as "still coming". */
+.asset-skeleton,
+.asset-thumbnail-placeholder[data-state='loading'] {
+  --asset-skeleton-highlight: rgb(255 255 255 / 0.08);
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    var(--asset-skeleton-highlight) 50%,
+    transparent 80%
+  );
+  background-size: 220% 100%;
+  animation: asset-skeleton-sweep 1.5s linear infinite;
+}
+.asset-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-color: var(--forge-surface-deep, #341628);
+}
+.gallery-thumb,
+.iteration-media {
+  position: relative;
+}
+.asset-thumbnail-placeholder[data-state='failed'] svg {
+  color: var(--forge-muted, #d4c0ca);
+}
+.iteration-image-error {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ux-space-2, 8px);
+  padding: var(--ux-space-4, 16px);
+  color: var(--forge-muted, #d4c0ca);
+  text-align: center;
+  font-size: var(--ux-text-sm, 13px);
+}
+.iteration-image-error strong {
+  color: var(--forge-text-strong, #f5edf1);
+}
+.gallery-file-name {
+  margin: 0;
+  color: var(--forge-muted, #d4c0ca);
+  font-size: var(--ux-text-sm, 13px);
+  overflow-wrap: anywhere;
+}
+@keyframes asset-skeleton-sweep {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asset-skeleton,
+  .asset-thumbnail-placeholder[data-state='loading'] {
+    animation: none;
+  }
+}

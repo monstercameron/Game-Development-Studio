@@ -113,6 +113,15 @@ test('credential save remains actionable when the follow-up status refresh fails
     );
     assert.equal(container.querySelector('button[type="submit"]').textContent, 'Replace key');
     assert.equal(container.querySelector('button.ghost-button')?.textContent, 'Remove key');
+    // Each key row names its provider, so the two "Save key" buttons are distinguishable.
+    assert.equal(
+      container.querySelector('button[type="submit"]').getAttribute('aria-label'),
+      'Replace key for OpenAI',
+    );
+    assert.equal(
+      container.querySelector('button.ghost-button').getAttribute('aria-label'),
+      'Remove key for OpenAI',
+    );
     assert.equal(container.querySelector('[role="status"]')?.textContent, 'OpenAI key saved.');
     assert.equal(
       container.querySelector('[role="alert"]')?.textContent,

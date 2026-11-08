@@ -1,0 +1,3 @@
+[submodule "external/SeedThree"]
+	path = external/SeedThree
+	url = https://github.com/SkyeShark/SeedThree.git

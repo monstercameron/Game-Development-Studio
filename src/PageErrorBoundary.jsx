@@ -5,8 +5,19 @@ export default class PageErrorBoundary extends React.Component {
   state = { error: null, copyStatus: '' };
   headingRef = React.createRef();
 
-  componentDidCatch() {
+  componentDidCatch(error, info) {
     this.headingRef.current?.focus();
+    // The Errors review listens for this event (src/error-capture.js). An event keeps this
+    // boundary free of imports, so it still works if error capture fails to load.
+    try {
+      window.dispatchEvent(
+        new window.CustomEvent('forge:caught-error', {
+          detail: { error, componentStack: info?.componentStack || '', name: this.props.name },
+        }),
+      );
+    } catch {
+      // Reporting is optional; the fallback below is what keeps the studio usable.
+    }
   }
 
   componentDidUpdate(_previousProps, previousState) {

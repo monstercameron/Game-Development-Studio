@@ -15,6 +15,12 @@ import torch
 from PIL import Image
 
 
+# Qwen Image's transparent output leaves a faint haze (alpha 1 to 25 over about half the frame).
+# Upstream treats every non-zero alpha as object, so the haze made the foreground box the whole
+# picture and became a flat disc under the model. Alpha below this value counts as background.
+FAINT_ALPHA = 32
+
+
 class PillowImageProcessor:
     """Adapt the upstream RGBA recentering pipeline to Pillow on Windows ARM.
 
@@ -29,7 +35,8 @@ class PillowImageProcessor:
     def __call__(self, image, **_kwargs):
         if not isinstance(image, Image.Image):
             image = Image.open(image)
-        rgba = np.asarray(image.convert("RGBA"))
+        rgba = np.array(image.convert("RGBA"))
+        rgba[rgba[:, :, 3] < FAINT_ALPHA] = 0
         height, width = rgba.shape[:2]
         y, x = np.nonzero(rgba[:, :, 3])
         if not len(y):

@@ -12,6 +12,15 @@ import numpy as np
 import torch
 from PIL import Image, ImageOps
 
+OUTPUTS = ("transparent", "mask", "outline", "cropped")
+# all: every match combined. best: the highest-scoring match. largest: the match with the most
+# pixels. top: the max_instances highest-scoring matches.
+SELECTIONS = ("all", "best", "largest", "top")
+MAX_INSTANCES = 50
+# The job status lists at most this many matches (best score first) to keep it small.
+MAX_REPORTED_MATCHES = 20
+OUTLINE_COLOR = (255, 45, 149, 255)
+
 _DERIVED_ROPE = re.compile(
     r"^backbone\.vision_backbone\.trunk\.blocks\.\d+\.attn\.freqs_cis_(real|imag)$"
 )
@@ -120,8 +129,67 @@ def load_detector(checkpoint_path, device="cuda"):
     return Sam3Processor(model, device=device)
 
 
-def segment_image(processor, image, prompt, *, output="transparent", confidence=0.5):
-    """Generate a union mask or transparent cutout using a loaded detector.
+def _mask_boxes(masks):
+    """Return (x0, y0, x1, y1) with exclusive ends for each (N, H, W) mask, or None if empty."""
+    rows = masks.any(dim=2).cpu().numpy()
+    columns = masks.any(dim=1).cpu().numpy()
+    boxes = []
+    for row, column in zip(rows, columns, strict=True):
+        ys = np.flatnonzero(row)
+        xs = np.flatnonzero(column)
+        if ys.size == 0 or xs.size == 0:
+            boxes.append(None)
+        else:
+            boxes.append((int(xs[0]), int(ys[0]), int(xs[-1]) + 1, int(ys[-1]) + 1))
+    return boxes
+
+
+def _select_matches(select, max_instances, scores, areas):
+    """Pick which non-empty matches to keep; the result is ordered best score first."""
+    candidates = [index for index, area in enumerate(areas) if area > 0]
+    if not candidates:
+        return []
+    by_score = sorted(candidates, key=lambda i: (-scores[i], -areas[i], i))
+    if select == "best":
+        return by_score[:1]
+    if select == "largest":
+        return [max(candidates, key=lambda i: (areas[i], scores[i], -i))]
+    if select == "top":
+        return by_score[:max_instances]
+    return by_score
+
+
+def _outline(mask, thickness):
+    """Return the inner border of a boolean mask; the image edge itself is not outlined."""
+    inner = mask
+    for _ in range(thickness):
+        padded = np.pad(inner, 1, mode="edge")
+        inner = (
+            padded[1:-1, 1:-1]
+            & padded[:-2, 1:-1]
+            & padded[2:, 1:-1]
+            & padded[1:-1, :-2]
+            & padded[1:-1, 2:]
+        )
+    return mask & ~inner
+
+
+def segment_image(
+    processor,
+    image,
+    prompt,
+    *,
+    output="transparent",
+    confidence=0.5,
+    select="all",
+    max_instances=None,
+):
+    """Generate a mask, cutout, outline overlay or cropped cutout using a loaded detector.
+
+    output is transparent (cutout on the full image), mask (white on black), outline (the
+    original with each kept match outlined) or cropped (cutout trimmed to the kept matches
+    plus padding). select chooses which matches are kept; see SELECTIONS. The metadata lists
+    every match found (up to MAX_REPORTED_MATCHES) with its model score.
 
     Results from real SAM 3.1 inference have not yet been validated on this
     platform. Callers must serialize access to a processor and admit its GPU
@@ -133,8 +201,19 @@ def segment_image(processor, image, prompt, *, output="transparent", confidence=
         raise ValueError("The reference image dimensions are too large.")
     if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 1000:
         raise ValueError("Describe what to isolate in 1–1000 characters.")
-    if output not in ("transparent", "mask"):
-        raise ValueError("Output must be transparent or mask.")
+    if output not in OUTPUTS:
+        raise ValueError(f"Output must be one of: {', '.join(OUTPUTS)}.")
+    if select not in SELECTIONS:
+        raise ValueError(f"Select must be one of: {', '.join(SELECTIONS)}.")
+    if select == "top":
+        if (
+            isinstance(max_instances, bool)
+            or not isinstance(max_instances, int)
+            or not 1 <= max_instances <= MAX_INSTANCES
+        ):
+            raise ValueError(f"max_instances must be a whole number from 1 to {MAX_INSTANCES}.")
+    elif max_instances is not None:
+        raise ValueError("max_instances only applies when select is top.")
     if (
         isinstance(confidence, bool)
         or not isinstance(confidence, (int, float))
@@ -173,13 +252,54 @@ def segment_image(processor, image, prompt, *, output="transparent", confidence=
         raise ValueError(
             "No matching objects were found. Try another description or confidence threshold."
         )
-    union = masks.any(dim=0).squeeze(0).cpu().numpy()
-    if not union.any():
+    instance_masks = masks[:, 0]
+    areas = [int(value) for value in instance_masks.flatten(1).sum(dim=1).cpu().tolist()]
+    # A non-finite score is reported as 0 so the job status stays valid JSON.
+    score_values = [value if np.isfinite(value) else 0.0 for value in scores.float().cpu().tolist()]
+    chosen = _select_matches(select, max_instances, score_values, areas)
+    if not chosen:
         raise ValueError("The selected objects have empty masks. Try another description.")
+    union = (
+        instance_masks[torch.as_tensor(chosen, device=instance_masks.device)]
+        .any(dim=0)
+        .cpu()
+        .numpy()
+    )
+    metadata = {"instances": int(masks.shape[0]), "used": len(chosen), "select": select}
     if output == "mask":
         result = Image.fromarray(union.astype(np.uint8) * 255)
+    elif output == "outline":
+        rgba = np.array(source, dtype=np.uint8, copy=True)
+        thickness = min(8, max(2, round(min(source.width, source.height) / 250)))
+        border = np.zeros(union.shape, dtype=bool)
+        for index in chosen:
+            border |= _outline(instance_masks[index].cpu().numpy(), thickness)
+        rgba[border] = OUTLINE_COLOR
+        result = Image.fromarray(rgba)
     else:
         rgba = np.array(source, dtype=np.uint8, copy=True)
         rgba[:, :, 3] = np.where(union, rgba[:, :, 3], 0)
+        if output == "cropped":
+            ys = np.flatnonzero(union.any(axis=1))
+            xs = np.flatnonzero(union.any(axis=0))
+            x0, y0, x1, y1 = int(xs[0]), int(ys[0]), int(xs[-1]) + 1, int(ys[-1]) + 1
+            padding = max(4, round(0.05 * max(x1 - x0, y1 - y0)))
+            x0, y0 = max(0, x0 - padding), max(0, y0 - padding)
+            x1, y1 = min(source.width, x1 + padding), min(source.height, y1 + padding)
+            rgba = rgba[y0:y1, x0:x1]
+            metadata["cropBox"] = [x0, y0, x1, y1]
         result = Image.fromarray(rgba)
-    return result, {"instances": int(masks.shape[0]), "selectedPixels": int(union.sum())}
+    reported = sorted(range(len(score_values)), key=lambda i: (-score_values[i], -areas[i], i))
+    reported = reported[:MAX_REPORTED_MATCHES]
+    boxes = _mask_boxes(instance_masks[torch.as_tensor(reported, device=masks.device)])
+    metadata["selectedPixels"] = int(union.sum())
+    metadata["matches"] = [
+        {
+            "score": round(score_values[index], 4),
+            "area": areas[index],
+            "box": list(box) if box is not None else None,
+            "selected": index in chosen,
+        }
+        for index, box in zip(reported, boxes, strict=True)
+    ]
+    return result, metadata

@@ -27,8 +27,10 @@ export function voiceModeFieldErrors(draft) {
     } else {
       errors.reference = cloneReferenceLengthProblem(draft.voiceReferenceSeconds);
     }
+    // Voice-only cloning sends no transcript, so an empty one is not an error there.
     const transcript = String(draft.voiceReferenceText ?? '').trim();
-    if (!transcript || transcript.length > CLONE_TRANSCRIPT_MAX) {
+    const needsTranscript = draft.voiceCloneVoiceOnly !== true;
+    if (needsTranscript && (!transcript || transcript.length > CLONE_TRANSCRIPT_MAX)) {
       errors.transcript = CLONE_TRANSCRIPT_MESSAGE;
     }
     if (draft.voiceConsent !== true) {

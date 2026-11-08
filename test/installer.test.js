@@ -267,6 +267,105 @@ test(
 );
 
 test(
+  'optional TTS checkpoints report activation support and activate only into new folders',
+  { skip: process.platform !== 'win32', timeout: 60000 },
+  async (t) => {
+    const script = path.join(root, 'install.ps1');
+    const listing = execFileSync(
+      shell,
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-ListModels'],
+      { cwd: root, encoding: 'utf8' },
+    );
+    for (const id of ['tts-base', 'tts-voicedesign']) {
+      const block = listing.slice(listing.indexOf(`\n${id} - `));
+      assert.match(
+        block,
+        /Installer: download staging; optional new-folder activation/,
+        `${id} listing`,
+      );
+    }
+    const optionalFolders = {
+      'tts-base': 'Qwen3-TTS-12Hz-1.7B-Base',
+      'tts-voicedesign': 'Qwen3-TTS-12Hz-1.7B-VoiceDesign',
+    };
+    const activeFolder = 'Qwen3-TTS-12Hz-1.7B-CustomVoice';
+    for (const [id, folder] of Object.entries(optionalFolders)) {
+      const temp = await fs.mkdtemp(path.join(os.tmpdir(), `forge-optional-${id}-`));
+      t.after(() => fs.rm(temp, { recursive: true, force: true }));
+      await fs.copyFile(path.join(root, 'install.ps1'), path.join(temp, 'install.ps1'));
+      const hash = createHash('sha256').update('weights').digest('hex');
+      const fixture = {
+        schemaVersion: 1,
+        models: [
+          {
+            id,
+            optional: true,
+            name: 'Optional TTS fixture',
+            sources: ['https://huggingface.co/example/model'],
+            destination: `models/${folder}`,
+            notes: 'Fixture',
+            downloads: [
+              {
+                repo: 'example/model',
+                revision: 'abc',
+                destination: folder,
+                files: ['model.bin'],
+                sha256File: 'model.bin',
+                sha256: hash,
+              },
+            ],
+          },
+        ],
+      };
+      await fs.writeFile(path.join(temp, 'install-models.json'), JSON.stringify(fixture));
+      const fake = path.join(temp, 'fake-hf.ps1');
+      await fs.writeFile(
+        fake,
+        `param([Parameter(ValueFromRemainingArguments=$true)][string[]]$rest)\n$i=[array]::IndexOf($rest,'--local-dir')\n$dest=$rest[$i+1]\nNew-Item -ItemType Directory -Force -Path $dest | Out-Null\n[IO.File]::WriteAllText((Join-Path $dest 'model.bin'),'weights')\nexit 0\n`,
+      );
+      // The active CustomVoice model must survive an optional activation untouched.
+      const active = path.join(temp, 'models', activeFolder);
+      await fs.mkdir(active, { recursive: true });
+      await fs.writeFile(path.join(active, 'model.safetensors'), 'active');
+      const run = (stage) =>
+        spawnSync(
+          shell,
+          [
+            '-NoProfile',
+            '-ExecutionPolicy',
+            'Bypass',
+            '-File',
+            path.join(temp, 'install.ps1'),
+            '-SkipApp',
+            '-Models',
+            id,
+            '-Activate',
+            '-HfCli',
+            fake,
+            '-StagingDirectory',
+            stage,
+          ],
+          { cwd: temp, encoding: 'utf8' },
+        );
+      const first = run(path.join(temp, 'staged'));
+      assert.equal(first.status, 0, first.stderr);
+      assert.equal(
+        await fs.readFile(path.join(temp, 'models', folder, 'model.bin'), 'utf8'),
+        'weights',
+      );
+      assert.equal(
+        await fs.readFile(path.join(active, 'model.safetensors'), 'utf8'),
+        'active',
+      );
+      const second = run(path.join(temp, 'second-stage'));
+      assert.notEqual(second.status, 0);
+      assert.match(second.stderr, /already exists/i);
+      await assert.rejects(fs.stat(path.join(temp, 'second-stage')), { code: 'ENOENT' });
+    }
+  },
+);
+
+test(
   'checksum failure leaves staged files inactive',
   { skip: process.platform !== 'win32', timeout: 30000 },
   async (t) => {

@@ -38,6 +38,8 @@ MODEL = Path(
 OUTPUTS = Path(os.environ.get("FORGE_RUNTIME_DIR", ROOT / ".forge-runtime")) / "sam31-outputs"
 OUTPUTS.mkdir(parents=True, exist_ok=True)
 TOKEN = os.environ.get("FORGE_ENGINE_CONTROL_TOKEN", "")
+# Must match SAM31_OPTION_FEATURE in runtime/sam31-options.js.
+MATCH_SELECTION_FEATURE = "match-selection"
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 app = FastAPI(title="Forge SAM 3.1 experimental worker")
 install_identity_endpoint(app, TOKEN, "segmentation")
@@ -131,7 +133,13 @@ def run_segmentation(processor, image, request):
     from sam31_backend import segment_image
 
     return segment_image(
-        processor, image, request.prompt, output=request.output, confidence=request.confidence
+        processor,
+        image,
+        request.prompt,
+        output=request.output,
+        confidence=request.confidence,
+        select=getattr(request, "select", "all"),
+        max_instances=getattr(request, "max_instances", None),
     )
 
 
@@ -195,8 +203,20 @@ def render_worker(job_id, image, request):
 class SegmentRequest(BaseModel):
     image: str = Field(min_length=1, max_length=14_000_000)
     prompt: str = Field(min_length=1, max_length=1000)
-    output: Literal["transparent", "mask"] = "transparent"
+    output: Literal["transparent", "mask", "outline", "cropped"] = "transparent"
     confidence: float = Field(default=0.5, ge=0, le=1, allow_inf_nan=False, strict=True)
+    select: Literal["all", "best", "largest", "top"] = "all"
+    max_instances: int | None = Field(default=None, ge=1, le=50, strict=True)
+
+
+def check_match_limit(request):
+    """Reject a limit without select=top, or select=top without a limit, before any work."""
+    select = getattr(request, "select", "all")
+    max_instances = getattr(request, "max_instances", None)
+    if select == "top" and max_instances is None:
+        raise HTTPException(422, "max_instances is required when select is top.")
+    if select != "top" and max_instances is not None:
+        raise HTTPException(422, "max_instances only applies when select is top.")
 
 
 @app.get("/api/status")
@@ -208,6 +228,8 @@ def status():
             "loaded": model is not None,
             "model_downloaded": MODEL.is_file(),
             "error": state["error"],
+            # Lets the queue refuse options that an older, still-running worker would ignore.
+            "features": [MATCH_SELECTION_FEATURE],
         }
 
 
@@ -236,6 +258,7 @@ def load():
 
 @app.post("/api/generate", status_code=202)
 def generate(request: SegmentRequest):
+    check_match_limit(request)
     if not request.prompt.strip():
         raise HTTPException(400, "Describe what to isolate.")
     with lock:

@@ -64,6 +64,7 @@ export default function VoiceModeControls({
     showFieldErrors && fieldErrors.reference !== referenceLengthProblem
       ? fieldErrors.reference
       : '';
+  const voiceOnly = draft.voiceCloneVoiceOnly === true;
   const transcriptError = showFieldErrors ? fieldErrors.transcript : '';
   const consentError = showFieldErrors ? fieldErrors.consent : '';
   const descriptionError = showFieldErrors ? fieldErrors.description : '';
@@ -322,8 +323,26 @@ export default function VoiceModeControls({
                 {referenceError}
               </small>
             )}
+            <label className="sound-source-mode audio-setting-wide" htmlFor="voiceCloneVoiceOnly">
+              <input
+                id="voiceCloneVoiceOnly"
+                type="checkbox"
+                checked={voiceOnly}
+                aria-describedby="voiceCloneVoiceOnly-help"
+                onChange={(e) => update({ voiceCloneVoiceOnly: e.target.checked })}
+              />
+              <span>
+                <strong>Voice only - no transcript, lower similarity</strong>{' '}
+                <small id="voiceCloneVoiceOnly-help">
+                  Copies the voice from the clip alone. Forge does not send a transcript, so the
+                  field below is optional. The result usually sounds less like the speaker.
+                </small>
+              </span>
+            </label>
             <label className="audio-setting audio-setting-wide" htmlFor="voiceReferenceText">
-              <span>Reference transcript (required)</span>
+              <span>
+                {voiceOnly ? 'Reference transcript (optional)' : 'Reference transcript (required)'}
+              </span>
               <textarea
                 ref={transcriptRef}
                 id="voiceReferenceText"
@@ -344,9 +363,10 @@ export default function VoiceModeControls({
                 placeholder="The exact words spoken in the reference clip"
               />
               <small id="voiceReferenceText-help">
-                Type what is said in the clip, word for word, including punctuation. The transcript
-                must match the chosen clip; choosing a different clip clears it. Forge does not
-                transcribe it for you yet. Up to {CLONE_TRANSCRIPT_MAX} characters.
+                {voiceOnly
+                  ? 'Voice only is on, so this text is not sent. Turn it off to clone with the transcript.'
+                  : 'Type what is said in the clip, word for word, including punctuation. The transcript must match the chosen clip; choosing a different clip clears it. Forge does not transcribe it for you yet.'}{' '}
+                Up to {CLONE_TRANSCRIPT_MAX} characters.
               </small>
             </label>
             {transcriptError && (

@@ -7,6 +7,7 @@ import {
   chatMarkdownAllowedElements,
   chatMarkdownComponents,
 } from '../src/chat-markdown-config.js';
+import { splitMarkdownTables } from '../src/chat-markdown-tables.js';
 
 test('chat Markdown renders CommonMark while dropping HTML and unsafe destinations', () => {
   const markdown = [
@@ -48,4 +49,70 @@ test('chat Markdown renders CommonMark while dropping HTML and unsafe destinatio
   assert.match(output, /Unsafe/);
   assert.match(output, /Email/);
   assert.doesNotMatch(output, /javascript:|mailto:|onerror|<img|<script/);
+});
+
+test('code blocks get a copy button and keep their scrollable label', () => {
+  const output = renderToStaticMarkup(
+    React.createElement(ReactMarkdown, {
+      children: '```js\nconst x = 1;\n```',
+      skipHtml: true,
+      allowedElements: chatMarkdownAllowedElements,
+      components: chatMarkdownComponents,
+    }),
+  );
+  assert.match(
+    output,
+    /<div class="chat-code-block"><button[^>]*aria-label="Copy code"[^>]*>Copy<\/button>/,
+  );
+  assert.match(output, /<pre tabindex="0" aria-label="Code block\./);
+});
+
+test('pipe tables become table segments and fenced code is left alone', () => {
+  const segments = splitMarkdownTables(
+    [
+      'Before',
+      '',
+      '| Name | Qty |',
+      '|:-----|----:|',
+      '| **Potion** | 3 |',
+      '| Ether \\| X | 12 |',
+      '',
+      'After',
+      '',
+      '```',
+      '| not | a table |',
+      '|-----|---------|',
+      '```',
+    ].join('\n'),
+  );
+  assert.deepEqual(
+    segments.map((segment) => segment.type),
+    ['markdown', 'table', 'markdown'],
+  );
+  assert.deepEqual(segments[1].header, ['Name', 'Qty']);
+  assert.deepEqual(segments[1].align, ['left', 'right']);
+  assert.deepEqual(segments[1].rows, [
+    ['**Potion**', '3'],
+    ['Ether | X', '12'],
+  ]);
+  assert.match(segments[2].text, /\| not \| a table \|/);
+  const noSeparator = splitMarkdownTables('a | b\nc | d');
+  assert.deepEqual(
+    noSeparator.map((segment) => segment.type),
+    ['markdown'],
+  );
+});
+
+test('table cells use inline-only Markdown, so raw HTML and unsafe links stay inert', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(ReactMarkdown, {
+      children: '<img src=x onerror=alert(1)> [x](javascript:alert(1)) **b**',
+      skipHtml: true,
+      allowedElements: ['strong', 'em', 'del', 'code', 'a', 'br'],
+      unwrapDisallowed: true,
+      components: chatMarkdownComponents,
+    }),
+  );
+  assert.match(html, /<strong>b<\/strong>/);
+  assert.doesNotMatch(html, /<img|onerror|javascript:|<p>/);
 });

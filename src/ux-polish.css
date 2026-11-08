@@ -331,7 +331,7 @@
 .queue-group {
   margin-top: var(--ux-space-4);
 }
-.queue-group > h3 {
+.queue-group-heading > h3 {
   display: flex;
   align-items: center;
   gap: var(--ux-space-2);
@@ -353,14 +353,14 @@
   font-size: var(--ux-text-xs);
   letter-spacing: 0;
 }
-.queue-group-processing > h3 {
+.queue-group-processing .queue-group-heading > h3 {
   color: var(--forge-text-strong);
 }
 .queue-group-processing .queue-group-count {
   background: var(--forge-orange);
   color: var(--forge-text-on-orange);
 }
-.queue-group-attention > h3 {
+.queue-group-attention .queue-group-heading > h3 {
   color: var(--forge-danger);
 }
 .queue-group-empty {

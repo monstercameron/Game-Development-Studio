@@ -168,8 +168,9 @@ test('the queue resolves a music asset to the finished YuE2 render that made it'
   assert.equal(resynth.request.title, 'Again');
   assert.equal(resynth.request.lyrics, '[Verse]\nhello');
   assert.equal(Object.hasOwn(resynth.request, 'duration_seconds'), false);
-  assert.equal(jobHint(extended), `Extending ${asset} by 20 s`);
-  assert.equal(jobHint(resynth), `Re-synthesizing ${asset}`);
+  const shortId = source.id.slice(0, 8);
+  assert.equal(jobHint(extended), `Extending track ${shortId} by 20 s`);
+  assert.equal(jobHint(resynth), `Re-synthesizing track ${shortId}`);
 });
 
 test('derived titles cut a long style at a word and do not repeat the suffix when chained', async (t) => {

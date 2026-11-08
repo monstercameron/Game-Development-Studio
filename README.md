@@ -2,14 +2,16 @@
 
 **Create, organize and iterate on game assets in one local studio.**
 
+![Built on NVIDIA RTX Spark](docs/images/built-on-rtx-spark.svg)
+
 Forge brings image, music, sound, video, voice, 3D, world and motion workflows
 into a React interface backed by a durable render queue. Keep each game's
 assets together, inspect local engine health, and connect agents through HTTP
 and MCP.
 
-![Forge overview showing demo projects and recent assets](docs/images/studio-overview.png)
+![Forge overview: the workspace sidebar, a Demo Project header and recent projects with sample artwork](docs/images/studio-overview.png)
 
-_The Forge overview with demo projects and sample artwork._
+_The Forge overview with two demo projects and the bundled sample artwork._
 
 Forge is an early-stage integration project. The app and queue can start without
 model weights, but rendering requires separately installed models, native
@@ -21,6 +23,21 @@ been validated to the same level.
 [Get started](#get-started) · [Capabilities](#capabilities) ·
 [Models and engines](#models-and-engines) · [API and MCP](#api-and-mcp) ·
 [Development](#development) · [Documentation](#documentation)
+
+[Project site](https://monstercameron.github.io/Game-Development-Studio/)
+
+## Built on NVIDIA RTX Spark
+
+Forge is developed and tested on an **NVIDIA RTX Spark N1X** system: a Blackwell
+GPU with 6,144 cores and 96 GB of GPU memory (98,304 MiB as reported by the
+driver), running Windows 11 on ARM64 natively, with no WSL and no CPU inference.
+That one-machine setup is where every "tested" status in these docs was
+measured, and its memory limits shape how Forge loads models one at a time. Other
+hardware has not been validated to the same level.
+
+_NVIDIA, RTX and RTX Spark are trademarks of NVIDIA Corporation. Forge is an
+independent project and is not affiliated with, sponsored by or endorsed by
+NVIDIA._
 
 ## Get started
 
@@ -90,15 +107,28 @@ platform details and alternate ports.
   compatible provider, request structured output, and use the Mammoth decision
   bridge for supported game-logic requests.
 
-### A closer look
+### Screenshots
 
-![The asset library showing the bundled sample collection](docs/images/asset-library.png)
+These were captured from the current build, running in an isolated copy of the
+Studio with no engines connected and no model files installed. The projects,
+artwork and queue rows are demo content built from the bundled samples; none of
+it was rendered by a model.
+
+![The asset library showing the bundled sample collection: three sample images and a sound effect, with search, type filters, sort and view controls](docs/images/asset-library.png)
 
 _Search, filter and preview assets in the library; the screenshot shows the bundled sample collection._
 
-![The image studio showing generation controls and a recent sample asset](docs/images/image-studio.png)
+![The image studio with a prompt, a reference image, aspect ratio and quality controls with an inline help popover, and an estimated render time bar](docs/images/image-studio.png)
 
-_Create images with project context, reference inputs and recent creations alongside the controls._
+_Create images with project context and a reference image. Field help opens inline, and the estimate bar reports "Not enough history" until the project has completed renders to compare._
+
+![The render queue listing three waiting image renders with drag, run next, move up, move down and cancel controls, above a recently finished render](docs/images/render-queue.png)
+
+_The render queue lists waiting renders in order, with controls to reorder or cancel each one, above recently finished renders. The rows are demo entries; no engine was running, so nothing was rendered._
+
+![The Models and services catalog showing model cards with category, status, notes, estimated GPU budget and file status](docs/images/models.png)
+
+_The Models and services catalog on a source checkout with no model weights installed: every card reports its model files as not found, with the estimated GPU budget and any access or preview notes. Installing models is covered in the [installation guide](docs/INSTALLATION.md)._
 
 ## Models and engines
 

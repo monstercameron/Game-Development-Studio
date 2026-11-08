@@ -1,0 +1,365 @@
+/* Errors review: top-bar button, two-pane dialog, and the AI and GitHub panels. */
+.errors-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-2);
+  min-height: var(--ux-target-min);
+  padding: var(--ux-space-1) var(--ux-space-3);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-md);
+  color: var(--forge-text);
+  background: var(--forge-raised);
+  font-size: var(--ux-text-xs);
+  font-weight: 700;
+  cursor: pointer;
+}
+.errors-button:hover {
+  background: var(--forge-control-hover);
+}
+.errors-button:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+.errors-button.has-unread {
+  border-color: var(--forge-danger-border);
+}
+.errors-button-badge {
+  min-width: 20px;
+  padding: 0 var(--ux-space-1);
+  border-radius: var(--forge-radius-pill);
+  color: var(--forge-danger-button-text);
+  background: var(--forge-danger-surface);
+  border: 1px solid var(--forge-danger-border);
+  text-align: center;
+  line-height: 18px;
+}
+.errors-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ux-space-3);
+  width: min(var(--ux-dialog-wide), 100%);
+  height: min(860px, 92vh);
+  padding: var(--ux-space-5);
+  overflow: hidden;
+  color: var(--forge-text);
+  background: var(--forge-surface);
+  border: var(--ux-border);
+  border-radius: var(--forge-radius-lg);
+  box-shadow: var(--forge-shadow-modal);
+}
+.errors-modal:focus-visible {
+  outline: var(--ux-focus-ring);
+}
+.errors-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--ux-space-4);
+}
+.errors-head h2 {
+  margin: var(--ux-space-1) 0;
+  font: 400 var(--forge-font-size-24) var(--ux-font-mono);
+}
+.errors-head p,
+.errors-hint {
+  margin: var(--ux-space-1) 0;
+  color: var(--forge-subtle);
+  font-size: var(--ux-text-sm);
+  line-height: 1.5;
+}
+.errors-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+.errors-toolbar select,
+.errors-search input {
+  min-height: var(--ux-target-min);
+}
+.errors-search {
+  display: inline-flex;
+  flex: 1 1 220px;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+.errors-search input {
+  flex: 1;
+  min-width: 0;
+}
+.errors-confirm {
+  display: inline-flex;
+  gap: var(--ux-space-2);
+}
+.errors-danger {
+  color: var(--forge-danger-button-text);
+  border-color: var(--forge-danger-button-border);
+}
+.errors-live {
+  min-height: 1.2em;
+  margin: 0;
+  font-size: var(--ux-text-sm);
+}
+.errors-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) minmax(0, 3fr);
+  gap: var(--ux-space-4);
+  flex: 1;
+  min-height: 0;
+}
+.errors-list-pane,
+.errors-detail-pane {
+  min-height: 0;
+  overflow: auto;
+}
+.errors-list {
+  display: grid;
+  gap: var(--ux-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.errors-item {
+  display: grid;
+  gap: var(--ux-space-1);
+  width: 100%;
+  padding: var(--ux-space-2) var(--ux-space-3);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+  color: var(--forge-text);
+  background: var(--forge-surface-inset);
+  text-align: left;
+  cursor: pointer;
+}
+.errors-item:hover {
+  background: var(--forge-control-hover);
+}
+.errors-item:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+.errors-item[aria-current='true'] {
+  border-color: var(--forge-focus);
+  background: var(--forge-selection-surface);
+}
+.errors-item-source,
+.errors-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+  color: var(--forge-subtle);
+  font-size: var(--ux-text-xs);
+}
+.errors-item-message {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+  font-size: var(--ux-text-sm);
+}
+.errors-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+}
+.errors-chip {
+  padding: 0 var(--ux-space-2);
+  border: var(--ux-border);
+  border-radius: var(--forge-radius-pill);
+  font-size: var(--ux-text-xs);
+  line-height: 20px;
+}
+.errors-chip.status-new {
+  border-color: var(--forge-danger-border);
+}
+.errors-chip.status-verified,
+.errors-chip.status-resolved {
+  border-color: var(--forge-success-border);
+}
+.errors-empty {
+  padding: var(--ux-space-5);
+  border: 1px dashed var(--forge-border);
+  border-radius: var(--ux-radius-md);
+}
+.errors-empty p {
+  color: var(--forge-subtle);
+}
+.errors-placeholder {
+  padding: var(--ux-space-5);
+}
+.errors-detail {
+  display: grid;
+  gap: var(--ux-space-3);
+  align-content: start;
+}
+.errors-detail h4,
+.errors-detail h5 {
+  display: flex;
+  align-items: center;
+  gap: var(--ux-space-2);
+  margin: var(--ux-space-2) 0 0;
+}
+.errors-detail-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--ux-text-lg);
+}
+.errors-back {
+  display: none;
+  justify-self: start;
+}
+.errors-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--ux-space-1) var(--ux-space-3);
+  margin: 0;
+  font-size: var(--ux-text-sm);
+}
+.errors-facts dt {
+  color: var(--forge-subtle);
+}
+.errors-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.errors-stack,
+.errors-code {
+  max-height: 340px;
+  margin: 0;
+  padding: var(--ux-space-3);
+  overflow: auto;
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+  background: var(--forge-surface-deep);
+  font: var(--ux-text-xs) / 1.55 var(--ux-font-mono);
+  white-space: pre;
+}
+.errors-stack {
+  counter-reset: stack-line;
+}
+.errors-stack-line::before {
+  counter-increment: stack-line;
+  content: counter(stack-line);
+  display: inline-block;
+  width: 3.5ch;
+  margin-right: var(--ux-space-3);
+  color: var(--forge-subtle);
+  text-align: right;
+  user-select: none;
+}
+.errors-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+.errors-verify,
+.errors-note,
+.errors-model-form {
+  display: grid;
+  gap: var(--ux-space-2);
+}
+.errors-verify fieldset {
+  margin: 0;
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+}
+.errors-verify textarea,
+.errors-note textarea {
+  width: 100%;
+  resize: vertical;
+}
+.errors-note button {
+  justify-self: start;
+}
+.errors-panel {
+  display: grid;
+  gap: var(--ux-space-2);
+  padding: var(--ux-space-3) var(--ux-space-4);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-md);
+  background: var(--forge-surface-raised);
+}
+.errors-panel > button {
+  justify-self: start;
+}
+.errors-preview,
+.errors-suggestion {
+  display: grid;
+  gap: var(--ux-space-2);
+}
+.errors-notice {
+  margin: 0;
+  padding: var(--ux-space-2) var(--ux-space-3);
+  border-left: 3px solid var(--forge-accent);
+  font-weight: 700;
+}
+.errors-key-missing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-1);
+  margin: 0;
+}
+.errors-link-button {
+  padding: 0;
+  border: 0;
+  color: var(--forge-success-link);
+  background: none;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.errors-ok {
+  margin: 0;
+  color: var(--forge-success-text);
+}
+.errors-duplicates ul {
+  display: grid;
+  gap: var(--ux-space-2);
+  padding-left: var(--ux-space-4);
+}
+.errors-paths-toggle span {
+  font-size: var(--ux-text-sm);
+}
+@media (max-width: 850px) {
+  .errors-backdrop {
+    padding: 0;
+  }
+  .errors-modal {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    padding: var(--ux-gutter);
+    border-radius: 0;
+  }
+  .errors-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .errors-modal.has-selection .errors-list-pane,
+  .errors-modal:not(.has-selection) .errors-detail-pane {
+    display: none;
+  }
+  .errors-back {
+    display: inline-flex;
+  }
+  .errors-button-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .errors-button {
+    min-height: var(--ux-target-touch);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .errors-modal,
+  .errors-item {
+    animation: none;
+    transition: none;
+  }
+}

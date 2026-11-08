@@ -11,13 +11,16 @@ export function validateChatContext(value) {
   }
   return value;
 }
-export function estimateChatMemory(contextSize = DEFAULT_CHAT_CONTEXT) {
+// projectorMiB is the multimodal projector (about 0.93 GB BF16 file) loaded on the GPU for image
+// input; pass 0 when it will not be loaded. Its real GPU use has not been calibrated here.
+export function estimateChatMemory(contextSize = DEFAULT_CHAT_CONTEXT, { projectorMiB = 0 } = {}) {
   validateChatContext(contextSize);
   const extraMiB = ((contextSize - 4096) * 65) / 1024;
   return {
     contextSize,
     contextMiB: 149 + contextSize / 16,
-    estimatedGpuMiB: 18.75 * 1024 + extraMiB,
-    gpuBudgetMiB: 19 * 1024 + Math.max(0, extraMiB),
+    projectorMiB,
+    estimatedGpuMiB: 18.75 * 1024 + extraMiB + projectorMiB,
+    gpuBudgetMiB: 19 * 1024 + Math.max(0, extraMiB) + projectorMiB,
   };
 }
