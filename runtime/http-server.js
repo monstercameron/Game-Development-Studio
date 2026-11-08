@@ -1,13 +1,13 @@
-import { credentialService } from '../credential-service.js';
-import { chatService } from '../chat-service.js';
+import { credentialService } from './credential-service.js';
+import { chatService } from './chat-service.js';
 import express from 'express';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { powerService } from '../power.js';
-import { diagnosticsService } from '../diagnostics.js';
-import { projectsService } from '../projects.js';
+import { powerService } from './power.js';
+import { diagnosticsService } from './diagnostics.js';
+import { projectsService } from './projects.js';
 import { runtimeService } from './supervisor.js';
 import { createMcpServer } from './mcp-server.js';
 import { createMcpHandler } from '@modelcontextprotocol/server';

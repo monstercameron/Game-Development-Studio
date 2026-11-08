@@ -9,9 +9,9 @@ import {
   stagePose,
   stageProjectPose,
   MAX_REFERENCE_BYTES,
-} from './runtime/references.js';
-import { stageProjectClip } from './runtime/clips.js';
-import { atomicWriteFile } from './runtime/durable-file.js';
+} from './references.js';
+import { stageProjectClip } from './clips.js';
+import { atomicWriteFile } from './durable-file.js';
 import {
   readAssetMetadata,
   updateAsset,
@@ -22,19 +22,20 @@ import {
   clearTrash,
   saveGeneratedText,
 } from './project-assets.js';
-import { convertAsset } from './runtime/transcode.js';
-import { readGlbStats } from './runtime/glb-stats.js';
-import { readThumbnail, saveThumbnail } from './runtime/thumbnails.js';
+import { convertAsset } from './transcode.js';
+import { readGlbStats } from './glb-stats.js';
+import { readThumbnail, saveThumbnail } from './thumbnails.js';
 import {
   backfillAssetMeta,
   readAssetMeta,
   readMetaIndex,
   searchAssetMeta,
-} from './runtime/asset-metadata.js';
-import { createLogger } from './runtime/app-log.js';
+} from './asset-metadata.js';
+import { createLogger } from './app-log.js';
 
 const log = createLogger('projects');
-const appRoot = path.dirname(fileURLToPath(import.meta.url));
+// This file lives in runtime/; the repository root is its parent folder.
+const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const projectsRoot = process.env.FORGE_PROJECTS_DIR || path.join(appRoot, 'projects');
 const metadataFile = '.forge-project.json';
 const directories = ['images', 'video', 'music', 'sfx', 'voices', 'masks', '3d', 'motion'];

@@ -591,8 +591,8 @@ Use **Full screen** on a 3D or motion preview in the library or a recent-creatio
 | Location                              | Purpose                                                                             |
 | ------------------------------------- | ----------------------------------------------------------------------------------- |
 | `src/`                                | React interface, navigation, notifications, and client logging                      |
-| `projects.js`                         | Local project creation and asset discovery                                          |
-| `diagnostics.js`                      | Server metadata and log streaming                                                   |
+| `runtime/projects.js`                 | Local project creation and asset discovery                                          |
+| `runtime/diagnostics.js`              | Server metadata and log streaming                                                   |
 | `server.js`, `runtime/http-server.js` | One supervised local service for the React app, HTTP API, and HTTP MCP              |
 | `vite.config.js`                      | Development server with hot reload                                                  |
 | `runtime/`                            | Supervised runtime, GPU monitor worker thread, durable render queue, and MCP bridge |
@@ -611,11 +611,11 @@ Forge is built to survive the studio, a worker, an engine or the whole computer 
 
 When the studio starts after a stop that was not an orderly shutdown (crash, `Stop-Process`, power loss, a Windows shutdown that did not finish in time), or after a database was repaired, a **Recovery** panel appears under the top bar. It says when the studio was last running and lists what needs a decision:
 
-- **Renders whose outcome is unknown.** A render that may have reached an engine before the interruption is never run again automatically. Check the engine (Models & services); if a saved output is listed it is already in the project. After you tick *I checked that the engine is not rendering this job*, **Mark as cancelled** closes it. **Queue again** is shown only for a render that provably never reached an engine.
+- **Renders whose outcome is unknown.** A render that may have reached an engine before the interruption is never run again automatically. Check the engine (Models & services); if a saved output is listed it is already in the project. After you tick _I checked that the engine is not rendering this job_, **Mark as cancelled** closes it. **Queue again** is shown only for a render that provably never reached an engine.
 - **Files left by an interrupted operation.** Stale temporary files older than 24 hours are removed at start. Anything else is listed by project and project-relative path, and **Move to quarantine** puts it in `.forge-runtime/quarantine/` (nothing is deleted).
 - **Databases.** A database that failed its integrity check is set aside as `<name>.corrupt-<time>`, the newest backup is restored, and the panel says how old that backup was. Backups are made every 15 minutes in `.forge-runtime/backups/`.
-- **Engines** that are not responding, told apart as *not running* and *not answering*, and whether Forge re-adopted the ones that survived.
-- **A process that kept crashing.** After five crashes in ten minutes the studio host or runtime worker is not restarted again, and the studio address shows a *Recovery needed* page until you fix the cause and start the studio again.
+- **Engines** that are not responding, told apart as _not running_ and _not answering_, and whether Forge re-adopted the ones that survived.
+- **A process that kept crashing.** After five crashes in ten minutes the studio host or runtime worker is not restarted again, and the studio address shows a _Recovery needed_ page until you fix the cause and start the studio again.
 
 **Dismiss** hides the report until something new needs attention. The same report is available at `/api/recovery` and through the `forge_recovery_report` MCP tool. Closing the browser window does not stop the studio; **Stop Studio...** in the tray (or `stop-server.ps1`) asks the studio to stop in an orderly way first and terminates it only if it has not exited after eight seconds. The details, the guarantees and non-guarantees, and the manual crash drills are in [Resilience](RESILIENCE.md).
 

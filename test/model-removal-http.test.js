@@ -57,16 +57,8 @@ test(
       }
       await fs.rm(resolved, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     });
-    for (const file of [
-      'server.js',
-      'projects.js',
-      'project-assets.js',
-      'diagnostics.js',
-      'power.js',
-      'chat-service.js',
-      'credential-service.js',
-      'package.json',
-    ]) {
+    // The studio services (projects, chat, diagnostics, ...) live in runtime/, copied below.
+    for (const file of ['server.js', 'package.json']) {
       await fs.copyFile(path.join(app, file), path.join(root, file));
     }
     await fs.cp(path.join(app, 'runtime'), path.join(root, 'runtime'), { recursive: true });

@@ -30,7 +30,7 @@ test('asset details API backfills, searches, and follows rename, trash, restore 
     Promise.all([root, runtime].map((dir) => fs.rm(dir, { recursive: true, force: true }))),
   );
   setEnvironment(t, { FORGE_PROJECTS_DIR: root, FORGE_RUNTIME_DIR: runtime });
-  const { projectsService } = await import(`../projects.js?meta-api=${randomUUID()}`);
+  const { projectsService } = await import(`../runtime/projects.js?meta-api=${randomUUID()}`);
   let handler;
   projectsService().configureServer({
     middlewares: {
@@ -190,7 +190,7 @@ test('a corrupt project database does not break the asset listing or details rou
     FORGE_PROJECTS_DIR: root,
     FORGE_RUNTIME_DIR: path.join(root, 'no-runtime'),
   });
-  const { projectsService } = await import(`../projects.js?meta-corrupt=${randomUUID()}`);
+  const { projectsService } = await import(`../runtime/projects.js?meta-corrupt=${randomUUID()}`);
   let handler;
   projectsService().configureServer({
     middlewares: {

@@ -52,7 +52,7 @@ array items, fields JSON 4096 characters. A record never exceeds about 6 KB.
 
 | Where                                          | Import                             | Create                              |
 | ---------------------------------------------- | ---------------------------------- | ----------------------------------- |
-| Node (runtime/, root services)                 | `runtime/app-log.js`               | `const log = createLogger('queue')` |
+| Node (runtime/, server.js)                     | `runtime/app-log.js`               | `const log = createLogger('queue')` |
 | Python (runtime/*.py)                          | `runtime/app_log.py` (stdlib only) | `log = get_logger("image")`         |
 | Browser (src/)                                 | `src/app-log.js`                   | `const log = createLog('image')`    |
 | runtime/ modules also bundled into the browser | `runtime/shared-log.js` (pure)     | `const log = createLogger('queue')` |
@@ -224,7 +224,7 @@ All routes need a loopback `Host` and, when an `Origin` is sent, the studio's ow
 | `DELETE /api/logs`                  | `logs` + studio `Origin`   | `{ "olderThanDays": N, "confirm": true }`; `0` deletes everything.                                                                                                                                                                                  |
 
 `GET /api/logs` **without** the header and `GET /api/logs/stream` are still the older file-log
-snapshot routes from `diagnostics.js`; the logs service passes them through unchanged.
+snapshot routes from `runtime/diagnostics.js`; the logs service passes them through unchanged.
 
 The logs service is registered first in `runtime/http-server.js` and `vite.config.js` so its
 request middleware covers every later `/api` route: it logs `http.request.completed` (debug),

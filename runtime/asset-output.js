@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { findProject, projectsRoot } from './jobs.js';
-import { readAssetMetadata } from '../project-assets.js';
+import { readAssetMetadata } from './project-assets.js';
 import { createLogger } from './app-log.js';
 
 const log = createLogger('assets');

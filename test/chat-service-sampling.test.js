@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import http from 'node:http';
-import { chatService } from '../chat-service.js';
+import { chatService } from '../runtime/chat-service.js';
 
 async function listen(app) {
   const server = http.createServer(app);

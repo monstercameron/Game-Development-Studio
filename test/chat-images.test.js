@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-import { chatService } from '../chat-service.js';
+import { chatService } from '../runtime/chat-service.js';
 import {
   MAX_CHAT_IMAGE_BYTES,
   MAX_CHAT_IMAGES,

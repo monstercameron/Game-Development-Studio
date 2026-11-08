@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ModelRemoval } from '../runtime/model-removal.js';
-import { renameAsset, restoreAsset, trashAsset } from '../project-assets.js';
+import { renameAsset, restoreAsset, trashAsset } from '../runtime/project-assets.js';
 
 test('recovery-critical asset failures emit bounded, privacy-safe warnings', async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-asset-logs-'));

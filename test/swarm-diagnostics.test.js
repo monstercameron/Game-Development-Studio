@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { diagnosticsService } from '../diagnostics.js';
+import { diagnosticsService } from '../runtime/diagnostics.js';
 
 test('log stream remains open after the GET request completes and closes with response', async () => {
   const handlers = new Map();

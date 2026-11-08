@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { listTrash, restoreAsset, trashAsset } from '../project-assets.js';
+import { listTrash, restoreAsset, trashAsset } from '../runtime/project-assets.js';
 
 async function makeProject(t) {
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-restore-recovery-'));

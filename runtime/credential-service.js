@@ -1,5 +1,5 @@
-import { createLogger } from './runtime/app-log.js';
-import { credentialErrorFields, credentialStore } from './runtime/credentials.js';
+import { createLogger } from './app-log.js';
+import { credentialErrorFields, credentialStore } from './credentials.js';
 
 const log = createLogger('credentials');
 const json = (res, status, data) => {

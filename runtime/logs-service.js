@@ -503,7 +503,7 @@ export function logsService({
   }
 
   // GET /api/logs (without our header) and /api/logs/stream belong to the older file-log
-  // snapshot routes in diagnostics.js, registered later; they are passed through unchanged.
+  // snapshot routes in runtime/diagnostics.js, registered later; they are passed through unchanged.
   function isFileLogRoute(req) {
     const pathname =
       new URL(req.url || '/', 'http://localhost').pathname.replace(/\/+$/, '') || '/';

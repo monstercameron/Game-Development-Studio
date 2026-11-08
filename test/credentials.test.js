@@ -6,8 +6,8 @@ import os from 'node:os';
 import http from 'node:http';
 import express from 'express';
 import { createCredentialStore } from '../runtime/credentials.js';
-import { credentialService } from '../credential-service.js';
-import { chatService } from '../chat-service.js';
+import { credentialService } from '../runtime/credential-service.js';
+import { chatService } from '../runtime/chat-service.js';
 import {
   findConfiguredHuggingFaceToken,
   createManagedSoundTokenProvider,

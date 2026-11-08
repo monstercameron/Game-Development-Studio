@@ -40,11 +40,11 @@ that matters, or control flow. Do not add `try`/`catch` only to log; log inside 
 
 ## Setup
 
-### Node (runtime/, repository-root services, server.js)
+### Node (runtime/, server.js)
 
 ```js
 import { createLogger } from './app-log.js'; // from runtime/*.js
-// import { createLogger } from './runtime/app-log.js'; // from a repository-root file
+// import { createLogger } from './runtime/app-log.js'; // from server.js
 
 const log = createLogger('queue');
 ```
@@ -106,37 +106,37 @@ install log mcp megascans memory metadata model motion music power projects queu
 runtime segmentation server settings sfx supervisor three-d thumbnails transcode trash tray ui
 vegetation video voices world`
 
-| File                                                                           | Component                                   |
-| ------------------------------------------------------------------------------ | ------------------------------------------- |
-| `runtime/jobs.js`, `queue-*.js`, `chain-unload.js`, `worker.js`                | `queue`                                     |
-| `runtime/engines.js`, `engine-*.js`, `force-stop.js`, `external-model-stop.js` | `engine`                                    |
-| `runtime/model-*.js`, `model_convert.py`                                       | `model`                                     |
-| `runtime/image-*.js`, `qwen_worker.py`                                         | `image`                                     |
-| `runtime/video-*.js`, `h3_*.py`                                                | `video`                                     |
-| `runtime/music-*.js`                                                           | `music`                                     |
-| `runtime/sfx-*.js`, `sound-*.js`                                               | `sfx`                                       |
-| `runtime/tts-*.js`, `tts_worker.py`, `voice-modes.js`                          | `voices`                                    |
-| `runtime/asr-*.js`, `asr_guard.py`                                             | `asr`                                       |
-| `runtime/world*`, `world_*.py`                                                 | `world`                                     |
-| `runtime/hunyuan*`, `trellis*`, `three-d-chain.js`, `glb-stats.js`             | `three-d`                                   |
-| `runtime/sam31*`                                                               | `segmentation`                              |
-| `runtime/hymotion*`, `motionbricks*`                                           | `motion`                                    |
-| `runtime/game*`                                                                | `game`                                      |
-| `chat-service.js`, `runtime/chat-*.js`, `mammoth_worker.py`, `src/Chat*.jsx`   | `chat`                                      |
-| `runtime/vegetation-*`                                                         | `vegetation`                                |
-| `runtime/megascans-*`                                                          | `megascans`                                 |
-| `runtime/error*`, `errors-*`                                                   | `errors`                                    |
-| `runtime/i18n-*`, `src/i18n/*`                                                 | `i18n`                                      |
-| `runtime/core-settings.js`, `ai-assist-settings.js`                            | `settings`                                  |
-| `projects.js`, `project-assets.js`                                             | `projects`                                  |
-| `runtime/asset-*.js`, `clips.js`, `references.js`                              | `assets`                                    |
-| `credential-service.js`, `runtime/credentials.js`                              | `credentials`                               |
-| `power.js`, `runtime/tray-*.js`                                                | `power` / `tray`                            |
-| `runtime/host-supervisor.js`, `supervisor.js`                                  | `supervisor`                                |
-| `runtime/http-server.js`, `server.js`                                          | `http` / `server`                           |
-| `runtime/mcp*.js`                                                              | `mcp`                                       |
-| `runtime/thumbnails.js`, `transcode*`                                          | `thumbnails` / `transcode`                  |
-| Other React views in `src/`                                                    | the feature (`image`, `video`, ...) or `ui` |
+| File                                                                                 | Component                                   |
+| ------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `runtime/jobs.js`, `queue-*.js`, `chain-unload.js`, `worker.js`                      | `queue`                                     |
+| `runtime/engines.js`, `engine-*.js`, `force-stop.js`, `external-model-stop.js`       | `engine`                                    |
+| `runtime/model-*.js`, `model_convert.py`                                             | `model`                                     |
+| `runtime/image-*.js`, `qwen_worker.py`                                               | `image`                                     |
+| `runtime/video-*.js`, `h3_*.py`                                                      | `video`                                     |
+| `runtime/music-*.js`                                                                 | `music`                                     |
+| `runtime/sfx-*.js`, `sound-*.js`                                                     | `sfx`                                       |
+| `runtime/tts-*.js`, `tts_worker.py`, `voice-modes.js`                                | `voices`                                    |
+| `runtime/asr-*.js`, `asr_guard.py`                                                   | `asr`                                       |
+| `runtime/world*`, `world_*.py`                                                       | `world`                                     |
+| `runtime/hunyuan*`, `trellis*`, `three-d-chain.js`, `glb-stats.js`                   | `three-d`                                   |
+| `runtime/sam31*`                                                                     | `segmentation`                              |
+| `runtime/hymotion*`, `motionbricks*`                                                 | `motion`                                    |
+| `runtime/game*`                                                                      | `game`                                      |
+| `runtime/chat-service.js`, `runtime/chat-*.js`, `mammoth_worker.py`, `src/Chat*.jsx` | `chat`                                      |
+| `runtime/vegetation-*`                                                               | `vegetation`                                |
+| `runtime/megascans-*`                                                                | `megascans`                                 |
+| `runtime/error*`, `errors-*`                                                         | `errors`                                    |
+| `runtime/i18n-*`, `src/i18n/*`                                                       | `i18n`                                      |
+| `runtime/core-settings.js`, `ai-assist-settings.js`                                  | `settings`                                  |
+| `runtime/projects.js`, `runtime/project-assets.js`                                   | `projects`                                  |
+| `runtime/asset-*.js`, `clips.js`, `references.js`                                    | `assets`                                    |
+| `runtime/credential-service.js`, `runtime/credentials.js`                            | `credentials`                               |
+| `runtime/power.js`, `runtime/tray-*.js`                                              | `power` / `tray`                            |
+| `runtime/host-supervisor.js`, `supervisor.js`                                        | `supervisor`                                |
+| `runtime/http-server.js`, `server.js`                                                | `http` / `server`                           |
+| `runtime/mcp*.js`                                                                    | `mcp`                                       |
+| `runtime/thumbnails.js`, `transcode*`                                                | `thumbnails` / `transcode`                  |
+| Other React views in `src/`                                                          | the feature (`image`, `video`, ...) or `ui` |
 
 ## The API (frozen)
 

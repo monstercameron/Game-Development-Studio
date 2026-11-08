@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import test from 'node:test';
 import { createLogger } from '../runtime/app-log.js';
-import { powerService } from '../power.js';
+import { powerService } from '../runtime/power.js';
 
 test('server shutdown during helper startup does not leave keep-awake active', async () => {
   // The first emitted record installs the logger's own process exit hook. Emit one before the

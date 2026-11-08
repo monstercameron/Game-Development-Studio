@@ -19,7 +19,7 @@ test('thumbnail API caches visual assets, rejects stale updates and refreshes wh
       process.env.FORGE_PROJECTS_DIR = before;
     }
   });
-  const { projectsService } = await import(`../projects.js?thumbnail-test=${randomUUID()}`);
+  const { projectsService } = await import(`../runtime/projects.js?thumbnail-test=${randomUUID()}`);
   let handler;
   projectsService().configureServer({
     middlewares: {

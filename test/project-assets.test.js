@@ -11,7 +11,7 @@ import {
   restoreAsset,
   listTrash,
   clearTrash,
-} from '../project-assets.js';
+} from '../runtime/project-assets.js';
 
 test('asset metadata is durable and trash is reversible without overwriting', async (t) => {
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-asset-test-'));

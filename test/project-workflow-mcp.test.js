@@ -21,7 +21,7 @@ test('MCP creates a project and updates asset metadata through the real project 
       process.env.FORGE_PROJECTS_DIR = previous;
     }
   });
-  const { projectsService } = await import('../projects.js');
+  const { projectsService } = await import('../runtime/projects.js');
   const app = express();
   projectsService().configureServer({ middlewares: app });
   const server = app.listen(0, '127.0.0.1');

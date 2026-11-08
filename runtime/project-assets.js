@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { deleteAssetMeta, moveAssetMeta, recordSavedText } from './runtime/asset-metadata.js';
-import { atomicWriteFile, copyFileExclusive } from './runtime/durable-file.js';
-import { createLogger } from './runtime/app-log.js';
+import { deleteAssetMeta, moveAssetMeta, recordSavedText } from './asset-metadata.js';
+import { atomicWriteFile, copyFileExclusive } from './durable-file.js';
+import { createLogger } from './app-log.js';
 
 const log = createLogger('projects');
 const locks = new Map();

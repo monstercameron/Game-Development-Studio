@@ -4,10 +4,11 @@ import path from 'node:path';
 import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 
-import { createLogger } from './runtime/app-log.js';
+import { createLogger } from './app-log.js';
 
 const log = createLogger('diagnostics');
-const root = path.dirname(fileURLToPath(import.meta.url));
+// This file lives in runtime/; the repository root is its parent folder.
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtimeDir = process.env.FORGE_RUNTIME_DIR || path.join(root, '.forge-runtime');
 const desktop = path.join(os.homedir(), 'Desktop');
 const sources = [

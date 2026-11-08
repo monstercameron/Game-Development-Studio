@@ -10,7 +10,7 @@ import {
   restoreAsset,
   trashAsset,
   updateAsset,
-} from '../project-assets.js';
+} from '../runtime/project-assets.js';
 
 async function makeProject(t) {
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-trash-failure-'));

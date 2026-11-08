@@ -12,7 +12,7 @@ import {
   resetAppLogForTests,
 } from '../runtime/app-log.js';
 import { createCredentialStore } from '../runtime/credentials.js';
-import { credentialService } from '../credential-service.js';
+import { credentialService } from '../runtime/credential-service.js';
 import { findSharedHuggingFaceToken } from '../runtime/sound-credentials.js';
 
 // Not shaped like any key pattern, so the log redaction rules cannot hide a leak by accident.

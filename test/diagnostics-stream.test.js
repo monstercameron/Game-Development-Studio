@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { diagnosticsService } from '../diagnostics.js';
+import { diagnosticsService } from '../runtime/diagnostics.js';
 
 test('a slow log-stream client does not accumulate snapshots and resumes after draining', async (t) => {
   const handlers = new Map();

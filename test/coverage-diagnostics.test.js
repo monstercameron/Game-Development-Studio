@@ -8,7 +8,7 @@ import test from 'node:test';
 const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-diagnostics-'));
 const previousRuntimeDir = process.env.FORGE_RUNTIME_DIR;
 process.env.FORGE_RUNTIME_DIR = runtimeDir;
-const { diagnosticsService } = await import('../diagnostics.js?coverage-diagnostics');
+const { diagnosticsService } = await import('../runtime/diagnostics.js?coverage-diagnostics');
 if (previousRuntimeDir === undefined) {
   delete process.env.FORGE_RUNTIME_DIR;
 } else {

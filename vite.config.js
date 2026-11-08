@@ -1,9 +1,9 @@
-import { credentialService } from './credential-service.js';
-import { chatService } from './chat-service.js';
+import { credentialService } from './runtime/credential-service.js';
+import { chatService } from './runtime/chat-service.js';
 import { defineConfig } from 'vite';
-import { powerService } from './power.js';
-import { diagnosticsService } from './diagnostics.js';
-import { projectsService } from './projects.js';
+import { powerService } from './runtime/power.js';
+import { diagnosticsService } from './runtime/diagnostics.js';
+import { projectsService } from './runtime/projects.js';
 import { megascansService } from './runtime/megascans-service.js';
 import { errorsService } from './runtime/errors-service.js';
 import { logsService } from './runtime/logs-service.js';

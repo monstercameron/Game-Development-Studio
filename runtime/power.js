@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { createLogger } from './runtime/app-log.js';
+import { createLogger } from './app-log.js';
 
 const log = createLogger('power');
 
@@ -19,7 +19,7 @@ export function powerService({ spawnProcess = spawn, platform = process.platform
     starting = null,
     lastError = null,
     disposed = false;
-  const script = fileURLToPath(new URL('./keep-awake.ps1', import.meta.url));
+  const script = fileURLToPath(new URL('../keep-awake.ps1', import.meta.url));
   function stop() {
     if (child) {
       log.info('power.awake.released', { pid: child.pid });

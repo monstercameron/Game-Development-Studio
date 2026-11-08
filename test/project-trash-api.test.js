@@ -19,7 +19,7 @@ test('project trash HTTP API lists, restores, and requires confirmation and loca
       process.env.FORGE_PROJECTS_DIR = before;
     }
   });
-  const { projectsService } = await import(`../projects.js?trash-test=${randomUUID()}`);
+  const { projectsService } = await import(`../runtime/projects.js?trash-test=${randomUUID()}`);
   let handler;
   projectsService().configureServer({
     middlewares: {

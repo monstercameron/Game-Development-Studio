@@ -12,7 +12,7 @@
 // folders, executables and destructive actions are not settings and cannot be reached here.
 import { parsePreference } from './i18n-service.js';
 import { createTranslationStore } from './i18n-store.js';
-import { powerControl } from '../power.js';
+import { powerControl } from './power.js';
 import {
   CHANGE_SOURCES,
   MAX_SETTING_CHANGES,
@@ -114,7 +114,7 @@ export function settingsService({
     return translationStore;
   }
 
-  // Keep awake is owned by power.js; the language preference by the i18n store.
+  // Keep awake is owned by runtime/power.js; the language preference by the i18n store.
   const adapters = {
     power: power ?? {
       get: () => powerControl()?.status().awake ?? false,

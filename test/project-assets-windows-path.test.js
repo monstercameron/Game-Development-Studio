@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { restoreAsset } from '../project-assets.js';
+import { restoreAsset } from '../runtime/project-assets.js';
 
 test(
   'trash restore rejects Windows device and normalized path components without consuming the item',

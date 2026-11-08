@@ -24,7 +24,7 @@ async function startHost(t, options = {}) {
     ...options,
   });
   service.configureServer({ middlewares: app, httpServer });
-  // Stand-ins for the older file-log routes in diagnostics.js and another studio route.
+  // Stand-ins for the older file-log routes in runtime/diagnostics.js and another studio route.
   app.use('/api/logs', (req, res) => res.json({ sources: [], fileLogs: true, url: req.url }));
   app.get('/api/projects/:id/assets', (_req, res) => res.json({ ok: true }));
   app.get('/api/broken', (_req, res) => res.status(500).json({ error: 'boom' }));

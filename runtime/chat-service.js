@@ -1,11 +1,11 @@
-import { credentialStore } from './runtime/credentials.js';
+import { credentialStore } from './credentials.js';
 import { Readable } from 'node:stream';
 import os from 'node:os';
-import { parseChatSampling } from './runtime/chat-sampling.js';
-import { buildImageMessages } from './runtime/chat-images.js';
-import { MAX_CHAT_IMAGE_REQUEST_CHARS } from './runtime/chat-image-limits.js';
-import { chatProjectorExists, readServerVision } from './runtime/chat-vision.js';
-import { createLogger } from './runtime/app-log.js';
+import { parseChatSampling } from './chat-sampling.js';
+import { buildImageMessages } from './chat-images.js';
+import { MAX_CHAT_IMAGE_REQUEST_CHARS } from './chat-image-limits.js';
+import { chatProjectorExists, readServerVision } from './chat-vision.js';
+import { createLogger } from './app-log.js';
 
 const log = createLogger('chat');
 

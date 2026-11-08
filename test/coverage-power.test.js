@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import test from 'node:test';
-import { powerService } from '../power.js';
+import { powerService } from '../runtime/power.js';
 
 function createHelper() {
   const helper = new EventEmitter();

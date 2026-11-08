@@ -9,7 +9,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import { toNodeHandler } from '@modelcontextprotocol/node';
-import { chatService } from '../chat-service.js';
+import { chatService } from '../runtime/chat-service.js';
 import { createMcpServer } from '../runtime/mcp-server.js';
 
 async function connect(t, origin) {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { saveGeneratedText } from '../project-assets.js';
+import { saveGeneratedText } from '../runtime/project-assets.js';
 
 test('generated text is saved in a project as reviewable TXT or JSON without overwriting', async (t) => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-text-assets-'));
