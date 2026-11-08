@@ -391,8 +391,8 @@ export default function AudioSettings({ section, draft, update, sourcePicker = n
               )}
               <p className="audio-settings-unavailable">
                 Voice cloning and voice design use the optional Base and VoiceDesign checkpoints,
-                chosen on the Voices page; the Studio guide lists the optional downloads.
-                Not available: streaming playback, separate speed or pitch controls (use Voice
+                chosen on the Voices page; the Studio guide lists the optional downloads. Not
+                available: streaming playback, separate speed or pitch controls (use Voice
                 direction, e.g. &ldquo;speak slowly&rdquo;), and automatic splitting of long text
                 (one render holds up to 1,000 characters). Speech saves as a 24 kHz mono WAV; use
                 Convert in the asset library for other formats.

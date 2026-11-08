@@ -111,7 +111,9 @@ function vegetationControlLabel(key) {
     .slice(2)
     .split('__')
     .filter((part) => part !== 'paramOverrides')
-    .map((part) => (/^\d+$/.test(part) ? `L${part}` : part.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()))
+    .map((part) =>
+      /^\d+$/.test(part) ? `L${part}` : part.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase(),
+    )
     .join(' ');
   return words.charAt(0).toUpperCase() + words.slice(1);
 }

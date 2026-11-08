@@ -58,7 +58,9 @@ class SplitFusedGateUpTest(unittest.TestCase):
         converted = split_fused_gate_up(source, "gate_first")
         fused_b = source[f"{PREFIX}.gate_up.lora_B.weight"]
         lora_a = source[f"{PREFIX}.gate_up.lora_A.weight"]
-        self.assertTrue(torch.equal(converted[f"{PREFIX}.gate_layer.lora_B.weight"], fused_b[:HALF_OUT]))
+        self.assertTrue(
+            torch.equal(converted[f"{PREFIX}.gate_layer.lora_B.weight"], fused_b[:HALF_OUT])
+        )
         self.assertTrue(torch.equal(converted[f"{PREFIX}.proj.lora_B.weight"], fused_b[HALF_OUT:]))
         self.assertTrue(torch.equal(converted[f"{PREFIX}.gate_layer.lora_A.weight"], lora_a))
         self.assertTrue(torch.equal(converted[f"{PREFIX}.proj.lora_A.weight"], lora_a))
@@ -68,7 +70,9 @@ class SplitFusedGateUpTest(unittest.TestCase):
         converted = split_fused_gate_up(source, "proj_first")
         fused_b = source[f"{PREFIX}.gate_up.lora_B.weight"]
         self.assertTrue(torch.equal(converted[f"{PREFIX}.proj.lora_B.weight"], fused_b[:HALF_OUT]))
-        self.assertTrue(torch.equal(converted[f"{PREFIX}.gate_layer.lora_B.weight"], fused_b[HALF_OUT:]))
+        self.assertTrue(
+            torch.equal(converted[f"{PREFIX}.gate_layer.lora_B.weight"], fused_b[HALF_OUT:])
+        )
 
     def test_split_matches_fused_delta_rows_for_both_orders(self):
         source = fused_state_dict(seed=3)
@@ -93,8 +97,16 @@ class SplitFusedGateUpTest(unittest.TestCase):
     def test_unrelated_keys_are_kept_and_fused_keys_removed(self):
         source = fused_state_dict()
         converted = split_fused_gate_up(source, "gate_first")
-        self.assertTrue(torch.equal(converted[f"{PREFIX}.out.lora_A.weight"], source[f"{PREFIX}.out.lora_A.weight"]))
-        self.assertTrue(torch.equal(converted[f"{PREFIX}.out.lora_B.weight"], source[f"{PREFIX}.out.lora_B.weight"]))
+        self.assertTrue(
+            torch.equal(
+                converted[f"{PREFIX}.out.lora_A.weight"], source[f"{PREFIX}.out.lora_A.weight"]
+            )
+        )
+        self.assertTrue(
+            torch.equal(
+                converted[f"{PREFIX}.out.lora_B.weight"], source[f"{PREFIX}.out.lora_B.weight"]
+            )
+        )
         self.assertFalse(any("gate_up" in key for key in converted))
         self.assertEqual(len(converted), 6)
 

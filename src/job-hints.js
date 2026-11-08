@@ -21,10 +21,7 @@ export function friendlyAssetName(path, noun = 'file', fallback = '') {
 
 export function jobHint(job) {
   const request = job?.request || {};
-  if (
-    ['images', 'vegetation'].includes(job?.type) &&
-    Number.isInteger(request.variation_index)
-  ) {
+  if (['images', 'vegetation'].includes(job?.type) && Number.isInteger(request.variation_index)) {
     return `Variation ${request.variation_index} of ${request.variation_count}`;
   }
   if (job?.type === 'music' && request.operation === 'extend') {

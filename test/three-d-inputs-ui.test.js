@@ -88,7 +88,10 @@ test('3D page controls: description mode, background removal and TRELLIS pipelin
     assert.match(container.textContent, /Qwen Image 2\.1/);
     assert.match(container.textContent, /1024\s+×\s+1024, transparent background/);
     assert.match(container.textContent, /builds the 3D model from it with TRELLIS\.2/);
-    assert.match(container.textContent, /Forge frees the first model before loading the second when it can/);
+    assert.match(
+      container.textContent,
+      /Forge frees the first model before loading the second when it can/,
+    );
     assert.match(container.textContent, /estimate on this page covers the 3D step only/);
     assert.equal(
       container.querySelector('#three-d-image-steps').getAttribute('aria-invalid'),

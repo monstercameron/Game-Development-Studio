@@ -26,5 +26,8 @@ test('managed and error states keep their specific guidance', () => {
 });
 
 test('a status-check failure takes precedence over service detail', () => {
-  assert.equal(mammothStateDetail(null, 'Could not check Mammoth status.'), 'Could not check Mammoth status.');
+  assert.equal(
+    mammothStateDetail(null, 'Could not check Mammoth status.'),
+    'Could not check Mammoth status.',
+  );
 });

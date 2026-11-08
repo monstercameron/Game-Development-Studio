@@ -18,7 +18,10 @@ test('extra questions are added under their own names beside the main question',
     { mode: 'Score', text: 'How urgent is it?\nCalm\nAlarm' },
   ]);
   assert.deepEqual(Object.keys(request.questions), ['decision', 'decision_2', 'decision_3']);
-  assert.deepEqual(request.questions.decision_2, { type: 'noul', instructions: 'Is the gate open?' });
+  assert.deepEqual(request.questions.decision_2, {
+    type: 'noul',
+    instructions: 'Is the gate open?',
+  });
   assert.equal(request.questions.decision_3.type, 'score');
   assert.equal(request.state, draft.prompt);
 });
@@ -51,10 +54,7 @@ test('an invalid extra question is named in its error', () => {
 });
 
 test('the main question error is unchanged when no extra questions are added', () => {
-  assert.throws(
-    () => gameDecisionRequest({ ...draft, second: '' }),
-    /Enter a question\./,
-  );
+  assert.throws(() => gameDecisionRequest({ ...draft, second: '' }), /Enter a question\./);
 });
 
 test('summaries follow request order and keep each answer separate', () => {
@@ -81,6 +81,9 @@ test('summaries follow request order and keep each answer separate', () => {
 
 test('a missing answer yields no summary instead of a guessed one', () => {
   const request = gameDecisionRequest(draft, [{ mode: 'Yes / No', text: 'Is it open?' }]);
-  const summaries = decisionSummaries({ answers: { decision: { type: 'noul', noul: 0.5 } } }, request);
+  const summaries = decisionSummaries(
+    { answers: { decision: { type: 'noul', noul: 0.5 } } },
+    request,
+  );
   assert.equal(summaries[1].summary, null);
 });

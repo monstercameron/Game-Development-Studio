@@ -385,6 +385,7 @@ from app_log import get_logger, install_excepthook
 
 log = get_logger("world")
 
+
 def load_model(variant: str) -> None:
     stop = log.time("model.load.completed", {"modelId": variant})
     try:
@@ -393,6 +394,7 @@ def load_model(variant: str) -> None:
         log.error("model.load.failed", {"modelId": variant, "error": error, "freeMiB": free_mib()})
         raise
     stop()
+
 
 if __name__ == "__main__":
     install_excepthook("world")

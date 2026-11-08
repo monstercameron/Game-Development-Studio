@@ -1359,7 +1359,9 @@ function App() {
         // Without session storage only the generator is selected.
       }
       switchTo('world', { project: projectId || null, model: plan.model });
-      setNotice('World page opened with the settings from the asset. Choose reference images again.');
+      setNotice(
+        'World page opened with the settings from the asset. Choose reference images again.',
+      );
       return;
     }
     openDraft(draftJob(plan, projectId));
@@ -1573,22 +1575,22 @@ function App() {
                   ? 'Overview'
                   : current?.title ||
                     (section === 'megascans'
-                    ? 'Megascans'
-                    : section === 'chat'
-                      ? 'Chat'
-                      : section === 'world'
-                        ? 'Worlds'
-                        : section === 'vegetation'
-                          ? 'Vegetation'
-                        : section === 'queue'
-                          ? 'Render queue'
-                          : section === 'assets'
-                            ? 'Asset library'
-                            : section === 'diagnostics'
-                              ? 'Diagnostics'
-                              : section === 'models'
-                                ? 'Models & services'
-                                : 'Page not found')}
+                      ? 'Megascans'
+                      : section === 'chat'
+                        ? 'Chat'
+                        : section === 'world'
+                          ? 'Worlds'
+                          : section === 'vegetation'
+                            ? 'Vegetation'
+                            : section === 'queue'
+                              ? 'Render queue'
+                              : section === 'assets'
+                                ? 'Asset library'
+                                : section === 'diagnostics'
+                                  ? 'Diagnostics'
+                                  : section === 'models'
+                                    ? 'Models & services'
+                                    : 'Page not found')}
               </strong>
             </div>
             {queueStatus(section) && !['free', 'unknown'].includes(queueStatus(section).state) && (
@@ -1884,10 +1886,10 @@ function App() {
                       </select>
                       <p className="helper">
                         Hunyuan creates an untextured shape and can optionally paint it
-                        (experimental). TRELLIS.2 creates an experimental textured model and
-                        needs a transparent PNG or WebP, or an image whose background Forge
-                        removes first. Both save a GLB; the asset library can convert it to
-                        OBJ, PLY, STL or glTF. Multi-view input is not supported.
+                        (experimental). TRELLIS.2 creates an experimental textured model and needs a
+                        transparent PNG or WebP, or an image whose background Forge removes first.
+                        Both save a GLB; the asset library can convert it to OBJ, PLY, STL or glTF.
+                        Multi-view input is not supported.
                       </p>
                       <ThreeDModeSwitch
                         draft={draft}

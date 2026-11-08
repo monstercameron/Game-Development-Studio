@@ -7,7 +7,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKER_PATH = ROOT / "runtime" / "tts_worker.py"
@@ -243,8 +243,9 @@ class VoiceModesWorkerTests(unittest.TestCase):
 
         self.worker.model = RecordingModel("custom")
         self.worker.loaded_variant = "custom_voice"
-        with patch.object(self.worker, "checkpoint_ready", return_value=True), patch.object(
-            self.worker.threading, "Thread", FakeThread
+        with (
+            patch.object(self.worker, "checkpoint_ready", return_value=True),
+            patch.object(self.worker.threading, "Thread", FakeThread),
         ):
             same = self.worker.load(self.worker.LoadRequest(variant="custom_voice"))
             swap = self.worker.load(self.worker.LoadRequest(variant="base"))

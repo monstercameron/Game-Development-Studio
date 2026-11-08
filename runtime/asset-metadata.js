@@ -398,7 +398,8 @@ export function buildJobMetadata(job, outputPath, options = {}) {
     jobType: job.type,
     model: modelForJob({ ...job, request }),
     // A vegetation render has no prompt; its short design name labels it in the library.
-    prompt: job.type === 'vegetation' ? vegetationTitle(request, job.details?.result) : request[keys[0]],
+    prompt:
+      job.type === 'vegetation' ? vegetationTitle(request, job.details?.result) : request[keys[0]],
     negative: keys[1] ? request[keys[1]] : null,
     secondary: secondaryValue(job.type, request, keys[2]),
     title:

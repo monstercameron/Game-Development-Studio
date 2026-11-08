@@ -397,7 +397,9 @@ export function runtimeService({ engineBroker = null } = {}) {
         '/model-storage': 'modelStorage',
         '/asr/latency': 'asrLatency',
       };
-      const match = /^\/jobs\/([a-f0-9-]{36})(?:\/(cancel|resolve|retry|move))?$/i.exec(url.pathname);
+      const match = /^\/jobs\/([a-f0-9-]{36})(?:\/(cancel|resolve|retry|move))?$/i.exec(
+        url.pathname,
+      );
       const modelMatch =
         /^\/models\/(music|sfx|images|video|tts|3d-hunyuan|3d-trellis|segmentation|motion-hy|motion-bricks|asr|game)\/offload$/.exec(
           url.pathname,

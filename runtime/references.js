@@ -175,10 +175,7 @@ function audioType(bytes) {
   if (bytes.toString('ascii', 0, 4) === 'OggS') {
     return ['ogg', 'audio/ogg'];
   }
-  if (
-    bytes.toString('ascii', 0, 3) === 'ID3' ||
-    (bytes[0] === 255 && (bytes[1] & 0xe0) === 0xe0)
-  ) {
+  if (bytes.toString('ascii', 0, 3) === 'ID3' || (bytes[0] === 255 && (bytes[1] & 0xe0) === 0xe0)) {
     return ['mp3', 'audio/mpeg'];
   }
   throw Error('The source sound must be a WAV, FLAC, MP3, or Ogg file.');

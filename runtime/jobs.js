@@ -3002,7 +3002,9 @@ export class JobQueue {
         "UPDATE jobs SET status='running',stage=?,error=NULL,details=NULL,started_at=?,finished_at=NULL,updated_at=? WHERE id=? AND status IN ('queued','waiting_engine','waiting_memory','running') AND EXISTS (SELECT 1 FROM runtime_owner WHERE id=1 AND owner=? AND epoch=? AND expires>?)",
       )
       .run(
-        job.status === 'running' ? 'Growing the plant again after a restart.' : 'Starting SeedThree.',
+        job.status === 'running'
+          ? 'Growing the plant again after a restart.'
+          : 'Starting SeedThree.',
         now,
         now,
         job.id,

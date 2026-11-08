@@ -353,10 +353,7 @@ test(
         await fs.readFile(path.join(temp, 'models', folder, 'model.bin'), 'utf8'),
         'weights',
       );
-      assert.equal(
-        await fs.readFile(path.join(active, 'model.safetensors'), 'utf8'),
-        'active',
-      );
+      assert.equal(await fs.readFile(path.join(active, 'model.safetensors'), 'utf8'), 'active');
       const second = run(path.join(temp, 'second-stage'));
       assert.notEqual(second.status, 0);
       assert.match(second.stderr, /already exists/i);

@@ -91,7 +91,10 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
       .replace("from './app-log.js'", "from '../../src/app-log.js'")
       .replace("import './diagnostics-page.css';", '')
       // The Studio log view has its own tests (studio-log-ui.test.js).
-      .replace("import StudioLogView from './StudioLogView.jsx';", 'const StudioLogView = () => null;')
+      .replace(
+        "import StudioLogView from './StudioLogView.jsx';",
+        'const StudioLogView = () => null;',
+      )
       // The developer-tools section has its own tests (error-pipeline-test-ui.test.js).
       .replace(
         "import ErrorPipelineTest from './ErrorPipelineTest';",

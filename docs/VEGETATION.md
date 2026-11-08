@@ -106,28 +106,28 @@ The triangle count in the details is SeedThree's own (`statsOf`), which counts i
 
 Measured on this machine (Windows ARM64, Node 26.13, no GPU involved) with the pinned commit, seed 1 and default controls. A plant took 269 to 776 ms from start to saved file (median 393 ms), including starting a Node process. Each child process peaked at 96 to 219 MiB resident memory. Triangles are SeedThree's own counts of the exported level.
 
-| Species | Low | Medium | High | High vertices | High file (KiB) | Wall time per plant (ms, low-high) | Peak RSS (MiB) |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| White Oak | 9,450 | 28,104 | 56,208 | 22,446 | 1783 | 304-320 | 122 |
-| Red Maple | 6,972 | 17,320 | 34,044 | 16,599 | 1172 | 285-310 | 117 |
-| Tulip Poplar | 7,428 | 18,648 | 36,624 | 17,591 | 1249 | 279-324 | 117 |
-| Sweetgum | 8,868 | 22,312 | 43,648 | 20,897 | 1487 | 310-373 | 119 |
-| American Beech | 21,327 | 33,163 | 60,524 | 15,767 | 1727 | 330-448 | 141 |
-| Ponderosa Pine | 8,046 | 21,980 | 34,928 | 13,957 | 1145 | 278-369 | 113 |
-| Loblolly Pine | 7,002 | 17,524 | 28,816 | 12,163 | 961 | 269-329 | 113 |
-| Douglas Fir | 9,906 | 27,124 | 45,264 | 17,051 | 1459 | 284-320 | 122 |
-| Cultivated Apple | 8,433 | 19,369 | 34,961 | 4,221 | 898 | 396-483 | 108 |
-| Sweet Cherry | 7,393 | 13,491 | 26,394 | 4,221 | 703 | 459-776 | 99 |
-| Paper Birch | 8,432 | 33,576 | 60,720 | 11,527 | 1681 | 463-547 | 117 |
-| Quaking Aspen | 7,768 | 28,672 | 52,960 | 7,991 | 1415 | 410-460 | 111 |
-| American Sycamore | 27,684 | 43,600 | 88,760 | 9,079 | 3969 | 529-545 | 158 |
-| Flowering Dogwood | 9,396 | 31,902 | 61,516 | 10,705 | 1660 | 380-417 | 112 |
-| Weeping Willow | 31,020 | 49,746 | 53,924 | 55,951 | 3553 | 455-533 | 219 |
-| Joshua Tree | 10,156 | 21,644 | 55,096 | 3,607 | 1220 | 321-560 | 114 |
-| Saguaro | 2,048 | 6,008 | 18,048 | 17,061 | 1434 | 405-440 | 117 |
-| Creosote Bush | 2,964 | 3,744 | 6,806 | 3,232 | 220 | 373-425 | 103 |
-| Blackbrush | 3,460 | 4,416 | 7,552 | 4,076 | 251 | 393-429 | 106 |
-| Big Sagebrush | 1,314 | 1,660 | 3,426 | 1,840 | 118 | 359-371 | 99 |
+| Species           |    Low | Medium |   High | High vertices | High file (KiB) | Wall time per plant (ms, low-high) | Peak RSS (MiB) |
+| ----------------- | -----: | -----: | -----: | ------------: | --------------: | ---------------------------------: | -------------: |
+| White Oak         |  9,450 | 28,104 | 56,208 |        22,446 |            1783 |                            304-320 |            122 |
+| Red Maple         |  6,972 | 17,320 | 34,044 |        16,599 |            1172 |                            285-310 |            117 |
+| Tulip Poplar      |  7,428 | 18,648 | 36,624 |        17,591 |            1249 |                            279-324 |            117 |
+| Sweetgum          |  8,868 | 22,312 | 43,648 |        20,897 |            1487 |                            310-373 |            119 |
+| American Beech    | 21,327 | 33,163 | 60,524 |        15,767 |            1727 |                            330-448 |            141 |
+| Ponderosa Pine    |  8,046 | 21,980 | 34,928 |        13,957 |            1145 |                            278-369 |            113 |
+| Loblolly Pine     |  7,002 | 17,524 | 28,816 |        12,163 |             961 |                            269-329 |            113 |
+| Douglas Fir       |  9,906 | 27,124 | 45,264 |        17,051 |            1459 |                            284-320 |            122 |
+| Cultivated Apple  |  8,433 | 19,369 | 34,961 |         4,221 |             898 |                            396-483 |            108 |
+| Sweet Cherry      |  7,393 | 13,491 | 26,394 |         4,221 |             703 |                            459-776 |             99 |
+| Paper Birch       |  8,432 | 33,576 | 60,720 |        11,527 |            1681 |                            463-547 |            117 |
+| Quaking Aspen     |  7,768 | 28,672 | 52,960 |         7,991 |            1415 |                            410-460 |            111 |
+| American Sycamore | 27,684 | 43,600 | 88,760 |         9,079 |            3969 |                            529-545 |            158 |
+| Flowering Dogwood |  9,396 | 31,902 | 61,516 |        10,705 |            1660 |                            380-417 |            112 |
+| Weeping Willow    | 31,020 | 49,746 | 53,924 |        55,951 |            3553 |                            455-533 |            219 |
+| Joshua Tree       | 10,156 | 21,644 | 55,096 |         3,607 |            1220 |                            321-560 |            114 |
+| Saguaro           |  2,048 |  6,008 | 18,048 |        17,061 |            1434 |                            405-440 |            117 |
+| Creosote Bush     |  2,964 |  3,744 |  6,806 |         3,232 |             220 |                            373-425 |            103 |
+| Blackbrush        |  3,460 |  4,416 |  7,552 |         4,076 |             251 |                            393-429 |            106 |
+| Big Sagebrush     |  1,314 |  1,660 |  3,426 |         1,840 |             118 |                            359-371 |             99 |
 
 Observations (visual checks in the Forge viewer; these are looks at a few species, not an art review):
 

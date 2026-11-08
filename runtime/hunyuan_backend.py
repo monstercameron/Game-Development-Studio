@@ -14,7 +14,6 @@ import numpy as np
 import torch
 from PIL import Image
 
-
 # Qwen Image's transparent output leaves a faint haze (alpha 1 to 25 over about half the frame).
 # Upstream treats every non-zero alpha as object, so the haze made the foreground box the whole
 # picture and became a flat disc under the model. Alpha below this value counts as background.
