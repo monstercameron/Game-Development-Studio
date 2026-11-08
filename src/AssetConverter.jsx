@@ -20,20 +20,27 @@ const audioFormats = [
 export function canConvert(asset) {
   return asset && ['Images', 'Masks', 'Audio'].includes(asset.category);
 }
+// Pick a format that differs from the source so the first conversion does something useful.
+function defaultFormat(id, category) {
+  if (category === 'Audio') {
+    return 'ogg';
+  }
+  return id.toLowerCase().endsWith('.png') ? 'webp' : 'png';
+}
 export default function AssetConverter({ asset, project, onSaved, onClose }) {
   const audio = asset.category === 'Audio';
   const sourceName = asset.id.split('/').at(-1);
-  const [format, setFormat] = useState(audio ? 'ogg' : 'png'),
+  const [format, setFormat] = useState(() => defaultFormat(asset.id, asset.category)),
     [quality, setQuality] = useState(90),
     [background, setBackground] = useState('#ffffff'),
     [busy, setBusy] = useState(false),
     [result, setResult] = useState(null),
     [error, setError] = useState('');
   useEffect(() => {
-    setFormat(audio ? 'ogg' : 'png');
+    setFormat(defaultFormat(asset.id, asset.category));
     setResult(null);
     setError('');
-  }, [asset.id, audio]);
+  }, [asset.id, asset.category]);
   async function submit(event) {
     event.preventDefault();
     setBusy(true);

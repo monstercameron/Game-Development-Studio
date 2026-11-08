@@ -45,7 +45,7 @@ export function RecentProjects({ projects, loading, onNew, onOpen, onViewAll }) 
         </div>
         <div className="recent-projects-actions">
           <button className="ghost-button recent-projects-all" onClick={onViewAll}>
-            <FolderOpen size={15} /> Browse all projects
+            <FolderOpen size={15} /> View project assets
           </button>
           <button className="primary" onClick={onNew}>
             <Plus size={16} /> New project
@@ -91,7 +91,6 @@ export function RecentProjects({ projects, loading, onNew, onOpen, onViewAll }) 
                     </span>
                   </>
                 )}
-                <span className="project-tag">PROJECT</span>
                 <div className="project-arrow">
                   <ArrowRight size={16} />
                 </div>

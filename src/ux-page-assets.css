@@ -1,0 +1,16 @@
+/* ux-page-assets: refinements for the assets page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+.gallery-page .gallery-thumb-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ux-space-2);
+  padding: var(--ux-space-3);
+  box-sizing: border-box;
+  color: var(--forge-muted);
+  text-align: center;
+}
+.gallery-page .gallery-thumb-icon small {
+  font-size: var(--ux-text-sm);
+  line-height: 1.3;
+}

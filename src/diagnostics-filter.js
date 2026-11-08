@@ -1,6 +1,15 @@
 const ERROR = /error|exception|traceback|failed|failure|fatal/i;
+const WARN = /\bWARN(?:ING)?\b/;
 const CONTINUATION =
   /^(?:\s+\S|at\s+|Traceback \(|Caused by:|During handling of|The above exception|[A-Za-z_][\w.]*(?:Error|Exception|Warning):)/;
+
+export function isErrorLine(line) {
+  return ERROR.test(line);
+}
+
+export function isWarnLine(line) {
+  return WARN.test(line) && !ERROR.test(line);
+}
 
 // Keep traceback and stack-frame context together when filtering errors.
 export function filterLogLines(lines, { errorsOnly = false, query = '' } = {}) {
@@ -10,7 +19,7 @@ export function filterLogLines(lines, { errorsOnly = false, query = '' } = {}) {
   }
   const groups = [];
   for (let i = 0; i < lines.length; i++) {
-    if (!ERROR.test(lines[i])) {
+    if (!isErrorLine(lines[i])) {
       continue;
     }
     const group = [lines[i]];

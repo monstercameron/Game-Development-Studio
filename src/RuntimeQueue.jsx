@@ -339,6 +339,10 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
   }
   const visible = jobs.filter((job) => !hiddenIds.includes(job.id)).slice(0, expanded ? 200 : 8);
   const hiddenCount = jobs.filter((job) => hiddenIds.includes(job.id)).length;
+  const activeCount = jobs.filter(
+    (job) =>
+      !hiddenIds.includes(job.id) && !['completed', 'failed', 'cancelled'].includes(job.status),
+  ).length;
   const waiting = jobs.filter(
     (job) => ['queued', 'waiting_engine', 'waiting_memory'].includes(job.status) && !job.remoteId,
   ).length;
@@ -368,55 +372,55 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
     <section className="panel runtime-queue">
       <div className="panel-heading">
         <div>
-          <h2>Render queue</h2>
-          <p className="queue-intro">
-            One render at a time. Forge starts models as needed and makes room when it can.
-          </p>
+          <h2>
+            Render queue
+            {activeCount > 0 && (
+              <span className="queue-count-chip" aria-label={`${activeCount} active or waiting`}>
+                {activeCount}
+              </span>
+            )}
+          </h2>
+          <p className="queue-intro">One render at a time, started when its model is ready.</p>
         </div>
         <button className="icon-btn" aria-label="Refresh render queue" onClick={refresh}>
           <RefreshCw size={17} />
         </button>
       </div>
       {(jobs.length > 0 || queueError) && <QueueTimingSummary />}
-      <p className="queue-manage-note queue-scope-note">
-        Clear cancels waiting renders in every project; running and uncertain jobs continue. Hiding
-        rows only changes this view.
-      </p>
-      <div className="queue-manage">
-        <button
-          className="icon-outline"
-          onClick={hideCurrent}
-          disabled={!jobs.length || hiddenCount === jobs.length}
-        >
-          Hide current rows
-        </button>
-        {hiddenCount > 0 && (
-          <button className="icon-outline" onClick={showHidden}>
-            Show hidden ({hiddenCount})
-          </button>
-        )}
-        <button
-          className="icon-outline queue-clear"
-          onClick={() => {
-            setError('');
-            setConfirmation('');
-            setConfirmClear(true);
-          }}
-          disabled={!waiting}
-        >
-          Clear waiting renders…
-        </button>
-      </div>
-      {(!jobs.length || hiddenCount === jobs.length || !waiting) && (
-        <p className="queue-manage-note queue-control-reason">
-          {!jobs.length
-            ? 'There are no rows to hide or waiting renders to cancel.'
-            : hiddenCount === jobs.length && !waiting
-              ? 'All current rows are hidden; there are no waiting renders to cancel.'
-              : hiddenCount === jobs.length
-                ? 'All current rows are already hidden.'
-                : 'There are no waiting renders to cancel.'}
-        </p>
+      {jobs.length > 0 && (
+        <details className="queue-manage-menu" open={expanded}>
+          <summary>Manage queue</summary>
+          <p className="queue-manage-note queue-scope-note">
+            Clear cancels waiting renders in every project; running and uncertain jobs continue.
+            Hiding rows only changes this view.
+          </p>
+          <div className="queue-manage">
+            <button
+              className="icon-outline"
+              onClick={hideCurrent}
+              disabled={hiddenCount === jobs.length}
+            >
+              Hide current rows
+            </button>
+            {hiddenCount > 0 && (
+              <button className="icon-outline" onClick={showHidden}>
+                Show hidden ({hiddenCount})
+              </button>
+            )}
+            <button
+              className="icon-outline queue-clear"
+              onClick={() => {
+                setError('');
+                setConfirmation('');
+                setConfirmClear(true);
+              }}
+              disabled={!waiting}
+              title={waiting ? undefined : 'There are no waiting renders to cancel.'}
+            >
+              Clear waiting renders…
+            </button>
+          </div>
+        </details>
       )}
       {notice && (
         <p className="queue-manage-note" role="status">
@@ -436,7 +440,7 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
               ? 'Current rows are hidden in this browser. Renders continue in the background.'
               : queueError
                 ? 'The render queue could not be loaded. Refresh to try again.'
-                : 'No render jobs yet. Add a render to get started.'}
+                : 'No renders yet. Queue one and its progress will show up here.'}
           </span>
         </div>
       ) : (
@@ -463,7 +467,11 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
                     }[job.type] || job.type}
                   </span>
                 </div>
-                <strong>
+                <strong
+                  title={
+                    job.request.title || job.request.style || job.request.prompt || job.request.text
+                  }
+                >
                   {job.type === 'world' && job.request.model === 'hy-world'
                     ? 'HY-World reconstruction'
                     : job.request.title ||

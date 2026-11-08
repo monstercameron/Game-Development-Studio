@@ -70,10 +70,14 @@ test('interactive preview fills the inspection window and manages keyboard focus
         'const PlyAssetPreview = React.lazy(() => Promise.resolve({ default: () => <button type="button">Zoom in</button> }));',
       );
     const prelude = `
-      import React, { Suspense, useEffect, useId, useRef, useState } from 'react';
+      import React, { Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
       import { createPortal } from 'react-dom';
       import { topModal } from '${pathToFileURL(path.join(repositoryRoot, 'src', 'modal-layer.js')).href}';
       const Maximize2 = () => null;
+      const Maximize = () => null;
+      const Minimize2 = () => null;
+      const ChevronLeft = () => null;
+      const ChevronRight = () => null;
       const X = () => null;
       const useRouteToggle = () => useState(false);
     `;

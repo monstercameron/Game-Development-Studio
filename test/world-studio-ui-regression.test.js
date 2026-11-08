@@ -52,7 +52,7 @@ async function renderWorldStudio(search = '') {
     let source = await readFile(sourcePath, 'utf8');
     source = source
       .replace(
-        "import { Clock3, Dices, Globe2, ImagePlus, Layers3, Plus, X } from 'lucide-react';",
+        "import { Clock3, Dices, Globe2, ImagePlus, Layers3, Plus, RotateCcw, X } from 'lucide-react';",
         '',
       )
       .replace("import AssetPicker from './AssetPicker';", '')
@@ -67,7 +67,7 @@ async function renderWorldStudio(search = '') {
         "import { useCallback, useEffect, useState } from 'react';",
         "import { useCallback, useEffect, useState } from 'react';\n" +
           'const Clock3 = () => null; const Globe2 = () => null; const ImagePlus = () => null;\n' +
-          'const Layers3 = () => null; const Plus = () => null; const X = () => null;\n' +
+          'const Layers3 = () => null; const Plus = () => null; const RotateCcw = () => null; const X = () => null;\n' +
           'const Dices = () => null; const AssetPicker = () => null;\n' +
           'const PreviewArea = () => null; const RuntimeQueue = () => null;\n' +
           'const CreationQueueTiming = () => null;\n' +

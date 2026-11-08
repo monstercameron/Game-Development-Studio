@@ -1,0 +1,25 @@
+/* ux-page-images: refinements for the images page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* Custom size notice: says which value wins and offers the one-click way back to presets. */
+.image-video-settings-override {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ux-space-3, 12px);
+  margin: var(--ux-space-3, 12px) 0;
+  padding: var(--ux-space-2, 8px) var(--ux-space-3, 12px);
+  border: 1px solid var(--ux-border, currentColor);
+  border-radius: var(--ux-radius-sm, 6px);
+  font-size: var(--ux-text-sm, 0.875rem);
+  line-height: 1.4;
+}
+
+.image-video-settings-override .outline-button {
+  min-height: var(--ux-target-min, 36px);
+}
+
+/* Keep optional-controls inputs at the shared minimum target height. */
+.image-video-settings-body input {
+  min-height: var(--ux-target-min, 36px);
+}

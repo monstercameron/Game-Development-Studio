@@ -1,7 +1,11 @@
 import { saveProjectText } from './save-project-text';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Copy, Gamepad2, LoaderCircle, Save } from 'lucide-react';
-import { gameDecisionRequest, presentGameDecision } from './game-decision-input.js';
+import {
+  decisionSummary,
+  gameDecisionRequest,
+  presentGameDecision,
+} from './game-decision-input.js';
 import MemoryDialog from './MemoryDialog.jsx';
 import { formatDuration } from './queue-timing.js';
 import './game-decision.css';
@@ -23,9 +27,20 @@ function readTimings() {
   }
 }
 
+function errorText(detail) {
+  if (typeof detail === 'string') {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    // FastAPI validation errors: show the messages, not the raw JSON.
+    return detail.map((item) => item?.msg || JSON.stringify(item)).join(' ');
+  }
+  return '';
+}
+
 export default function GameDecision({ draft, project, onSaved }) {
   const [result, setResult] = useState(null),
-    [choiceLabel, setChoiceLabel] = useState(''),
+    [summary, setSummary] = useState(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [copied, setCopied] = useState(false);
@@ -34,6 +49,9 @@ export default function GameDecision({ draft, project, onSaved }) {
   const [statusError, setStatusError] = useState('');
   const [saving, setSaving] = useState(false),
     [savedPath, setSavedPath] = useState('');
+  const runHintId = useId();
+  const stopHintId = useId();
+  const saveHintId = useId();
   useEffect(() => setSavedPath(''), [project?.id]);
   const [loading, setLoading] = useState(false),
     [notice, setNotice] = useState(''),
@@ -137,7 +155,10 @@ export default function GameDecision({ draft, project, onSaved }) {
         throw Error(data.error || 'Could not stop Mammoth.');
       }
       setNotice(data.message);
-      setService(null);
+      // Keep the last known service and mark the model unloaded until the next status poll.
+      setService((previous) =>
+        previous ? { ...previous, modelLoaded: false, state: 'stopped' } : previous,
+      );
     } catch (e) {
       setError(e.message);
     } finally {
@@ -155,7 +176,7 @@ export default function GameDecision({ draft, project, onSaved }) {
     setBusy(true);
     setError('');
     setResult(null);
-    setChoiceLabel('');
+    setSummary(null);
     setCopied(false);
     setSavedPath('');
     try {
@@ -166,18 +187,9 @@ export default function GameDecision({ draft, project, onSaved }) {
       });
       const data = await response.json();
       if (!response.ok) {
-        throw Error(
-          typeof data.detail === 'string'
-            ? data.detail
-            : JSON.stringify(data.detail || data.error || data),
-        );
+        throw Error(errorText(data.detail) || data.error || 'Mammoth could not answer.');
       }
-      const choice = data?.answers?.decision?.choice;
-      setChoiceLabel(
-        request.questions.decision.type === 'choice'
-          ? request.questions.decision.criteria[choice] || ''
-          : '',
-      );
+      setSummary(decisionSummary(data, request));
       const elapsed = data?.metrics?.server_ms;
       if (typeof elapsed === 'number' && Number.isFinite(elapsed) && elapsed >= 0) {
         setTimings((previous) => {
@@ -210,6 +222,7 @@ export default function GameDecision({ draft, project, onSaved }) {
   const decisionEstimate = similar.length ? similar[Math.floor((similar.length - 1) / 2)] : null;
   const isReady =
     service?.status === 'reachable' && service.modelLoaded === true && service.state !== 'error';
+  const modelLoading = service?.state === 'loading';
   const serviceState = statusError
     ? 'Could not check Mammoth status.'
     : service?.status === 'unavailable'
@@ -229,6 +242,26 @@ export default function GameDecision({ draft, project, onSaved }) {
                     ? 'Model is loading…'
                     : 'Service running · model not loaded.'
                   : 'Service reachable · model status unknown.';
+  // Run stays enabled unless a load is in progress: observed status can be stale, so the
+  // decision request is still sent. The hint says what to expect next to the button.
+  const runHint = isReady
+    ? null
+    : modelLoading
+      ? 'Mammoth is still loading. Run becomes available when loading finishes.'
+      : !service ||
+          statusError ||
+          service.status === 'unverified' ||
+          (service.status === 'reachable' && service.modelLoaded === null) ||
+          service.modelLoaded === undefined
+        ? 'Readiness is unconfirmed. Run will still try.'
+        : 'Not ready yet. Start or load Mammoth first; Run will still try and will likely fail.';
+  const stopHint = busy
+    ? 'Wait for the current decision to finish.'
+    : !service || service.managed
+      ? null
+      : service.status === 'reachable'
+        ? 'This Mammoth service was started outside Forge, so Forge will not stop it.'
+        : 'Nothing for Forge to stop.';
   async function saveDecision() {
     setSaving(true);
     setError('');
@@ -261,7 +294,7 @@ export default function GameDecision({ draft, project, onSaved }) {
           <span className="mini-label">MAMMOTH · LIVE SERVICE</span>
           <h2>Test a decision</h2>
         </div>
-        <Gamepad2 size={18} />
+        <Gamepad2 size={18} aria-hidden="true" />
       </div>
       <div
         className={`game-service-state${isReady ? ' is-ready' : ''}`}
@@ -287,10 +320,8 @@ export default function GameDecision({ draft, project, onSaved }) {
       </div>
       <p className="helper">
         {draft.options?.[0] === 'Yes / No'
-          ? 'Enter a question above. Mammoth returns a probability for yes.'
-          : 'Enter a question, then at least two choices or score levels on separate lines.'}{' '}
-        Load Mammoth before running. If its observed status is stale, Forge still tries the
-        decision.
+          ? 'Yes / No returns the probability that the answer is yes.'
+          : 'Choice returns the most likely option with a probability for each option.'}
       </p>
       <div className="queue-timing-summary">
         <strong>
@@ -306,7 +337,11 @@ export default function GameDecision({ draft, project, onSaved }) {
         </span>
       </div>
       <div className="game-decision-actions">
-        <button className="outline-button" onClick={load} disabled={loading}>
+        <button
+          className={`outline-button game-load-button${isReady ? '' : ' is-primary'}`}
+          onClick={load}
+          disabled={loading}
+        >
           {loading && <LoaderCircle className="game-spinner" size={16} aria-hidden="true" />}
           {loading ? 'Starting or loading…' : 'Start / load Mammoth'}
         </button>
@@ -314,24 +349,34 @@ export default function GameDecision({ draft, project, onSaved }) {
           className="outline-button game-stop-button"
           onClick={stop}
           disabled={loading || busy || !service?.managed}
-          title={
-            !service?.managed
-              ? 'Only a Forge-managed Mammoth service can be stopped here'
-              : 'Stop the Forge-managed service'
-          }
+          aria-describedby={stopHint ? stopHintId : undefined}
         >
           Stop managed Mammoth
         </button>
         <button
           className="game-run-button"
           onClick={run}
-          disabled={busy || loading || service?.state === 'loading'}
-          title={service?.state === 'loading' ? 'Wait for Mammoth to finish loading' : undefined}
+          disabled={busy || loading || modelLoading}
+          aria-describedby={runHint ? runHintId : undefined}
         >
           {busy && <LoaderCircle className="game-spinner" size={17} aria-hidden="true" />}
           {busy ? 'Waiting for Mammoth…' : 'Run decision'}
         </button>
       </div>
+      {(runHint || stopHint) && (
+        <div className="game-action-hints">
+          {runHint && (
+            <p id={runHintId} className="helper game-action-hint">
+              {runHint}
+            </p>
+          )}
+          {stopHint && (
+            <p id={stopHintId} className="helper game-action-hint">
+              {stopHint}
+            </p>
+          )}
+        </div>
+      )}
       {notice && (
         <p className="helper" role="status">
           {notice}
@@ -344,9 +389,10 @@ export default function GameDecision({ draft, project, onSaved }) {
       )}
       {result && (
         <>
-          {choiceLabel && (
-            <p className="helper" role="status">
-              Selected: <strong>{choiceLabel}</strong>
+          {summary && (
+            <p className="game-summary" role="status">
+              <strong>{summary.title}</strong>
+              {summary.detail && <span>{summary.detail}</span>}
             </p>
           )}
           <p className="helper">
@@ -355,22 +401,29 @@ export default function GameDecision({ draft, project, onSaved }) {
               : 'Showing the complete response, including metrics.'}{' '}
             This changes the display, not the decision.
           </p>
-          <pre className="game-result">{JSON.stringify(shown, null, 2)}</pre>
+          <pre className="game-result" tabIndex={0} aria-label="Decision result">
+            {JSON.stringify(shown, null, 2)}
+          </pre>
           <div className="game-decision-actions">
             <button className="outline-button" onClick={copy}>
-              <Copy size={15} />
+              <Copy size={15} aria-hidden="true" />
               {copied ? 'Copied' : 'Copy displayed result'}
             </button>
             <button
               className="outline-button"
               disabled={!project || saving}
-              title={!project ? 'Choose a project first' : 'Save the complete response as JSON'}
+              aria-describedby={!project ? saveHintId : undefined}
               onClick={saveDecision}
             >
-              <Save size={15} />
+              <Save size={15} aria-hidden="true" />
               {saving ? 'Saving…' : 'Save JSON to project'}
             </button>
           </div>
+          {!project && (
+            <p id={saveHintId} className="helper">
+              Choose a project above to save this result as JSON.
+            </p>
+          )}
           {savedPath && (
             <p className="helper" role="status">
               Saved to {savedPath}

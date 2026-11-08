@@ -2,7 +2,7 @@ const segmentation = {
   'What would you like to isolate?':
     'Describe the object or objects to select in the reference image. Short, specific descriptions work best.',
   'Reference image':
-    'Choose one PNG, JPEG, or WebP image under 10 MiB. SAM finds the objects you describe in this image.',
+    'Choose one PNG, JPEG, or WebP image up to 10 MiB and 20 megapixels. SAM finds the objects you describe in this image.',
   'Choose a reference image':
     'Select one PNG, JPEG, or WebP image from your computer. You must select it again after refreshing the page.',
   'Confidence threshold':

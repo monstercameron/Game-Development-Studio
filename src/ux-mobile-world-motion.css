@@ -1,0 +1,231 @@
+/* ux-mobile-world-motion: phone and small-tablet refinements (max-width 850px / 600px), loaded last. Use --ux-* tokens. */
+
+/* ---------- Tablet and phone (<= 850px): Worlds and Motion stack in one column ---------- */
+@media (max-width: 850px) {
+  .world-page .world-heading,
+  .editor-page .editor-title {
+    min-width: 0;
+  }
+
+  .world-page .world-panel,
+  .motion-preview,
+  .motionbricks-controls,
+  .hy-motion-controls {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .world-page .world-models {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ux-space-3);
+    margin: var(--ux-space-3) 0 var(--ux-space-4);
+  }
+
+  .world-page .world-model {
+    min-height: var(--ux-target-touch);
+    width: 100%;
+  }
+
+  .world-page .world-settings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .world-page .world-form :is(select, textarea, input[type='number'], input[type='text']) {
+    font-size: 16px;
+    min-height: var(--ux-target-touch);
+  }
+
+  .world-page .world-form textarea {
+    min-height: 120px;
+  }
+
+  .world-page .world-seed {
+    width: 100%;
+  }
+
+  .world-page .world-seed button {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+  }
+
+  .world-page .world-file-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ux-space-2);
+  }
+
+  .world-page .world-file-actions .outline-button {
+    width: 100%;
+    min-height: var(--ux-target-touch);
+    justify-content: center;
+  }
+
+  .world-page .world-reference-list {
+    gap: var(--ux-space-2);
+  }
+
+  .world-page .world-reference {
+    flex-wrap: nowrap;
+    padding: var(--ux-space-2);
+  }
+
+  .world-page .world-reference img {
+    width: 56px;
+    height: 44px;
+  }
+
+  .world-page .world-reference .icon-btn {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Submit row: estimate above, full-width primary action; sticks to the bottom like .form-bottom. */
+  .world-page .world-action {
+    position: sticky;
+    top: auto;
+    bottom: 0;
+    z-index: 2;
+    padding: var(--ux-space-3);
+    border-radius: var(--ux-radius-md) var(--ux-radius-md) 0 0;
+    box-shadow: 0 -8px 16px rgb(0 0 0 / 25%);
+  }
+
+  .world-page .world-submit {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ux-space-2);
+  }
+
+  .world-page .world-submit .primary {
+    width: 100%;
+    min-height: var(--ux-target-touch);
+    justify-content: center;
+  }
+
+  .world-page .world-reset {
+    justify-content: stretch;
+  }
+
+  .world-page .world-reset .reset-defaults,
+  .world-page .world-reset .text-action {
+    min-height: var(--ux-target-touch);
+    width: 100%;
+    justify-content: center;
+  }
+
+  .world-page .world-reset .reset-confirm {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--ux-space-2);
+    width: 100%;
+  }
+
+  .world-page .world-reset .reset-confirm .text-action {
+    min-height: var(--ux-target-touch);
+  }
+
+  /* Queue and recent creations: stacked below the form, full width. */
+  .world-page .right-column,
+  .world-page .right-column > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* PLY / Gaussian preview sizing: keep the viewport inside the phone width. */
+  .world-page .right-column canvas,
+  .world-page .right-column .preview-stage,
+  .world-page .right-column .preview-frame {
+    max-width: 100%;
+  }
+
+  /* Motion: model selector full width with a touch-sized control. */
+  .editor-page #motion-model,
+  .editor-page .model3d-select {
+    width: 100%;
+    min-height: var(--ux-target-touch);
+    font-size: 16px;
+  }
+
+  .hy-motion-controls-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hy-motion-control input {
+    min-height: var(--ux-target-touch);
+    font-size: 16px;
+  }
+
+  .motionbricks-controls .motionbricks-source-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ux-space-2);
+  }
+
+  .motionbricks-controls .motionbricks-upload,
+  .motionbricks-controls .motionbricks-source-actions .asset-library-button {
+    width: 100%;
+    min-height: var(--ux-target-touch);
+    box-sizing: border-box;
+  }
+
+  .motionbricks-controls .motionbricks-selected-source {
+    flex-wrap: wrap;
+  }
+
+  .motionbricks-controls .motionbricks-remove-source {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+  }
+
+  .motionbricks-controls .motionbricks-parameter-grid input {
+    min-height: var(--ux-target-touch);
+    font-size: 16px;
+  }
+
+  .motion-preview .model-preview-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ux-space-2);
+  }
+
+  .motion-preview .model-preview-tools button {
+    min-height: var(--ux-target-touch);
+    min-width: var(--ux-target-touch);
+  }
+}
+
+/* ---------- Phone (<= 600px): tighter gutters, single-column parameter grids ---------- */
+@media (max-width: 600px) {
+  .world-page .world-panel {
+    padding: var(--ux-space-3);
+  }
+
+  .world-page .world-input,
+  .world-page .world-model {
+    padding: var(--ux-space-3);
+  }
+
+  .world-page .world-heading h1 {
+    font-size: var(--ux-text-lg);
+    overflow-wrap: anywhere;
+  }
+
+  .motionbricks-controls .motionbricks-parameter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .motionbricks-controls .motionbricks-group {
+    min-width: 0;
+  }
+
+  .world-page .world-action {
+    margin-inline: calc(var(--ux-space-3) * -1);
+    border-inline: 0;
+    border-radius: 0;
+  }
+}

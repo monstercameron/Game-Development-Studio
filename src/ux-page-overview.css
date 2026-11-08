@@ -1,0 +1,8 @@
+/* ux-page-overview: refinements for the overview page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* Below 1000px the spark panel and draft queue stack, so spark art keeps a usable size. */
+@media (max-width: 1000px) {
+  .overview .bottom-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

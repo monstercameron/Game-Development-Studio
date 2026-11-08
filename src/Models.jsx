@@ -43,24 +43,84 @@ const icons = {
   cpu: Cpu,
   chat: MessageSquare,
 };
+// Catalog copy that is misleading in the UI. The shared catalog text should be
+// corrected at its source as well.
+const purposeOverrides = {
+  game: 'Structured decisions for game characters from game state and a choice, score or yes/no question.',
+};
 const models = modelCatalog
   .filter((model) => !model.role)
-  .map((model) => ({ ...model, icon: icons[model.icon] || Cpu }));
+  .map((model) => ({
+    ...model,
+    icon: icons[model.icon] || Cpu,
+    purpose: purposeOverrides[model.id] || model.purpose,
+  }));
 const categories = ['All', ...new Set(models.map((model) => model.category))];
 const serviceIds = Object.fromEntries(
   models
     .filter((model) => model.id !== 'chat')
     .map((model) => [model.name, model.serviceId || model.id]),
 );
-const managedIds = new Set([
-  '3d-trellis',
-  '3d-hunyuan',
-  'motion-hy',
-  'motion-bricks',
-  'tts',
-  'asr',
-  'segmentation',
-]);
+// Lowercase "studio" labels used in the card action: "Open <label>".
+const panelLabels = {
+  world: 'world studio',
+  images: 'image studio',
+  '3d': '3D studio',
+  motion: 'motion studio',
+  video: 'video studio',
+  music: 'music studio',
+  sfx: 'sound effects',
+  voices: 'voice studio',
+  game: 'game logic',
+  segmentation: 'segmentation',
+  chat: 'chat',
+};
+// Status notes that the catalog records but its card text does not show. Keyed by
+// catalog id; sourced from docs/STUDIO_GUIDE.md and docs/MODEL_SOURCES.md.
+const modelNotes = {
+  worldgen: [
+    {
+      label: 'Access terms',
+      note: 'FLUX terms and a Hugging Face token may be required.',
+    },
+  ],
+  'hy-world': [
+    {
+      label: 'Partial',
+      note: 'Image reconstruction only; larger WorldStereo and HY-Pano pipelines are not connected.',
+    },
+  ],
+  '3d-trellis': [
+    {
+      label: 'Experimental',
+      note: 'Preview; a complete render has not been verified. Needs approved DINOv3 access.',
+    },
+  ],
+  'motion-hy': [
+    {
+      label: 'Experimental',
+      note: 'Text to BVH only; rigging and retargeting are not connected.',
+    },
+  ],
+  'motion-bricks': [
+    {
+      label: 'Experimental',
+      note: 'SOMA BVH transitions only; does not rig or retarget characters.',
+    },
+  ],
+  sfx: [
+    {
+      label: 'Gated',
+      note: 'Requires accepting Hugging Face model terms before loading.',
+    },
+  ],
+  segmentation: [
+    {
+      label: 'Gated',
+      note: 'Requires approved SAM 3.1 access on Hugging Face.',
+    },
+  ],
+};
 function serviceLabel(service) {
   if (!service) {
     return 'Checking…';
@@ -660,12 +720,14 @@ export default function Models({ onNavigate = () => {} }) {
     model.panel === 'chat'
       ? chatService
       : serviceStates.find((service) => service.id === serviceIds[model.name]);
-  const storageFor = (model) =>
-    modelStorage?.entries?.find((item) => item.id === serviceIds[model.name]);
+  // Storage ids are catalog ids. Service ids differ (WorldGen and HY-World share "world"),
+  // so they must not be used to find a model's folder.
+  const storageFor = (model) => modelStorage?.entries?.find((item) => item.id === model.id);
+  const removalFor = (model) => modelStorage?.removals?.[model.id];
   const isAttention = (model) => {
     const status = statusFor(model),
       storage = storageFor(model),
-      removal = modelStorage?.removals?.[serviceIds[model.name]];
+      removal = removalFor(model);
     return !!(
       status?.ownershipRecovery === 'unresolved' ||
       status?.status === 'unverified' ||
@@ -695,9 +757,11 @@ export default function Models({ onNavigate = () => {} }) {
   const device = hardware?.devices?.find(
     (item) => item.freeMiB !== null && item.freeMiB !== undefined,
   );
+  const unmeasuredFolders =
+    modelStorage?.entries?.filter((item) => item.bytes === null || item.bytes === undefined)
+      .length || 0;
   const measured =
-    modelStorage?.entries?.length &&
-    !modelStorage.entries.some((item) => item.bytes === null || item.bytes === undefined)
+    modelStorage?.entries?.length && unmeasuredFolders === 0
       ? fileSize(modelStorage.entries.reduce((sum, item) => sum + item.bytes, 0))
       : '—';
   const barrierNames = {
@@ -798,7 +862,11 @@ export default function Models({ onNavigate = () => {} }) {
           <div className="catalog-storage-value">
             <strong>{measured}</strong>
             <span>
-              {modelStorage?.state === 'scanning' ? 'Measuring files…' : 'measured in models/'}
+              {modelStorage?.state === 'scanning'
+                ? 'Measuring files…'
+                : unmeasuredFolders > 0
+                  ? `${unmeasuredFolders} folder${unmeasuredFolders === 1 ? '' : 's'} could not be measured`
+                  : 'measured in models/'}
             </span>
           </div>
           <p>
@@ -936,13 +1004,12 @@ export default function Models({ onNavigate = () => {} }) {
       <section className="catalog-grid" aria-label="Model library">
         {filtered.length ? (
           filtered.map((model) => {
-            const id = serviceIds[model.name],
-              status = statusFor(model),
+            const status = statusFor(model),
               storage = storageFor(model),
-              removal = modelStorage?.removals?.[id],
-              managed = managedIds.has(id),
+              removal = removalFor(model),
               attention = isAttention(model),
               online = status?.status === 'reachable',
+              notes = modelNotes[model.id] || [],
               size = ['prepared', 'deleting'].includes(removal?.state)
                 ? 'Removing…'
                 : removal?.state === 'failed'
@@ -953,9 +1020,12 @@ export default function Models({ onNavigate = () => {} }) {
                       ? fileSize(storage.bytes)
                       : storage?.installed === false
                         ? 'Not installed'
-                        : managed && (!modelStorage || modelStorage.state === 'scanning')
+                        : !modelStorage || modelStorage.state === 'scanning'
                           ? 'Measuring…'
-                          : 'Not measured';
+                          : 'Not measured',
+              locationFallback = modelStorage
+                ? 'Not found in the Forge model folder'
+                : 'Checking model folder location…';
             return (
               <article className="catalog-card" key={model.name}>
                 <div className="catalog-card-top">
@@ -983,11 +1053,23 @@ export default function Models({ onNavigate = () => {} }) {
                   </span>
                 </div>
                 <p className="catalog-purpose">{model.purpose}</p>
+                {notes.length > 0 && (
+                  <ul className="catalog-notes" aria-label={`${model.name} status`}>
+                    {notes.map((item) => (
+                      <li key={item.label}>
+                        <span className="catalog-badge">{item.label}</span>
+                        <span>{item.note}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="catalog-details">
                   <div>
                     <span>Model files</span>
                     <strong title={storage?.error || ''}>{size}</strong>
-                    <small>{managed ? 'Forge model folder' : 'Outside Forge inventory'}</small>
+                    <small>
+                      {storage ? 'Forge model folder' : 'Not in measured model folders'}
+                    </small>
                   </div>
                   <div>
                     <span>Est. GPU budget</span>
@@ -997,18 +1079,8 @@ export default function Models({ onNavigate = () => {} }) {
                 </div>
                 <div className="catalog-location">
                   <HardDrive size={15} />
-                  <span
-                    title={
-                      storage?.path ||
-                      (managed
-                        ? 'Checking model folder location'
-                        : 'Location is outside the measured model folders')
-                    }
-                  >
-                    {storage?.path ||
-                      (managed
-                        ? 'Checking model folder location…'
-                        : 'Location is outside the measured model folders')}
+                  <span title={storage?.path || locationFallback}>
+                    {storage?.path || locationFallback}
                   </span>
                   {storage?.path && (
                     <button
@@ -1025,24 +1097,7 @@ export default function Models({ onNavigate = () => {} }) {
                     className="catalog-open"
                     onClick={() => onNavigate(model.panel, model.name)}
                   >
-                    Open{' '}
-                    {model.panel === '3d'
-                      ? '3D studio'
-                      : model.panel === 'motion'
-                        ? 'motion studio'
-                        : model.panel === 'sfx'
-                          ? 'sound effects'
-                          : model.panel === 'game'
-                            ? 'game logic'
-                            : model.panel === 'segmentation'
-                              ? 'segmentation'
-                              : model.panel === 'chat'
-                                ? 'chat'
-                                : model.panel === 'voices'
-                                  ? 'voice studio'
-                                  : model.panel === 'images'
-                                    ? 'image studio'
-                                    : `${model.panel} studio`}{' '}
+                    Open {panelLabels[model.panel] || `${model.panel} studio`}{' '}
                     <ArrowUpRight size={15} />
                   </button>
                   {model.name === 'YuE2' &&
@@ -1080,7 +1135,7 @@ export default function Models({ onNavigate = () => {} }) {
                         ? 'Checking…'
                         : runtimeHealth?.modelLoadEngine === 'asr'
                           ? 'Starting…'
-                          : 'Start service'}
+                          : 'Start & load model'}
                     </button>
                   )}
                   {status?.canUnload && (
@@ -1107,15 +1162,13 @@ export default function Models({ onNavigate = () => {} }) {
                       Force stop…
                     </button>
                   )}
-                  {id && (
-                    <button
-                      className="catalog-action"
-                      aria-label={`File details for ${model.name}`}
-                      onClick={() => setSelected(model)}
-                    >
-                      File details
-                    </button>
-                  )}
+                  <button
+                    className="catalog-action"
+                    aria-label={`File details for ${model.name}`}
+                    onClick={() => setSelected(model)}
+                  >
+                    File details
+                  </button>
                 </div>
               </article>
             );
@@ -1139,10 +1192,10 @@ export default function Models({ onNavigate = () => {} }) {
       {selected && (
         <ModelRemovalDialog
           model={selected}
-          id={serviceIds[selected.name]}
-          storage={modelStorage?.entries?.find((item) => item.id === serviceIds[selected.name])}
-          service={serviceStates.find((item) => item.id === serviceIds[selected.name])}
-          removal={modelStorage?.removals?.[serviceIds[selected.name]]}
+          id={selected.id}
+          storage={storageFor(selected)}
+          service={statusFor(selected)}
+          removal={removalFor(selected)}
           inventoryState={modelStorage?.state}
           onRefresh={refreshStorage}
           onClose={() => setSelected(null)}

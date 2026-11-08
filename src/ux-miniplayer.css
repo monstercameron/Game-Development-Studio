@@ -1,0 +1,268 @@
+/* Persistent mini player dock (audio bar / video card / minimized pill).
+   Sits above sticky form bars (z 2) and below toasts (5) and modals (10). */
+.mini-player-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.mini-player {
+  position: fixed;
+  right: var(--ux-space-5);
+  bottom: var(--ux-space-5);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ux-space-1);
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  padding: var(--ux-space-1) var(--ux-space-2) var(--ux-space-2);
+  color: var(--forge-text);
+  background: var(--forge-raised);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-md);
+  box-shadow: var(--forge-shadow-overlay);
+  animation: mini-player-in 160ms ease-out both;
+}
+.mini-player.is-video {
+  width: 340px;
+}
+.mini-player.is-minimized {
+  width: min(320px, calc(100vw - 16px));
+  padding-bottom: var(--ux-space-1);
+  border-radius: 999px;
+  padding-inline: var(--ux-space-1);
+}
+@keyframes mini-player-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.mini-player-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ux-space-1);
+  min-width: 0;
+}
+.mini-player-kind {
+  flex: 0 0 auto;
+  color: var(--forge-orange-hover);
+}
+.mini-player-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--ux-text-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-player-button {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: var(--ux-target-min);
+  height: var(--ux-target-min);
+  padding: 0;
+  color: var(--forge-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.mini-player-button:hover {
+  background: var(--forge-selection-surface);
+  border-color: var(--forge-border);
+}
+.mini-player-button:focus-visible,
+.mini-player-seek:focus-visible,
+.mini-shrink:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+.mini-player-grip {
+  width: 28px;
+  color: var(--forge-subtle);
+  cursor: grab;
+  touch-action: none;
+}
+.mini-player-grip:active {
+  cursor: grabbing;
+}
+.mini-player-play {
+  color: var(--forge-text-on-orange);
+  background: var(--forge-orange);
+}
+.mini-player-play:hover {
+  background: var(--forge-orange-hover);
+  border-color: transparent;
+}
+
+.mini-player-video {
+  overflow: hidden;
+  background: var(--forge-bg);
+  border-radius: var(--ux-radius-sm);
+  aspect-ratio: 16 / 9;
+}
+.mini-player-video video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* The element stays mounted while minimized so playback is never interrupted. */
+.mini-player.is-minimized .mini-player-video {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mini-player-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--ux-space-2);
+  min-width: 0;
+}
+.mini-player-seek {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--forge-orange);
+  cursor: pointer;
+}
+.mini-player-time {
+  flex: 0 0 auto;
+  color: var(--forge-muted);
+  font-size: var(--ux-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.mini-player-error {
+  margin: 0;
+  color: var(--forge-danger);
+  font-size: var(--ux-text-xs);
+}
+
+/* Inline "Shrink to mini player" buttons. */
+.mini-shrink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ux-space-2);
+  color: var(--forge-text);
+  background: transparent;
+  cursor: pointer;
+}
+button.iteration-icon.mini-shrink {
+  padding: 0;
+}
+.mini-shrink-floating {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  color: white;
+  background: var(--forge-modal-close-surface);
+  border: 1px solid var(--forge-modal-close-border);
+  border-radius: 50%;
+}
+.mini-shrink-floating:hover {
+  border-color: var(--forge-orange);
+}
+.mini-shrink-labeled {
+  min-height: var(--ux-target-min);
+  padding: 0 var(--ux-space-3);
+  font-size: var(--ux-text-sm);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+}
+.mini-shrink-labeled:hover {
+  background: var(--forge-raised);
+  border-color: var(--forge-orange);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-player {
+    animation: none;
+  }
+}
+
+.iteration-caption > div:first-child {
+  flex: 1 1 auto;
+}
+
+/* Repeat cycle button. */
+.mini-repeat-anchor {
+  display: inline-flex;
+}
+.mini-repeat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ux-space-2);
+  color: var(--forge-text);
+  background: transparent;
+  cursor: pointer;
+}
+.mini-repeat:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+.mini-repeat[data-repeat='once'],
+.mini-repeat[data-repeat='loop'] {
+  color: var(--forge-orange-hover);
+}
+.mini-player-repeat[data-repeat='once'],
+.mini-player-repeat[data-repeat='loop'] {
+  border-color: var(--forge-orange);
+}
+.mini-repeat-floating {
+  position: absolute;
+  top: 14px;
+  left: 56px;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  background: var(--forge-modal-close-surface);
+  border: 1px solid var(--forge-modal-close-border);
+  border-radius: 50%;
+}
+.mini-repeat-labeled,
+button.iteration-icon.mini-repeat {
+  min-height: var(--ux-target-min);
+  padding: 0 var(--ux-space-3);
+  font-size: var(--ux-text-sm);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+}
+button.iteration-icon.mini-repeat {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+.mini-repeat-labeled:hover,
+button.iteration-icon.mini-repeat:hover {
+  background: var(--forge-raised);
+  border-color: var(--forge-orange);
+}
+.mini-gallery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--ux-space-2);
+}

@@ -27,6 +27,16 @@ export default function MotionBricksControls({ draft, onChange, file, onFile, on
   const tokenOrderInvalid =
     !minTokensInvalid && !maxTokensInvalid && Number(minTokens) > Number(maxTokens);
   const fileTooLarge = Boolean(file && file.size > MAX_SOURCE_BYTES);
+  // A transition of N tokens keeps 4N - 6 frames after the worker trims boundary frames.
+  const frameCount = (tokens) => 4 * tokens - 6;
+  const lengthRangeValid =
+    !minTokensInvalid &&
+    !maxTokensInvalid &&
+    !tokenOrderInvalid &&
+    minTokens !== '' &&
+    maxTokens !== '';
+  const shortestFrames = lengthRangeValid ? frameCount(Number(minTokens)) : null;
+  const longestFrames = lengthRangeValid ? frameCount(Number(maxTokens)) : null;
 
   return (
     <section className="motionbricks-controls" aria-label="MotionBricks source and settings">
@@ -101,8 +111,10 @@ export default function MotionBricksControls({ draft, onChange, file, onFile, on
       <fieldset className="motionbricks-group">
         <legend>Pose windows</legend>
         <div className="motionbricks-parameter-grid">
-          <label htmlFor="motionbricks-context-frame">
-            <span className="field-label">Starting pose frame</span>
+          <div>
+            <label className="field-label" htmlFor="motionbricks-context-frame">
+              Starting pose frame
+            </label>
             <input
               id="motionbricks-context-frame"
               type="number"
@@ -122,9 +134,11 @@ export default function MotionBricksControls({ draft, onChange, file, onFile, on
                 Enter a whole frame number of 0 or greater.
               </span>
             )}
-          </label>
-          <label htmlFor="motionbricks-target-frame">
-            <span className="field-label">Target pose frame</span>
+          </div>
+          <div>
+            <label className="field-label" htmlFor="motionbricks-target-frame">
+              Target pose frame
+            </label>
             <input
               id="motionbricks-target-frame"
               type="number"
@@ -144,19 +158,23 @@ export default function MotionBricksControls({ draft, onChange, file, onFile, on
                 Enter a whole frame number of 0 or greater.
               </span>
             )}
-          </label>
+          </div>
         </div>
         <p className="helper motionbricks-group-help" id="motionbricks-frame-help">
-          Zero-based frame numbers use a 30 fps timebase, including for 60 or 120 fps files. Each
-          selection reads four frames; both windows must fit inside the clip.
+          Each window reads four consecutive frames: the starting window leads into the generated
+          transition, and the target window is the pose it should reach. Frame numbers are
+          zero-based at 30 fps, including for 60 or 120 fps files. Both windows must fit inside the
+          clip.
         </p>
       </fieldset>
 
       <fieldset className="motionbricks-group motionbricks-length-group">
         <legend>Generated transition length</legend>
         <div className="motionbricks-parameter-grid">
-          <label htmlFor="motionbricks-min-tokens">
-            <span className="field-label">Minimum length (tokens)</span>
+          <div>
+            <label className="field-label" htmlFor="motionbricks-min-tokens">
+              Minimum length (tokens)
+            </label>
             <input
               id="motionbricks-min-tokens"
               type="number"
@@ -172,9 +190,11 @@ export default function MotionBricksControls({ draft, onChange, file, onFile, on
               }
               onChange={(event) => onChange({ minTokens: event.target.value })}
             />
-          </label>
-          <label htmlFor="motionbricks-max-tokens">
-            <span className="field-label">Maximum length (tokens)</span>
+          </div>
+          <div>
+            <label className="field-label" htmlFor="motionbricks-max-tokens">
+              Maximum length (tokens)
+            </label>
             <input
               id="motionbricks-max-tokens"
               type="number"
@@ -190,11 +210,15 @@ export default function MotionBricksControls({ draft, onChange, file, onFile, on
               }
               onChange={(event) => onChange({ maxTokens: event.target.value })}
             />
-          </label>
+          </div>
         </div>
         <p className="helper motionbricks-group-help" id="motionbricks-length-help">
-          Choose 6–16 tokens, with the minimum no greater than the maximum. One token represents
-          four frames; boundary frames are trimmed, so the final clip can be shorter.
+          Choose 6–16 tokens; the minimum must not exceed the maximum. Each token is four frames at
+          30 fps, and boundary frames are trimmed, so a transition has 4 × tokens − 6 frames
+          {shortestFrames !== null
+            ? ` (${shortestFrames} to ${longestFrames} frames, about ${(shortestFrames / 30).toFixed(1)} to ${(longestFrames / 30).toFixed(1)} seconds)`
+            : ''}
+          .
         </p>
         {(minTokensInvalid || maxTokensInvalid || tokenOrderInvalid) && (
           <p className="motionbricks-error" id="motionbricks-token-error" aria-live="polite">

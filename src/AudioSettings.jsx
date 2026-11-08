@@ -20,9 +20,10 @@ export default function AudioSettings({ section, draft, update }) {
     const describedBy = [help && `${id}-help`, invalid && `${id}-error`].filter(Boolean).join(' ');
     return (
       <label className="audio-setting" htmlFor={id}>
-        <span>{label}</span>
+        <span id={`${id}-label`}>{label}</span>
         <input
           id={id}
+          aria-labelledby={`${id}-label`}
           type="number"
           min={min}
           max={max}
@@ -95,7 +96,7 @@ export default function AudioSettings({ section, draft, update }) {
                     max: 20,
                     step: 0.1,
                     placeholder: 'Automatic',
-                    help: 'Negative style takes effect when guidance is not 1.',
+                    help: 'Automatic by default. A value of 1 turns off Style to avoid.',
                   })}
                 </>,
               )}
@@ -122,7 +123,11 @@ export default function AudioSettings({ section, draft, update }) {
                       value={draft.musicNegative || ''}
                       onChange={(event) => update({ musicNegative: event.target.value })}
                       placeholder="Optional instruments or styles to steer away from"
+                      aria-describedby="musicNegative-help"
                     />
+                    <small id="musicNegative-help">
+                      Applies only when Guidance scale is not 1.
+                    </small>
                   </label>
                 </>,
               )}
@@ -138,13 +143,13 @@ export default function AudioSettings({ section, draft, update }) {
                   max: 380,
                   step: 0.1,
                   placeholder: 'Use preset',
-                  help: 'Overrides the selected duration.',
+                  help: 'Replaces the duration above. Range: 1 to 380 seconds.',
                 })}
                 {field('soundSteps', 'Generation steps', {
                   min: 1,
                   max: 50,
                   placeholder: 'Use preset',
-                  help: 'Overrides the selected quality preset.',
+                  help: 'Replaces the quality preset above. Range: 1 to 50.',
                 })}
               </>,
             )}
@@ -156,7 +161,7 @@ export default function AudioSettings({ section, draft, update }) {
                 min: 64,
                 max: 2048,
                 placeholder: '1024',
-                help: 'A higher limit can allow longer speech, but may take more time.',
+                help: 'Counted in speech tokens (64 to 2048), not seconds or characters. A higher limit can allow longer speech but takes more time.',
               }),
             )}
         </div>

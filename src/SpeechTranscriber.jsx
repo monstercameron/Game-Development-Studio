@@ -13,10 +13,10 @@ import './speech-transcriber.css';
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const timingKey = 'forge-asr-file-timing-v1';
 const phaseLabels = {
-  recording: 'Listening',
-  transcribing: 'Transcribing file',
-  finishing: 'Finishing',
-  starting: 'Preparing',
+  recording: 'Recording. Speak, then choose Stop & finish.',
+  transcribing: 'Transcribing file. This can take a while for long audio.',
+  finishing: 'Finishing the transcript.',
+  starting: 'Starting speech service. This can take up to two minutes while the model loads.',
 };
 function readFileRates() {
   try {
@@ -60,6 +60,35 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
     projectRef = useRef(project?.id);
   projectRef.current = project?.id;
   useEffect(() => setSavedPath(''), [project?.id]);
+  const [micBlocked, setMicBlocked] = useState(false);
+  useEffect(() => {
+    let status = null,
+      cancelled = false;
+    const sync = () => {
+      if (!cancelled) {
+        setMicBlocked(status?.state === 'denied');
+      }
+    };
+    navigator.permissions
+      ?.query({ name: 'microphone' })
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        status = result;
+        status.onchange = sync;
+        sync();
+      })
+      .catch(() => {
+        // Some browsers do not expose microphone permission state; the start error still explains denial.
+      });
+    return () => {
+      cancelled = true;
+      if (status) {
+        status.onchange = null;
+      }
+    };
+  }, []);
   function cleanup(run) {
     if (!run) {
       return;
@@ -399,6 +428,13 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
       setError('Could not copy the transcript. Select the text and copy it instead.');
     }
   }
+  function clearTranscript() {
+    setTranscript('');
+    setCopied(false);
+    setSavedPath('');
+    setCompletionNotice('');
+    setError('');
+  }
   async function saveTranscript() {
     setSaving(true);
     setError('');
@@ -466,7 +502,12 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
             <Square size={15} /> Stop & finish
           </button>
         ) : (
-          <button className="outline-button" onClick={() => start()} disabled={phase !== 'idle'}>
+          <button
+            className="outline-button"
+            onClick={() => start()}
+            disabled={phase !== 'idle' || micBlocked}
+            aria-describedby={micBlocked ? 'mic-blocked-help' : undefined}
+          >
             {phase === 'idle' ? (
               <Mic size={16} />
             ) : (
@@ -511,8 +552,16 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
         )}
       </div>
       <p className={'speech-status ' + phase} role="status" aria-live="polite">
-        {phase === 'idle' ? completionNotice || 'Microphone off' : phaseLabels[phase]}
+        {phase === 'idle'
+          ? completionNotice || 'Microphone off. Your browser asks for access when you start.'
+          : phaseLabels[phase]}
       </p>
+      {micBlocked && phase === 'idle' && (
+        <p className="speech-blocked" id="mic-blocked-help">
+          Microphone access is blocked for this site. Allow it in your browser's site settings;
+          Start microphone becomes available once it is allowed.
+        </p>
+      )}
       {libraryAudio && (
         <div className="speech-actions">
           <span>{libraryAudio.name}</span>
@@ -536,7 +585,7 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
       <p className="helper">
         Audio files can be up to two minutes and 25 MiB. Supported formats depend on your browser.
       </p>
-      <div className="speech-output">
+      <div className="speech-output" role="region" aria-label="Transcript">
         <span>{transcript}</span>
         {partial && (
           <span className="speech-partial">
@@ -549,31 +598,45 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
         )}
       </div>
       {transcript && (
-        <div className="speech-actions">
-          <button className="icon-outline" onClick={copy}>
-            {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy text'}
-          </button>
-          <button
-            className="icon-outline"
-            disabled={saving || phase !== 'idle' || !project}
-            title={
-              !project
-                ? 'Choose a project to save the transcript.'
-                : 'Save the transcript to this project.'
-            }
-            onClick={saveTranscript}
-          >
-            <Save size={14} /> {saving ? 'Saving…' : 'Save to project'}
-          </button>
-          <button
-            className="icon-outline"
-            disabled={transcript.length > 1000}
-            title={transcript.length > 1000 ? 'Voice text is limited to 1,000 characters.' : ''}
-            onClick={() => onUseText(transcript)}
-          >
-            Use as voice text
-          </button>
-        </div>
+        <>
+          <div className="speech-actions">
+            <button className="icon-outline" onClick={copy}>
+              {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copied' : 'Copy text'}
+            </button>
+            <button
+              className="icon-outline"
+              disabled={saving || phase !== 'idle' || !project}
+              title={
+                !project
+                  ? 'Choose a project to save the transcript.'
+                  : 'Save the transcript to this project.'
+              }
+              onClick={saveTranscript}
+            >
+              <Save size={14} /> {saving ? 'Saving…' : 'Save to project'}
+            </button>
+            <button
+              className="icon-outline"
+              disabled={transcript.length > 1000 || phase !== 'idle'}
+              aria-describedby={transcript.length > 1000 ? 'voice-limit-help' : undefined}
+              onClick={() => onUseText(transcript)}
+            >
+              Use as voice text
+            </button>
+            <button className="ghost-button" disabled={phase !== 'idle'} onClick={clearTranscript}>
+              Clear transcript
+            </button>
+          </div>
+          {!project && (
+            <p className="helper speech-limit">Choose a project to save this transcript.</p>
+          )}
+          {transcript.length > 1000 && (
+            <p className="helper speech-limit" id="voice-limit-help">
+              Voice text allows 1,000 characters; this transcript has {transcript.length}. Trim it
+              or copy it instead.
+            </p>
+          )}
+        </>
       )}
       {savedPath && (
         <p className="speech-save-status" role="status">

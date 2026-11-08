@@ -170,7 +170,7 @@ try {
     }
     $shortcutName = if ($Port -eq 5173) { 'Forge Studio Notifications.lnk' } else { "Forge Studio Notifications $Port.lnk" }
     $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) $shortcutName
-    $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $root 'start-server.ps1') + '" -Port ' + $Port
+    $arguments = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $root 'start-server.ps1') + '" -Port ' + $Port
     [ForgeToastShortcut]::Ensure($shortcut, (Join-Path $PSHOME 'powershell.exe'), $arguments, $root, $iconPath)
     $script:toastNotifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier([ForgeToastShortcut]::AppId)
 } catch {

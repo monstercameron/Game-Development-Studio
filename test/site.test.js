@@ -11,28 +11,34 @@ test('project site filters models and preserves working section links', async ()
   try {
     const { document } = dom.window;
     dom.window.eval(script);
-    const buttons = [...document.querySelectorAll('[data-filter]')];
-    const models = [...document.querySelectorAll('[data-category]')];
-    assert.ok(models.length > 0);
+    const radios = [...document.querySelectorAll('.model-browser input[name="ws"]')];
+    const cards = [...document.querySelectorAll('.model-browser .model')];
+    assert.ok(cards.length > 0, 'the site lists model cards');
+    assert.ok(radios.length > 1, 'the site offers workspace filters');
 
-    for (const button of buttons) {
-      button.click();
-      assert.equal(button.getAttribute('aria-pressed'), 'true');
-      const selected = button.dataset.filter;
-      const visible = models.filter((model) => !model.hidden);
-      assert.ok(visible.length > 0, `${selected} should show at least one model`);
+    for (const radio of radios) {
+      radio.checked = true;
+      radio.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      const visible = cards.filter((card) => !card.hidden);
+      assert.ok(visible.length > 0, `${radio.value} should show at least one model`);
       assert.ok(
-        visible.every((model) => selected === 'all' || model.dataset.category === selected),
+        visible.every(
+          (card) => radio.value === 'all' || card.dataset.ws.split(' ').includes(radio.value),
+        ),
+        `${radio.value} shows only matching cards`,
       );
-      assert.ok(
-        buttons
-          .filter((other) => other !== button)
-          .every((other) => other.getAttribute('aria-pressed') === 'false'),
-      );
+      if (radio.value === 'all') {
+        assert.equal(visible.length, cards.length);
+      }
     }
 
     for (const link of document.querySelectorAll('a[href^="#"]')) {
-      assert.ok(document.getElementById(link.hash.slice(1)), `missing target ${link.hash}`);
+      if (link.hash.length > 1) {
+        assert.ok(document.getElementById(link.hash.slice(1)), `missing target ${link.hash}`);
+      }
+    }
+    for (const img of document.querySelectorAll('img')) {
+      assert.ok(img.getAttribute('alt') !== null, 'images declare alt text');
     }
   } finally {
     dom.window.close();

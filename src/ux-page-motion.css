@@ -1,0 +1,71 @@
+/* ux-page-motion: refinements for the motion page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* HY-Motion: primary clip length, then a disclosure for steps, guidance and seed. */
+.hy-motion-controls-primary {
+  max-width: 320px;
+}
+
+.hy-motion-controls .hy-motion-control > .field-label {
+  display: block;
+}
+
+.hy-motion-advanced {
+  margin-top: var(--forge-space-3);
+  padding-top: var(--forge-space-2-5);
+  border-top: 1px solid var(--forge-border);
+}
+
+.hy-motion-advanced > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--forge-space-1) var(--forge-space-3);
+  min-height: 36px;
+  color: var(--forge-text-strong);
+  font-size: var(--forge-font-support);
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+
+.hy-motion-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.hy-motion-advanced > summary::before {
+  content: '▸';
+  color: var(--forge-muted);
+  transition: transform 120ms ease;
+}
+
+.hy-motion-advanced[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.hy-motion-advanced > summary span {
+  color: var(--forge-muted);
+  font-size: var(--forge-font-caption);
+  font-weight: 400;
+}
+
+.hy-motion-advanced > summary:focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 2px;
+  border-radius: var(--forge-radius-sm);
+}
+
+.hy-motion-advanced .hy-motion-controls-grid {
+  margin-top: var(--forge-space-3);
+}
+
+/* MotionBricks: each parameter is a labelled cell, so the label no longer wraps its error text. */
+.motionbricks-controls .motionbricks-parameter-grid > div {
+  display: block;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hy-motion-advanced > summary::before {
+    transition: none;
+  }
+}

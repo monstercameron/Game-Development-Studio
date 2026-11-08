@@ -1,0 +1,803 @@
+/* 3D asset viewer: workbench layout, toolbar, inspector, playback, thumbnails.
+   Uses --forge-* colour tokens and the shared --ux-* spacing/target tokens. Desktop-first. */
+
+/* ---- shell ---------------------------------------------------------------- */
+.vw {
+  --vw-stage-1: #452a3d;
+  --vw-stage-2: #281324;
+  --vw-accent: var(--forge-orange, #e95420);
+  --vw-pill: rgb(255 244 240 / 6%);
+  --vw-pill-hover: rgb(255 244 240 / 12%);
+  --vw-inspector-width: 300px;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-height: 230px;
+  overflow: hidden;
+  background: var(--forge-bg);
+  color: var(--forge-text);
+  font-size: var(--ux-text-sm, 13px);
+  line-height: 1.4;
+}
+.iteration-media .vw {
+  min-height: 0;
+}
+.vw :focus-visible {
+  outline: var(--ux-focus-ring, 2px solid var(--forge-focus));
+  outline-offset: var(--ux-focus-offset, 2px);
+}
+
+/* ---- toolbar ---------------------------------------------------------------- */
+.vw-toolbar {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--forge-border);
+  background: var(--forge-surface);
+}
+.vw[data-compact] .vw-toolbar {
+  gap: 4px;
+  padding: 4px 6px;
+}
+.vw[data-compact] .vw-group {
+  padding: 1px;
+}
+.interactive-asset-viewer .vw-toolbar {
+  padding-inline-end: var(--vw-chrome-reserve);
+}
+.vw-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--vw-pill);
+}
+.vw-group-end {
+  margin-inline-start: auto;
+}
+.vw-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: var(--ux-target-min, 36px);
+  height: var(--ux-target-min, 36px);
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--forge-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vw-btn-text {
+  padding-inline: 10px;
+}
+.vw-btn:hover,
+.vw-row:hover {
+  background: var(--vw-pill-hover);
+}
+.vw-btn[aria-pressed='true'],
+.vw-row[aria-pressed='true'] {
+  border-color: var(--vw-accent);
+  background: rgb(233 84 32 / 22%);
+  color: var(--forge-text-strong, #fff4f0);
+}
+.vw-btn[aria-disabled='true'],
+.vw-row[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+.vw-btn[aria-disabled='true']:hover {
+  background: transparent;
+}
+
+/* Tooltips: shown on hover and keyboard focus, never the native delayed title. */
+.vw [data-tip],
+.vw-chrome [data-tip],
+.inspection-actions [data-tip] {
+  position: relative;
+}
+.vw [data-tip]::after,
+.vw-chrome [data-tip]::after,
+.inspection-actions [data-tip]::after {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  left: 50%;
+  padding: 4px 8px;
+  border: 1px solid var(--forge-border);
+  border-radius: 6px;
+  background: #12060e;
+  color: var(--forge-text);
+  content: attr(data-tip);
+  font-size: var(--ux-text-xs, 12px);
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 120ms ease;
+}
+.vw [data-tip]:hover::after,
+.vw [data-tip]:focus-visible::after,
+.vw [data-tip]:focus-within::after,
+.vw-chrome [data-tip]:hover::after,
+.vw-chrome [data-tip]:focus-visible::after,
+.inspection-actions [data-tip]:hover::after,
+.inspection-actions [data-tip]:focus-visible::after {
+  opacity: 1;
+}
+.vw-group-end [data-tip]::after,
+.vw-chrome [data-tip]::after,
+.inspection-actions [data-tip]::after {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+.vw-group:first-child .vw-btn:first-child::after {
+  left: 0;
+  transform: none;
+}
+.vw-playback [data-tip]::after {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+/* Native selects stay accessible; the label wraps an icon and the control. */
+.vw-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--ux-target-min, 36px);
+  padding: 0 4px 0 10px;
+  border-radius: 8px;
+  color: var(--forge-muted);
+}
+.vw-select:hover {
+  background: var(--vw-pill-hover);
+}
+.vw-select select,
+.vw-field select {
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--forge-text);
+  color-scheme: dark;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vw-select select {
+  padding: 0 4px;
+}
+.vw-select select:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.vw select option {
+  background: var(--forge-surface);
+  color: var(--forge-text);
+}
+
+/* ---- stage ----------------------------------------------------------------- */
+.vw-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+.vw[data-mode='workbench'][data-inspector='open'] .vw-body {
+  grid-template-columns: minmax(0, 1fr) var(--vw-inspector-width);
+}
+.vw-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: radial-gradient(
+    ellipse at 50% 43%,
+    var(--vw-stage-1) 0%,
+    var(--vw-stage-2) 54%,
+    var(--forge-bg) 100%
+  );
+}
+.vw[data-background='light'] .vw-stage {
+  background: radial-gradient(ellipse at 50% 43%, #f5f0f3 0%, #d9d0d6 60%, #bfb4bb 100%);
+}
+.vw[data-background='checker'] .vw-stage {
+  background:
+    conic-gradient(#46303f 25%, #34212d 0 50%, #46303f 0 75%, #34212d 0) 0 0 / 28px 28px,
+    #34212d;
+}
+.vw[data-background='transparent'] .vw-stage {
+  background: var(--forge-bg);
+}
+.vw-stage:focus-visible {
+  outline-offset: -3px;
+}
+.vw-canvas {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.vw-canvas:active {
+  cursor: grabbing;
+}
+.vw-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.vw-chip,
+.vw-hint,
+.vw-toast {
+  position: absolute;
+  z-index: 2;
+  border: 1px solid rgb(255 240 233 / 16%);
+  background: rgb(24 8 20 / 78%);
+  color: #fff1ec;
+  font-size: var(--ux-text-xs, 12px);
+  pointer-events: none;
+}
+.vw-chip {
+  top: 10px;
+  left: 10px;
+  max-width: calc(100% - 20px);
+  padding: 4px 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vw-hint {
+  bottom: 10px;
+  left: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  max-width: calc(100% - 20px);
+  padding: 5px 10px;
+  border-radius: 8px;
+  opacity: 0.85;
+}
+.vw-stage:has(.vw-playback) .vw-hint {
+  bottom: 68px;
+}
+.vw-hint kbd,
+.vw-shortcuts kbd,
+.vw-row kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--forge-border);
+  border-radius: 4px;
+  background: var(--forge-surface-deep, #341628);
+  color: var(--forge-text);
+  font:
+    600 11px/18px ui-monospace,
+    'Cascadia Mono',
+    Consolas,
+    monospace;
+  text-align: center;
+}
+.vw-toast {
+  top: 12px;
+  left: 50%;
+  padding: 6px 14px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  font-size: var(--ux-text-sm, 13px);
+  font-weight: 600;
+}
+[data-compact] .vw-hint span:not(:last-child) {
+  display: none;
+}
+
+/* ---- loading, error, empty -------------------------------------------------- */
+.vw-overlay,
+.viewer-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: var(--ux-space-5, 24px);
+  color: var(--forge-text);
+  text-align: center;
+}
+.vw-overlay {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  background: rgb(23 4 15 / 58%);
+  backdrop-filter: blur(2px);
+}
+.viewer-message {
+  min-height: 180px;
+  height: 100%;
+  background: var(--forge-bg);
+}
+.vw-overlay small,
+.viewer-message span {
+  max-width: 46ch;
+  color: var(--forge-muted);
+  overflow-wrap: anywhere;
+}
+.vw-overlay p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--forge-text);
+}
+.vw-error > svg {
+  color: var(--forge-danger, #ff9b9b);
+}
+.vw-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.vw-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--ux-target-min, 36px);
+  padding: 0 14px;
+  border: 1px solid var(--forge-control-border);
+  border-radius: 8px;
+  background: var(--forge-raised);
+  color: var(--forge-text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.vw-action:hover {
+  border-color: var(--vw-accent);
+  background: var(--forge-surface-deep, #341628);
+}
+.vw-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgb(255 244 240 / 18%);
+  border-top-color: var(--vw-accent);
+  border-radius: 50%;
+  animation: vw-spin 0.9s linear infinite;
+}
+@keyframes vw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.vw-progress {
+  display: block;
+  width: min(260px, 70%);
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(255 244 240 / 14%);
+}
+.vw-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--vw-accent);
+  transition: width 120ms linear;
+}
+
+/* ---- playback ---------------------------------------------------------------- */
+.vw-playback {
+  position: absolute;
+  z-index: 3;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid rgb(255 240 233 / 16%);
+  border-radius: 12px;
+  background: rgb(33 10 25 / 93%);
+  box-shadow: 0 8px 26px rgb(0 0 0 / 28%);
+}
+.vw-time {
+  min-width: 104px;
+  color: var(--forge-text);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.vw-scrub {
+  flex: 1 1 auto;
+  min-width: 80px;
+  accent-color: var(--vw-accent);
+  cursor: pointer;
+}
+.vw-playback .vw-select {
+  flex: 0 0 auto;
+  padding-left: 8px;
+  background: var(--vw-pill);
+}
+
+/* ---- inspector ------------------------------------------------------------------- */
+.vw-inspector {
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--forge-border);
+  background: var(--forge-surface);
+}
+.vw[data-mode='inline'] .vw-inspector {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: min(var(--vw-inspector-width), calc(100% - 16px));
+  border: 1px solid var(--forge-border);
+  border-radius: 12px;
+  box-shadow: var(--forge-shadow-overlay);
+}
+.gallery-preview-media .vw[data-mode='inline'] .vw-inspector {
+  right: 64px;
+}
+.vw-inspector section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--forge-border-quiet, #3b1d30);
+}
+.vw-inspector section:last-child {
+  border-bottom: 0;
+}
+.vw-inspector h3,
+.vw-shortcuts h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  color: var(--forge-orange-hover, #f16b3d);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.vw-stats {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0;
+}
+.vw-stats dt {
+  color: var(--forge-text-secondary);
+}
+.vw-stats dd {
+  margin: 0;
+  color: var(--forge-text);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.vw-stats dd.vw-name {
+  font-weight: 600;
+}
+.vw-rows,
+.vw-fields {
+  display: grid;
+  gap: 4px;
+}
+.vw-fields {
+  margin-top: 8px;
+}
+.vw-fields .vw-select {
+  width: 100%;
+  border: 1px solid var(--forge-control-border);
+}
+.vw-fields .vw-select select {
+  flex: 1;
+}
+.vw-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--ux-target-min, 36px);
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--vw-pill);
+  color: var(--forge-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.vw-row kbd:empty {
+  display: none;
+}
+.vw-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: var(--forge-text-secondary);
+}
+.vw-field span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.vw-field output {
+  color: var(--forge-text);
+  font-variant-numeric: tabular-nums;
+}
+.vw-field input[type='range'] {
+  width: 100%;
+  accent-color: var(--vw-accent);
+  cursor: pointer;
+}
+.vw-field select {
+  height: var(--ux-target-min, 36px);
+  padding: 0 8px;
+  border: 1px solid var(--forge-control-border);
+  border-radius: 8px;
+  background: var(--forge-surface-inset);
+}
+.vw-reset {
+  width: 100%;
+  margin-top: 4px;
+}
+.vw-clips {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vw-clips button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--ux-target-min, 36px);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--vw-pill);
+  color: var(--forge-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.vw-clips button[aria-pressed='true'] {
+  border-color: var(--vw-accent);
+  background: rgb(233 84 32 / 22%);
+}
+.vw-clips small {
+  color: var(--forge-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.vw-shortcuts summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--ux-target-min, 36px);
+  color: var(--forge-orange-hover, #f16b3d);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.vw-shortcuts ul {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+.vw-shortcuts li {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--forge-muted);
+}
+.vw-shortcuts li > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.vw-shortcuts h4 {
+  margin: 10px 0 6px;
+}
+
+/* ---- host chrome: expand, navigation, dialog --------------------------------------- */
+.interactive-asset-viewer {
+  --vw-chrome-reserve: 56px;
+  container: viewer / inline-size;
+}
+.interactive-asset-viewer:has(.vw-chrome .vw-nav) {
+  --vw-chrome-reserve: 150px;
+}
+.vw-chrome {
+  position: absolute;
+  z-index: 6;
+  top: 6px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vw-chrome .inspection-expand {
+  position: relative;
+  inset: auto;
+  min-height: var(--ux-target-min, 36px);
+  padding: 0 9px;
+  box-shadow: none;
+  background: var(--vw-pill, rgb(255 244 240 / 6%));
+  border-color: transparent;
+}
+.vw-chrome .inspection-expand span {
+  display: none;
+}
+@container viewer (min-width: 860px) {
+  .interactive-asset-viewer {
+    --vw-chrome-reserve: 150px;
+  }
+  .interactive-asset-viewer:has(.vw-chrome .vw-nav) {
+    --vw-chrome-reserve: 250px;
+  }
+  .vw-chrome .inspection-expand span {
+    display: inline;
+  }
+}
+.vw-nav {
+  display: inline-flex;
+  align-items: center;
+  height: var(--ux-target-min, 36px);
+  border-radius: 8px;
+  background: var(--vw-pill, rgb(255 244 240 / 6%));
+}
+.vw-nav .vw-btn {
+  min-width: 32px;
+  padding: 0 4px;
+}
+.vw-nav-count {
+  min-width: 44px;
+  color: var(--forge-text);
+  font-size: var(--ux-text-xs, 12px);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.inspection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.inspection-fullscreen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--forge-space-2, 8px);
+  min-height: 44px;
+  padding: 0 var(--forge-space-3-5, 14px);
+  border: 1px solid var(--forge-control-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-surface);
+  color: var(--forge-text);
+  font-size: var(--forge-font-support);
+  font-weight: 600;
+  cursor: pointer;
+}
+.inspection-fullscreen:hover {
+  border-color: var(--forge-orange);
+  background: var(--forge-raised);
+}
+.inspection-fullscreen:focus-visible {
+  outline: 3px solid var(--forge-focus);
+  outline-offset: 3px;
+}
+.inspection-actions .vw-nav {
+  height: 44px;
+  border: 1px solid var(--forge-control-border);
+  background: var(--forge-surface);
+}
+.inspection-actions .vw-nav .vw-btn {
+  height: 42px;
+}
+.inspection-stage > .vw {
+  height: 100%;
+  min-height: 0;
+}
+.inspection-stage .viewer-message {
+  min-height: 100%;
+}
+
+/* In the gallery modal the viewer takes the whole media column, not a fixed 55vh. */
+.gallery-backdrop .gallery-preview-media:has(> .interactive-asset-viewer) {
+  height: auto;
+  min-height: min(55vh, 520px);
+  align-self: stretch;
+}
+.gallery-preview-media > .interactive-asset-viewer {
+  height: 100%;
+}
+
+/* ---- gallery tiles ------------------------------------------------------------------- */
+.gallery-thumb:has(.gallery-3d-open) {
+  position: relative;
+}
+.gallery-3d-open {
+  position: absolute;
+  z-index: 2;
+  bottom: 10px;
+  left: 50%;
+  padding: 4px 12px;
+  border: 1px solid rgb(255 240 233 / 18%);
+  border-radius: 999px;
+  background: rgb(24 8 20 / 88%);
+  color: #fff1ec;
+  font-size: var(--ux-text-xs, 12px);
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+.gallery-card:hover .gallery-3d-open,
+.gallery-card:focus-visible .gallery-3d-open {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.asset-visual-thumbnail[data-category='3D'] {
+  background: radial-gradient(
+    ellipse at 50% 42%,
+    #3a2333 0%,
+    #25111f 60%,
+    var(--forge-surface) 100%
+  );
+}
+.asset-visual-thumbnail[data-category='3D'] > img {
+  object-fit: contain;
+}
+.asset-thumbnail-placeholder[data-pending] small {
+  animation: vw-pulse 1.4s ease-in-out infinite;
+}
+@keyframes vw-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vw-spinner,
+  .asset-thumbnail-placeholder[data-pending] small {
+    animation: none;
+  }
+  .vw [data-tip]::after,
+  .vw-progress i,
+  .gallery-3d-open {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .vw-btn[aria-pressed='true'],
+  .vw-row[aria-pressed='true'],
+  .vw-clips button[aria-pressed='true'] {
+    outline: 2px solid Highlight;
+  }
+}

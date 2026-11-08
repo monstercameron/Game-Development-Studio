@@ -1,0 +1,84 @@
+/* ux-chat: page refinements, loaded last. Uses shared --ux-* tokens from ux-tokens.css. */
+
+/* Options disclosure: holds Response / Thinking / Max output and the schema toggle. */
+.chat-options {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.chat-options > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-2);
+  min-height: var(--ux-target-min);
+  max-width: 100%;
+  padding: 0 var(--ux-space-3);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+  background: var(--forge-surface-inset);
+  color: var(--forge-text);
+  font-size: var(--ux-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.chat-options > summary::-webkit-details-marker {
+  display: none;
+}
+.chat-options > summary small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--forge-muted);
+  font-size: var(--ux-text-xs);
+  font-weight: 400;
+}
+.chat-options > summary svg {
+  flex: none;
+  transition: transform 150ms ease;
+}
+.chat-options[open] > summary svg {
+  transform: rotate(180deg);
+}
+.chat-options > summary:hover {
+  border-color: var(--forge-purple);
+}
+.chat-options > summary:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+.chat-options .chat-quick-controls {
+  margin-top: var(--ux-space-2);
+}
+
+/* Model chip: keep long model names readable instead of cutting them to a stub. */
+.chat-model-label strong {
+  overflow-wrap: anywhere;
+}
+
+/* Enter-to-send hint: at least 12px and readable on the dark surface. */
+.chat-footnote span {
+  font-size: var(--ux-text-xs);
+  color: var(--forge-muted);
+  line-height: 1.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-options > summary svg {
+    transition: none;
+  }
+}
+
+/* Empty state: icon, heading and prompt were left-aligned at different offsets. Center them as one unit. */
+.chat-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.chat-welcome .chat-suggestions {
+  width: 100%;
+  max-width: 760px;
+  text-align: left;
+}

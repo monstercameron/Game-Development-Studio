@@ -43,6 +43,14 @@ export default function ImageVideoSettings({ section, draft, update }) {
   const widthError = numberError(draft.imageWidth, 32, 2048, true, 32);
   const heightError = numberError(draft.imageHeight, 32, 2048, true, 32);
   const stepsError = numberError(draft.imageSteps, 1, 100);
+  const seedError =
+    draft.seed === undefined || draft.seed === null || draft.seed === ''
+      ? ''
+      : Number.isSafeInteger(Number(draft.seed)) && Number(draft.seed) >= 0
+        ? ''
+        : 'Enter a whole number of 0 or more.';
+  const customSize = Boolean((draft.imageWidth ?? '') !== '' || (draft.imageHeight ?? '') !== '');
+  const aspectLabel = draft.options?.[0] || 'Landscape · 16:9';
   const guidanceError = draft.imageNegativePrompt?.trim()
     ? numberError(draft.imageGuidance, 1.1, 10, false)
     : '';
@@ -135,7 +143,47 @@ export default function ImageVideoSettings({ section, draft, update }) {
                 </small>
               )}
             </label>
+            <label htmlFor="image-seed">
+              <span className="field-label">
+                Seed <span className="image-video-optional">Optional</span>
+              </span>
+              <input
+                id="image-seed"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                placeholder="Random"
+                aria-describedby={`image-seed-help${seedError ? ' image-seed-error' : ''}`}
+                aria-invalid={seedError ? 'true' : undefined}
+                value={draft.seed ?? ''}
+                onChange={(e) => update({ seed: e.target.value })}
+              />
+              <small id="image-seed-help">
+                Whole number, 0 or more. Blank picks a random seed; reuse a seed with the same
+                settings to try to repeat a result.
+              </small>
+              {seedError && (
+                <small id="image-seed-error" className="image-video-settings-error" role="alert">
+                  {seedError}
+                </small>
+              )}
+            </label>
           </div>
+          {customSize && (
+            <div className="image-video-settings-override" role="status">
+              <span>
+                A custom size is set. The aspect ratio ({aspectLabel}) only fills blank fields.
+              </span>
+              <button
+                type="button"
+                className="outline-button"
+                onClick={() => update({ imageWidth: '', imageHeight: '' })}
+              >
+                Clear custom size
+              </button>
+            </div>
+          )}
           <label className="image-video-settings-wide" htmlFor="image-negative-prompt">
             <span className="field-label">
               Negative prompt <span className="image-video-optional">Optional</span>

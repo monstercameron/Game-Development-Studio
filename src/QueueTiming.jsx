@@ -168,7 +168,7 @@ export function useQueueTiming() {
   return value;
 }
 
-export function QueueTimingBadge() {
+export function QueueTimingBadge({ onOpen } = {}) {
   const { jobs, forecast, error, loading } = useQueueTiming();
   const label = error
     ? 'Queue unavailable'
@@ -207,19 +207,39 @@ export function QueueTimingBadge() {
         : forecast.seconds === null
           ? `${forecast.count} active or waiting. ${forecast.reason || 'There is not enough timing history.'}`
           : `${forecast.count} active or waiting. Estimated render time remaining; model preparation and load times can add more.`;
-  return (
-    <div
-      className={'queue-timing-badge ' + (forecast.blocked ? 'is-blocked' : '')}
-      role="status"
-      aria-live="off"
-      title={detail}
-      aria-label={`${render}. ${label}. ${detail}`}
-    >
+  const content = (
+    <>
       <Clock3 size={15} aria-hidden="true" />
       <span className="queue-timing-lines">
         <span>{render}</span>
         <span>{label}</span>
       </span>
+    </>
+  );
+  const className = 'queue-timing-badge ' + (forecast.blocked ? 'is-blocked' : '');
+  if (onOpen) {
+    // Clickable variant: jumps to the full render queue instead of only reporting its state.
+    return (
+      <button
+        type="button"
+        className={className + ' is-interactive'}
+        title={`${detail} Open the render queue.`}
+        aria-label={`${render}. ${label}. ${detail} Open the render queue.`}
+        onClick={onOpen}
+      >
+        {content}
+      </button>
+    );
+  }
+  return (
+    <div
+      className={className}
+      role="status"
+      aria-live="off"
+      title={detail}
+      aria-label={`${render}. ${label}. ${detail}`}
+    >
+      {content}
     </div>
   );
 }

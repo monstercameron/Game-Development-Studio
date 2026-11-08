@@ -15,6 +15,7 @@ import traceback
 import uuid
 from pathlib import Path
 
+import hidden_console  # noqa: F401  (hidden console for everything the worker starts)
 import uvicorn
 from asr_guard import WindowsJob
 from fastapi import FastAPI, HTTPException

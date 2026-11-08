@@ -16,6 +16,7 @@ import {
   Star,
   Trash2,
 } from 'lucide-react';
+import { RepeatButton, ShrinkButton } from './MiniPlayer';
 import { rerunRequest } from './rerun-request';
 import './preview-area.css';
 
@@ -306,6 +307,23 @@ export default function PreviewArea({
               <strong title={asset.name}>{asset.name}</strong>
               <span>{asset.id}</span>
             </div>
+            {(asset.category === 'Video' || asset.category === 'Audio') && (
+              <RepeatButton
+                className="iteration-icon"
+                scope=".iteration-panel"
+                selector=".iteration-media video, .iteration-media audio"
+              />
+            )}
+            {(asset.category === 'Video' || asset.category === 'Audio') && (
+              <ShrinkButton
+                className="iteration-icon"
+                scope=".iteration-panel"
+                selector=".iteration-media video, .iteration-media audio"
+                kind={asset.category === 'Video' ? 'video' : 'audio'}
+                url={asset.url}
+                name={asset.name}
+              />
+            )}
             <a
               className="iteration-icon"
               href={asset.url}

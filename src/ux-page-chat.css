@@ -1,0 +1,16 @@
+/* ux-page-chat: refinements for the chat page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* Option hint under Response: full row inside the wrapping Options controls. */
+.chat-option-hint {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--forge-muted);
+  font-size: var(--ux-text-xs);
+  line-height: 1.4;
+}
+
+/* Model ID field: label above the input row, same rhythm as other settings fields. */
+.chat-field {
+  display: grid;
+  gap: var(--ux-space-1, 4px);
+}

@@ -1,0 +1,515 @@
+/* ux-mobile-library: phone and small-tablet refinements for Overview (/) and Asset library (/assets).
+   Loaded last. 850px = nav collapses; 600px = phone layout. Uses --ux-* tokens. */
+
+/* Shared: grid and flex children may not push tracks wider than the viewport */
+@media (max-width: 850px) {
+  .overview > *,
+  .gallery-page > *,
+  .overview .bottom-grid > *,
+  .overview .recent-projects,
+  .overview .workspace-hero {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .overview .section-title h2,
+  .overview .panel-heading h2,
+  .gallery-page h1 {
+    overflow-wrap: anywhere;
+  }
+  .gallery-page .gallery-queue summary,
+  .overview .draft-disclosure > summary,
+  .gallery-page .gallery-more,
+  .overview .link-button,
+  .overview .recent-projects-all,
+  .overview .recent-projects-actions button,
+  .gallery-page .gallery-new {
+    min-height: var(--ux-target-touch);
+  }
+  .gallery-page .gallery-card-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Overview: hero, sections and cards (tablet and phone) */
+@media (max-width: 850px) {
+  .overview .workspace-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ux-space-4);
+  }
+  .overview .workspace-hero-aside {
+    order: -1;
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: var(--ux-radius-lg);
+  }
+  .overview .workspace-hero-aside img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: 220px;
+    object-fit: cover;
+  }
+  .overview .section-title,
+  .overview .panel-heading {
+    flex-wrap: wrap;
+    gap: var(--ux-space-3);
+  }
+  .overview .recent-projects-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ux-space-2);
+    width: 100%;
+  }
+  .overview .recent-projects-actions > button {
+    flex: 1 1 160px;
+    justify-content: center;
+  }
+  .overview .tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ux-space-3);
+  }
+  .overview .tool-card {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .overview .bottom-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ux-space-4);
+  }
+  .overview .draft-disclosure > summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--ux-space-2);
+    cursor: pointer;
+  }
+}
+
+/* Overview phone layout */
+@media (max-width: 600px) {
+  .overview h1 {
+    font-size: clamp(30px, 9vw, 40px);
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+  }
+  .overview .workspace-hero {
+    padding: var(--ux-space-4);
+  }
+  .overview .workspace-hero-copy h2 {
+    font-size: clamp(22px, 6.5vw, 26px);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+  .overview .hero-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ux-space-2);
+    width: 100%;
+  }
+  .overview .hero-actions > button {
+    width: 100%;
+    min-height: var(--ux-target-touch);
+    justify-content: center;
+  }
+  .overview .hero-link {
+    justify-content: center;
+  }
+  .overview .recent-projects-actions > button {
+    flex: 1 1 100%;
+  }
+  .overview .project-grid,
+  .overview .project-grid--pair,
+  .overview .project-grid--single,
+  .overview .project-grid--collection {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .overview .project-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .overview .project-content strong,
+  .overview .project-content span,
+  .overview .project-assets span {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .overview .project-assets {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .overview .project-assets span {
+    max-width: 100%;
+  }
+  .overview .tool-description {
+    font-size: var(--ux-text-sm);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+  .overview .inspiration-grid {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 78%);
+    grid-template-columns: none;
+    gap: var(--ux-space-3);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    padding-bottom: var(--ux-space-2);
+    -webkit-overflow-scrolling: touch;
+  }
+  .overview .inspo-card {
+    scroll-snap-align: start;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .overview .inspo-card strong,
+  .overview .inspo-card small {
+    overflow-wrap: anywhere;
+  }
+  .overview .draft-disclosure > summary {
+    min-height: var(--ux-target-touch);
+  }
+}
+
+@media (max-width: 399px) {
+  .overview .tool-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Asset library: header, collection bar, toolbar, filter strip, grid (tablet and phone) */
+@media (max-width: 850px) {
+  .gallery-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--ux-space-3);
+  }
+  .gallery-top > div:first-child {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .gallery-project-bar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--ux-space-3);
+  }
+  .gallery-location {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .gallery-location strong {
+    overflow-wrap: anywhere;
+  }
+  .gallery-queue summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ux-space-1) var(--ux-space-2);
+    cursor: pointer;
+  }
+  .gallery-queue-summary {
+    overflow-wrap: anywhere;
+  }
+  .gallery-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--ux-space-2);
+    align-items: center;
+  }
+  .gallery-search {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .gallery-search input {
+    font-size: 16px;
+    min-height: var(--ux-target-touch);
+    min-width: 0;
+    width: 100%;
+  }
+  .gallery-search > button {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+  }
+  .gallery-sort {
+    min-width: 0;
+  }
+  .gallery-sort select {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--ux-target-touch);
+    font-size: 16px;
+  }
+  .gallery-toolbar .layout-switch {
+    display: flex;
+    gap: var(--ux-space-1);
+  }
+  .gallery-toolbar .layout-switch > button {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .gallery-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ux-space-2);
+    min-width: 0;
+  }
+  .gallery-filter-row .filter-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 100%;
+    padding-bottom: var(--ux-space-1);
+  }
+  .gallery-filter-row .filter-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .gallery-filter-row .filter-tabs > button {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    white-space: nowrap;
+    min-height: var(--ux-target-touch);
+  }
+  .gallery-results {
+    font-size: var(--ux-text-xs);
+  }
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--ux-space-3);
+  }
+  .gallery-grid .gallery-card,
+  .gallery-list .gallery-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .gallery-thumb {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    position: relative;
+  }
+  .gallery-thumb > img,
+  .gallery-thumb > canvas,
+  .gallery-thumb > video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .gallery-card-info {
+    min-width: 0;
+  }
+  .gallery-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ux-space-2);
+  }
+  .gallery-list .gallery-card {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    align-items: center;
+    gap: var(--ux-space-3);
+    text-align: left;
+  }
+  .gallery-list .gallery-thumb {
+    width: 64px;
+    aspect-ratio: 1 / 1;
+  }
+  .gallery-more {
+    width: 100%;
+    justify-content: center;
+    margin-top: var(--ux-space-3);
+  }
+}
+
+/* Asset library phone layout */
+@media (max-width: 600px) {
+  .gallery-top .gallery-new {
+    width: 100%;
+    justify-content: center;
+  }
+  .gallery-project-bar {
+    padding: var(--ux-space-3);
+  }
+  .gallery-project-info select {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--ux-target-touch);
+    font-size: 16px;
+  }
+  .gallery-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .gallery-toolbar .layout-switch {
+    justify-self: end;
+  }
+  .gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ux-space-2);
+  }
+  .gallery-card-title {
+    font-size: var(--ux-text-sm);
+  }
+}
+
+@media (max-width: 359px) {
+  .gallery-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Asset viewer: full-screen sheet on phones, metadata below the stage */
+@media (max-width: 600px) {
+  .modal-backdrop.gallery-backdrop {
+    padding: 0;
+  }
+  .gallery-modal {
+    width: 100%;
+    max-width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    margin: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .gallery-modal .modal-close {
+    position: sticky;
+    top: var(--ux-space-2);
+    float: right;
+    margin: var(--ux-space-2) var(--ux-space-2) 0 0;
+    width: var(--ux-target-touch);
+    height: var(--ux-target-touch);
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+    z-index: 2;
+  }
+  .gallery-preview-media {
+    width: 100%;
+    max-width: 100%;
+    max-height: 46vh;
+    overflow: hidden;
+  }
+  .gallery-preview-media img,
+  .gallery-preview-media canvas {
+    max-width: 100%;
+    max-height: 46vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+  .gallery-preview-details {
+    padding: var(--ux-space-4);
+    min-width: 0;
+  }
+  .gallery-preview-heading {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ux-space-3);
+    min-width: 0;
+  }
+  .gallery-preview-heading h2 {
+    overflow-wrap: anywhere;
+  }
+  .gallery-preview-heading .primary {
+    min-height: var(--ux-target-touch);
+    justify-content: center;
+    width: 100%;
+  }
+  .gallery-details dd,
+  .gallery-details dt,
+  .gallery-path {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .gallery-preview-details button,
+  .gallery-preview-details .outline-button,
+  .gallery-preview-details .ghost-button,
+  .gallery-preview-details .danger-button,
+  .gallery-preview-details .danger-solid {
+    min-height: var(--ux-target-touch);
+  }
+  .gallery-copy-path {
+    width: 100%;
+    justify-content: center;
+  }
+  .asset-rating {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ux-space-2);
+    min-width: 0;
+  }
+  .rating-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ux-space-1);
+  }
+  .rating-actions button,
+  .rating-stars {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .asset-management {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ux-space-2);
+  }
+  .asset-management > button,
+  .asset-management > .outline-button,
+  .asset-management > .danger-button {
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+  .asset-inline-form input,
+  .asset-inline-form textarea {
+    font-size: 16px;
+    max-width: 100%;
+    min-height: var(--ux-target-touch);
+  }
+  .preview-arrow {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+  }
+}
+
+/* Mini-player transport buttons: 44px targets (shrink / repeat) */
+@media (max-width: 850px) {
+  .mini-repeat-floating,
+  .mini-shrink-floating,
+  .mini-repeat-labeled,
+  .mini-shrink-labeled {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+  }
+}

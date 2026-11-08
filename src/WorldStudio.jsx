@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { Clock3, Dices, Globe2, ImagePlus, Layers3, Plus, X } from 'lucide-react';
+import { Clock3, Dices, Globe2, ImagePlus, Layers3, Plus, RotateCcw, X } from 'lucide-react';
 import AssetPicker from './AssetPicker';
 import { IMAGE_EXTENSIONS } from './asset-picker';
 import PreviewArea from './PreviewArea';
@@ -52,7 +52,7 @@ function ReferencePreview({ file, index, panorama, onRemove }) {
         aria-label={`Remove ${file.name}`}
         onClick={onRemove}
       >
-        <X size={16} />
+        <X size={16} aria-hidden="true" />
       </button>
     </div>
   );
@@ -74,6 +74,28 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
     [estimate, setEstimate] = useState(null),
     [estimateError, setEstimateError] = useState(false),
     [version, setVersion] = useState(0);
+  const [resetArmed, setResetArmed] = useState(false);
+  // Gated reset: disabled while everything is at its default, and an enabled click only arms a confirmation.
+  const isDirty =
+    prompt !== '' ||
+    output !== 'splat' ||
+    size !== 1600 ||
+    seed !== '42' ||
+    steps !== '50' ||
+    files.length > 0 ||
+    params.has('mode') ||
+    params.has('model');
+  const resetToDefaults = () => {
+    setPrompt('');
+    setOutput('splat');
+    setSize(1600);
+    setSeed('42');
+    setSteps('50');
+    setFiles([]);
+    setMessage('');
+    updateSearch(setParams, { model: null, mode: null });
+    setResetArmed(false);
+  };
   const actualMode = model === 'hy-world' ? 'image' : mode,
     actualSize =
       model === 'hy-world'
@@ -251,16 +273,21 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
     <div className="page world-page">
       <div className="world-heading">
         <div>
-          <h1>World studio</h1>
-          <p>Build a scene from a description, a reference, or a set of views.</p>
+          <div className="overline">
+            <span className="overline-line" /> WORLD GENERATION
+          </div>
+          <h1>
+            World studio<em>.</em>
+          </h1>
+          <p className="lead">Build a scene from a description, a reference, or a set of views.</p>
         </div>
-        <Globe2 size={28} />
+        <Globe2 size={28} aria-hidden="true" />
       </div>
       {!project && (
         <div className="world-project-note">
           <span>Choose a project in the sidebar to keep your worlds together.</span>
           <button className="outline-button" onClick={onNewProject}>
-            <Plus size={15} /> Create project
+            <Plus size={15} aria-hidden="true" /> Create project
           </button>
         </div>
       )}
@@ -283,7 +310,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                 aria-pressed={model === 'worldgen'}
                 onClick={() => selectModel('worldgen')}
               >
-                <Globe2 size={21} />
+                <Globe2 size={21} aria-hidden="true" />
                 <span>
                   <strong>WorldGen</strong>
                   <small>Text, one image, or a 360° panorama</small>
@@ -295,7 +322,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                 aria-pressed={model === 'hy-world'}
                 onClick={() => selectModel('hy-world')}
               >
-                <Layers3 size={21} />
+                <Layers3 size={21} aria-hidden="true" />
                 <span>
                   <strong>HY-World 2.0</strong>
                   <small>Reconstruct a scene from 1–8 images</small>
@@ -303,28 +330,6 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
               </button>
             </div>
             <form className="world-form" onSubmit={enqueue}>
-              <div className="world-action">
-                <div className="world-submit">
-                  <div>
-                    <span className="estimate-label">
-                      <Clock3 size={15} /> Estimated render time
-                    </span>
-                    <strong>{estimateLabel}</strong>
-                  </div>
-                  <button className="primary" disabled={busy} type="submit">
-                    <Plus size={16} />
-                    {busy ? 'Queuing…' : 'Add world to queue'}
-                  </button>
-                </div>
-                {message && (
-                  <p
-                    className={`world-notice ${messageKind}`}
-                    role={messageKind === 'success' ? 'status' : 'alert'}
-                  >
-                    {message}
-                  </p>
-                )}
-              </div>
               {model === 'worldgen' && (
                 <label>
                   Starting point
@@ -370,7 +375,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                   </p>
                   <div className="world-file-actions">
                     <label className="outline-button">
-                      <ImagePlus size={16} />{' '}
+                      <ImagePlus size={16} aria-hidden="true" />{' '}
                       {files.length ? 'Add or replace files' : 'Choose files'}
                       <input
                         type="file"
@@ -429,11 +434,12 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                     maxLength={4000}
                     placeholder="A moss-covered village at the edge of a misty lake…"
                   />
+                  <span className="helper">Up to 4,000 characters.</span>
                 </label>
               )}
               <div className="world-settings">
                 <label>
-                  Resolution
+                  {model === 'hy-world' ? 'Resolution per view' : 'Panorama width'}
                   <select value={actualSize} onChange={(e) => setSize(Number(e.target.value))}>
                     {(model === 'hy-world' ? [336, 518, 700] : [1024, 1600, 2048]).map((n) => (
                       <option key={n} value={n}>
@@ -444,7 +450,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                   <span className="helper">
                     {model === 'hy-world'
                       ? 'Size used to reconstruct each view.'
-                      : 'Panorama width; higher values use more memory.'}
+                      : 'Width of the generated 2:1 panorama. Higher values use more memory.'}
                   </span>
                 </label>
                 {model === 'worldgen' && (
@@ -474,7 +480,9 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                       value={steps}
                       onChange={(e) => setSteps(e.target.value)}
                     />
-                    <span className="helper">More steps can improve detail but take longer.</span>
+                    <span className="helper">
+                      10–60. More steps can improve detail but take longer.
+                    </span>
                   </label>
                   <div className="world-seed-field" role="group" aria-labelledby="world-seed-label">
                     <label id="world-seed-label" htmlFor="world-seed">
@@ -502,7 +510,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                           )
                         }
                       >
-                        <Dices size={18} />
+                        <Dices size={18} aria-hidden="true" />
                       </button>
                     </div>
                     <span className="helper" id="world-seed-help">
@@ -528,6 +536,64 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                 </p>
               )}
               <CreationQueueTiming estimate={estimate} />
+              <div className="world-action">
+                <div className="world-submit">
+                  <div>
+                    <span className="estimate-label">
+                      <Clock3 size={15} aria-hidden="true" /> Estimated render time
+                    </span>
+                    <strong>{estimateLabel}</strong>
+                  </div>
+                  <button className="primary" disabled={busy} type="submit">
+                    <Plus size={16} aria-hidden="true" />
+                    {busy ? 'Queuing…' : 'Add world to queue'}
+                  </button>
+                </div>
+                <div className="world-reset">
+                  {resetArmed ? (
+                    <span className="reset-confirm" role="group" aria-label="Confirm reset">
+                      <span>Discard this page&apos;s settings?</span>
+                      <button
+                        type="button"
+                        className="text-action danger"
+                        onClick={resetToDefaults}
+                        autoFocus
+                      >
+                        Yes, reset
+                      </button>
+                      <button
+                        type="button"
+                        className="text-action"
+                        onClick={() => setResetArmed(false)}
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-action reset-defaults"
+                      disabled={!isDirty || busy}
+                      title={
+                        isDirty
+                          ? 'Restore every setting on this page to its default'
+                          : 'Nothing to reset: this page already uses its defaults'
+                      }
+                      onClick={() => setResetArmed(true)}
+                    >
+                      <RotateCcw size={14} aria-hidden="true" /> Reset to defaults
+                    </button>
+                  )}
+                </div>
+                {message && (
+                  <p
+                    className={`world-notice ${messageKind}`}
+                    role={messageKind === 'success' ? 'status' : 'alert'}
+                  >
+                    {message}
+                  </p>
+                )}
+              </div>
             </form>
           </section>
         </div>

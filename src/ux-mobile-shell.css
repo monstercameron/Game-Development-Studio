@@ -1,0 +1,200 @@
+/* ux-mobile-shell: phone and small-tablet refinements (max-width 850px / 600px), loaded last. Use --ux-* tokens. */
+
+/* ---------- Drawer, top bar and tap targets (<= 850px) ---------- */
+@media (max-width: 850px) {
+  .sidebar .nav-item {
+    min-height: var(--ux-target-touch);
+  }
+  .sidebar .workspace select {
+    min-height: var(--ux-target-touch);
+    font-size: 16px;
+  }
+  .sidebar .nav-queue-status {
+    white-space: nowrap;
+    font-size: var(--ux-text-xs);
+  }
+  .topbar {
+    min-width: 0;
+    padding-left: max(var(--ux-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--ux-gutter), env(safe-area-inset-right));
+  }
+  .topbar-location {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .topbar-location .breadcrumb {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .topbar .top-actions {
+    flex: 0 0 auto;
+  }
+  .topbar .icon-btn,
+  .topbar .mobile-nav-toggle {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+  }
+  .topbar .queue-timing-badge {
+    min-height: var(--ux-target-touch);
+  }
+  .topbar .prototype-button {
+    min-height: var(--ux-target-touch);
+  }
+  .topbar .page-queue-status {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .main {
+    min-width: 0;
+    max-width: 100%;
+  }
+  /* Field-help triggers sit inline; give them a larger tap area without changing their look. */
+  .field-help-trigger {
+    position: relative;
+    isolation: isolate;
+  }
+  .field-help-trigger::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+}
+
+/* ---------- Phones (<= 600px) ---------- */
+@media (max-width: 600px) {
+  /* 16px inputs stop iOS from zooming on focus. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  /* Early access: keep the control reachable as a short "Preview" tag (responsive.css hides .prototype under 550px). */
+  .topbar .top-actions .prototype-button {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--ux-target-touch);
+    font-size: 0;
+    padding-inline: var(--ux-space-2);
+  }
+  .topbar .prototype-button::after {
+    content: 'Preview';
+    font-size: var(--ux-text-xs);
+  }
+  .topbar .top-actions {
+    gap: var(--ux-space-1);
+  }
+  .field-help-popover {
+    max-width: calc(100vw - 2 * var(--ux-gutter));
+  }
+}
+
+/* ---------- Dialogs: bottom sheets on phones ---------- */
+@media (max-width: 600px) {
+  .modal-backdrop {
+    align-items: end;
+    padding: 0;
+    overflow: hidden;
+  }
+  .modal-backdrop > * {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100dvh - var(--ux-space-4));
+    margin: 0;
+    border-radius: var(--ux-radius-lg) var(--ux-radius-lg) 0 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: max(var(--ux-space-4), env(safe-area-inset-bottom));
+  }
+  .modal-close,
+  .modal-backdrop .icon-btn[aria-label*='lose'] {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+  }
+  .modal-content {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ---------- Toasts and notices ---------- */
+@media (max-width: 600px) {
+  .toast {
+    left: var(--ux-gutter);
+    right: var(--ux-gutter);
+    bottom: calc(var(--ux-space-4) + env(safe-area-inset-bottom));
+    max-width: none;
+    font-size: var(--ux-text-sm);
+  }
+  body:has(.mini-player) .toast {
+    bottom: calc(var(--ux-space-4) + env(safe-area-inset-bottom) + 72px);
+  }
+}
+
+/* ---------- Mini player dock ---------- */
+@media (max-width: 600px) {
+  .mini-player {
+    left: var(--ux-space-2);
+    right: var(--ux-space-2);
+    bottom: calc(var(--ux-space-2) + env(safe-area-inset-bottom));
+    width: auto;
+    max-width: none;
+  }
+  .mini-player.is-video,
+  .mini-player.is-audio {
+    width: auto;
+  }
+  .mini-player.is-minimized {
+    left: auto;
+    width: auto;
+    max-width: calc(100vw - 2 * var(--ux-space-2));
+  }
+  .mini-player-button {
+    min-width: var(--ux-target-touch);
+    min-height: var(--ux-target-touch);
+    width: var(--ux-target-touch);
+    height: var(--ux-target-touch);
+  }
+  /* Keep the page's last lines reachable above the dock. */
+  body:has(.mini-player) .page {
+    padding-bottom: 96px;
+  }
+  body:has(.mini-player.is-minimized) .page {
+    padding-bottom: 72px;
+  }
+}
+
+/* ---------- Page gutters on phones ---------- */
+@media (max-width: 600px) {
+  .page {
+    padding-left: max(var(--ux-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--ux-gutter), env(safe-area-inset-right));
+    min-width: 0;
+  }
+}
+
+/* Very narrow phones: the breadcrumb needs the room more than the Early access tag. */
+@media (max-width: 430px) {
+  .topbar .top-actions .prototype-button {
+    display: none;
+  }
+}
+
+/* Remaining small controls found in the phone audit: text actions, outline/icon buttons, the chat
+   send and delete buttons and the reset links all reach the 44px touch target. */
+@media (max-width: 850px) {
+  main .text-action,
+  main .icon-outline,
+  main .icon-btn,
+  main .reset-defaults,
+  main .chat-send,
+  main .chat-delete,
+  main .copy-render-error {
+    min-height: var(--ux-target-touch);
+    min-width: var(--ux-target-touch);
+  }
+  main .text-action.reset-defaults,
+  main .reset-confirm .text-action {
+    padding-inline: var(--ux-space-3);
+  }
+}

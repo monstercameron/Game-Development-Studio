@@ -13,6 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import hidden_console  # noqa: F401  (hidden console for everything the guard starts)
 from asr_guard import WindowsJob
 
 MAX_HEADER = 32768

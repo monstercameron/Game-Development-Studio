@@ -12,6 +12,7 @@ import { EngineRecovery } from './engine-recovery.js';
 import { expectedEngineExecutables, inspectWindowsProcess } from './engine-ownership.js';
 import { forceStopWindows } from './force-stop.js';
 import { DEFAULT_CHAT_CONTEXT, validateChatContext } from './chat-memory.js';
+import { resolveEngineLaunch } from './engine-launch.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const desktop = path.join(os.homedir(), 'Desktop');
@@ -82,6 +83,7 @@ export const engineDefinitions = [
     cwd: music,
     command: path.join(music, '.runtime', 'python.exe'),
     args: ['-u', '-m', 'vkyue.webapp', '--port', '8765'],
+    consoleLauncher: true,
     env: {
       YUE2_BACKEND: 'cuda',
       YUE2_PRELOAD: '0',
@@ -98,6 +100,7 @@ export const engineDefinitions = [
     cwd: sfx,
     command: path.join(music, '.runtime', 'python.exe'),
     args: ['-u', path.join(sfx, 'bootstrap.py')],
+    consoleLauncher: true,
     env: {
       HF_HUB_CACHE: path.join(defaultModelsRoot, 'Stable-Audio-3', 'hub'),
       FORGE_STABLE_AUDIO_HUB: path.join(defaultModelsRoot, 'Stable-Audio-3', 'hub'),
@@ -937,12 +940,16 @@ export class EngineManager {
         await this.recovery.prepare(definition, nonce, controlToken);
         prepared = true;
       }
-      const args = engineStartArgs(definition, options);
-      child = spawn(definition.command, args, {
+      // Engines are detached (so they survive a studio restart), which gives them no
+      // console on Windows; resolveEngineLaunch keeps what they start from opening
+      // visible console windows (see engine-launch.js).
+      const launch = resolveEngineLaunch(definition, engineStartArgs(definition, options));
+      child = spawn(launch.command, launch.args, {
         cwd: definition.cwd,
         env: {
           ...process.env,
           ...definition.env,
+          ...launch.env,
           ...(controlToken
             ? {
                 [id === 'images' ? 'FORGE_IMAGE_CONTROL_TOKEN' : 'FORGE_ENGINE_CONTROL_TOKEN']:

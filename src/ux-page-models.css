@@ -1,0 +1,30 @@
+/* ux-page-models: refinements for the models page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* Status notes (experimental, gated, partial) shown on a model card. */
+.catalog-notes {
+  display: grid;
+  gap: var(--ux-space-2);
+  margin: 0 0 var(--ux-space-4);
+  padding: 0;
+  list-style: none;
+}
+.catalog-notes li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ux-space-2);
+  font-size: var(--ux-text-xs);
+  line-height: 1.45;
+  color: var(--forge-muted, #d5bdc8);
+}
+.catalog-badge {
+  flex: 0 0 auto;
+  padding: 1px var(--ux-space-2);
+  border: 1px solid var(--catalog-status-attention-edge, #9a704e);
+  border-radius: var(--ux-radius-sm);
+  background: var(--catalog-status-attention-surface, #4a3729);
+  color: var(--catalog-status-attention-ink, #ffe0b5);
+  font-size: var(--ux-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}

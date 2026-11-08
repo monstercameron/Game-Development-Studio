@@ -9,6 +9,7 @@ import AssetConverter, { canConvert } from './AssetConverter';
 import ProjectTrash from './ProjectTrash.jsx';
 import useDialogFocus from './useDialogFocus';
 import RuntimeQueue from './RuntimeQueue';
+import { RepeatButton, ShrinkButton } from './MiniPlayer';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownToLine,
@@ -33,7 +34,7 @@ import {
   X,
 } from 'lucide-react';
 
-const categories = ['All', 'Images', '3D', 'Video', 'Audio', 'Masks', 'Text'];
+const categories = ['All', 'Images', '3D', 'Motion', 'Video', 'Audio', 'Masks', 'Text'];
 const filesize = (size) =>
   typeof size === 'number'
     ? size < 1024
@@ -63,8 +64,67 @@ function iconFor(category) {
           ? FileText
           : Image;
 }
+// Browsers can draw these directly, so cards show the original file instead of a generated thumbnail.
+const nativeImageExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'];
+function extensionOf(name = '') {
+  return name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+}
+// Sample files are named by their URL; project assets by their file name.
+const fileNameOf = (asset) => (asset.sample ? asset.file : asset.title) || '';
+// Motion clips (.bvh) are stored as 3D assets, so the Motion tab is a view over them rather than a
+// separate category. The 3D tab keeps models and splats only.
+const isMotionAsset = (asset) =>
+  asset.category === '3D' && extensionOf(fileNameOf(asset)) === 'bvh';
+function matchesCategory(asset, category) {
+  if (category === 'All') {
+    return true;
+  }
+  if (category === 'Motion') {
+    return isMotionAsset(asset);
+  }
+  if (category === '3D') {
+    return asset.category === '3D' && !isMotionAsset(asset);
+  }
+  return asset.category === category;
+}
+function isNativeImage(asset) {
+  return (
+    (asset.category === 'Images' || asset.category === 'Masks') &&
+    nativeImageExtensions.includes(extensionOf(fileNameOf(asset)))
+  );
+}
+// Human-readable file type, e.g. "PNG · Images", "GLB · 3D".
+function fileKind(asset) {
+  const extension = extensionOf(fileNameOf(asset)).toUpperCase();
+  return extension ? `${extension} · ${asset.category}` : asset.category;
+}
+function NativeImageThumb({ asset }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [asset.file]);
+  if (failed) {
+    return (
+      <span className="gallery-thumb-icon" role="img" aria-label="Preview unavailable">
+        <Image size={30} aria-hidden="true" />
+        <small>Preview unavailable</small>
+      </span>
+    );
+  }
+  return (
+    <img src={asset.file} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
+  );
+}
 
-function AssetPreview({ asset, position, total, onClose, onStep, project, onMutate, onConverted }) {
+function AssetPreview({
+  asset,
+  position,
+  total,
+  onClose,
+  onStep,
+  project,
+  onMutate,
+  onConverted,
+  viewerNav = null,
+}) {
   const [, setParams] = useSearchParams();
   const [converting, setConverting] = useRouteToggle('convert');
   const [message, setMessage] = useState('');
@@ -201,9 +261,26 @@ function AssetPreview({ asset, position, total, onClose, onStep, project, onMuta
               <img src={asset.file} alt={asset.title} onError={() => setImagePreviewFailed(true)} />
             )
           ) : asset.category === 'Video' ? (
-            <video key={asset.file} controls src={asset.file} />
+            <>
+              <video key={asset.file} controls src={asset.file} />
+              <RepeatButton className="mini-repeat-floating" scope=".gallery-modal" />
+              <ShrinkButton
+                className="mini-shrink-floating"
+                scope=".gallery-modal"
+                kind="video"
+                url={asset.file}
+                name={asset.title}
+                onShrunk={onClose}
+              />
+            </>
           ) : asset.category === '3D' ? (
-            <InteractiveAssetViewer key={asset.file} url={asset.file} name={asset.title} />
+            <InteractiveAssetViewer
+              key={asset.file}
+              url={asset.file}
+              name={asset.title}
+              size={asset.size}
+              navigation={viewerNav}
+            />
           ) : asset.category === 'Text' ? (
             <TextAssetPreview asset={asset} />
           ) : (
@@ -213,6 +290,19 @@ function AssetPreview({ asset, position, total, onClose, onStep, project, onMuta
               <audio key={asset.file} controls src={asset.file}>
                 Your browser does not support audio playback.
               </audio>
+              <div className="mini-gallery-actions">
+                <RepeatButton className="mini-repeat-labeled" scope=".gallery-modal" showLabel />
+                <ShrinkButton
+                  className="mini-shrink-labeled"
+                  scope=".gallery-modal"
+                  kind="audio"
+                  url={asset.file}
+                  name={asset.title}
+                  onShrunk={onClose}
+                >
+                  Shrink to mini player
+                </ShrinkButton>
+              </div>
             </div>
           )}
           {total > 1 && (
@@ -257,7 +347,7 @@ function AssetPreview({ asset, position, total, onClose, onStep, project, onMuta
           <dl className="gallery-details">
             <div>
               <dt>Type</dt>
-              <dd>{asset.sample ? asset.detail : asset.category}</dd>
+              <dd>{asset.sample ? asset.detail : fileKind(asset)}</dd>
             </div>
             <div>
               <dt>Size</dt>
@@ -349,7 +439,8 @@ function AssetPreview({ asset, position, total, onClose, onStep, project, onMuta
             </button>
             <button
               className="outline-button danger-button"
-              disabled={busy}
+              disabled={busy || asset.sample}
+              title={asset.sample ? 'Sample files cannot be deleted' : ''}
               onClick={() => updateSearch(setParams, { trashAsset: '1', rename: null })}
             >
               <Trash2 size={15} /> Delete
@@ -478,14 +569,14 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
       modelRating: a.sample ? ratings[`${scope}:${a.id}`] || null : a.rating || null,
     }));
   }, [isSample, sampleAssets, localProject, scope, ratings]);
-  const count = (type) =>
-    type === 'All' ? items.length : items.filter((item) => item.category === type).length;
+  const count = (type) => items.filter((item) => matchesCategory(item, type)).length;
   const filtered = useMemo(
     () =>
       items
         .filter(
           (item) =>
-            (category === 'All' || item.category === category) &&
+            // An asset named in the link always stays reachable, even from an older category link.
+            (matchesCategory(item, category) || item.id === previewId) &&
             `${item.title} ${item.id} ${item.type || ''}`
               .toLowerCase()
               .includes(search.trim().toLowerCase()),
@@ -497,10 +588,27 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
               ? (a.modified || '').localeCompare(b.modified || '')
               : (b.modified || '').localeCompare(a.modified || ''),
         ),
-    [items, category, search, sort],
+    [items, category, search, sort, previewId],
   );
   const previewIndex = filtered.findIndex((item) => item.id === previewId);
   const preview = previewIndex >= 0 ? filtered[previewIndex] : null;
+  // Previous / next 3D asset inside the viewer, across the current filtered list.
+  const models = useMemo(() => filtered.filter((item) => item.category === '3D'), [filtered]);
+  const modelIndex = preview?.category === '3D' ? models.findIndex((m) => m.id === preview.id) : -1;
+  const viewerNav =
+    modelIndex >= 0 && models.length > 1
+      ? {
+          index: modelIndex,
+          total: models.length,
+          onStep: (offset) => {
+            const next = models[modelIndex + offset];
+            if (next) {
+              // Keep the large viewer open (the `inspect` flag) while switching assets.
+              change({ asset: next.id, convert: null, rename: null, trashAsset: null });
+            }
+          },
+        }
+      : null;
   function setCollection(value) {
     change({
       collection: value === 'samples' ? 'samples' : null,
@@ -774,7 +882,9 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
                           : '')
                     }
                   >
-                    {isVisualAsset(asset) ? (
+                    {isNativeImage(asset) ? (
+                      <NativeImageThumb asset={asset} />
+                    ) : isVisualAsset(asset) ? (
                       <AssetThumbnail asset={asset} project={asset.sample ? null : localProject} />
                     ) : asset.category === 'Text' ? (
                       <FileText size={37} />
@@ -788,8 +898,17 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
                         </div>
                       </>
                     )}
+                    {asset.category === '3D' && (
+                      <span className="gallery-3d-open" aria-hidden="true">
+                        Open in 3D viewer
+                      </span>
+                    )}
                     <span className="gallery-badge">
-                      {asset.sample ? 'SAMPLE' : asset.category.toUpperCase()}
+                      {asset.category === '3D'
+                        ? `3D · ${(asset.title.split('.').pop() || '').toUpperCase()}`
+                        : asset.sample
+                          ? 'SAMPLE'
+                          : asset.category.toUpperCase()}
                     </span>
                   </div>
                   <div className="gallery-card-info">
@@ -845,6 +964,7 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
           project={isSample ? null : localProject}
           onMutate={changeAsset}
           onConverted={reloadProject}
+          viewerNav={viewerNav}
           onClose={() => setPreviewId(null)}
           onStep={(offset) => setPreviewId(filtered[previewIndex + offset]?.id || previewId)}
         />

@@ -1,0 +1,49 @@
+/* ux-page-diagnostics: refinements for the diagnostics page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+.diagnostics-page {
+  --diag-log-warn-text: #f3cf8a;
+}
+
+/* Long log lines wrap inside the window instead of forcing sideways scrolling. */
+.diagnostics-page .log-window pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.diagnostics-page .log-window pre.log-warn {
+  color: var(--diag-log-warn-text);
+}
+
+.diagnostics-page .log-source .source-errors {
+  margin-left: auto;
+  color: var(--diag-log-error-text);
+  font-size: var(--forge-font-caption);
+  white-space: nowrap;
+}
+
+.diagnostics-page .log-bottom {
+  align-items: center;
+}
+.diagnostics-page .log-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--forge-space-2);
+  min-height: var(--ux-target-min);
+  margin-left: auto;
+  padding: 0 var(--forge-space-3);
+  border: 1px solid var(--diag-search-control-border);
+  border-radius: var(--forge-radius-md);
+  background: var(--forge-surface);
+  color: var(--forge-text-strong);
+  font-size: var(--forge-font-support);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.diagnostics-page .log-jump:hover {
+  background: var(--forge-raised);
+}
+
+/* The visible labels sit 25px above each control, so stacked controls need that much room between them
+   (the "Filter log lines" label was overlapping the source select above it). */
+.diagnostics-page .log-controls {
+  row-gap: 34px;
+}

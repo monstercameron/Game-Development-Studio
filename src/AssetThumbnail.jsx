@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Box, Clapperboard, Image as ImageIcon } from 'lucide-react';
 import './asset-thumbnail.css';
+import './ux-viewer.css';
 
 const tasks = new Map();
 let tail = Promise.resolve();
@@ -103,13 +104,26 @@ export default function AssetThumbnail({ asset, project, className = '' }) {
   const Icon =
     asset.category === '3D' ? Box : asset.category === 'Video' ? Clapperboard : ImageIcon;
   return (
-    <span ref={node} className={`asset-visual-thumbnail ${className}`} aria-hidden="true">
+    <span
+      ref={node}
+      className={`asset-visual-thumbnail ${className}`}
+      data-category={asset.category}
+      aria-hidden="true"
+    >
       {source ? (
         <img src={source} alt="" loading="lazy" />
       ) : (
-        <span className="asset-thumbnail-placeholder">
+        <span className="asset-thumbnail-placeholder" data-pending={failed ? undefined : ''}>
           <Icon size={30} />
-          <small>{failed ? 'Preview unavailable' : 'Preparing preview'}</small>
+          <small>
+            {failed
+              ? asset.category === '3D'
+                ? 'Preview unavailable · open to inspect'
+                : 'Preview unavailable'
+              : asset.category === '3D'
+                ? 'Rendering 3D preview…'
+                : 'Preparing preview'}
+          </small>
         </span>
       )}
     </span>

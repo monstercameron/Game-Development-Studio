@@ -1,0 +1,296 @@
+/* ux-polish: page refinements, loaded last. */
+
+/* Shared: 404 page, minimum touch targets, small-text floor. */
+.not-found-page {
+  max-width: 720px;
+  display: grid;
+  gap: var(--ux-space-4);
+}
+.not-found-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+}
+.not-found-links button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--ux-target-min);
+}
+.queue-all-link,
+.link-button {
+  min-height: var(--ux-target-min);
+  display: inline-flex;
+  align-items: center;
+}
+.tool-availability {
+  font-size: var(--ux-text-xs);
+}
+
+/* Purpose pass: once a project is chosen, the in-page project card is a one-line reminder
+   (the sidebar picker already switches projects), not a second large form. */
+.creation-context.has-project small {
+  display: none;
+}
+
+/* Short windows: sidebar sections keep their height and the sidebar scrolls, instead of
+   squashing the project picker over the WORKSPACE heading. */
+.sidebar {
+  overflow-y: auto;
+}
+.sidebar > * {
+  flex-shrink: 0;
+}
+
+/* Reset to defaults: quiet until it can do something, then clearly reversible-looking but guarded. */
+.reset-defaults {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-1);
+  margin-left: auto;
+}
+.reset-defaults:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.reset-confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+  margin-left: auto;
+  font-size: var(--ux-text-xs);
+}
+.reset-confirm .danger {
+  color: var(--forge-danger);
+}
+
+/* Render queue panel: compact header with a live count, management tucked behind a disclosure,
+   and a panel that stays in view beside long forms. */
+.runtime-queue .panel-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+.queue-count-chip {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 var(--ux-space-2);
+  border-radius: 999px;
+  background: var(--forge-orange);
+  color: var(--forge-text-on-orange);
+  font-size: var(--ux-text-xs);
+  font-weight: 700;
+}
+.runtime-queue .queue-intro {
+  font-size: var(--ux-text-sm);
+  margin: var(--ux-space-1) 0 0;
+}
+.queue-manage-menu {
+  margin: var(--ux-space-3) 0;
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-md);
+  background: var(--forge-surface-inset);
+}
+.queue-manage-menu > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  min-height: var(--ux-target-min);
+  padding: 0 var(--ux-space-3);
+  font-size: var(--ux-text-sm);
+  font-weight: 600;
+}
+.queue-manage-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.queue-manage-menu > summary::after {
+  content: '▾';
+  color: var(--forge-muted);
+  transition: transform 150ms ease;
+}
+.queue-manage-menu[open] > summary::after {
+  transform: rotate(180deg);
+}
+.queue-manage-menu > summary:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+.queue-manage-menu .queue-manage-note {
+  padding: 0 var(--ux-space-3);
+  font-size: var(--ux-text-xs);
+}
+.queue-manage-menu .queue-manage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+  padding: var(--ux-space-2) var(--ux-space-3) var(--ux-space-3);
+}
+.queue-manage-menu .queue-manage button {
+  min-height: var(--ux-target-min);
+}
+.runtime-queue-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--ux-space-3);
+  padding: var(--ux-space-4);
+  border: 1px dashed var(--forge-border);
+  border-radius: var(--ux-radius-md);
+  font-size: var(--ux-text-sm);
+  color: var(--forge-muted);
+}
+@media (min-width: 1001px) {
+  .right-column .runtime-queue {
+    position: sticky;
+    top: var(--ux-space-4);
+    max-height: calc(100vh - 2 * var(--ux-space-4));
+    overflow: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .queue-manage-menu > summary::after {
+    transition: none;
+  }
+}
+.runtime-job strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Top bar: one calm row. Location on the left; queue state, release status and settings on the right.
+   Sticky with a soft blur so the page title never loses its place. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  min-height: 56px;
+  background: color-mix(in srgb, var(--forge-surface-inset) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: var(--ux-border);
+}
+.topbar .breadcrumb {
+  font-size: var(--ux-text-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar .breadcrumb strong {
+  font-weight: 700;
+}
+.topbar .top-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ux-space-3);
+}
+.topbar .queue-timing-badge {
+  min-height: var(--ux-target-min);
+  padding: 0 var(--ux-space-3);
+  font: inherit;
+  font-size: var(--ux-text-xs);
+}
+.topbar .queue-timing-badge.is-interactive {
+  cursor: pointer;
+}
+.topbar .queue-timing-badge.is-interactive:hover {
+  border-color: var(--forge-purple);
+  background: var(--forge-selection-surface);
+}
+.topbar .queue-timing-badge.is-interactive:focus-visible,
+.topbar .prototype-button:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+.topbar .prototype-button {
+  min-height: 28px;
+  padding: 0 var(--ux-space-3);
+  border: 1px solid var(--forge-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--forge-muted);
+  font: inherit;
+  font-size: var(--ux-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+.topbar .prototype-button:hover {
+  color: var(--forge-text);
+  border-color: var(--forge-purple);
+}
+.topbar .prototype-button i {
+  display: none;
+}
+
+/* Sidebar: an idle page needs only its dot (the label "No jobs" was truncating names such as
+   "Segmentation" and "Sound effects"). The full state stays in the tooltip and accessible name. */
+.sidebar .nav-queue-status.free {
+  font-size: 0;
+  gap: 0;
+}
+
+/* Model removal: explicit acknowledgement before the destructive button enables. */
+.model-remove-ack {
+  display: flex;
+  gap: var(--ux-space-3);
+  align-items: flex-start;
+  padding: var(--ux-space-3) var(--ux-space-4);
+  border: 1px solid var(--forge-danger-border);
+  border-radius: var(--ux-radius-md);
+  background: var(--forge-danger-surface);
+  font-size: var(--ux-text-sm);
+  cursor: pointer;
+}
+.model-remove-ack input {
+  margin-top: 2px;
+  flex: none;
+}
+
+/* Compact menu: an icon rail on desktop. Labels, headings, the project picker and brand text hide;
+   names stay available as tooltips and accessible names; queue state shrinks to a dot. */
+.sidebar .nav-compact-toggle {
+  margin-top: auto;
+  flex-shrink: 0;
+}
+@media (min-width: 851px) {
+  .sidebar.is-compact {
+    width: 68px;
+    flex: 0 0 68px;
+    padding-inline: 10px;
+  }
+  .sidebar.is-compact .brand {
+    justify-content: center;
+  }
+  .sidebar.is-compact .brand > div:nth-child(2),
+  .sidebar.is-compact .workspace,
+  .sidebar.is-compact .nav-heading {
+    display: none;
+  }
+  .sidebar.is-compact .nav-item {
+    position: relative;
+    justify-content: center;
+    padding-inline: 0;
+    gap: 0;
+  }
+  .sidebar.is-compact .nav-item > span:not(.nav-queue-status) {
+    display: none;
+  }
+  .sidebar.is-compact .nav-queue-status {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    margin: 0;
+    font-size: 0;
+    gap: 0;
+  }
+  .sidebar.is-compact .nav-item.active::before {
+    left: -10px;
+  }
+}
+
+/* Sidebar project label: keep its help button on the same line as the text. */
+.sidebar .workspace-label { display: flex; align-items: center; flex-wrap: nowrap; }

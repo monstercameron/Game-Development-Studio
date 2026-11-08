@@ -218,9 +218,6 @@
 }
 
 @media (min-width: 851px) {
-  body:has(.chat-page) .field-help-trigger[aria-label='Help: Message'] {
-    transform: none;
-  }
   .chat-page {
     max-width: 2080px;
     padding: var(--forge-space-6) clamp(var(--forge-space-6), 3vw, var(--forge-space-value-64))

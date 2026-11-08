@@ -1,0 +1,151 @@
+/* ux-world-motion: page refinements for the Worlds and Character motion pages, loaded last.
+   Uses ux-tokens.css values; desktop and laptop widths are the focus. */
+
+/* ---------- Worlds: generator cards and form rows ---------- */
+
+.world-page .world-model {
+  min-height: var(--ux-target-min);
+  padding: var(--ux-space-4);
+}
+
+.world-page .world-model small {
+  font-size: var(--ux-text-sm);
+}
+
+.world-page .world-form .helper,
+.world-page .world-settings .helper,
+.world-page .world-input .helper {
+  font-size: var(--ux-text-sm);
+}
+
+/* Form rows wrap instead of squeezing: each field keeps a readable minimum width. */
+.world-page .world-settings {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--ux-space-3);
+}
+
+.world-page .world-form :is(select, textarea, input[type='number']) {
+  min-height: var(--ux-target-min);
+}
+
+.world-page .world-form textarea {
+  min-height: 140px;
+}
+
+.world-page .world-file-actions .outline-button,
+.world-page .world-seed button {
+  min-height: var(--ux-target-min);
+}
+
+.world-page .world-seed button {
+  min-width: var(--ux-target-min);
+  justify-content: center;
+}
+
+.world-page .world-reference {
+  flex-wrap: wrap;
+}
+
+.world-page .world-reference > div {
+  flex: 1 1 160px;
+}
+
+.world-page .world-submit .primary {
+  min-height: var(--ux-target-min);
+}
+
+/* ---------- Single column below 1000px (tablets and narrow laptop windows) ---------- */
+
+@media (max-width: 1000px) {
+  .world-page .world-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ux-space-4);
+  }
+
+  .world-page .world-panel {
+    padding: var(--ux-space-4);
+  }
+
+  .world-page .right-column {
+    min-width: 0;
+  }
+}
+
+/* ---------- Character motion (HY-Motion and MotionBricks controls) ---------- */
+
+.hy-motion-controls-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: var(--ux-space-3);
+}
+
+.hy-motion-control input {
+  min-height: var(--ux-target-min);
+}
+
+.hy-motion-control small,
+.hy-motion-controls-note {
+  font-size: var(--ux-text-sm);
+}
+
+.motionbricks-controls .motionbricks-parameter-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: var(--ux-space-3);
+}
+
+.motionbricks-controls .motionbricks-source-guidance,
+.motionbricks-controls .helper,
+.motionbricks-controls .motionbricks-error {
+  font-size: var(--ux-text-sm);
+}
+
+.motionbricks-controls .motionbricks-remove-source {
+  min-width: var(--ux-target-min);
+  min-height: var(--ux-target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.motionbricks-controls .motionbricks-source-actions .asset-library-button {
+  min-height: var(--ux-target-min);
+}
+
+/* Preview tool row wraps on narrow windows rather than squeezing its buttons. */
+.motion-preview .model-preview-tools {
+  flex-wrap: wrap;
+}
+
+.motion-preview .model-preview-tools button {
+  min-width: var(--ux-target-min);
+  min-height: var(--ux-target-min);
+}
+
+/* ---------- Focus visibility for controls on these pages ---------- */
+
+.world-page :is(button, a, select, input, textarea):focus-visible,
+.motion-preview :is(button, a, input):focus-visible,
+.hy-motion-control input:focus-visible,
+.motionbricks-controls :is(input, button):focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .world-page *,
+  .world-page *::before,
+  .world-page *::after,
+  .motion-preview *,
+  .hy-motion-controls *,
+  .motionbricks-controls * {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.world-page .world-reset {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--ux-space-2);
+}

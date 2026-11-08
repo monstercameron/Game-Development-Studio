@@ -64,13 +64,42 @@
   font-size: var(--forge-font-support);
   line-height: 1.4;
 }
+.speech-status.recording {
+  color: var(--forge-danger);
+}
 .speech-status.recording::before {
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 50%;
-  background: var(--forge-success);
+  background: var(--forge-danger);
   content: '';
   flex: none;
+  animation: speech-rec-pulse 1.4s ease-in-out infinite;
+}
+@keyframes speech-rec-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.speech-blocked {
+  max-width: 62ch;
+  margin: calc(-1 * var(--forge-space-1)) 0 0;
+  padding: var(--forge-space-2) var(--forge-space-3);
+  border: 1px solid var(--forge-danger-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-danger-surface);
+  color: var(--forge-text);
+  font-size: var(--forge-font-support);
+  line-height: 1.45;
+}
+.speech-limit {
+  margin: calc(-1 * var(--forge-space-2)) 0 0;
+  max-width: 62ch;
+}
+@media (prefers-reduced-motion: reduce) {
+  .speech-status.recording::before {
+    animation: none;
+  }
 }
 .speech-output {
   min-height: 104px;

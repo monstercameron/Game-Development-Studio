@@ -1,8 +1,9 @@
 import { useSearchParams } from 'react-router';
 import { updateSearch } from './useNav';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  ArrowDown,
   Check,
   Copy,
   FileText,
@@ -13,8 +14,28 @@ import {
   Server,
   Terminal,
 } from 'lucide-react';
-import { filterLogLines } from './diagnostics-filter.js';
+import { filterLogLines, isErrorLine, isWarnLine } from './diagnostics-filter.js';
 import './diagnostics-page.css';
+
+// Relative wording for file times; the absolute time stays in the tooltip.
+function formatRelative(iso, now) {
+  const seconds = Math.round((now - new Date(iso).getTime()) / 1000);
+  if (Number.isNaN(seconds)) {
+    return iso;
+  }
+  if (seconds < 60) {
+    return 'just now';
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} min ago`;
+  }
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours} h ago`;
+  }
+  return `${Math.round(hours / 24)} d ago`;
+}
 
 export default function Diagnostics() {
   const [metadata, setMetadata] = useState(null);
@@ -27,7 +48,11 @@ export default function Diagnostics() {
   const [query, setQuery] = useState('');
   const [paused, setPaused] = useState(false);
   const [connection, setConnection] = useState('Connecting');
+  const [streamAttempt, setStreamAttempt] = useState(0);
   const [copyMessage, setCopyMessage] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+  const logWindowRef = useRef(null);
+  const followTail = useRef(true);
   const errorsOnly = params.get('errors') === '1';
   const setErrorsOnly = (value) => updateSearch(setParams, { errors: value ? '1' : null });
   async function refreshMetadata() {
@@ -48,6 +73,10 @@ export default function Diagnostics() {
   useEffect(() => {
     refreshMetadata();
     const timer = setInterval(refreshMetadata, 15000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
@@ -80,7 +109,7 @@ export default function Diagnostics() {
       setConnection(`Log read failed: ${detail}`);
     };
     return () => stream.close();
-  }, [paused]);
+  }, [paused, streamAttempt]);
   useEffect(() => {
     if (copyMessage) {
       const t = setTimeout(() => setCopyMessage(''), 3000);
@@ -99,6 +128,26 @@ export default function Diagnostics() {
   );
   const hasUnknownSource =
     sources.length > 0 && selected !== 'all' && !sources.some((source) => source.id === selected);
+  const streamFailed =
+    connection.startsWith('Log read failed') || connection === 'Invalid log response';
+  // Follow the newest lines while the reader is at the bottom; stop once they scroll up.
+  useEffect(() => {
+    const element = logWindowRef.current;
+    if (element && followTail.current) {
+      element.scrollTop = element.scrollHeight;
+    }
+  }, [visible]);
+  function jumpToLatest() {
+    const element = logWindowRef.current;
+    if (element) {
+      followTail.current = true;
+      element.scrollTop = element.scrollHeight;
+    }
+  }
+  function handleLogScroll(event) {
+    const element = event.currentTarget;
+    followTail.current = element.scrollHeight - element.scrollTop - element.clientHeight < 24;
+  }
   function formatLogSources(logSources, { filtered = false } = {}) {
     return logSources
       .map((source) => {
@@ -204,8 +253,8 @@ export default function Diagnostics() {
             </>
           )}
           <div className="service-heading">
-            <span className="mini-label">ENGINE ADDRESSES</span>
-            <span>PORT STATUS</span>
+            <span className="mini-label">SERVICE ADDRESSES</span>
+            <span>STATUS</span>
           </div>
           {metadata?.services.map((service) => (
             <div className="service-row" key={service.id}>
@@ -233,6 +282,7 @@ export default function Diagnostics() {
               className={'live-status ' + (connection === 'Live' ? 'is-live' : '')}
               role="status"
               aria-live="polite"
+              title={paused ? 'Paused: showing the last snapshot received.' : undefined}
             >
               <i /> {connection}
             </span>
@@ -264,7 +314,11 @@ export default function Diagnostics() {
             </label>
             <button
               className="stream-toggle"
-              aria-pressed={paused}
+              title={
+                paused
+                  ? 'Resume live log updates.'
+                  : 'Stop live log updates and keep the current lines on screen.'
+              }
               onClick={() => setPaused(!paused)}
             >
               {paused ? <Play size={15} /> : <Pause size={15} />}
@@ -283,27 +337,33 @@ export default function Diagnostics() {
             <div className="log-copy-actions">
               <button
                 className="link-button"
-                onClick={() => copy(formatLogSources(visible, { filtered: true }), 'Visible logs')}
+                title="Copies the lines shown below: the selected source, errors-only and text filter applied."
+                onClick={() =>
+                  copy(formatLogSources(visible, { filtered: true }), 'Matching lines')
+                }
               >
-                <Copy size={14} /> Copy filtered lines
+                <Copy size={14} /> Copy matching lines
               </button>
               <button
                 className="link-button"
+                title="Copies every kept line for the selected source, ignoring the errors-only and text filters."
                 onClick={() =>
                   copy(
                     formatLogSources(
                       sources.filter((source) => selected === 'all' || source.id === selected),
                     ),
-                    'Unfiltered logs',
+                    'All lines',
                   )
                 }
               >
-                <Copy size={14} /> Copy unfiltered logs
+                <Copy size={14} /> Copy all lines
               </button>
             </div>
           </div>
           <div
             className="log-window"
+            ref={logWindowRef}
+            onScroll={handleLogScroll}
             role="log"
             aria-label="Recent service logs"
             aria-live="off"
@@ -318,48 +378,82 @@ export default function Diagnostics() {
                 </button>
               </div>
             ) : visible.length === 0 ? (
-              <div className="log-placeholder">
-                <Terminal size={20} /> Waiting for logs…
-              </div>
-            ) : (
-              visible.map((source) => (
-                <div className="log-group" key={source.id}>
-                  <div className="log-source">
-                    <FileText size={13} />
-                    <strong>{source.label}</strong>
-                    <span className={source.available ? 'source-available' : 'source-unavailable'}>
-                      {source.available ? 'Log available' : 'Log unavailable'}
-                    </span>
-                  </div>
-                  {source.file && <div className="log-path">{source.file}</div>}
-                  {source.modified && (
-                    <p className="log-modified">
-                      File modified on server{' '}
-                      <time dateTime={source.modified}>{source.modified}</time>
-                    </p>
-                  )}
-                  {source.available ? (
-                    source.lines.length ? (
-                      source.lines.map((line, i) => (
-                        <pre
-                          key={i}
-                          className={
-                            /error|exception|traceback|failed|failure|fatal/i.test(line)
-                              ? 'log-error'
-                              : ''
-                          }
-                        >
-                          {line}
-                        </pre>
-                      ))
-                    ) : (
-                      <p className="log-muted">No matching log lines.</p>
-                    )
-                  ) : (
-                    <p className="log-unavailable">Log source unavailable: {source.unavailable}</p>
-                  )}
+              streamFailed ? (
+                <div className="log-placeholder log-empty-state">
+                  <AlertCircle size={20} aria-hidden="true" />
+                  <p>No logs are loading. {connection}</p>
+                  <button className="link-button" onClick={() => setStreamAttempt((n) => n + 1)}>
+                    <RefreshCw size={14} /> Try again
+                  </button>
                 </div>
-              ))
+              ) : (
+                <div className="log-placeholder">
+                  <Terminal size={20} aria-hidden="true" />{' '}
+                  {paused
+                    ? 'Stream paused before the first snapshot. Resume the stream to load logs.'
+                    : 'Connecting to the log stream…'}
+                </div>
+              )
+            ) : (
+              visible.map((source) => {
+                const errorCount = source.available ? source.lines.filter(isErrorLine).length : 0;
+                return (
+                  <div className="log-group" key={source.id}>
+                    <div className="log-source">
+                      <FileText size={13} aria-hidden="true" />
+                      <strong>{source.label}</strong>
+                      <span
+                        className={source.available ? 'source-available' : 'source-unavailable'}
+                      >
+                        {source.available ? 'Log available' : 'Log unavailable'}
+                      </span>
+                      {errorCount > 0 && (
+                        <span className="source-errors">
+                          {errorCount} error {errorCount === 1 ? 'line' : 'lines'}
+                        </span>
+                      )}
+                    </div>
+                    {source.file && <div className="log-path">{source.file}</div>}
+                    {source.available && !source.file && (
+                      <p className="log-muted">
+                        Kept in memory by this studio process (last 100 lines). Cleared when the
+                        studio restarts.
+                      </p>
+                    )}
+                    {source.modified && (
+                      <p className="log-modified">
+                        File modified on server{' '}
+                        <time
+                          dateTime={source.modified}
+                          title={new Date(source.modified).toLocaleString()}
+                        >
+                          {formatRelative(source.modified, now)}
+                        </time>
+                      </p>
+                    )}
+                    {source.available ? (
+                      source.lines.length ? (
+                        source.lines.map((line, i) => (
+                          <pre
+                            key={i}
+                            className={
+                              isErrorLine(line) ? 'log-error' : isWarnLine(line) ? 'log-warn' : ''
+                            }
+                          >
+                            {line}
+                          </pre>
+                        ))
+                      ) : (
+                        <p className="log-muted">No matching log lines.</p>
+                      )
+                    ) : (
+                      <p className="log-unavailable">
+                        Log source unavailable: {source.unavailable}
+                      </p>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
           <div className="log-bottom">
@@ -368,6 +462,9 @@ export default function Diagnostics() {
               metadata. Recent lines refresh every 2 seconds. Known credential patterns are
               redacted; review logs before sharing.
             </span>
+            <button type="button" className="log-jump" onClick={jumpToLatest}>
+              <ArrowDown size={14} aria-hidden="true" /> Jump to latest
+            </button>
             {copyMessage && (
               <strong role="status">
                 <Check size={14} /> {copyMessage}

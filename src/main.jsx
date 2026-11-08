@@ -44,6 +44,7 @@ import SpeechTranscriber from './SpeechTranscriber';
 import AudioSettings from './AudioSettings';
 import ImageVideoSettings from './ImageVideoSettings';
 import MemoryAlerts from './MemoryAlerts';
+import MiniPlayer from './MiniPlayer';
 import PageErrorBoundary from './PageErrorBoundary';
 import ModelPlaque from './ModelPlaque';
 import WorldStudio from './WorldStudio';
@@ -62,7 +63,8 @@ import {
   Box,
   Check,
   ChevronDown,
-  CircleHelp,
+  ChevronsLeft,
+  ChevronsRight,
   Clapperboard,
   Clock3,
   Cloud,
@@ -79,9 +81,10 @@ import {
   PanelLeftOpen,
   Mic2,
   Music2,
-  Pause,
+  PersonStanding,
   Plus,
   Radio,
+  RotateCcw,
   Scissors,
   Settings2,
   SlidersHorizontal,
@@ -100,6 +103,34 @@ import './mobile-spacing.css';
 import './navigation.css';
 import './creation-panels.css';
 import './page-error.css';
+import './ux-tokens.css';
+import './ux-polish.css';
+import './ux-creation.css';
+import './ux-world-motion.css';
+import './ux-chat.css';
+import './ux-library.css';
+import './ux-system.css';
+import './ux-page-overview.css';
+import './ux-page-chat.css';
+import './ux-page-images.css';
+import './ux-page-3d.css';
+import './ux-page-world.css';
+import './ux-page-motion.css';
+import './ux-page-video.css';
+import './ux-page-music.css';
+import './ux-page-sfx.css';
+import './ux-page-voices.css';
+import './ux-page-segmentation.css';
+import './ux-page-game.css';
+import './ux-page-assets.css';
+import './ux-page-models.css';
+import './ux-page-diagnostics.css';
+import './ux-mobile-shell.css';
+import './ux-mobile-creation.css';
+import './ux-mobile-world-motion.css';
+import './ux-mobile-chat.css';
+import './ux-mobile-library.css';
+import './ux-mobile-system.css';
 
 // Chat's Markdown renderer is only needed when the user opens that workspace.
 const Chat = React.lazy(() => import('./Chat'));
@@ -110,7 +141,7 @@ const nav = [
   { id: 'images', label: 'Images', icon: ImageIcon },
   { id: '3d', label: '3D models', icon: Box },
   { id: 'world', label: 'Worlds', icon: Cloud },
-  { id: 'motion', label: 'Character rigging', icon: Gamepad2 },
+  { id: 'motion', label: 'Motion', icon: PersonStanding },
   { id: 'video', label: 'Video', icon: Clapperboard },
   { id: 'music', label: 'Music', icon: Music2 },
   { id: 'sfx', label: 'Sound effects', icon: AudioLines },
@@ -151,10 +182,11 @@ const configs = {
     tip: 'Start with a clear reference image showing your subject.',
   },
   motion: {
-    title: 'Character rigging & motion',
+    title: 'Character motion',
     eyebrow: 'CHARACTER ANIMATION',
-    description: 'Prepare a character and explore motion for your game.',
-    icon: Gamepad2,
+    description:
+      'Generate motion clips for your characters. Automatic rigging is not available yet.',
+    icon: PersonStanding,
     model: 'HY-Motion 1.0',
     prompt: 'Describe the motion',
     placeholder: 'A knight walks cautiously through a dark forest, then draws a sword...',
@@ -192,7 +224,7 @@ const configs = {
     button: 'Add music to queue',
     options: [
       ['Duration', '15 seconds', '30 seconds', '60 seconds'],
-      ['Direction', 'Full arrangement', 'Melody', 'Off'],
+      ['Planning', 'Full arrangement', 'Melody', 'Off'],
     ],
     tip: 'Describe instruments, mood, genre, and how the music should evolve.',
   },
@@ -277,7 +309,7 @@ const configs = {
     button: 'Save test draft',
     options: [
       ['Question type', 'Choice', 'Score', 'Yes / No'],
-      ['Response', 'Structured', 'Compact'],
+      ['Result view', 'Structured', 'Compact'],
     ],
     tip: 'Describe the state, then define a decision for the model to make.',
   },
@@ -289,6 +321,7 @@ const templates = [
     subtitle: 'Character concept',
     className: 'art-character',
     image: '/samples/alchemist.png',
+    prompt: 'A traveling alchemist in an enchanted forest, detailed fantasy game concept art',
   },
   {
     tag: 'ENVIRONMENT',
@@ -296,6 +329,7 @@ const templates = [
     subtitle: 'Environment concept',
     className: 'art-world',
     image: '/samples/forest-bridge.png',
+    prompt: 'A weathered bridge leading into a forgotten forest, detailed fantasy game concept art',
   },
   {
     tag: 'OBJECT',
@@ -303,6 +337,7 @@ const templates = [
     subtitle: 'Game asset concept',
     className: 'art-object',
     image: '/samples/potion.png',
+    prompt: 'A luminous potion ready for a fantasy inventory, detailed fantasy game concept art',
   },
 ];
 const sampleAssets = [
@@ -386,6 +421,15 @@ function App() {
   const [segmentationFiles, setSegmentationFiles] = useState([]);
   const [motionPoseFile, setMotionPoseFile] = useState(null);
   const [navigationOpen, setNavigationOpen] = useState(false);
+  // Compact mode shrinks the desktop menu to an icon rail; the full menu is one click away.
+  const [navCompact, setNavCompact] = useState(() => load('forge-nav-compact', false) === true);
+  useEffect(() => {
+    try {
+      localStorage.setItem('forge-nav-compact', JSON.stringify(navCompact));
+    } catch {
+      // Browser storage can be unavailable in restricted contexts.
+    }
+  }, [navCompact]);
   const [desktopNavHidden, setDesktopNavHidden] = useState(
     () => load('forge-nav-hidden', false) === true,
   );
@@ -403,7 +447,6 @@ function App() {
   const navigationRef = useRef(null);
   const projectSelectRef = useRef(null);
   const [jobs, setJobs] = useState(() => load('forge-queue', []));
-  const [paused, setPaused] = useState(false);
   const [notice, setNotice] = useState('');
   const [advanced, setAdvanced] = useRouteToggle('advanced');
   const settingsOpen = routeParams.get('dialog') === 'settings';
@@ -694,6 +737,52 @@ function App() {
       ...d,
       [section]: { ...initialDrafts[section], ...d[section], ...values },
     }));
+  // Reset to defaults is gated twice: it stays disabled while the page already matches its defaults,
+  // and an enabled click only arms an inline confirmation instead of discarding work immediately.
+  const [resetArmed, setResetArmed] = useState(false);
+  useEffect(() => setResetArmed(false), [section]);
+  const pageIsDirty = (() => {
+    if (!current) {
+      return false;
+    }
+    const base = initialDrafts[section];
+    const saved = drafts[section] || {};
+    const changedDraft = Object.keys({ ...base, ...saved }).some(
+      (key) =>
+        key !== 'refs' && JSON.stringify(saved[key] ?? base[key]) !== JSON.stringify(base[key]),
+    );
+    const filesChosen =
+      (section === 'video' && videoFiles.length > 0) ||
+      (section === 'images' && imageFiles.length > 0) ||
+      (section === '3d' && shapeFiles.length > 0) ||
+      (section === 'segmentation' && segmentationFiles.length > 0) ||
+      (section === 'motion' && Boolean(motionPoseFile));
+    const modelChanged = Boolean(modelParam) && modelParam !== current.model;
+    return changedDraft || filesChosen || modelChanged;
+  })();
+  const resetToDefaults = () => {
+    setDrafts((d) => ({ ...d, [section]: { ...initialDrafts[section] } }));
+    if (section === 'video') {
+      setVideoFiles([]);
+    }
+    if (section === 'images') {
+      setImageFiles([]);
+    }
+    if (section === '3d') {
+      setShapeFiles([]);
+    }
+    if (section === 'segmentation') {
+      setSegmentationFiles([]);
+    }
+    if (section === 'motion') {
+      setMotionPoseFile(null);
+    }
+    if (modelParam) {
+      updateSearch(setRouteParams, { model: null });
+    }
+    setResetArmed(false);
+    setNotice(`${current.title} settings were reset to their defaults.`);
+  };
   const addJob = () => {
     const motionBricks = section === 'motion' && draft.model === 'NVIDIA MotionBricks';
     if (section === '3d' && !draft.refs.length) {
@@ -1034,7 +1123,11 @@ function App() {
       <aside
         ref={navigationRef}
         id="studio-navigation"
-        className={'sidebar ' + (navigationOpen ? 'sidebar-open' : '')}
+        className={
+          'sidebar ' +
+          (navigationOpen ? 'sidebar-open ' : '') +
+          (!mobileNavigation && navCompact ? 'is-compact' : '')
+        }
         inert={mobileNavigation ? !navigationOpen : desktopNavHidden}
       >
         <div className="brand">
@@ -1097,7 +1190,6 @@ function App() {
                     {status.state === 'free' ? 'No jobs' : status.short}
                   </span>
                 )}
-                {id === 'overview' && <span className="nav-dot" />}
               </button>
             );
           })}
@@ -1130,6 +1222,19 @@ function App() {
           <Terminal size={17} />
           <span>Diagnostics</span>
         </button>
+        {!mobileNavigation && (
+          <button
+            type="button"
+            className="nav-item nav-compact-toggle"
+            aria-pressed={navCompact}
+            aria-label={navCompact ? 'Expand menu' : 'Make menu smaller'}
+            title={navCompact ? 'Expand menu' : 'Make menu smaller'}
+            onClick={() => setNavCompact((value) => !value)}
+          >
+            {navCompact ? <ChevronsRight size={17} /> : <ChevronsLeft size={17} />}
+            <span>{navCompact ? 'Expand menu' : 'Make menu smaller'}</span>
+          </button>
+        )}
       </aside>
       <main id="studio-main" className="main" tabIndex={-1}>
         <header className="topbar">
@@ -1182,7 +1287,7 @@ function App() {
                               : 'Page not found')}
               </strong>
             </div>
-            {queueStatus(section) && (
+            {queueStatus(section) && !['free', 'unknown'].includes(queueStatus(section).state) && (
               <span
                 className={`page-queue-status ${queueStatus(section).state}`}
                 title={queueStatus(section).detail}
@@ -1194,10 +1299,22 @@ function App() {
             )}
           </div>
           <div className="top-actions">
-            <QueueTimingBadge />
-            <span className="prototype">
-              <i /> EARLY ACCESS
-            </span>
+            <QueueTimingBadge
+              onOpen={() => switchTo('assets', { queue: '1', project: selectedProjectId })}
+            />
+            <button
+              type="button"
+              className="prototype prototype-button"
+              title="Early access: see which panels render and which are previews"
+              aria-label="About this preview"
+              onClick={() =>
+                setNotice(
+                  'Early access. Images, video, music, sound effects, voices, Hunyuan shapes, HY-Motion, SAM segmentation, and game decisions have initial integrations; other panels remain previews.',
+                )
+              }
+            >
+              Early access
+            </button>
             <button
               className="icon-btn"
               title="Studio settings"
@@ -1206,19 +1323,6 @@ function App() {
             >
               <Settings2 size={18} />
             </button>
-            <button
-              className="icon-btn"
-              title="About this preview"
-              aria-label="About this preview"
-              onClick={() =>
-                setNotice(
-                  'Images, video, music, sound effects, voices, Hunyuan shapes, HY-Motion, SAM segmentation, and game decisions have initial integrations; other panels remain previews.',
-                )
-              }
-            >
-              <CircleHelp size={18} />
-            </button>
-            <div className="top-avatar">Y</div>
           </div>
         </header>
         {section === 'overview' ? (
@@ -1234,10 +1338,6 @@ function App() {
                 <p className="lead">
                   A creative workspace for the assets that bring your game to life.
                 </p>
-              </div>
-              <div className="date-block">
-                <Sparkles size={16} />
-                <span>Made for your game worlds</span>
               </div>
             </div>
             <section className="workspace-hero">
@@ -1298,61 +1398,43 @@ function App() {
               <div>
                 <h2>Choose a tool</h2>
               </div>
-              <span className="section-note">
-                From ideas to assets <ArrowRight size={14} />
-              </span>
             </div>
             <div className="tool-grid">
               {[
                 ['images', ImageIcon, 'Images', 'Characters, environments & assets', 'mint'],
-                ['video', Clapperboard, 'Video', 'Bring your scenes to life', 'violet'],
+                [
+                  'video',
+                  Clapperboard,
+                  'Video',
+                  'Animate reference images into short clips',
+                  'violet',
+                ],
                 ['music', Music2, 'Music', 'Soundtracks for every story', 'peach'],
                 ['sfx', AudioLines, 'Sound effects', 'The details you can hear', 'blue'],
-                ['3d', Box, '3D models', 'Objects & character concepts', 'yellow'],
-                ['world', Cloud, 'Worlds', 'Generate explorable scenes', 'violet'],
-                ['motion', Gamepad2, 'Character motion', 'Explore movement & rigging', 'mint'],
-                ['voices', Mic2, 'Voices', 'Give your characters a voice', 'rose'],
-                ['segmentation', Scissors, 'Segmentation', 'Isolate, refine & create', 'yellow'],
+                ['3d', Box, '3D models', 'Untextured shapes from a reference image', 'yellow'],
+                ['world', Cloud, 'Worlds', 'Explorable 3D scenes from text or images', 'violet'],
+                [
+                  'motion',
+                  PersonStanding,
+                  'Character motion',
+                  'Experimental clips, no auto-rigging',
+                  'mint',
+                ],
+                ['voices', Mic2, 'Voices', 'Preset character voices and transcription', 'rose'],
+                [
+                  'segmentation',
+                  Scissors,
+                  'Segmentation',
+                  'Cut out objects in images with text',
+                  'yellow',
+                ],
                 ['game', Gamepad2, 'Game logic', 'Decisions for your game world', 'blue'],
               ].map(([id, Icon, title, desc, color]) => (
                 <button className="tool-card" key={id} onClick={() => switchTo(id)}>
                   <div className={'tool-icon ' + color}>
                     <Icon size={20} />
                   </div>
-                  <span
-                    className={
-                      [
-                        'images',
-                        'video',
-                        'music',
-                        'sfx',
-                        'voices',
-                        '3d',
-                        'world',
-                        'segmentation',
-                        'motion',
-                        'game',
-                      ].includes(id)
-                        ? 'tool-availability'
-                        : 'tool-availability planned'
-                    }
-                  >
-                    {[
-                      'images',
-                      'video',
-                      'music',
-                      'sfx',
-                      'voices',
-                      '3d',
-                      'world',
-                      'segmentation',
-                      'motion',
-                    ].includes(id)
-                      ? 'RENDER'
-                      : id === 'game'
-                        ? 'DECISIONS'
-                        : 'PREVIEW'}
-                  </span>
+                  {id === 'game' && <span className="tool-availability">DECISIONS</span>}
                   <strong>{title}</strong>
                   <span className="tool-description">{desc}</span>
                   <ArrowRight size={15} className="tool-arrow" />
@@ -1376,13 +1458,16 @@ function App() {
                       className="inspo-card"
                       key={t.tag}
                       onClick={() => {
+                        const hadPrompt = Boolean(drafts.images?.prompt?.trim());
                         setDrafts((d) => ({
                           ...d,
-                          images: {
-                            ...d.images,
-                            prompt: t.title + ', detailed fantasy game concept art',
-                          },
+                          images: { ...d.images, prompt: t.prompt },
                         }));
+                        setNotice(
+                          hadPrompt
+                            ? 'Sample prompt replaced your image prompt.'
+                            : 'Sample prompt added to Images.',
+                        );
                         switchTo('images');
                       }}
                     >
@@ -1396,22 +1481,8 @@ function App() {
                   ))}
                 </div>
               </section>
-              <Queue
-                jobs={jobs}
-                setJobs={setJobs}
-                paused={paused}
-                setPaused={setPaused}
-                compact
-                setNotice={setNotice}
-                onOpenDraft={openDraft}
-              />
+              <Queue jobs={jobs} setJobs={setJobs} compact onOpenDraft={openDraft} />
             </div>
-            <footer className="footer">
-              <span>
-                MADE FOR YOUR GAME WORLDS <span>✳</span>
-              </span>
-              <span>FORGE STUDIO · LOCAL WORKSPACE</span>
-            </footer>
           </div>
         ) : current ? (
           <div className="page editor-page">
@@ -1435,7 +1506,7 @@ function App() {
                 hasModelSelector={['3d', 'motion'].includes(section)}
               />
             </div>
-            <div className="creation-context">
+            <div className={'creation-context' + (activeProject ? ' has-project' : '')}>
               <div className="creation-context-icon">
                 <FolderOpen size={19} />
               </div>
@@ -1470,7 +1541,9 @@ function App() {
                 <section className="panel form-panel">
                   <div className="panel-heading">
                     <div>
-                      <h2>Creative direction</h2>
+                      <h2>
+                        {section === 'segmentation' ? 'Object selection' : 'Creative direction'}
+                      </h2>
                     </div>
                     <div className="subtle-icon">
                       <current.icon size={18} />
@@ -1564,8 +1637,8 @@ function App() {
                           updateSearch(setRouteParams, { model: e.target.value });
                         }}
                       >
-                        <option>TRELLIS.2</option>
-                        <option>Hunyuan3D 2.1</option>
+                        <option value="Hunyuan3D 2.1">Hunyuan3D 2.1 · untextured shape</option>
+                        <option value="TRELLIS.2">TRELLIS.2 · experimental textured model</option>
                       </select>
                       <p className="helper">
                         Hunyuan creates an untextured shape. TRELLIS.2 creates an experimental
@@ -1596,42 +1669,60 @@ function App() {
                       </p>
                     </>
                   )}
-                  {!(section === 'motion' && draft.model === 'NVIDIA MotionBricks') && (
-                    <>
-                      <label htmlFor="prompt" className="field-label">
-                        {section === '3d' && supportsRender
-                          ? 'Creative notes (draft only)'
-                          : section === 'motion' && draft.model === 'NVIDIA MotionBricks'
-                            ? 'Motion notes'
-                            : current.prompt}
-                        <span>
-                          {section === '3d' ||
-                          (section === 'motion' && draft.model === 'NVIDIA MotionBricks')
-                            ? 'OPTIONAL'
-                            : 'REQUIRED'}
-                        </span>
-                      </label>
-                      <textarea
-                        id="prompt"
-                        value={draft.prompt}
-                        onChange={(e) => update({ prompt: e.target.value })}
-                        placeholder={
-                          section === 'motion' && draft.model === 'NVIDIA MotionBricks'
-                            ? 'Optional notes about the target pose or scene...'
-                            : current.placeholder
-                        }
-                      />
-                      <div className="prompt-foot">
-                        <span>
-                          <Sparkles size={13} />{' '}
-                          {section === 'motion' && draft.model === 'NVIDIA MotionBricks'
-                            ? 'Provide recent and target pose data to guide a transition.'
-                            : current.tip}
-                        </span>
-                        <span>{draft.prompt.length} characters</span>
-                      </div>
-                    </>
-                  )}
+                  {!(section === 'motion' && draft.model === 'NVIDIA MotionBricks') &&
+                    !(section === '3d' && supportsRender) && (
+                      <>
+                        <label htmlFor="prompt" className="field-label">
+                          {section === '3d' && supportsRender
+                            ? 'Creative notes (draft only)'
+                            : section === 'motion' && draft.model === 'NVIDIA MotionBricks'
+                              ? 'Motion notes'
+                              : current.prompt}
+                          <span>
+                            {section === '3d' ||
+                            (section === 'motion' && draft.model === 'NVIDIA MotionBricks')
+                              ? 'OPTIONAL'
+                              : 'REQUIRED'}
+                          </span>
+                        </label>
+                        <textarea
+                          id="prompt"
+                          maxLength={
+                            section === 'segmentation' ||
+                            section === 'motion' ||
+                            section === 'voices'
+                              ? 1000
+                              : ['video', 'images'].includes(section)
+                                ? 4000
+                                : section === 'music'
+                                  ? 2000
+                                  : undefined
+                          }
+                          value={draft.prompt}
+                          onChange={(e) => update({ prompt: e.target.value })}
+                          placeholder={
+                            section === 'motion' && draft.model === 'NVIDIA MotionBricks'
+                              ? 'Optional notes about the target pose or scene...'
+                              : current.placeholder
+                          }
+                        />
+                        <div className="prompt-foot">
+                          <span>
+                            <Sparkles size={13} />{' '}
+                            {section === 'motion' && draft.model === 'NVIDIA MotionBricks'
+                              ? 'Provide recent and target pose data to guide a transition.'
+                              : current.tip}
+                          </span>
+                          <span>
+                            {section === 'segmentation' || section === 'motion'
+                              ? `${draft.prompt.length} / 1000 characters`
+                              : section === 'music'
+                                ? `${draft.prompt.length} / 2000 characters`
+                                : `${draft.prompt.length} characters`}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   {section === 'motion' && draft.model === 'NVIDIA MotionBricks' && (
                     <MotionBricksControls
                       draft={draft}
@@ -1651,8 +1742,13 @@ function App() {
                         className="short-text"
                         value={draft.second}
                         onChange={(e) => update({ second: e.target.value })}
+                        maxLength={20000}
                         placeholder="[Verse] Write your lyrics here..."
                       />
+                      <p className="helper">
+                        Use section tags such as [Verse] or [Chorus]. Write [Instrumental] for an
+                        instrumental track.
+                      </p>
                     </>
                   )}
                   {section === 'voices' && (
@@ -1692,7 +1788,13 @@ function App() {
                               ? 'How dangerous is the situation?\n1. Safe\n2. Cautious\n3. Dangerous'
                               : 'What should the guard do?\n1. Let the player pass\n2. Ask for identification'
                         }
+                        aria-describedby="extra-help"
                       />
+                      <p id="extra-help" className="helper">
+                        {draft.options[0] === 'Yes / No'
+                          ? 'One question. Mammoth returns the probability that the answer is yes.'
+                          : `First line is the question. Put each ${draft.options[0] === 'Score' ? 'score level (2 to 10)' : 'choice (2 to 255)'} on its own line; numbers are optional.`}
+                      </p>
                     </>
                   )}
                   {['images', '3d', 'video', 'segmentation'].includes(section) && (
@@ -1776,7 +1878,7 @@ function App() {
                           ))}
                         </div>
                       )}
-                      <p className="helper">{`Choose ${section === 'video' ? '1–9 PNG, JPEG, or WebP images, up to 10 MiB each and 40 MiB total' : section === 'images' ? 'up to 10 PNG, JPEG, or WebP images, up to 10 MiB each and 40 MiB total' : `one ${section === '3d' && (draft.model || current.model) === 'TRELLIS.2' ? 'transparent PNG or WebP' : 'PNG, JPEG, or WebP'} image, up to 10 MiB`}. Files are saved with the project when you queue a render; select them again after refreshing.`}</p>
+                      <p className="helper">{`Choose ${section === 'video' ? '1–9 PNG, JPEG, or WebP images, up to 10 MiB each and 40 MiB total' : section === 'images' ? 'up to 10 PNG, JPEG, or WebP images, up to 10 MiB each and 40 MiB total' : `one ${section === '3d' && (draft.model || current.model) === 'TRELLIS.2' ? 'transparent PNG or WebP' : 'PNG, JPEG, or WebP'} image, up to 10 MiB${section === 'segmentation' ? ' and 20 megapixels' : ''}`}. Files are saved with the project when you queue a render; select them again after refreshing.`}</p>
                     </>
                   )}
                   {section === '3d' && supportsRender ? (
@@ -1826,42 +1928,54 @@ function App() {
                         onChange={(e) => update({ confidence: e.target.value })}
                       />
                       <p className="helper">
-                        Lower values can include more objects; higher values are more selective.
+                        Use 0 to 1 (default 0.5). Lower values can include more objects; higher
+                        values are more selective.
                       </p>
                     </label>
                   )}
                   <AudioSettings section={section} draft={draft} update={update} />
                   <ImageVideoSettings section={section} draft={draft} update={update} />
-                  {!['voices', 'video', 'segmentation', 'game'].includes(section) &&
-                    !(section === 'motion' && draft.model === 'NVIDIA MotionBricks') && (
-                      <button className="advanced" onClick={() => setAdvanced(!advanced)}>
+                  {!['voices', 'video', 'segmentation', 'game', 'images'].includes(section) &&
+                    section !== 'motion' && (
+                      <button
+                        className="advanced"
+                        aria-expanded={Boolean(advanced)}
+                        aria-controls="advanced-settings-body"
+                        onClick={() => setAdvanced(!advanced)}
+                      >
                         <SlidersHorizontal size={15} /> Advanced settings{' '}
                         <ChevronDown size={14} className={advanced ? 'rotate' : ''} />
                       </button>
                     )}
                   {advanced &&
-                    !['voices', 'video', 'segmentation', 'game'].includes(section) &&
-                    !(section === 'motion' && draft.model === 'NVIDIA MotionBricks') && (
-                      <div className="advanced-body">
+                    !['voices', 'video', 'segmentation', 'game', 'images'].includes(section) &&
+                    section !== 'motion' && (
+                      <div className="advanced-body" id="advanced-settings-body">
                         <label className="field-label" htmlFor="seed">
                           Seed <span>OPTIONAL</span>
                         </label>
                         <input
                           id="seed"
                           type="number"
+                          min={0}
+                          max={2147483647}
+                          step={1}
                           placeholder="Random"
                           value={draft.seed}
                           onChange={(e) => update({ seed: e.target.value })}
                         />
                         <p className="helper">
-                          Use a seed to help reproduce a result when the model supports it.
+                          Use a whole number from 0 to 2147483647 to help reproduce a result when
+                          the model supports it.
                         </p>
                       </div>
                     )}
                   <div className="creation-action-note">
                     <span>
                       {supportsRender
-                        ? 'Renders are saved to the selected project.'
+                        ? section === 'segmentation'
+                          ? "Results are saved as PNGs in this project's masks folder."
+                          : 'Renders are saved to the selected project.'
                         : section === 'game'
                           ? 'Drafts stay in this browser; run a live decision in the panel.'
                           : 'Preview only · Drafts are stored in this browser.'}
@@ -1876,21 +1990,45 @@ function App() {
                         Save setup draft
                       </button>
                     )}
+                    {resetArmed ? (
+                      <span className="reset-confirm" role="group" aria-label="Confirm reset">
+                        <span>Discard this page&apos;s settings?</span>
+                        <button className="text-action danger" onClick={resetToDefaults} autoFocus>
+                          Yes, reset
+                        </button>
+                        <button className="text-action" onClick={() => setResetArmed(false)}>
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        className="text-action reset-defaults"
+                        disabled={!pageIsDirty}
+                        title={
+                          pageIsDirty
+                            ? 'Restore every setting on this page to its default'
+                            : 'Nothing to reset: this page already uses its defaults'
+                        }
+                        onClick={() => setResetArmed(true)}
+                      >
+                        <RotateCcw size={14} aria-hidden="true" /> Reset to defaults
+                      </button>
+                    )}
                   </div>
                   {supportsRender && (
                     <p className="helper creation-model-note">
                       {section === 'music'
                         ? 'Enter a style and lyrics (use [Instrumental] for instrumental music). Forge starts YuE2 and checks GPU memory before loading it.'
                         : section === 'sfx'
-                          ? 'Forge starts Stable Audio and checks GPU memory. Model access may need to be configured in Models & services.'
+                          ? 'Stable Audio 3 Medium needs approved Hugging Face access. If renders fail with an access error, add a token in Models & services, then queue again. Forge checks GPU memory before loading.'
                           : section === 'video'
                             ? 'Forge checks GPU memory before H3 loads and renders.'
                             : section === 'voices'
                               ? 'Forge loads Qwen3-TTS as needed and checks GPU memory before rendering.'
                               : section === '3d'
                                 ? (draft.model || current.model) === 'TRELLIS.2'
-                                  ? 'Experimental TRELLIS.2 uses a transparent PNG or WebP. A full render is not yet verified; Forge checks GPU and system memory. Creative notes do not affect the model.'
-                                  : 'Hunyuan creates an untextured GLB; Forge checks GPU and system memory before loading. Creative notes are saved in drafts and do not affect the shape.'
+                                  ? 'A complete TRELLIS.2 render has not yet been verified. Forge checks GPU and system memory before loading.'
+                                  : 'Forge checks GPU and system memory before loading the shape model. The GLB has no texture.'
                                 : section === 'segmentation'
                                   ? 'SAM 3.1 selects objects matching your description. Forge checks GPU and system memory before loading.'
                                   : section === 'motion'
@@ -1908,8 +2046,18 @@ function App() {
                     projects={projects}
                     project={activeProject}
                     onUseText={(text) => {
+                      if (
+                        draft.prompt.trim() &&
+                        !window.confirm('Replace the dialogue text with this transcript?')
+                      ) {
+                        return;
+                      }
                       update({ prompt: text });
-                      setNotice('Transcript added to voice text.');
+                      setNotice(
+                        draft.prompt.trim()
+                          ? 'Transcript replaced the voice text.'
+                          : 'Transcript added to voice text.',
+                      );
                     }}
                   />
                 )}
@@ -1938,14 +2086,7 @@ function App() {
                   <summary>
                     Draft queue <span>{jobs.length}</span>
                   </summary>
-                  <Queue
-                    jobs={jobs}
-                    setJobs={setJobs}
-                    paused={paused}
-                    setPaused={setPaused}
-                    setNotice={setNotice}
-                    onOpenDraft={openDraft}
-                  />
+                  <Queue jobs={jobs} setJobs={setJobs} onOpenDraft={openDraft} />
                 </details>
               </div>
             </div>
@@ -2003,9 +2144,21 @@ function App() {
             }}
           />
         ) : (
-          <div className="page">
+          <div className="page not-found-page">
             <h1>Page not found</h1>
-            <p>This studio page does not exist.</p>
+            <p>This studio page does not exist. Pick a workspace to continue:</p>
+            <div className="not-found-links">
+              {nav.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="outline-button"
+                  onClick={() => switchTo(id)}
+                >
+                  <Icon size={15} aria-hidden="true" /> {label}
+                </button>
+              ))}
+            </div>
             <button className="primary" onClick={() => switchTo('overview')}>
               Go to overview
             </button>
@@ -2062,6 +2215,7 @@ function App() {
         )}
       <FieldHelp section={section} tooltips={fieldTooltips} />
       <MemoryAlerts />
+      <MiniPlayer />
       {newProjectOpen && (
         <NewProjectDialog onClose={() => setNewProjectOpen(false)} onCreate={createProject} />
       )}{' '}
@@ -2265,7 +2419,7 @@ function StudioSettings({ onClose }) {
     </div>
   );
 }
-function Queue({ jobs, setJobs, paused, setPaused, compact, setNotice, onOpenDraft }) {
+function Queue({ jobs, setJobs, compact, onOpenDraft }) {
   return (
     <section className={'panel queue ' + (compact ? 'compact' : '')}>
       <div className="panel-heading">
@@ -2275,21 +2429,6 @@ function Queue({ jobs, setJobs, paused, setPaused, compact, setNotice, onOpenDra
             Draft queue <span className="queue-count">{jobs.length}</span>
           </h2>
         </div>
-        <button
-          className="icon-btn"
-          aria-label={paused ? 'Resume draft queue' : 'Pause draft queue'}
-          onClick={() => {
-            setPaused(!paused);
-            setNotice(paused ? 'Draft queue resumed.' : 'Draft queue paused.');
-          }}
-        >
-          {paused ? <ArrowRight size={16} /> : <Pause size={16} />}
-        </button>
-      </div>
-      <div className="queue-status">
-        <span className="queue-pulse" />
-        <span>{paused ? 'DRAFT QUEUE PAUSED' : 'DRAFT QUEUE'}</span>
-        <span className="queue-status-right">PREVIEW</span>
       </div>
       {jobs.length === 0 ? (
         <div className="queue-empty">

@@ -1,0 +1,7 @@
+/* ux-page-music: refinements for the music page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* Keep the primary queue action on one line in the audio editor (music, sound effects, voices). */
+.editor-page:has(.audio-settings) .form-bottom .create-action {
+  min-width: 220px;
+  white-space: nowrap;
+}

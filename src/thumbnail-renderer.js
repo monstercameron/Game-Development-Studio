@@ -1,9 +1,16 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { BVHLoader } from 'three/addons/loaders/BVHLoader.js';
 import { TGALoader } from 'three/addons/loaders/TGALoader.js';
-import { parsePlyPreview } from './ply-preview';
+import {
+  buildSkeletonBody,
+  computeSceneStats,
+  disposeObject3D,
+  fetchAssetBytes,
+  parseModelBytes,
+  parseMotionBytes,
+  skeletonBounds,
+} from './viewer-assets';
+import { createEnvironmentTexture, createLightRig } from './viewer-lighting';
+import { fileExtension, fitDistance, viewDirection } from './viewer-core';
 
 const side = 320;
 function canvas() {
@@ -82,79 +89,39 @@ async function videoThumbnail(url) {
     video.load();
   }
 }
-function dispose(root) {
-  const geos = new Set(),
-    mats = new Set(),
-    textures = new Set();
-  root?.traverse((o) => {
-    if (o.geometry) {
-      geos.add(o.geometry);
-    }
-    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-      if (m) {
-        mats.add(m);
-        for (const v of Object.values(m)) {
-          if (v?.isTexture) {
-            textures.add(v);
-          }
-        }
-      }
-    }
-  });
-  for (const t of textures) {
-    t.dispose();
-  }
-  for (const m of mats) {
-    m.dispose();
-  }
-  for (const g of geos) {
-    g.dispose();
-  }
-}
+// Heavier meshes skip the ground shadow so one tile can never stall the queue.
+const SHADOW_TRIANGLE_LIMIT = 1_000_000;
+// Rendered at twice the tile size and scaled down for smoother edges.
+const SUPERSAMPLE = 2;
+
 async function modelThumbnail(url, name) {
-  const bytes = await fetchBytes(url, /\.ply$/i.test(name) ? 256 * 1024 * 1024 : 64 * 1024 * 1024),
+  const bytes = await fetchAssetBytes(url, { name }),
+    extension = fileExtension(name),
     scene = new THREE.Scene(),
     camera = new THREE.PerspectiveCamera(38, 1, 0.01, 10000);
-  let renderer, root, helper;
+  let renderer, content, body, rig, environment, shadowPlane;
   try {
-    const manager = new THREE.LoadingManager();
-    manager.setURLModifier((value) => {
-      if (value.startsWith('blob:') || value.startsWith('data:')) {
-        return value;
-      }
-      throw Error('External model resources are not supported.');
-    });
     const bounds = new THREE.Box3();
-    if (/\.bvh$/i.test(name)) {
-      const motion = new BVHLoader().parse(new TextDecoder().decode(bytes));
-      root = new THREE.Group();
-      root.add(motion.skeleton.bones[0]);
-      scene.add(root);
-      const mixer = new THREE.AnimationMixer(motion.skeleton.bones[0]);
+    let kind = 'mesh';
+    if (extension === 'bvh') {
+      const motion = parseMotionBytes(bytes);
+      content = new THREE.Group();
+      content.add(motion.root);
+      scene.add(content);
+      const mixer = new THREE.AnimationMixer(motion.root);
       mixer.clipAction(motion.clip).play();
       mixer.update(0);
-      root.updateMatrixWorld(true);
-      for (const bone of motion.skeleton.bones) {
-        bounds.expandByPoint(bone.getWorldPosition(new THREE.Vector3()));
-      }
-      helper = new THREE.SkeletonHelper(motion.skeleton.bones[0]);
-      helper.material.vertexColors = false;
-      helper.material.color.set('#ffb99f');
-      scene.add(helper);
-    } else if (/\.ply$/i.test(name)) {
-      root = parsePlyPreview(bytes);
-      scene.add(root);
-      bounds.setFromObject(root);
-    } else if (/\.fbx$/i.test(name)) {
-      root = new FBXLoader(manager).parse(bytes, '');
-      scene.add(root);
-      bounds.setFromObject(root);
-    } else if (/\.glb$|\.gltf$/i.test(name)) {
-      root = (await new GLTFLoader(manager).parseAsync(bytes, '')).scene;
-      scene.add(root);
-      bounds.setFromObject(root);
+      bounds.copy(skeletonBounds(motion.bones, content));
+      const extent = bounds.getSize(new THREE.Vector3());
+      body = buildSkeletonBody(motion.bones, content, Math.max(extent.x, extent.y, extent.z));
+      scene.add(body.object);
+      kind = 'skeleton';
     } else {
-      throw Error('This model format is not supported.');
+      const parsed = await parseModelBytes(bytes, name);
+      content = parsed.root;
+      kind = parsed.kind;
+      scene.add(content);
+      bounds.setFromObject(content);
     }
     if (bounds.isEmpty()) {
       throw Error('No visible geometry.');
@@ -165,35 +132,67 @@ async function modelThumbnail(url, name) {
     if (!Number.isFinite(largest) || largest <= 0) {
       throw Error('Invalid model dimensions.');
     }
-    root.position.sub(center);
-    root.updateMatrixWorld(true);
-    const distance = (largest / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)))) * 1.65;
-    camera.position.set(distance * 0.75, distance * 0.45, distance);
-    camera.near = Math.max(largest / 1000, 0.001);
-    camera.far = largest * 100;
+    content.position.sub(center);
+    content.updateMatrixWorld(true);
+    body?.update();
+    const radius = size.length() / 2,
+      distance = fitDistance(size.toArray(), camera.fov, 1, 0.9),
+      direction = viewDirection('iso');
+    camera.position.set(direction[0] * distance, direction[1] * distance, direction[2] * distance);
+    camera.near = Math.max(radius * 0.002, 1e-4);
+    camera.far = radius * 80;
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
-    scene.add(new THREE.HemisphereLight(0xf2e9ff, 0x4c3344, 0.85));
-    const key = new THREE.DirectionalLight(0xffffff, 1.3);
-    key.position.set(4, 6, 5);
-    scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffba9d, 0.55);
-    fill.position.set(-4, 2, -3);
-    scene.add(fill);
+
+    const triangles = kind === 'mesh' ? computeSceneStats(content).triangles : 0;
+    const shadows = kind === 'mesh' && triangles > 0 && triangles <= SHADOW_TRIANGLE_LIMIT;
+    rig = createLightRig('studio', { radius, castShadow: shadows });
+    scene.add(rig.group);
+
+    const pixels = side * SUPERSAMPLE;
     renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: true,
       preserveDrawingBuffer: true,
     });
-    renderer.setSize(side, side, false);
+    renderer.setPixelRatio(1);
+    renderer.setSize(pixels, pixels, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    if (kind === 'mesh') {
+      environment = createEnvironmentTexture(renderer);
+      scene.environment = environment;
+      scene.environmentIntensity = rig.environment;
+    }
+    if (shadows) {
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      content.traverse((object) => {
+        object.castShadow = !!object.isMesh;
+      });
+      shadowPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(radius * 8, radius * 8).rotateX(-Math.PI / 2),
+        new THREE.ShadowMaterial({ opacity: 0.4 }),
+      );
+      shadowPlane.position.y = -size.y / 2 - radius * 0.001;
+      shadowPlane.receiveShadow = true;
+      scene.add(shadowPlane);
+    }
     renderer.render(scene, camera);
-    return renderer.domElement.toDataURL('image/png');
+    const out = canvas();
+    const context = out.getContext('2d');
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(renderer.domElement, 0, 0, side, side);
+    return out.toDataURL('image/png');
   } finally {
-    dispose(root);
-    helper?.geometry.dispose();
-    helper?.material.dispose();
+    rig?.dispose();
+    environment?.dispose();
+    body?.dispose();
+    if (shadowPlane) {
+      shadowPlane.geometry.dispose();
+      shadowPlane.material.dispose();
+    }
+    disposeObject3D(content);
     renderer?.dispose();
     renderer?.forceContextLoss();
   }

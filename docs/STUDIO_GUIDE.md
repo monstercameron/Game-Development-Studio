@@ -113,6 +113,8 @@ Pass a port as the first argument to both scripts if needed, for example `./star
 
 ## Using the studio
 
+The studio is designed for desktop browsers and the Windows desktop window. Layouts also adapt to tablets and phones (a navigation drawer, full-width bottom action bar and 44px touch targets) and were measured in emulated 360–768 px windows without sideways scrolling; they have not been checked on real phones, and the on-screen keyboard on iOS Safari may still cover the Chat composer.
+
 ### 1. Create a project
 
 From the overview, choose **New project** and give your game a name. Forge creates a folder under `projects/`, including folders for the asset types currently supported by the project service:
@@ -133,7 +135,7 @@ The server sanitizes folder names and handles naming collisions. Existing genera
 
 ### 2. Explore the creation panels
 
-Choose a panel from the sidebar, select the current project, and experiment with its controls. Draft settings and the draft queue are saved in the browser. In **Images**, **Music**, **Sound effects**, **Video**, **Voices**, **3D models**, **Character rigging**, and **Segmentation**, **Add to render queue** creates a durable job; **Save as a draft instead** keeps an editable browser draft. Video needs 1–9 reference images (up to 10 MiB each and 40 MiB total). They are saved in the project when the video is queued; select them again after refreshing the page. Image renders can use up to 10 optional reference images; they have the same 10 MiB per-file and 40 MiB total limits as video. Music requires a style and lyrics; use `[Instrumental]` for an instrumental. Forge starts the workers on demand and requests the YuE2 model after checking GPU memory. If memory is short, the job waits and the studio shows the offload dialog. Stable Audio requires gated model access. For a worker started by Forge, it can use a Hugging Face token from the configured shared credentials file; an external worker can use its own configured token, or you can enter one in **Models & services**. Forge reads the token only for its own managed sound worker, passes it locally to that worker for Hugging Face access, and does not write it into the queue, MCP calls, or Forge logs. The worker keeps it in memory while running. TRELLIS.2 can queue an experimental 512-resolution model from a transparent PNG or WebP; a real complete render remains unverified. HY-Motion can queue experimental text-to-motion jobs, and MotionBricks can queue experimental SOMA pose transitions from BVH files. The game-logic panel can send a structured decision to a running Mammoth service.
+Choose a panel from the sidebar, select the current project, and experiment with its controls. Draft settings and the draft queue are saved in the browser. In **Images**, **Music**, **Sound effects**, **Video**, **Voices**, **3D models**, **Motion**, and **Segmentation**, **Add to render queue** creates a durable job; **Save as a draft instead** keeps an editable browser draft. Video needs 1–9 reference images (up to 10 MiB each and 40 MiB total). They are saved in the project when the video is queued; select them again after refreshing the page. Image renders can use up to 10 optional reference images; they have the same 10 MiB per-file and 40 MiB total limits as video. Music requires a style and lyrics; use `[Instrumental]` for an instrumental. Forge starts the workers on demand and requests the YuE2 model after checking GPU memory. If memory is short, the job waits and the studio shows the offload dialog. Stable Audio requires gated model access. For a worker started by Forge, it can use a Hugging Face token from the configured shared credentials file; an external worker can use its own configured token, or you can enter one in **Models & services**. Forge reads the token only for its own managed sound worker, passes it locally to that worker for Hugging Face access, and does not write it into the queue, MCP calls, or Forge logs. The worker keeps it in memory while running. TRELLIS.2 can queue an experimental 512-resolution model from a transparent PNG or WebP; a real complete render remains unverified. HY-Motion can queue experimental text-to-motion jobs, and MotionBricks can queue experimental SOMA pose transitions from BVH files. The game-logic panel can send a structured decision to a running Mammoth service.
 
 If a render or model load runs short of system RAM or GPU memory, the memory dialog shows the requirement, current free memory, and available services. Select an idle Forge-managed service and choose **Stop selected service & retry**; Forge checks it can stop safely and keeps its model files. Repeat if more room is needed. Externally started services must be managed in their own application. Qwen chat has no safe idle-stop guard; use its separate Force stop control only when you accept interrupting a response. These readings are estimates, and stopping a GPU model may not free enough Windows system RAM.
 
@@ -147,9 +149,21 @@ Image and video reference files are snapshotted under the project’s hidden `.f
 
 Open **Asset library** to explore included samples or files discovered in a project. Select a project, then search or filter by type, change the sort order, or switch between grid and list views. Supported media can be previewed or played, and assets can be downloaded. Project asset details also provide a file location you can copy.
 
-Currently indexed formats are PNG, JPG/JPEG, WebP, GIF, WAV, MP3, FLAC, OGG, MP4, WebM, GLB, glTF, FBX, and BVH. Some 3D formats require an external viewer.
+Currently indexed formats are PNG, JPG/JPEG, WebP, GIF, WAV, MP3, FLAC, OGG, MP4, WebM, GLB, glTF, FBX, and BVH. BVH motion clips are stored as 3D assets; the **Motion** tab lists them and the **3D** tab lists models and splats. Some 3D formats require an external viewer.
 
 Project asset ratings and keep status are stored with the project; sample ratings are browser-local. Delete moves a project file to **Project trash** in the asset library, where it can be restored or permanently removed by clearing the trash after confirmation. Incomplete or unsafe trash records are preserved and reported for review. Asset rename keeps the file in the same project folder, retains its extension, and preserves ratings and render provenance. For a renamed generated asset, the jobs API reports its current `output` path and includes `originalOutput` with the original render location.
+
+#### Reset to defaults
+
+Every creation page, the Worlds page and the Chat options have a **Reset to defaults** link. It stays disabled while the page already uses its defaults. When something differs, selecting it shows an inline confirmation (**Yes, reset** or **Cancel**) before it clears the prompt, settings, chosen files and the model selection for that page. Chat's reset leaves the local engine's context size alone; that setting lives in the engine panel.
+
+#### Mini player
+
+Audio and video previews have a **Shrink to mini player** button. The mini player stays docked at the bottom right while you move between pages, can be dragged or moved with the arrow keys when its grip is focused, and shrinks to a pill. **Back to full preview** returns to the page the preview came from. A repeat button cycles **Never** (stop at the end), **Once** (play one extra time) and **Loop**; the choice is remembered in this browser and also appears on the inline previews.
+
+#### 3D and motion viewer
+
+All 3D formats open in one viewer with a toolbar, an inspector (format, size, vertex, triangle or splat counts, bounding box, animation clips) and, for animated assets, a playback bar. Use ← and → to step through the 3D assets in the current list. Shortcuts work while the viewer has focus: Shift+arrows orbit, Ctrl+arrows pan, ↑ and ↓ or + and − zoom, R resets the view, F frames the model, 1–6 select front, back, left, right, top and isometric views, O toggles auto-rotate, W wireframe, G grid, X axes, B bounding box, S ground shadow, L cycles lighting, C cycles the background, Space plays or pauses, P saves a PNG of the current view, I toggles the inspector, M opens the large viewer or toggles browser fullscreen, and ? lists the shortcuts. Display toggles are remembered per browser. Thumbnails created before this viewer keep their old look until the asset changes, because they are cached by file size and modified time.
 
 ### 4. Check settings and server health
 
@@ -159,17 +173,17 @@ Use the settings control to request browser notification permission, send a test
 
 These are the workflows represented in the interface. **Listing a model here does not mean it is installed, running, or integrated.** Availability, licensing, hardware requirements, and Windows on Arm support need to be verified for each integration.
 
-| Studio area                | Models or services represented           | Intended use                                                                                                                  |
-| -------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Images                     | Qwen Image 2.1                           | Image and concept creation                                                                                                    |
-| 3D models                  | TRELLIS.2, Hunyuan3D 2.1                 | Hunyuan untextured shape generation works; TRELLIS.2 and texturing remain previews                                            |
-| Character rigging & motion | HY-Motion 1.0, NVIDIA MotionBricks       | Experimental HY-Motion text-to-BVH and MotionBricks SOMA BVH transitions; automatic rigging and retargeting are not connected |
-| Video                      | MiniMax H3                               | Video generation                                                                                                              |
-| Music                      | YuE2                                     | Music creation                                                                                                                |
-| Sound effects              | Stable Audio 3                           | Sound generation                                                                                                              |
-| Voices                     | Qwen3-TTS, NVIDIA Nemotron ASR Streaming | Preset-voice speech generation plus local streaming transcription API                                                         |
-| Segmentation               | SAM 3.1                                  | Image segmentation                                                                                                            |
-| Game logic                 | Mammoth-1                                | A Jev-style decision service                                                                                                  |
+| Studio area      | Models or services represented           | Intended use                                                                                                                  |
+| ---------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Images           | Qwen Image 2.1                           | Image and concept creation                                                                                                    |
+| 3D models        | TRELLIS.2, Hunyuan3D 2.1                 | Hunyuan untextured shape generation works; TRELLIS.2 and texturing remain previews                                            |
+| Character motion | HY-Motion 1.0, NVIDIA MotionBricks       | Experimental HY-Motion text-to-BVH and MotionBricks SOMA BVH transitions; automatic rigging and retargeting are not connected |
+| Video            | MiniMax H3                               | Video generation                                                                                                              |
+| Music            | YuE2                                     | Music creation                                                                                                                |
+| Sound effects    | Stable Audio 3                           | Sound generation                                                                                                              |
+| Voices           | Qwen3-TTS, NVIDIA Nemotron ASR Streaming | Preset-voice speech generation plus local streaming transcription API                                                         |
+| Segmentation     | SAM 3.1                                  | Image segmentation                                                                                                            |
+| Game logic       | Mammoth-1                                | A Jev-style decision service                                                                                                  |
 
 The central storage location is `models/` inside the studio folder. TRELLIS.2 and its supporting encoder and decoder, Qwen3-TTS CustomVoice, Nemotron ASR, Hunyuan shape, HY-Motion, MotionBricks, and SAM checkpoints are stored there. The model-management page measures managed model file sizes asynchronously, without following links. The total also includes the separate SAM 3 checkpoint. File sizes are estimates of content, not guaranteed reclaimed disk space. Standalone applications can use compatibility links to the centralized files. See [model sources and restoration](MODEL_SOURCES.md) for exact repositories, recorded revisions, representative hashes, and download steps.
 
@@ -408,6 +422,8 @@ Drafts, queue drafts, selected project, notification preferences, and preview ra
 **Notifications do not appear.** On Windows, open the Forge tray icon and use **Test Windows notification**; check Windows notification settings and Focus. For browser alerts, check browser permission and keep the Studio page open.
 
 **A model cannot be deleted from the UI.** Check that it is in Forge-managed storage, its service is stopped, and no custom endpoint or filesystem links prevent removal. Models stored in other applications must be managed there.
+
+**A console or Windows Terminal window flashes open.** Forge starts engines hidden and gives them a hidden console, so none should appear (see [how engines are launched](WINDOWS_ARM64.md#how-engines-are-launched-on-windows-no-console-windows)). If one does, note the time and use `Get-CimInstance Win32_Process` to see which program is the parent of the new `cmd.exe`, `conhost.exe`, or `powershell.exe`; windows opened by other applications are outside Forge's control.
 
 **You need help debugging.** Open Diagnostics, copy the relevant logs and server metadata, and include what you clicked and the time of the issue. Check logs for private content before sharing.
 

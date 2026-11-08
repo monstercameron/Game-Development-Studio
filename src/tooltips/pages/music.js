@@ -6,8 +6,8 @@ export default {
   Duration: 'Set the target length of the track. YuE2 may finish before it reaches this duration.',
   'Duration in seconds':
     'Set a custom target length in seconds. Leave it blank to use the duration preset; the track may finish earlier.',
-  Direction:
-    'Choose how YuE2 plans the music: a full arrangement, a melody-focused result, or no planning mode.',
+  Planning:
+    'Choose how YuE2 plans the music: a full arrangement, a melody-focused result, or no planning.',
   'Synthesis steps':
     'Set how many synthesis steps YuE2 uses. More steps can take longer; the effect on sound quality depends on the model.',
   'Guidance scale':

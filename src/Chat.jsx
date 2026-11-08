@@ -28,6 +28,7 @@ import {
   Trash2,
   X,
   Zap,
+  RotateCcw,
 } from 'lucide-react';
 import './chat.css';
 import './chat-desktop.css';
@@ -152,6 +153,37 @@ export default function Chat({ project }) {
   );
   const [chatRuntime, setChatRuntime] = useState(null);
   const [effort, setEffort] = useState('auto');
+  const DEFAULT_SYSTEM =
+    'You are a creative game development assistant. Be clear, practical, and concise.';
+  const [resetArmed, setResetArmed] = useState(false);
+  // Gated reset: disabled while every option is at its default; an enabled click only arms a confirmation.
+  const optionsDirty =
+    format !== 'text' ||
+    effort !== 'auto' ||
+    Number(maxTokens) !== 2048 ||
+    Number(temperature) !== 0.7 ||
+    system !== DEFAULT_SYSTEM ||
+    schema !== exampleSchema;
+  const optionSummary =
+    [
+      format !== 'text' ? (format === 'json' ? 'JSON' : 'Schema') : '',
+      effort !== 'auto' ? `Thinking ${effort}` : '',
+      Number(maxTokens) !== 2048 ? `${Number(maxTokens).toLocaleString()} max tokens` : '',
+      Number(temperature) !== 0.7 ? `Temperature ${temperature}` : '',
+      system !== DEFAULT_SYSTEM ? 'Custom instructions' : '',
+    ]
+      .filter(Boolean)
+      .join(' · ') || 'Defaults';
+  // Reset covers only the per-message Options and advanced fields. Context size belongs to the local engine panel.
+  const resetOptions = () => {
+    setFormat('text');
+    setEffort('auto');
+    setMaxTokens(2048);
+    setTemperature(0.7);
+    setSystem(DEFAULT_SYSTEM);
+    setSchema(exampleSchema);
+    setResetArmed(false);
+  };
   const [speculative, setSpeculative] = useState(true);
   const [schemaOpen, setSchemaOpen] = useRouteToggle('schema');
   const [memoryConflict, setMemoryConflict] = useState(null);
@@ -161,6 +193,8 @@ export default function Chat({ project }) {
   const [compactSettings, setCompactSettings] = useState(
     () => window.matchMedia('(min-width: 851px) and (max-width: 1599px)').matches,
   );
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(() => false);
   const configRef = useRef(null),
     closeSettingsRef = useRef(null);
   closeSettingsRef.current = () => setSettings(false);
@@ -562,6 +596,11 @@ export default function Chat({ project }) {
       setError('Maximum output tokens must be a whole number from 1 to 262,144.');
       return;
     }
+    const sampling = Number(temperature);
+    if (temperature === '' || !Number.isFinite(sampling) || sampling < 0 || sampling > 2) {
+      setError('Temperature must be a number from 0 to 2.');
+      return;
+    }
     if (
       isStudioQwen({ ...connection, model }) &&
       contextLimit !== null &&
@@ -586,6 +625,16 @@ export default function Chat({ project }) {
     const prior = chat.messages
       .filter((m) => m.content)
       .map(({ role, content }) => ({ role, content }));
+    // Mirrors the server limits (150 messages including system, 100,000 characters each) so long chats fail with a clear next step.
+    if (
+      prior.length + (system.trim() ? 1 : 0) + 1 > 150 ||
+      [user, ...prior].some((m) => m.content.length > 100000)
+    ) {
+      setError(
+        'This message or conversation is too long to send: up to 150 messages and 100,000 characters per message. Shorten the message or start a new conversation.',
+      );
+      return;
+    }
     setError('');
     setStatus('');
     setAnnouncement('Preparing your response.');
@@ -759,20 +808,39 @@ export default function Chat({ project }) {
       </div>
       <div className="chat-titlebar">
         <div>
-          <h1>Chat</h1>
-          <p>
+          <div className="overline">
+            <span className="overline-line" /> GAME WRITING
+          </div>
+          <h1>
+            Chat<em>.</em>
+          </h1>
+          <p className="lead">
             Develop ideas, write dialogue, and shape game data
             {project?.name ? ` for ${project.name}` : ''}.
           </p>
         </div>
       </div>
       <div className={'chat-workspace ' + (settings ? 'settings-open' : '')}>
-        <aside className="chat-history" aria-label="Conversations">
+        <aside
+          id="chat-history-body"
+          className={'chat-history' + (historyOpen ? ' is-open' : '')}
+          aria-label="Conversations"
+        >
           <div className="chat-history-title">
             <div>
               <strong>Conversations</strong>
               <span>{project?.name || 'No project selected'}</span>
             </div>
+            <button
+              type="button"
+              className="chat-history-toggle"
+              aria-expanded={historyOpen}
+              aria-controls="chat-history-body"
+              onClick={() => setHistoryOpen((open) => !open)}
+            >
+              {historyOpen ? 'Hide' : 'Show'}
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
           </div>
           <button className="chat-new" onClick={newChat} disabled={busy}>
             <MessageSquarePlus size={18} /> <span>New conversation</span>
@@ -788,6 +856,7 @@ export default function Chat({ project }) {
                   onClick={() => {
                     followMessages.current = true;
                     setActive(c.id);
+                    setHistoryOpen(false);
                   }}
                   disabled={busy}
                 >
@@ -931,12 +1000,15 @@ export default function Chat({ project }) {
                                       : 'Save response to project'
                                   }
                                 >
-                                  {savingMessage === `${chat.id}:${i}` ? 'Saving…' : 'Save'}
+                                  {savingMessage === `${chat.id}:${i}`
+                                    ? 'Saving…'
+                                    : 'Save to project'}
                                 </button>
                               )}
                               <button
                                 onClick={() => copy(m.content, `m${i}`)}
                                 aria-label="Copy message"
+                                title="Copy message"
                               >
                                 {copied === `m${i}` ? <Check size={15} /> : <Copy size={15} />}
                               </button>
@@ -1051,63 +1123,115 @@ export default function Chat({ project }) {
                 }}
               />
               <div className="chat-composer-footer">
-                <div
-                  className="chat-quick-controls"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
-                      e.preventDefault();
-                    }
-                  }}
+                <details
+                  className="chat-options"
+                  open={optionsOpen}
+                  onToggle={(e) => setOptionsOpen(e.currentTarget.open)}
                 >
-                  <label>
-                    Response
-                    <select
-                      value={format}
-                      onChange={(e) => {
-                        setFormat(e.target.value);
-                        if (e.target.value === 'schema') {
-                          setSchemaOpen(true);
+                  <summary>
+                    <span>Options</span>
+                    <small title={optionSummary}>{optionSummary}</small>
+                    <ChevronDown size={16} aria-hidden="true" />
+                  </summary>
+                  <div
+                    className="chat-quick-controls"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
+                        e.preventDefault();
+                      }
+                    }}
+                  >
+                    <label>
+                      Response
+                      <select
+                        value={format}
+                        onChange={(e) => {
+                          setFormat(e.target.value);
+                          if (e.target.value === 'schema') {
+                            setSchemaOpen(true);
+                          }
+                        }}
+                      >
+                        <option value="text">Text</option>
+                        <option value="json">JSON object</option>
+                        <option value="schema">JSON schema</option>
+                      </select>
+                    </label>
+                    {format === 'json' && (
+                      <p className="chat-option-hint">
+                        Also ask for JSON in your message. OpenAI requires the word “JSON” in the
+                        prompt.
+                      </p>
+                    )}
+                    <label>
+                      Thinking
+                      <select value={effort} onChange={(e) => setEffort(e.target.value)}>
+                        <option value="auto">Model default</option>
+                        <option value="none">Off</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                    </label>
+                    <label>
+                      Max output tokens
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        max="262144"
+                        step="1"
+                        value={maxTokens}
+                        onChange={(e) => setMaxTokens(e.target.value)}
+                        title="Whole number from 1 to 262,144"
+                      />
+                    </label>
+                    {format === 'schema' && (
+                      <button
+                        type="button"
+                        className="chat-schema-toggle"
+                        onClick={() => setSchemaOpen(!schemaOpen)}
+                        aria-expanded={schemaOpen}
+                      >
+                        <Braces size={15} /> {schemaOpen ? 'Hide schema' : 'Edit schema'}
+                      </button>
+                    )}
+                    {resetArmed ? (
+                      <span className="reset-confirm" role="group" aria-label="Confirm reset">
+                        <span>Reset chat options?</span>
+                        <button
+                          type="button"
+                          className="text-action danger"
+                          onClick={resetOptions}
+                          autoFocus
+                        >
+                          Yes, reset
+                        </button>
+                        <button
+                          type="button"
+                          className="text-action"
+                          onClick={() => setResetArmed(false)}
+                        >
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-action reset-defaults"
+                        disabled={!optionsDirty}
+                        title={
+                          optionsDirty
+                            ? 'Restore every chat option to its default'
+                            : 'Nothing to reset: chat options are at their defaults'
                         }
-                      }}
-                    >
-                      <option value="text">Text</option>
-                      <option value="json">JSON object</option>
-                      <option value="schema">JSON schema</option>
-                    </select>
-                  </label>
-                  <label>
-                    Thinking
-                    <select value={effort} onChange={(e) => setEffort(e.target.value)}>
-                      <option value="auto">Model default</option>
-                      <option value="none">Off</option>
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                    </select>
-                  </label>
-                  <label>
-                    Max output
-                    <input
-                      type="number"
-                      min="1"
-                      max="262144"
-                      step="1"
-                      value={maxTokens}
-                      onChange={(e) => setMaxTokens(e.target.value)}
-                      aria-label="Max output tokens"
-                    />
-                  </label>
-                  {format === 'schema' && (
-                    <button
-                      type="button"
-                      className="chat-schema-toggle"
-                      onClick={() => setSchemaOpen(!schemaOpen)}
-                      aria-expanded={schemaOpen}
-                    >
-                      <Braces size={15} /> {schemaOpen ? 'Hide schema' : 'Edit schema'}
-                    </button>
-                  )}
-                </div>
+                        onClick={() => setResetArmed(true)}
+                      >
+                        <RotateCcw size={14} aria-hidden="true" /> Reset to defaults
+                      </button>
+                    )}
+                  </div>
+                </details>
                 {busy ? (
                   <button
                     type="button"
@@ -1213,6 +1337,9 @@ export default function Chat({ project }) {
                       spellCheck="false"
                     />
                   </label>
+                  <p className="chat-help">
+                    Use localhost or a private IPv4 address, such as http://127.0.0.1:8098/v1.
+                  </p>
                   <div className="chat-local-engine">
                     <div className="chat-engine-title">
                       <Zap size={17} />
@@ -1244,7 +1371,7 @@ export default function Chat({ project }) {
                     </div>
                     <p className="chat-help">
                       {actualContext
-                        ? `Currently running with ${actualContext.toLocaleString()} tokens. ${actualContext !== contextSize ? 'Stop and restart Qwen to apply the selected size.' : 'Changes apply on restart.'}`
+                        ? `Currently running with ${actualContext.toLocaleString()} tokens. ${actualContext !== contextSize ? 'Stop and restart Qwen to use the selected size.' : 'Matches the selected size.'}`
                         : chatRuntime?.status === 'reachable'
                           ? 'An externally managed server controls its own context size.'
                           : 'Applied when the local Qwen server starts.'}{' '}
@@ -1262,8 +1389,8 @@ export default function Chat({ project }) {
                       />
                     </label>
                     <p>
-                      Applied when Qwen starts. Stop and restart to change it. Activation has not
-                      been verified yet.
+                      Requested when Qwen starts. Stop and restart Qwen to change it. Whether the
+                      MTP head is active has not been verified yet.
                     </p>
                     <div className="chat-engine-actions">
                       <button className="chat-start" disabled={memoryWorking} onClick={startLocal}>
@@ -1297,10 +1424,11 @@ export default function Chat({ project }) {
                   </p>
                 </>
               )}
-              <label>
-                Model ID
+              <div className="chat-field">
+                <label htmlFor="chat-model-id">Model ID</label>
                 <div className="chat-model-input">
                   <input
+                    id="chat-model-id"
                     list="chat-models"
                     value={model}
                     onChange={(e) => setModel(e.target.value)}
@@ -1312,6 +1440,7 @@ export default function Chat({ project }) {
                     ))}
                   </datalist>
                   <button
+                    type="button"
                     onClick={refreshModels}
                     title="Find available models"
                     aria-label="Find available models"
@@ -1319,7 +1448,7 @@ export default function Chat({ project }) {
                     <RefreshCw size={16} />
                   </button>
                 </div>
-              </label>
+              </div>
               <p className="chat-help">Refresh to discover models or enter a model ID.</p>
               <details className="chat-advanced" {...routeDetails(advancedOpen, setAdvancedOpen)}>
                 <summary>
@@ -1329,10 +1458,14 @@ export default function Chat({ project }) {
                   System instructions
                   <textarea value={system} onChange={(e) => setSystem(e.target.value)} />
                 </label>
+                <p className="chat-help">
+                  Sent as a system message with each request. Leave blank for none.
+                </p>
                 <label>
                   Temperature
                   <input
                     type="number"
+                    inputMode="decimal"
                     min="0"
                     max="2"
                     step="0.1"
@@ -1340,10 +1473,13 @@ export default function Chat({ project }) {
                     onChange={(e) => setTemperature(e.target.value)}
                   />
                 </label>
+                <p className="chat-help">
+                  From 0 to 2. Lower is more predictable; higher is more varied.
+                </p>
               </details>
               <p className="chat-help">
-                For local Qwen, thinking levels set token budgets. Other models may support
-                different effort levels.
+                For local Qwen, Low, Medium and High set thinking budgets of 256, 768 and 1,536
+                tokens. Other servers and models may ignore or reject these settings.
               </p>
               <div className="chat-memory-note">
                 <Cpu size={17} />

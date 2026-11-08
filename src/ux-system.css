@@ -1,0 +1,263 @@
+/* ux-system: Diagnostics, Models & services and Game logic refinements, loaded last.
+   Uses tokens from ux-tokens.css and colors from theme.css. Breakpoints: 850, 1000, 1600px (desktop focus). */
+
+/* ---------- Diagnostics ---------- */
+.diagnostics-page .diagnostics-layout {
+  gap: var(--ux-space-5);
+  min-width: 0;
+}
+.diagnostics-page .diagnostics-layout > .panel {
+  min-width: 0;
+}
+.diagnostics-page .server-address {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.diagnostics-page .server-address > div:last-child {
+  min-width: 0;
+}
+.diagnostics-page .logs-panel .panel-heading {
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+}
+.diagnostics-page .log-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+.diagnostics-page .log-controls select {
+  min-height: var(--ux-target-min);
+}
+.diagnostics-page .log-search {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.diagnostics-page .log-search input {
+  width: 100%;
+  min-height: var(--ux-target-min);
+}
+.diagnostics-page .stream-toggle {
+  min-height: var(--ux-target-min);
+  flex: 0 0 auto;
+}
+.diagnostics-page .log-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ux-space-2) var(--ux-space-3);
+}
+.diagnostics-page .log-copy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+}
+.diagnostics-page .log-copy-actions .link-button {
+  min-height: var(--ux-target-min);
+  padding-inline: var(--ux-space-2);
+}
+.diagnostics-page .log-window {
+  max-width: 100%;
+  min-width: 0;
+  overflow: auto;
+}
+.diagnostics-page .log-window pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 0;
+  font-size: var(--ux-text-xs);
+  line-height: 1.5;
+}
+.diagnostics-page .log-path {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-size: var(--ux-text-xs);
+}
+.diagnostics-page .log-modified,
+.diagnostics-page .log-muted,
+.diagnostics-page .log-unavailable,
+.diagnostics-page .diagnostic-note,
+.diagnostics-page .helper {
+  font-size: max(var(--ux-text-xs), 0.75rem);
+}
+.diagnostics-page .log-empty-state button,
+.diagnostics-page .logs-panel button,
+.diagnostics-page .metadata-panel button {
+  min-height: var(--ux-target-min);
+}
+@media (max-width: 1000px) {
+  .diagnostics-page .diagnostics-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- Models & services ---------- */
+.catalog-page .catalog-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: var(--ux-space-4);
+  min-width: 0;
+}
+.catalog-page .catalog-memory,
+.catalog-page .catalog-storage {
+  min-width: 0;
+}
+.catalog-page .catalog-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ux-space-3);
+}
+.catalog-page .catalog-search-field {
+  flex: 2 1 240px;
+  min-width: 0;
+}
+.catalog-page .catalog-category-field {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.catalog-page .catalog-search,
+.catalog-page .catalog-category-field select {
+  width: 100%;
+  min-height: var(--ux-target-min);
+}
+.catalog-page .catalog-refresh {
+  min-height: var(--ux-target-min);
+}
+.catalog-page .catalog-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2) var(--ux-space-3);
+}
+.catalog-page .catalog-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+}
+.catalog-page .catalog-filter-pills button {
+  min-height: var(--ux-target-min);
+}
+.catalog-page .catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: var(--ux-space-4);
+  min-width: 0;
+}
+.catalog-page .catalog-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.catalog-page .catalog-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+}
+.catalog-page .catalog-card-actions button {
+  min-height: var(--ux-target-min);
+}
+.catalog-page .catalog-path-copy {
+  min-height: var(--ux-target-min);
+}
+.catalog-page .catalog-footnote,
+.catalog-page .catalog-result-count,
+.catalog-page .tool-availability {
+  font-size: max(var(--ux-text-xs), 0.75rem);
+}
+
+/* ---------- Game logic ---------- */
+/* Run decision reads as secondary until the Mammoth service reports ready. It is not disabled
+   here on purpose: observed status can be stale, so the hint beside it explains what to expect.
+   Only a load in progress disables it. This rule changes its visual weight only. */
+.game-decision-panel:has(.game-service-state:not(.is-ready))
+  .game-decision-actions
+  .game-run-button {
+  background: transparent;
+  color: var(--forge-muted);
+  border: var(--ux-border);
+  box-shadow: none;
+  opacity: 0.8;
+}
+.game-decision-panel .game-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-2);
+}
+.game-decision-panel .game-decision-actions button {
+  min-height: var(--ux-target-min);
+}
+.game-decision-panel .game-result {
+  max-width: 100%;
+  overflow: auto;
+  font-size: var(--ux-text-xs);
+  white-space: pre;
+}
+.game-decision-panel .helper {
+  font-size: max(var(--ux-text-xs), 0.75rem);
+}
+
+/* ---------- Shared: targets, focus, motion ---------- */
+.diagnostics-page button,
+.catalog-page button,
+.game-decision-panel button {
+  min-height: var(--ux-target-min);
+}
+.diagnostics-page :focus-visible,
+.catalog-page :focus-visible,
+.game-decision-panel :focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagnostics-page *,
+  .catalog-page *,
+  .game-decision-panel * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Diagnostics: the server card was squeezed into 246px, wrapping "STUDIO ADDRESS" per character.
+   Give the details column real room and let the status pill wrap under the address. */
+@media (min-width: 1001px) {
+  .diagnostics-page .diagnostics-layout {
+    grid-template-columns: minmax(340px, 400px) minmax(0, 1fr);
+  }
+}
+.diagnostics-page .server-address {
+  flex-wrap: wrap;
+}
+.diagnostics-page .server-address > div:nth-child(2) {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.diagnostics-page .server-address small {
+  white-space: nowrap;
+}
+.diagnostics-page .server-address strong {
+  overflow-wrap: anywhere;
+}
+
+/* Model cards: titles were squeezed to ~78px by the status pill ("WorldGe n"). Let the pill wrap
+   under the title instead of stealing its width. */
+.catalog-page .catalog-card-top {
+  flex-wrap: wrap;
+  row-gap: var(--ux-space-2);
+}
+.catalog-page .catalog-model-heading {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.catalog-page .catalog-model-heading h3 {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.catalog-page .catalog-card-top .catalog-status {
+  flex: 0 0 auto;
+}

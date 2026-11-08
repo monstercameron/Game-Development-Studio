@@ -50,3 +50,45 @@ export function gameDecisionRequest(draft) {
 export function presentGameDecision(result, format) {
   return format === 'Compact' && result?.answers ? result.answers : result;
 }
+
+// Plain-language summary of a decision response, derived from the same request and response.
+// Returns null when the response does not contain a recognised answer.
+export function decisionSummary(result, request) {
+  const decision = result?.answers?.decision;
+  const question = request?.questions?.decision;
+  if (!decision || !question) {
+    return null;
+  }
+  const percent = (value) =>
+    Number.isFinite(value) ? `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%` : null;
+  if (decision.type === 'noul') {
+    const yes = percent(decision.noul);
+    return yes
+      ? { title: `Yes: ${yes}`, detail: 'Probability that the answer to the question is yes.' }
+      : null;
+  }
+  if (decision.type === 'choice') {
+    const label = question.criteria?.[decision.choice] ?? decision.choice;
+    if (typeof label !== 'string' || !label) {
+      return null;
+    }
+    const probability = percent(decision.probabilities?.[decision.choice]);
+    const confidence = percent(decision.confidence);
+    return {
+      title: `Selected: ${label}`,
+      detail: [
+        probability && `probability ${probability}`,
+        confidence && `confidence ${confidence}`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    };
+  }
+  if (decision.type === 'score' && Number.isFinite(decision.score)) {
+    return {
+      title: `Score: ${decision.score.toFixed(2)}`,
+      detail: `Scored against the ${question.criteria?.length ?? 0} levels you listed.`,
+    };
+  }
+  return null;
+}

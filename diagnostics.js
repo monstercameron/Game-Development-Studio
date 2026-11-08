@@ -138,6 +138,7 @@ const services = [
   { id: 'asr', name: 'Nemotron ASR', port: 8282 },
   { id: '3d-hunyuan', name: 'Hunyuan3D shape', port: 8283 },
   { id: 'segmentation', name: 'SAM 3.1', port: 8284 },
+  { id: '3d-trellis', name: 'TRELLIS.2', port: 8285 },
   { id: 'motion-hy', name: 'HY-Motion 1.0', port: 8286 },
   { id: 'motion-bricks', name: 'MotionBricks SOMA', port: 8287 },
 ];

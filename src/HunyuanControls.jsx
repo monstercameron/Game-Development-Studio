@@ -20,8 +20,10 @@ export default function HunyuanControls({ draft, onChange }) {
   return (
     <section className="hunyuan-controls" aria-label="Hunyuan shape settings">
       <div className="hunyuan-controls__fields">
-        <label className="hunyuan-controls__field" htmlFor="hunyuan-resolution">
-          <span className="field-label">Octree resolution</span>
+        <div className="hunyuan-controls__field">
+          <label className="field-label" htmlFor="hunyuan-resolution">
+            Octree resolution
+          </label>
           <select
             id="hunyuan-resolution"
             value={resolution}
@@ -33,18 +35,20 @@ export default function HunyuanControls({ draft, onChange }) {
             <option value={256}>256 samples per axis · experimental</option>
             <option value={384}>384 samples per axis · experimental</option>
           </select>
-          <span className="hunyuan-controls__hint" id="hunyuan-resolution-help">
-            Controls the 3D grid used to build the surface. Higher values can take longer and use
-            more GPU memory.
-          </span>
+          <p className="hunyuan-controls__hint" id="hunyuan-resolution-help">
+            Sets the grid density used to build the surface. Higher values take longer and use more
+            GPU memory.
+          </p>
           {resolutionError && (
-            <span className="hunyuan-controls__error" id="hunyuan-resolution-error" role="alert">
+            <p className="hunyuan-controls__error" id="hunyuan-resolution-error" role="alert">
               {resolutionError}
-            </span>
+            </p>
           )}
-        </label>
-        <label className="hunyuan-controls__field" htmlFor="hunyuan-steps">
-          <span className="field-label">Denoising steps</span>
+        </div>
+        <div className="hunyuan-controls__field">
+          <label className="field-label" htmlFor="hunyuan-steps">
+            Denoising steps
+          </label>
           <input
             id="hunyuan-steps"
             type="number"
@@ -57,15 +61,15 @@ export default function HunyuanControls({ draft, onChange }) {
             aria-describedby="hunyuan-steps-help"
             onChange={(event) => onChange({ shapeSteps: event.target.value })}
           />
-          <span
+          <p
             className={stepsError ? 'hunyuan-controls__error' : 'hunyuan-controls__hint'}
             id="hunyuan-steps-help"
             role={stepsError ? 'alert' : undefined}
           >
             {stepsError ||
-              'Whole numbers from 1 to 100. The default is 30; more steps can take longer.'}
-          </span>
-        </label>
+              'Whole numbers from 1 to 100. The default is 30; more steps take longer.'}
+          </p>
+        </div>
       </div>
     </section>
   );

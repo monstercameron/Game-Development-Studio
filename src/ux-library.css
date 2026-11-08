@@ -1,0 +1,76 @@
+/* ux-library: Overview and Asset library refinements for desktop and laptop widths, loaded last.
+   Tokens: ux-tokens.css (spacing, type, radius, focus). Colors: theme.css --forge-*. */
+
+/* Asset tiles: one aspect ratio for every card, clearer placeholder. */
+.gallery-page .asset-visual-thumbnail {
+  display: block;
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--ux-radius-sm);
+}
+.gallery-page .asset-visual-thumbnail > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.gallery-page .asset-thumbnail-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ux-space-2);
+  width: 100%;
+  height: 100%;
+  padding: var(--ux-space-3);
+  box-sizing: border-box;
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+  background: var(--ux-panel-bg);
+  color: var(--forge-muted);
+  text-align: center;
+}
+.gallery-page .asset-thumbnail-placeholder small {
+  font-size: var(--ux-text-sm);
+  line-height: 1.3;
+  color: var(--forge-muted);
+}
+
+/* Tool availability tags: 12px minimum. */
+.tool-card .tool-availability {
+  font-size: var(--ux-text-xs);
+}
+
+/* Link buttons: at least 36px tall target. */
+
+/* Overview hero: two columns on wide screens, stacked at laptop widths and below. */
+@media (max-width: 1000px) {
+  .overview .workspace-hero {
+    gap: var(--ux-space-5);
+  }
+}
+@media (min-width: 1600px) {
+  .overview .workspace-hero {
+    gap: var(--ux-space-6);
+  }
+}
+
+/* Project cards: keep long names wrapping inside the card. */
+.project-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Keyboard focus stays visible on the library and overview controls. */
+:where(.gallery-page, .overview) :where(button, a, select, input):focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-page .filter-tabs button,
+  .overview .workspace-hero * {
+    transition: none;
+    animation: none;
+  }
+}

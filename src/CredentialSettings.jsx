@@ -125,9 +125,10 @@ export default function CredentialSettings() {
                 <label htmlFor={`credential-${id}`}>{label}</label>
                 <span>{savedStatus ? (saved ? 'Saved' : 'Not saved') : 'Checking…'}</span>
               </div>
-              <p>{hint}</p>
+              <p id={`credential-${id}-hint`}>{hint}</p>
               <input
                 id={`credential-${id}`}
+                aria-describedby={`credential-${id}-hint`}
                 type="password"
                 autoComplete="new-password"
                 placeholder={saved ? 'Enter a new key to replace it' : 'Enter API key'}

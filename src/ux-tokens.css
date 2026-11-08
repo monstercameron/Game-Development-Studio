@@ -1,0 +1,35 @@
+/* Shared UI tokens (spacing, radius, type, touch targets, layout). Colors live in theme.css as --forge-*.
+   Desktop-first, with mobile refinements in src/ux-mobile-*.css. Breakpoints cannot be variables in @media; use 600px (phone),
+   850px (nav collapses to a drawer), 1000px (two-column pages stack), 1600px (wide). */
+:root {
+  --ux-space-1: 4px;
+  --ux-space-2: 8px;
+  --ux-space-3: 12px;
+  --ux-space-4: 16px;
+  --ux-space-5: 24px;
+  --ux-space-6: 32px;
+  --ux-gutter: 16px;
+  --ux-radius-sm: 8px;
+  --ux-radius-md: 12px;
+  --ux-radius-lg: 18px;
+  --ux-text-xs: 12px;
+  --ux-text-sm: 13px;
+  --ux-text-md: 15px;
+  --ux-text-lg: 18px;
+  --ux-target-min: 36px;
+  --ux-target-touch: 44px;
+  --ux-focus-ring: 2px solid var(--forge-focus);
+  --ux-focus-offset: 2px;
+  --ux-border: 1px solid var(--forge-border);
+  --ux-panel-bg: var(--forge-surface);
+  --ux-sidebar-queue-width: 340px;
+}
+@media (min-width: 851px) {
+  :root {
+    --ux-gutter: 24px;
+  }
+}
+:where(main button, main a, main select, main input, main textarea):focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}

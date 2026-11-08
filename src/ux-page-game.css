@@ -1,0 +1,60 @@
+/* ux-page-game: refinements for the game page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* The decision panel is not sticky here: a sticky panel covered the cards below it as the
+   column scrolled. The game form is short enough that the panel stays in view at normal widths. */
+@media (min-width: 1001px) {
+  .right-column .game-decision-panel {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* Start / load is the primary action until the service is ready; Run takes over after that. */
+.game-decision-panel .game-decision-actions .game-load-button.is-primary {
+  background: var(--forge-orange, #e95420);
+  border-color: var(--forge-orange, #e95420);
+  color: var(--forge-text-on-orange, #17040f);
+  font-weight: 700;
+}
+.game-decision-panel .game-decision-actions .game-load-button.is-primary:hover:not(:disabled) {
+  background: var(--forge-orange-hover, #f16b3d);
+  border-color: var(--forge-orange-hover, #f16b3d);
+}
+
+/* Hints sit directly under the buttons they explain. */
+.game-decision-panel .game-action-hints {
+  display: grid;
+  gap: var(--ux-space-1);
+  margin-top: var(--ux-space-2);
+}
+.game-decision-panel .game-action-hint {
+  margin: 0;
+}
+
+/* Plain-language result summary above the JSON. */
+.game-decision-panel .game-summary {
+  display: grid;
+  gap: var(--ux-space-1);
+  margin: var(--ux-space-3) 0 var(--ux-space-2);
+  padding: var(--ux-space-3) var(--ux-space-4);
+  border: var(--ux-border);
+  border-left: 3px solid var(--forge-success, #70c49a);
+  border-radius: var(--ux-radius-sm);
+  background: var(--forge-surface-raised, #25232a);
+}
+.game-decision-panel .game-summary strong {
+  color: var(--forge-text, #f2eff5);
+  font-size: var(--ux-text-md);
+  overflow-wrap: anywhere;
+}
+.game-decision-panel .game-summary span {
+  color: var(--forge-muted);
+  font-size: var(--ux-text-sm);
+}
+
+/* The JSON block scrolls horizontally; keep it reachable from the keyboard. */
+.game-decision-panel .game-result:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}

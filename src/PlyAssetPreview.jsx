@@ -1,11 +1,12 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import ModelPreview from './ModelPreview';
+import './ux-viewer.css';
 
 const GaussianPreview = React.lazy(() => import('./GaussianPreview'));
 
 // A PLY can be a mesh, point cloud, or Gaussian splat. Inspect only its
 // header before choosing the viewer; do not download the entire file twice.
-export default function PlyAssetPreview({ url, name }) {
+export default function PlyAssetPreview({ url, name, ...viewerProps }) {
   const [kind, setKind] = useState('checking');
   useEffect(() => {
     const controller = new AbortController();
@@ -56,23 +57,25 @@ export default function PlyAssetPreview({ url, name }) {
   }, [url]);
   if (kind === 'checking') {
     return (
-      <div className="model-preview-message" role="status">
-        Checking 3D file…
+      <div className="viewer-message" role="status">
+        <span className="vw-spinner" aria-hidden="true" />
+        <strong>Checking 3D file…</strong>
       </div>
     );
   }
   if (kind === 'model') {
-    return <ModelPreview url={url} name={name} />;
+    return <ModelPreview url={url} name={name} {...viewerProps} />;
   }
   return (
     <Suspense
       fallback={
-        <div className="model-preview-message" role="status">
-          Loading Gaussian viewer…
+        <div className="viewer-message" role="status">
+          <span className="vw-spinner" aria-hidden="true" />
+          <strong>Loading Gaussian viewer…</strong>
         </div>
       }
     >
-      <GaussianPreview url={url} name={name} onFallback={() => setKind('model')} />
+      <GaussianPreview url={url} name={name} {...viewerProps} onFallback={() => setKind('model')} />
     </Suspense>
   );
 }

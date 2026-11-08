@@ -4,6 +4,10 @@ import hmac
 import os
 import re
 
+# Every Forge worker imports this module first: give the detached worker a hidden
+# console before it (or any library it loads) starts a console program.
+import hidden_console  # noqa: F401
+
 
 def identity(token, supplied, engine):
     """Prove possession of the supervisor token before exposing a nonce or PID.

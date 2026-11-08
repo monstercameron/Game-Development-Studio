@@ -34,7 +34,8 @@ export default function ModelRemovalDialog({
 }) {
   const titleId = useId();
   const [busyAction, setBusyAction] = useState(''),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    [acknowledged, setAcknowledged] = useState(false);
   const busy = Boolean(busyAction);
   const inProgress = ['prepared', 'deleting'].includes(removal?.state);
   const failed = removal?.state === 'failed';
@@ -146,7 +147,7 @@ export default function ModelRemovalDialog({
             {!managed
               ? 'This model is stored in another application or has not been installed. Manage those files in their original location.'
               : storage.removable === false
-                ? 'Removal in Forge is not yet available for this preview model. Its supporting decoder and image encoder are stored separately.'
+                ? 'Forge does not remove this model’s files. Other apps or preview pipelines may depend on them, so manage them in their original location.'
                 : inProgress
                   ? 'Removing the model files. You can close this dialog while cleanup continues.'
                   : inventoryState === 'scanning'
@@ -167,6 +168,20 @@ export default function ModelRemovalDialog({
             {error || removal.error}
           </p>
         )}
+        {canRemove && !inProgress && (
+          <label className="model-remove-ack">
+            <input
+              type="checkbox"
+              checked={acknowledged}
+              disabled={busy}
+              onChange={(event) => setAcknowledged(event.target.checked)}
+            />
+            <span>
+              I understand these model files will be permanently deleted and cannot be restored from
+              Forge.
+            </span>
+          </label>
+        )}
         <div className="project-dialog-actions">
           <button className="ghost-button" disabled={busy} onClick={onClose}>
             Close
@@ -177,7 +192,12 @@ export default function ModelRemovalDialog({
               {busyAction === 'stop' ? 'Stopping service…' : 'Stop service'}
             </button>
           )}
-          <button className="danger-solid" disabled={busy || !canRemove} onClick={remove}>
+          <button
+            className="danger-solid"
+            disabled={busy || !canRemove || (!inProgress && !acknowledged)}
+            title={canRemove && !acknowledged ? 'Tick the confirmation box first.' : undefined}
+            onClick={remove}
+          >
             {busyAction === 'remove' || inProgress ? (
               <LoaderCircle size={15} className="motion-spinner" aria-hidden="true" />
             ) : (

@@ -14,19 +14,21 @@ import {
 import './model-plaque.css';
 
 // These are the configured GPU admission budgets, not measured model sizes.
-// Keep them aligned with runtime/*-preparation.js and runtime/model-load.js.
+// The budget strings match the "Est. GPU budget" values in runtime/model-catalog.js
+// so the same model reads the same on every page. Keep them aligned with
+// runtime/*-preparation.js and runtime/model-load.js.
 const models = {
-  'Qwen Image 2.1': { icon: Aperture, load: 48 },
-  'Hunyuan3D 2.1': { icon: Box, load: 16 },
-  'TRELLIS.2': { icon: Layers3, load: 4, render: 24 },
-  'HY-Motion 1.0': { icon: Gamepad2, load: 26 },
-  'NVIDIA MotionBricks': { icon: WandSparkles, load: 8 },
-  'MiniMax H3 Ref2VA': { icon: Clapperboard, load: 6, phase: 'render' },
-  YuE2: { icon: Music2, load: 24 },
-  'Stable Audio 3': { icon: AudioLines, load: 20 },
-  'Qwen3-TTS 1.7B · Preset voices': { icon: Mic2, load: 12 },
-  'Meta SAM 3.1': { icon: Scissors, load: 12 },
-  'Mammoth-1 · OneJev': { icon: Cpu, load: 24 },
+  'Qwen Image 2.1': { icon: Aperture, budget: '~48 GiB load' },
+  'Hunyuan3D 2.1': { icon: Box, budget: '~16 GiB load · up to +16 GiB render' },
+  'TRELLIS.2': { icon: Layers3, budget: '~4 GiB load · +24 GiB render' },
+  'HY-Motion 1.0': { icon: Gamepad2, budget: '~26 GiB load · +8–16 GiB render' },
+  'NVIDIA MotionBricks': { icon: WandSparkles, budget: '~8 GiB load · +3 GiB render' },
+  'MiniMax H3 Ref2VA': { icon: Clapperboard, budget: '~6 GiB render' },
+  YuE2: { icon: Music2, budget: '~24 GiB load' },
+  'Stable Audio 3': { icon: AudioLines, budget: '~20 GiB load' },
+  'Qwen3-TTS 1.7B · Preset voices': { icon: Mic2, budget: '~12 GiB load · +8 GiB render' },
+  'Meta SAM 3.1': { icon: Scissors, budget: '~12 GiB load' },
+  'Mammoth-1 · OneJev': { icon: Cpu, budget: '~24 GiB load' },
 };
 
 export default function ModelPlaque({ model, supportsRender, isGame, hasModelSelector = false }) {
@@ -57,9 +59,7 @@ export default function ModelPlaque({ model, supportsRender, isGame, hasModelSel
         <strong>{model}</strong>
         {info && (
           <span className="model-plaque-memory" title={explanation}>
-            <Cpu size={13} aria-hidden="true" /> Est. GPU{' '}
-            {info.phase === 'render' ? 'render' : 'load'} budget: ~{info.load} GiB
-            {info.render ? ` · +${info.render} GiB render` : ''}
+            <Cpu size={13} aria-hidden="true" /> Est. GPU budget: {info.budget}
           </span>
         )}
       </span>

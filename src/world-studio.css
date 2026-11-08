@@ -211,7 +211,7 @@
 }
 .world-action {
   position: sticky;
-  top: var(--forge-space-3);
+  bottom: var(--forge-space-3);
   z-index: 2;
   display: grid;
   gap: var(--forge-space-2);
@@ -241,9 +241,4 @@
 }
 .world-notice.success {
   color: var(--forge-success, var(--forge-text));
-}
-@media (max-width: 1200px) {
-  .world-layout {
-    grid-template-columns: 1fr;
-  }
 }

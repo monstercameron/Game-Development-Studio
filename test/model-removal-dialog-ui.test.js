@@ -103,6 +103,12 @@ test('model removal dialog explains storage recovery and unavailable scan state'
     await act(async () =>
       root.render(React.createElement(ModelRemovalDialog, { ...props, inventoryState: 'ready' })),
     );
+    assert.equal(
+      container.querySelector('button.danger-solid').disabled,
+      true,
+      'deleting stays disabled until the confirmation box is ticked',
+    );
+    await act(async () => container.querySelector('.model-remove-ack input').click());
     assert.equal(container.querySelector('button.danger-solid').disabled, false);
 
     let resolveRemoval;

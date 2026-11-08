@@ -71,4 +71,16 @@ The component suite verifies CUDA operations and native imports without loading 
 - **Qwen3-TTS:** its isolated environment currently shares CUDA libraries from `C:\Users\mreca\Desktop\Snapdargon-DJ\.runtime`; it is not self-contained. The integrated preset-voice path returns completed WAV files.
 - **H3 video and Mammoth:** Forge bridges the existing external applications. H3 uses Vulkan through its own stable-diffusion.cpp executable; its actual VAE paths are in [Model sources and restoration](MODEL_SOURCES.md). Managed H3 and ASR guards use Windows process jobs to contain child processes; a separately launched external service is not owned by Forge.
 
+## How engines are launched on Windows (no console windows)
+
+Forge starts every model engine detached (`runtime/engines.js`) so it keeps running, and stays recoverable, when the studio host restarts. A non-detached child would be placed in a job object that is closed with the host. Windows gives a detached process no console at all, so any console program it starts without `CREATE_NO_WINDOW` (`nvidia-smi`, `cmd`, `ffmpeg`, a compiler, `os.system`) gets a new console, which Windows Terminal shows as a window. `windowsHide` does not help: it only applies to the process Forge itself creates. A venv's `Scripts\python.exe` is also only a redirector that starts the base interpreter in a new console.
+
+`runtime/engine-launch.js` therefore decides each launch, including automatic restarts:
+
+- A venv `python.exe` is replaced by the base interpreter named in that venv's own `pyvenv.cfg`, started with the same `__PYVENV_LAUNCHER__` hint the redirector would set, so `sys.prefix` and site-packages are identical. Ownership records, recovery and force stop still use the venv launcher path, which they already accept alongside the base interpreter.
+- Forge's Python workers import `runtime/engine_identity.py`, which imports `runtime/hidden_console.py`. It allocates one hidden console when the process has none, and every descendant inherits it. `h3_guard.py` and `world_worker.py` import it directly.
+- Engines whose entry point is not in this repository (YuE2 music, Stable Audio) run as `python -u runtime/console_launch.py [-m module | script] args`, which creates the hidden console and then runs the original module or script unchanged.
+
+To debug an engine in a visible console, set `FORGE_ALLOW_CONSOLE_WINDOWS=1` in its environment. If a console window still appears, run `Get-CimInstance Win32_Process` and look at the parent of the new `cmd.exe`, `conhost.exe` or `powershell.exe`; it may belong to another application. Native engines (`llama-server.exe`, `nemo-speech.exe`) do not start console children.
+
 These notes describe the observed installation. They do not replace a tested installation manifest for every dependency or establish that a new machine can reproduce the environment without additional setup.

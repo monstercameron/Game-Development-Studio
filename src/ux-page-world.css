@@ -1,0 +1,28 @@
+/* ux-page-world: refinements for the world page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* Worlds page: controls and states (WorldStudio.jsx). */
+
+/* Submit and reset sit at the end of the form; the bar stays in view while the form scrolls. */
+.world-page .world-action {
+  bottom: var(--ux-space-3);
+}
+
+/* The visually hidden file input must show focus on its visible label. */
+.world-page .world-file-actions label {
+  position: relative;
+  min-height: var(--ux-target-min);
+  align-items: center;
+  display: inline-flex;
+  gap: var(--ux-space-2);
+}
+
+.world-page .world-file-actions label:focus-within {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+
+.world-page .world-reference .icon-btn {
+  min-width: var(--ux-target-min);
+  min-height: var(--ux-target-min);
+  justify-content: center;
+}

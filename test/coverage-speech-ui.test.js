@@ -182,7 +182,10 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
     assert.ok(controls);
     assert.equal(container.querySelector('details.speech-estimate')?.open, false);
     assert.equal(controls.querySelector('[role="status"]'), null);
-    assert.equal(container.querySelector('.speech-status')?.textContent, 'Microphone off');
+    assert.equal(
+      container.querySelector('.speech-status')?.textContent,
+      'Microphone off. Your browser asks for access when you start.',
+    );
 
     const startButton = [...container.querySelectorAll('button')].find((button) =>
       button.textContent.includes('Start microphone'),
@@ -194,7 +197,9 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
       FakeSocket.instance.message({ type: 'session.created' });
       FakeSocket.instance.message({ type: 'session.updated' });
     });
-    await waitFor(() => container.querySelector('.speech-status')?.textContent === 'Listening');
+    await waitFor(() =>
+      container.querySelector('.speech-status')?.textContent.startsWith('Recording.'),
+    );
     assert.equal(container.querySelector('.speech-output[aria-live]'), null);
 
     await act(async () => {
@@ -228,7 +233,9 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
       FakeSocket.instance.message({ type: 'session.created' });
       FakeSocket.instance.message({ type: 'session.updated' });
     });
-    await waitFor(() => container.querySelector('.speech-status')?.textContent === 'Listening');
+    await waitFor(() =>
+      container.querySelector('.speech-status')?.textContent.startsWith('Recording.'),
+    );
     await act(async () => {
       FakeSocket.instance.message({
         type: 'conversation.item.input_audio_transcription.delta',
@@ -236,7 +243,10 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
       });
     });
     assert.equal(container.querySelector('.speech-partial')?.textContent, 'partial words');
-    assert.equal(container.querySelector('.speech-status')?.textContent, 'Listening');
+    assert.equal(
+      container.querySelector('.speech-status')?.textContent,
+      'Recording. Speak, then choose Stop & finish.',
+    );
     await act(async () => {
       [...container.querySelectorAll('button')]
         .find((button) => button.textContent.includes('Stop & finish'))

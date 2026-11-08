@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir -p _site/assets
           cp -R site/. _site/
-          cp docs/images/studio-overview.png docs/images/asset-library.png _site/assets/
+          cp docs/images/studio-overview.png docs/images/asset-library.png docs/images/image-studio.png _site/assets/
           cp public/favicon.svg _site/assets/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

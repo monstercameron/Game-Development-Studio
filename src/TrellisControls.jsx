@@ -63,7 +63,8 @@ export default function TrellisControls({ draft, onChange }) {
             />
           </label>
           <p id="trellis-steps-help" className="trellis-controls__help">
-            Whole number from 1 to 50. Default: 12. More steps can take longer.
+            Whole number from 1 to 50. Default: 12. The same count is used for each of TRELLIS.2's
+            three sampling stages, so more steps take longer.
           </p>
           {stepsError && (
             <p id="trellis-steps-error" className="trellis-controls__error" aria-live="polite">

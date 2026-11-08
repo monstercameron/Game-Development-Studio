@@ -1,0 +1,7 @@
+/* ux-page-3d: refinements for the 3d page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* Hunyuan helper and error copy are paragraphs; keep spacing to the field gap only. */
+.hunyuan-controls__hint,
+.hunyuan-controls__error {
+  margin: 0;
+}

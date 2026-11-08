@@ -3,428 +3,2610 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#1c0d1a" />
+    <title>Forge — Game Development Studio</title>
     <meta
       name="description"
-      content="Forge brings local generative models, a durable render queue, and MCP access together for game asset creation."
+      content="Forge is an early-stage, local React studio for game assets: image, music, sound, video, voice, 3D, world and motion workflows backed by a durable render queue, supervised model engines, and HTTP and MCP APIs."
     />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#17040f" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fbf6f3" media="(prefers-color-scheme: light)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Forge" />
     <meta property="og:title" content="Forge — Game Development Studio" />
     <meta
       property="og:description"
-      content="A local creative studio for game assets, powered by models and accessible to agents through MCP."
+      content="Create, organize and iterate on game assets in one local studio, with a durable render queue and MCP tools for agents. Early-stage; validated on Windows ARM64 with NVIDIA GPUs."
     />
-    <meta property="og:type" content="website" />
+    <meta property="og:image" content="assets/studio-overview.png" />
+    <meta property="og:image:width" content="1600" />
+    <meta property="og:image:height" content="1000" />
+    <meta
+      property="og:image:alt"
+      content="The Forge overview with demo projects and sample artwork"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
     <link rel="stylesheet" href="styles.css" />
     <script src="site.js" defer></script>
-    <title>Forge — A studio for the worlds you imagine</title>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
+
     <header class="site-header">
-      <div class="wrap nav-bar">
-        <a class="brand" href="#top" aria-label="Forge home"
-          ><span class="brand-mark" aria-hidden="true">✳</span
-          ><span>forge<span class="brand-dot">.</span></span></a
-        >
-        <nav aria-label="Main navigation">
-          <a href="#models">Models</a><a href="#mcp">MCP &amp; agents</a
-          ><a href="#workflow">How it works</a>
+      <div class="wrap header-bar">
+        <a class="brand" href="#top">
+          <img src="assets/favicon.svg" alt="" width="32" height="32" />
+          <span class="brand-name">forge<span class="dot">.</span></span>
+          <span class="brand-sub">Game Development Studio</span>
+        </a>
+        <nav class="site-nav" aria-label="Sections">
+          <ul>
+            <li><a href="#about">About</a></li>
+            <li><a href="#workspaces">Workspaces</a></li>
+            <li><a href="#models">Models</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#install">Install</a></li>
+            <li><a href="#api">API &amp; MCP</a></li>
+            <li><a href="#faq">FAQ</a></li>
+          </ul>
         </nav>
-        <a class="nav-github" href="https://github.com/monstercameron/Game-Development-Studio"
-          >View on GitHub <span aria-hidden="true">↗</span></a
+        <a class="header-gh" href="https://github.com/monstercameron/Game-Development-Studio"
+          >GitHub<span class="sr-only"> repository</span> <span aria-hidden="true">↗</span></a
         >
       </div>
     </header>
 
-    <main id="main">
-      <section class="hero wrap" id="top">
-        <div class="hero-copy">
-          <div class="hero-tag"><span></span> An open-source game asset studio</div>
-          <h1>Make the pieces<br />of <em>your world.</em></h1>
-          <p>
-            Images, sound, video, 3D and more—brought together in a local creative workspace, with a
-            render queue and an API your agents can use.
-          </p>
-          <div class="hero-actions">
-            <a class="button button-primary" href="#models"
-              >Explore the models <span aria-hidden="true">↘</span></a
-            ><a
-              class="button button-quiet"
-              href="https://github.com/monstercameron/Game-Development-Studio"
-              >Get Forge <span aria-hidden="true">↗</span></a
-            >
-          </div>
-          <div class="hero-footnote">
-            <span class="sparkle" aria-hidden="true">✳</span
-            ><span
-              >Built for creating locally.<br /><strong>Designed to work with agents.</strong></span
-            >
-          </div>
-        </div>
-        <div
-          class="hero-visual"
-          aria-label="Forge Studio overview showing demo projects and assets"
-        >
-          <div class="visual-orbit orbit-one" aria-hidden="true"></div>
-          <div class="visual-orbit orbit-two" aria-hidden="true"></div>
-          <div class="screen-frame">
-            <div class="screen-top">
-              <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span
-              ><span>Forge / Studio overview</span
-              ><span class="screen-status"><i></i> Local workspace</span>
+    <main id="main" tabindex="-1">
+      <!-- HERO -->
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="wrap hero-grid">
+          <div class="hero-copy">
+            <p class="kicker">Game development studio</p>
+            <h1 id="hero-title">Make the pieces of your game<span class="dot">.</span></h1>
+            <p class="lead">
+              Forge brings image, music, sound, video, voice, 3D, world and motion workflows into a
+              React interface backed by a durable render queue. Keep each game’s assets together,
+              inspect local engine health, and connect agents through HTTP and MCP.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#install">Install guide</a>
+              <a class="button button-quiet" href="#models">See the 15 models</a>
             </div>
-            <img
-              src="assets/studio-overview.png"
-              alt="Forge overview with demo projects and recent assets"
-            />
+            <p class="hero-note">
+              <span class="badge badge-exp">Early-stage</span>
+              The app and queue start without model weights, but rendering needs separately
+              installed models, native engines and, for some adapters, companion applications. A
+              fresh clone is <strong>not</strong> a one-command AI environment.
+            </p>
           </div>
-          <div class="visual-caption">
-            <span class="visual-caption-icon" aria-hidden="true">✦</span
-            ><span
-              ><strong>One place to create.</strong><br />Your projects, assets and tools.</span
-            >
-          </div>
-        </div>
-      </section>
-
-      <div class="ticker" aria-label="Supported creative workflows">
-        <div class="ticker-inner">
-          <span>Images</span><b>✳</b><span>Music</span><b>✳</b><span>Sound</span><b>✳</b
-          ><span>Video</span><b>✳</b><span>3D &amp; worlds</span><b>✳</b><span>Motion</span><b>✳</b
-          ><span>Speech</span>
-        </div>
-      </div>
-
-      <section class="intro wrap" id="workflow">
-        <div class="section-title">
-          <p class="kicker">The creative loop</p>
-          <h2>From first idea<br />to your next game asset.</h2>
-        </div>
-        <div class="intro-content">
-          <p class="large-copy">
-            Keep your ideas moving, your tools connected, and your assets where they belong.
-          </p>
-          <div class="process-list">
-            <div>
-              <span>01</span>
-              <div>
-                <h3>Choose your workspace</h3>
-                <p>
-                  Start a project, pick a model, and bring in compatible references from your
-                  library.
-                </p>
+          <figure class="hero-shot">
+            <div class="window">
+              <div class="window-bar" aria-hidden="true">
+                <span class="window-dots"><i></i><i></i><i></i></span>
+                <span>127.0.0.1:5173</span>
               </div>
+              <img
+                src="assets/studio-overview.png"
+                width="1600"
+                height="1000"
+                alt="The Forge overview: a sidebar of workspaces, demo projects, and recent sample assets on a dark aubergine interface."
+                fetchpriority="high"
+              />
             </div>
-            <div>
-              <span>02</span>
-              <div>
-                <h3>Let the queue do its work</h3>
-                <p>
-                  Queue jobs in sequence, see estimates when history is available, and review their
-                  progress.
-                </p>
-              </div>
-            </div>
-            <div>
-              <span>03</span>
-              <div>
-                <h3>Keep creating</h3>
-                <p>
-                  Preview and organize outputs in project folders, then refine, convert, or download
-                  them.
-                </p>
-              </div>
-            </div>
-          </div>
+            <figcaption>The Forge overview with demo projects and sample artwork.</figcaption>
+          </figure>
         </div>
-      </section>
 
-      <section class="models-section" id="models">
         <div class="wrap">
-          <div class="models-heading">
-            <div>
-              <p class="kicker">A toolbox for your imagination</p>
-              <h2>Many models.<br /><em>One creative home.</em></h2>
+          <ul class="facts" aria-label="Project facts">
+            <li><strong>15</strong><span>catalog models, plus supporting checkpoints</span></li>
+            <li><strong>13</strong><span>engine services on fixed loopback ports</span></li>
+            <li><strong>1</strong><span>durable, sequential render queue in SQLite</span></li>
+            <li>
+              <strong>2026-07-28</strong><span>MCP protocol, over Streamable HTTP or stdio</span>
+            </li>
+            <li><strong>Node 24+</strong><span>React 19 · Vite 6 · Express 5 · Electron</span></li>
+            <li><strong>MIT</strong><span>source license; models keep their own terms</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ABOUT -->
+      <section class="section" id="about" aria-labelledby="about-title">
+        <div class="wrap">
+          <p class="kicker">What Forge is</p>
+          <h2 id="about-title">One local studio, many engines<span class="dot">.</span></h2>
+          <div class="about-grid">
+            <div class="prose">
+              <p>
+                Forge is an early-stage integration project. It is a project-centred interface for
+                creating, organizing and iterating on game assets, running on your own machine. You
+                create a project, open a workspace, pick compatible project assets as inputs, and
+                add work to one render queue. Results are saved back into the project’s folders.
+              </p>
+              <p>
+                Behind the interface, a supervised local service starts model engines on demand,
+                checks GPU and system memory before loading or rendering, and keeps engines in
+                isolated processes where supported. The same capabilities are available to scripts
+                over a local HTTP API and to agents over the Model Context Protocol.
+              </p>
+              <p class="callout">
+                Availability varies by model, platform, installed dependencies and granted access. A
+                present file or reachable service does not establish a working GPU render.
+              </p>
             </div>
-            <p>
-              Choose the right tool for the asset in front of you. Forge brings these model
-              workflows into one project-centered interface.
-            </p>
+            <div class="audience">
+              <div class="card">
+                <h3>Made for</h3>
+                <ul class="ticks">
+                  <li>
+                    Game makers with an NVIDIA GPU who want image, audio, video, 3D, world and
+                    motion workflows next to their project files.
+                  </li>
+                  <li>Agents and scripts that drive the studio through HTTP and MCP tools.</li>
+                  <li>
+                    Maintainers comfortable restoring native runtimes, Python environments and
+                    companion apps.
+                  </li>
+                </ul>
+              </div>
+              <div class="card card-quiet">
+                <h3>Not yet for</h3>
+                <ul class="crosses">
+                  <li>Anyone expecting a one-command, clean-machine AI installer.</li>
+                  <li>Verified macOS or Linux model inference.</li>
+                  <li>Exposure to an untrusted network: it is a local, loopback service.</li>
+                </ul>
+              </div>
+            </div>
           </div>
+        </div>
+      </section>
+
+      <!-- TOUR -->
+      <section class="section section-band" aria-labelledby="tour-title">
+        <div class="wrap">
+          <p class="kicker">A closer look</p>
+          <h2 id="tour-title">Projects, panels and a library<span class="dot">.</span></h2>
+          <div class="shots">
+            <figure>
+              <img
+                src="assets/image-studio.png"
+                width="1600"
+                height="1000"
+                loading="lazy"
+                decoding="async"
+                alt="The Image studio: a creative-direction prompt, reference image controls, the Qwen Image 2.1 render model with an estimated ~48 GiB GPU load, and a recent potion artwork."
+              />
+              <figcaption>
+                Create images with project context, reference inputs and recent creations alongside
+                the controls.
+              </figcaption>
+            </figure>
+            <figure>
+              <img
+                src="assets/asset-library.png"
+                width="1600"
+                height="1000"
+                loading="lazy"
+                decoding="async"
+                alt="The asset library showing the bundled sample collection in a grid with search and filters."
+              />
+              <figcaption>
+                Search, filter and preview assets in the library; the screenshot shows the bundled
+                sample collection.
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- WORKSPACES -->
+      <section class="section" id="workspaces" aria-labelledby="ws-title">
+        <div class="wrap">
+          <p class="kicker">Workspaces</p>
+          <h2 id="ws-title">Fourteen places to work<span class="dot">.</span></h2>
+          <p class="section-lead">
+            Each panel has its own path (such as <code>/images</code>, <code>/3d</code>,
+            <code>/assets</code> or <code>/models</code>), and Back, Forward and refresh restore the
+            view. In the creation panels, <em>Add to render queue</em> creates a durable job;
+            <em>Save as a draft instead</em> keeps an editable browser draft.
+          </p>
+          <ol class="ws-grid">
+            <li class="ws">
+              <h3>Images</h3>
+              <p>
+                Generate characters, scenes and game art from a prompt and up to 10 optional
+                reference images. Override width, height (multiples of 32) and sampling steps.
+              </p>
+              <p class="ws-model"><a href="#model-qwen-image">Qwen Image 2.1</a></p>
+            </li>
+            <li class="ws">
+              <h3>3D models</h3>
+              <p>
+                Turn a reference image into an untextured GLB shape, or queue an experimental
+                textured model from a transparent PNG or WebP.
+              </p>
+              <p class="ws-model">
+                <a href="#model-hunyuan">Hunyuan3D 2.1</a> · <a href="#model-trellis">TRELLIS.2</a>
+                <span class="badge badge-exp">experimental</span>
+              </p>
+            </li>
+            <li class="ws">
+              <h3>Worlds</h3>
+              <p>
+                Generate an environment from text, one image or a 360° panorama, or reconstruct a
+                Gaussian-splat scene from 1–8 views. Exports PLY with an interactive splat preview.
+              </p>
+              <p class="ws-model">
+                <a href="#model-worldgen">WorldGen</a> · <a href="#model-hyworld">HY-World 2.0</a>
+              </p>
+            </li>
+            <li class="ws">
+              <h3>Character motion</h3>
+              <p>
+                Text-to-motion as a 30 fps BVH skeleton, and SOMA pose-to-pose transitions from BVH
+                files. Rigging and retargeting are not connected.
+              </p>
+              <p class="ws-model">
+                <a href="#model-hymotion">HY-Motion 1.0</a> ·
+                <a href="#model-motionbricks">MotionBricks</a>
+                <span class="badge badge-exp">experimental</span>
+              </p>
+            </li>
+            <li class="ws">
+              <h3>Video</h3>
+              <p>
+                Animate 1–9 reference images into short WebM clips, with H3’s supported 8, 12, 20 or
+                30 sampling steps.
+              </p>
+              <p class="ws-model"><a href="#model-h3">MiniMax H3 Ref2VA</a></p>
+            </li>
+            <li class="ws">
+              <h3>Music</h3>
+              <p>
+                Create music from a style and lyrics (use <code>[Instrumental]</code> for none),
+                with duration, steps, guidance, negative style and title controls.
+              </p>
+              <p class="ws-model"><a href="#model-yue2">YuE2</a></p>
+            </li>
+            <li class="ws">
+              <h3>Sound effects</h3>
+              <p>
+                Generate sound effects and ambient audio from a prompt with custom duration and
+                generation steps. Requires gated model access.
+              </p>
+              <p class="ws-model"><a href="#model-stable-audio">Stable Audio 3</a></p>
+            </li>
+            <li class="ws">
+              <h3>Voices</h3>
+              <p>
+                Turn dialogue into speech with nine preset speakers, and transcribe English live
+                from a microphone or from audio files up to two minutes and 25 MiB.
+              </p>
+              <p class="ws-model">
+                <a href="#model-tts">Qwen3-TTS</a> · <a href="#model-asr">Nemotron ASR</a>
+              </p>
+            </li>
+            <li class="ws">
+              <h3>Segmentation</h3>
+              <p>
+                Describe an object in a PNG, JPEG or WebP image and save a transparent cutout or
+                mask to the project’s <code>masks/</code> folder.
+              </p>
+              <p class="ws-model"><a href="#model-sam">SAM 3.1</a></p>
+            </li>
+            <li class="ws">
+              <h3>Game logic</h3>
+              <p>
+                Send game state with a choice, score or yes/no question and get a structured
+                decision back for a game character.
+              </p>
+              <p class="ws-model"><a href="#model-mammoth">Mammoth-1</a></p>
+            </li>
+            <li class="ws">
+              <h3>Chat</h3>
+              <p>
+                Streamed conversations with text, JSON or strict JSON-schema replies, thinking
+                effort, and project-scoped browser history. OpenAI-compatible servers also work.
+              </p>
+              <p class="ws-model"><a href="#model-chat">Qwen3.8-27B</a></p>
+            </li>
+            <li class="ws ws-tool">
+              <h3>Asset library</h3>
+              <p>
+                Search, filter, sort, preview, rate, keep, rename and download. Deletion goes to
+                recoverable project trash. Convert images and audio to new copies.
+              </p>
+              <p class="ws-model">
+                PNG · JPG · WebP · GIF · WAV · MP3 · FLAC · OGG · MP4 · WebM · GLB · glTF · FBX ·
+                BVH
+              </p>
+            </li>
+            <li class="ws ws-tool">
+              <h3>Models &amp; services</h3>
+              <p>
+                See GPU memory, managed model sizes and observed engine status. Start services, load
+                after a memory check, offload idle workers, force stop, or permanently remove.
+              </p>
+              <p class="ws-model">Shared models are protected from removal</p>
+            </li>
+            <li class="ws ws-tool">
+              <h3>Diagnostics</h3>
+              <p>
+                Server address, port, process ID, Node version and start time; filter, pause and
+                copy live logs from the studio, browser and engines.
+              </p>
+              <p class="ws-model">Logs may contain prompts and local paths</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- MODELS -->
+      <section class="section section-band" id="models" aria-labelledby="models-title">
+        <div class="wrap">
+          <p class="kicker">Models</p>
+          <h2 id="models-title">Every model, on the record<span class="dot">.</span></h2>
+          <p class="section-lead">
+            Each card is drawn from the shared model catalog
+            (<code>runtime/model-catalog.js</code>), the service list
+            (<code>runtime/catalog.js</code>), the installer manifest
+            (<code>install-models.json</code>) and the model, studio and platform guides. GPU
+            figures are the catalog’s estimates, not reservations or benchmarks. Listing a model
+            does not mean it is installed, running, or verified on your machine.
+          </p>
+
           <div class="model-browser">
-            <div class="model-browser-head">
-              <div>
-                <h3>Explore the lineup</h3>
-                <p>Filter by what you want to make.</p>
+            <fieldset class="filters">
+              <legend>Filter by workspace</legend>
+              <div class="filter-list">
+                <input type="radio" name="ws" id="f-all" value="all" checked /><label for="f-all"
+                  >All</label
+                >
+                <input type="radio" name="ws" id="f-images" value="images" /><label for="f-images"
+                  >Images</label
+                >
+                <input type="radio" name="ws" id="f-3d" value="3d" /><label for="f-3d"
+                  >3D models</label
+                >
+                <input type="radio" name="ws" id="f-worlds" value="worlds" /><label for="f-worlds"
+                  >Worlds</label
+                >
+                <input type="radio" name="ws" id="f-motion" value="motion" /><label for="f-motion"
+                  >Character motion</label
+                >
+                <input type="radio" name="ws" id="f-video" value="video" /><label for="f-video"
+                  >Video</label
+                >
+                <input type="radio" name="ws" id="f-music" value="music" /><label for="f-music"
+                  >Music</label
+                >
+                <input type="radio" name="ws" id="f-sfx" value="sfx" /><label for="f-sfx"
+                  >Sound effects</label
+                >
+                <input type="radio" name="ws" id="f-voices" value="voices" /><label for="f-voices"
+                  >Voices</label
+                >
+                <input type="radio" name="ws" id="f-seg" value="seg" /><label for="f-seg"
+                  >Segmentation</label
+                >
+                <input type="radio" name="ws" id="f-game" value="game" /><label for="f-game"
+                  >Game logic</label
+                >
+                <input type="radio" name="ws" id="f-chat" value="chat" /><label for="f-chat"
+                  >Chat</label
+                >
+                <input type="radio" name="ws" id="f-exp" value="exp" /><label for="f-exp"
+                  >Experimental only</label
+                >
               </div>
-              <div class="model-filters" role="group" aria-label="Filter models by workflow">
-                <button class="active" data-filter="all" aria-pressed="true">All</button
-                ><button data-filter="visual" aria-pressed="false">Visual</button
-                ><button data-filter="audio" aria-pressed="false">Audio &amp; voice</button
-                ><button data-filter="world" aria-pressed="false">3D &amp; motion</button
-                ><button data-filter="agents" aria-pressed="false">Agents</button>
-              </div>
-            </div>
-            <div class="model-grid" id="model-grid">
-              <article class="model-item" data-category="visual">
-                <span class="model-icon coral" aria-hidden="true">◈</span>
-                <div>
-                  <p>Images</p>
-                  <h4>Qwen Image 2.1</h4>
-                  <span>Generate images with optional visual references.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="visual">
-                <span class="model-icon lilac" aria-hidden="true">◉</span>
-                <div>
-                  <p>Segmentation</p>
-                  <h4>Meta SAM 3.1</h4>
-                  <span>Turn a source image into usable masks.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="visual">
-                <span class="model-icon blue" aria-hidden="true">▷</span>
-                <div>
-                  <p>Video</p>
-                  <h4>MiniMax H3 Ref2VA</h4>
-                  <span>Create video through the H3 companion app.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="audio">
-                <span class="model-icon lime" aria-hidden="true">♫</span>
-                <div>
-                  <p>Music</p>
-                  <h4>YuE2</h4>
-                  <span>Explore music generation in the studio.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="audio">
-                <span class="model-icon coral" aria-hidden="true">∿</span>
-                <div>
-                  <p>Sound effects</p>
-                  <h4>Stable Audio 3</h4>
-                  <span>Make audio for moments, spaces and interactions.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="audio">
-                <span class="model-icon lilac" aria-hidden="true">◖</span>
-                <div>
-                  <p>Speech</p>
-                  <h4>Qwen3-TTS</h4>
-                  <span>Turn written lines into voices.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="audio">
-                <span class="model-icon blue" aria-hidden="true">≋</span>
-                <div>
-                  <p>Speech recognition</p>
-                  <h4>Nemotron Streaming ASR</h4>
-                  <span>Transcribe speech in realtime or from files.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="world">
-                <span class="model-icon lime" aria-hidden="true">⬡</span>
-                <div>
-                  <p>3D assets</p>
-                  <h4>Hunyuan3D 2.1</h4>
-                  <span>Explore image-to-3D asset creation.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="world">
-                <span class="model-icon coral" aria-hidden="true">◇</span>
-                <div>
-                  <p>3D assets · experimental</p>
-                  <h4>TRELLIS.2</h4>
-                  <span>An experimental image-to-3D workflow.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="world">
-                <span class="model-icon blue" aria-hidden="true">✺</span>
-                <div>
-                  <p>Worlds</p>
-                  <h4>WorldGen &amp; HY-World 2.0</h4>
-                  <span>Generate or reconstruct spatial scenes.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="world">
-                <span class="model-icon lilac" aria-hidden="true">⌁</span>
-                <div>
-                  <p>Motion · experimental</p>
-                  <h4>HY-Motion &amp; MotionBricks</h4>
-                  <span>Explore generated character motion.</span>
-                </div>
-              </article>
-              <article class="model-item" data-category="agents">
-                <span class="model-icon lime" aria-hidden="true">✳</span>
-                <div>
-                  <p>Chat &amp; decisions</p>
-                  <h4>Qwen &amp; Mammoth</h4>
-                  <span>Chat, structured output and game-logic requests.</span>
-                </div>
-              </article>
-            </div>
-            <div class="model-browser-foot">
-              <span
-                >Models and engines are installed separately. Availability and verification
-                vary.</span
-              ><a
-                href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/MODEL_SOURCES.md"
-                >Model sources &amp; setup <span aria-hidden="true">↗</span></a
-              >
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="mcp-section wrap" id="mcp">
-        <div class="mcp-copy">
-          <p class="kicker">Built for people and agents</p>
-          <h2>Your studio,<br /><em>at your agent’s fingertips.</em></h2>
-          <p>
-            Forge exposes its creative workflows through the Model Context Protocol. An agent can
-            discover models, organize project assets, queue renders, check progress, and help
-            diagnose the studio.
-          </p>
-          <div class="mcp-features">
-            <div>
-              <span aria-hidden="true">✳</span>
-              <p><strong>Discover</strong>Inspect models, inputs, services and hardware.</p>
-            </div>
-            <div>
-              <span aria-hidden="true">⌁</span>
-              <p>
-                <strong>Create &amp; iterate</strong>Stage references, queue work and inspect
-                results.
-              </p>
-            </div>
-            <div>
-              <span aria-hidden="true">◷</span>
-              <p>
-                <strong>Stay in control</strong>Review queue state, estimates and supported model
-                controls.
-              </p>
-            </div>
-          </div>
-          <a
-            class="text-link"
-            href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/MCP.md"
-            >Read the MCP guide <span aria-hidden="true">↗</span></a
-          >
-        </div>
-        <div class="terminal-wrap">
-          <div class="terminal">
-            <div class="terminal-top">
-              <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span
-              ><span>Connect your agent</span
-              ><button
-                class="copy-button"
-                type="button"
-                data-copy="npm run mcp"
-                aria-label="Copy npm run mcp command"
-              >
-                Copy
-              </button>
-            </div>
-            <div class="terminal-body">
-              <p class="terminal-comment"># Start Forge, then launch the stdio bridge</p>
-              <pre><code><span class="terminal-prompt">$</span> npm run mcp</code></pre>
-              <div class="terminal-divider"></div>
-              <p class="terminal-comment"># Or connect using Streamable HTTP</p>
-              <pre><code>http://127.0.0.1:5173/mcp</code></pre>
-              <div class="terminal-divider"></div>
-              <p class="terminal-comment"># A few tools your agent can discover</p>
-              <div class="terminal-tools">
-                <span>forge_models</span><span>forge_projects</span><span>forge_queue_*</span
-                ><span>forge_job</span><span>forge_chat</span><span>forge_diagnostics</span>
-              </div>
-            </div>
-          </div>
-          <div class="terminal-note">
-            <span aria-hidden="true">✦</span> A shared tool registry for stdio and HTTP. Use
-            <code>tools/list</code> for current schemas.
-          </div>
-          <span class="copy-status" role="status" aria-live="polite"></span>
-        </div>
-      </section>
-
-      <section class="showcase">
-        <div class="wrap showcase-inner">
-          <div class="showcase-art">
-            <img
-              src="assets/asset-library.png"
-              alt="Forge asset library displaying a sample collection"
-              loading="lazy"
-            />
-          </div>
-          <div class="showcase-copy">
-            <p class="kicker">Made to keep things moving</p>
-            <h2>More time creating.<br /><em>Less time searching.</em></h2>
-            <p>
-              Keep assets with their project, inspect recent creations, and return to the work that
-              matters. The library brings previews, ratings, conversion and recoverable trash into
-              the same space.
+            </fieldset>
+            <p class="model-count" id="model-count" role="status" aria-live="polite">
+              16 cards: 15 catalog models and one group of supporting checkpoints.
             </p>
-            <a
-              class="text-link"
-              href="https://github.com/monstercameron/Game-Development-Studio#capabilities"
-              >Explore the studio <span aria-hidden="true">↗</span></a
-            >
+
+            <div class="legend" aria-label="Status legend">
+              <span class="badge badge-ok">Verified</span> recorded as verified through Forge, with
+              the noted limits · <span class="badge badge-part">Partial</span> tested or connected,
+              with open items · <span class="badge badge-exp">Experimental</span> early path; see
+              notes
+            </div>
+
+            <div class="model-grid">
+              <!-- Qwen Image -->
+              <article
+                class="model"
+                id="model-qwen-image"
+                data-ws="images"
+                aria-labelledby="mt-qwen-image"
+              >
+                <header>
+                  <p class="model-ws">Images</p>
+                  <h3 id="mt-qwen-image">Qwen Image 2.1</h3>
+                  <span class="badge badge-ok">Verified through Forge</span>
+                </header>
+                <p class="model-purpose">Generate characters, scenes and game art.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>
+                      Text prompt, optional reference images (up to 10; 10 MiB each, 40 MiB total) →
+                      image
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>Qwen Image Studio companion app · <code>:8189</code></dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>
+                      ~48 GiB load — a conservative, uncalibrated working budget plus 2 GiB reserve
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/Qwen/Qwen-Image-2.1">Qwen/Qwen-Image-2.1</a> ·
+                      <a href="https://github.com/QwenLM/Qwen-Image">QwenLM/Qwen-Image</a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>Not recorded in Forge’s docs; review the model card.</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd><code>-Models images</code>; needs the Qwen Image Studio environment</dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_queue_image</code>, <code>forge_stage_reference</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      One isolated 512×512, 12-step run sampled a peak of 34,900 MiB across all GPU
+                      processes; other settings can use more.
+                    </li>
+                    <li>
+                      An optional negative prompt enables guidance above 1; real negative-prompt
+                      inference has not yet been verified in Forge.
+                    </li>
+                    <li>
+                      The companion downloader follows the repo’s current revision, so it is not a
+                      pinned restore.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, catalog.js, STUDIO_GUIDE.md, MODEL_SOURCES.md,
+                  install-models.json
+                </p>
+              </article>
+
+              <!-- Hunyuan3D -->
+              <article class="model" id="model-hunyuan" data-ws="3d" aria-labelledby="mt-hunyuan">
+                <header>
+                  <p class="model-ws">3D models</p>
+                  <h3 id="mt-hunyuan">Hunyuan3D 2.1</h3>
+                  <span class="badge badge-ok">Verified · shape only</span>
+                </header>
+                <p class="model-purpose">Turn a reference image into an untextured 3D shape.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>Reference image → untextured GLB</dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>Hunyuan3D shape worker (isolated) · <code>:8283</code></dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>~16 GiB load · up to +16 GiB render</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/tencent/Hunyuan3D-2.1"
+                        >tencent/Hunyuan3D-2.1</a
+                      >
+                      · <a href="https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1">source</a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>
+                      The installer stages the upstream <code>LICENSE</code> and
+                      <code>Notice.txt</code>; review them.
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd><code>-Models 3d-hunyuan</code> (supports <code>-Activate</code>)</dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_queue_hunyuan_shape</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>Shape and VAE checkpoints verified against upstream SHA-256 checksums.</li>
+                    <li>
+                      Produced a 38,848-vertex untextured GLB from the upstream example image at 30
+                      steps and resolution 128. Resolutions 256 and 384 are experimental.
+                    </li>
+                    <li>
+                      Texture generation is not connected; the texture model has not been installed
+                      or tested.
+                    </li>
+                    <li>
+                      A Pillow preprocessing fallback replaces OpenCV and has not been shown
+                      pixel-identical to upstream.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, WINDOWS_ARM64.md, MODEL_SOURCES.md,
+                  INSTALLATION.md
+                </p>
+              </article>
+
+              <!-- TRELLIS.2 -->
+              <article
+                class="model"
+                id="model-trellis"
+                data-ws="3d exp"
+                aria-labelledby="mt-trellis"
+              >
+                <header>
+                  <p class="model-ws">3D models</p>
+                  <h3 id="mt-trellis">TRELLIS.2</h3>
+                  <span class="badge badge-exp">Experimental · render unverified</span>
+                </header>
+                <p class="model-purpose">Create experimental textured 3D models from an image.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>Transparent PNG or WebP reference → textured GLB</dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>
+                      TRELLIS.2 worker, native Windows ARM64 port, 512 pipeline · <code>:8285</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>
+                      ~4 GiB load · +24 GiB render; preparation needs 12 GiB free system memory
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/microsoft/TRELLIS.2-4B"
+                        >microsoft/TRELLIS.2-4B</a
+                      >
+                      · <a href="https://github.com/microsoft/TRELLIS.2">source</a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Access</dt>
+                    <dd>
+                      Needs the gated DINOv3 encoder (approval required) and a supporting decoder
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd>
+                      <code>-Models 3d-trellis</code>, or the pinned, hash-checking downloaders
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_queue_trellis</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      A complete render has not been verified, and its memory budget is not
+                      calibrated.
+                    </li>
+                    <li>
+                      A real test loaded the offline 512 pipeline and ran DINOv3 feature extraction
+                      on CUDA. Queue, HTTP, MCP and UI were tested with a substitute renderer.
+                    </li>
+                    <li>
+                      CuMesh, FlexGEMM, O-Voxel and nvdiffrast were built for Windows ARM64 and
+                      exercised with small CUDA operations. Upstream documents Linux support; this
+                      is not upstream Windows support.
+                    </li>
+                    <li>
+                      Upstream’s background-removal model (briaai/RMBG-2.0) returned HTTP 403 for
+                      the saved account, so input must already be transparent; the segmentation
+                      panel can prepare it.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, WINDOWS_ARM64.md, MODEL_SOURCES.md,
+                  runtime/README.md
+                </p>
+              </article>
+
+              <!-- WorldGen -->
+              <article
+                class="model"
+                id="model-worldgen"
+                data-ws="worlds"
+                aria-labelledby="mt-worldgen"
+              >
+                <header>
+                  <p class="model-ws">Worlds</p>
+                  <h3 id="mt-worldgen">WorldGen</h3>
+                  <span class="badge badge-part">CUDA queue tested</span>
+                </header>
+                <p class="model-purpose">
+                  Generate a 3D environment from text, one image, or a 360° panorama.
+                </p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>Text, image or panorama → Gaussian-splat PLY or mesh PLY</dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>
+                      World generation worker · <code>:8288</code>; process exits after each job
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>Varies by mode; not yet calibrated</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://github.com/ZiYang-xie/WorldGen">ZiYang-xie/WorldGen</a> ·
+                      <a href="https://huggingface.co/LeoXie/WorldGen">LoRAs</a> ·
+                      <a href="https://huggingface.co/haodongli/DA-2">DA-2 depth</a> · FLUX.1
+                      <a href="https://huggingface.co/black-forest-labs/FLUX.1-dev">dev</a> /
+                      <a href="https://huggingface.co/black-forest-labs/FLUX.1-Fill-dev">Fill</a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>
+                      FLUX.1 dev has non-commercial terms; the optional Q5 transformers inherit
+                      them. FLUX may require accepting terms and a Hugging Face token.
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd>
+                      <code>-Models worldgen</code> stages the two Q5 GGUFs (supports
+                      <code>-Activate</code>)
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_queue_world</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      CUDA queue tests completed text-to-splat, image-to-splat and
+                      panorama-to-splat/mesh.
+                    </li>
+                    <li>
+                      Scenes are starting points, not guaranteed game-ready geometry: seams, holes
+                      and distortion can remain as the viewpoint moves.
+                    </li>
+                    <li>
+                      Without the Q5 files (<code>city96/FLUX.1-dev-gguf</code>,
+                      <code>second-state/FLUX.1-Fill-dev-GGUF</code>) the full-precision fallback
+                      can demand substantially more Windows commit memory.
+                    </li>
+                    <li>
+                      Forge uses the existing cache offline and does not download missing files
+                      during a render. A render guard stops the world process if commit memory
+                      becomes critically low.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, MODEL_SOURCES.md, INSTALLATION.md,
+                  install-models.json
+                </p>
+              </article>
+
+              <!-- HY-World -->
+              <article
+                class="model"
+                id="model-hyworld"
+                data-ws="worlds"
+                aria-labelledby="mt-hyworld"
+              >
+                <header>
+                  <p class="model-ws">Worlds</p>
+                  <h3 id="mt-hyworld">HY-World 2.0</h3>
+                  <span class="badge badge-part">CUDA queue tested</span>
+                </header>
+                <p class="model-purpose">
+                  Reconstruct a 3D Gaussian-splat scene from one or more images.
+                </p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>1–8 reference images of the same scene → Gaussian-splat PLY</dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>
+                      World generation worker with the WorldMirror 2.0 weights · <code>:8288</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>Varies by image count and resolution</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/tencent/HY-World-2.0">tencent/HY-World-2.0</a>
+                      · <a href="https://github.com/Tencent-Hunyuan/HY-World-2.0">source</a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>Not recorded in Forge’s docs; review the model card.</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd><code>-Models hy-world</code>; needs the separate Windows compat-port</dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_queue_world</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>A four-image reconstruction completed in CUDA queue tests.</li>
+                    <li>
+                      Only image reconstruction is exposed, not the larger WorldStereo or HY-Pano
+                      pipelines.
+                    </li>
+                    <li>
+                      Each render runs in an isolated process with forced CUDA inference; logs
+                      appear under Diagnostics → Worlds.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, MODEL_SOURCES.md, AGENT_SETUP.md
+                </p>
+              </article>
+
+              <!-- HY-Motion -->
+              <article
+                class="model"
+                id="model-hymotion"
+                data-ws="motion exp"
+                aria-labelledby="mt-hymotion"
+              >
+                <header>
+                  <p class="model-ws">Character motion</p>
+                  <h3 id="mt-hymotion">HY-Motion 1.0</h3>
+                  <span class="badge badge-exp">Experimental</span>
+                </header>
+                <p class="model-purpose">Generate human motion from a text description.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>
+                      Text prompt → 30 fps skeletal BVH in the project’s <code>motion/</code> folder
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>HY-Motion worker · <code>:8286</code></dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>~26 GiB load · +8–16 GiB render; loading needs 9 GiB free system memory</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/tencent/HY-Motion-1.0"
+                        >tencent/HY-Motion-1.0</a
+                      >
+                      with
+                      <a href="https://huggingface.co/openai/clip-vit-large-patch14"
+                        >CLIP ViT-L/14</a
+                      >
+                      and <a href="https://huggingface.co/Qwen/Qwen3-8B">Qwen3-8B</a> text encoders
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>The installer stages the upstream <code>LICENSE.txt</code>; review it.</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd><code>-Models motion-hy</code> (supports <code>-Activate</code>)</dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_queue_hymotion</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>Checkpoint and both encoders verified against upstream file hashes.</li>
+                    <li>
+                      One standalone Windows ARM64 test produced a 45-frame clip with eight sampling
+                      steps; motion quality has not been assessed.
+                    </li>
+                    <li>
+                      An isolated real queue attempt stopped safely when system memory fell below
+                      the encoder-loading threshold; the detailed notes list a complete real queued
+                      render as unverified.
+                    </li>
+                    <li>Automatic rigging and retargeting are not connected.</li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, WINDOWS_ARM64.md, MODEL_SOURCES.md
+                </p>
+              </article>
+
+              <!-- MotionBricks -->
+              <article
+                class="model"
+                id="model-motionbricks"
+                data-ws="motion exp"
+                aria-labelledby="mt-motionbricks"
+              >
+                <header>
+                  <p class="model-ws">Character motion</p>
+                  <h3 id="mt-motionbricks">NVIDIA MotionBricks</h3>
+                  <span class="badge badge-exp">Experimental</span>
+                </header>
+                <p class="model-purpose">Create transitions between SOMA motion poses.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>SOMA BVH motion, start and target pose windows → BVH motion transition</dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>
+                      MotionBricks SOMA worker, PyTorch graph on CUDA (CPU disabled) ·
+                      <code>:8287</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>~8 GiB load · +3 GiB render (also checks 7 GiB / 4 GiB system memory)</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/nvidia/MotionBricks">nvidia/MotionBricks</a> ·
+                      <a href="https://github.com/NVlabs/motionbricks">NVlabs/motionbricks</a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>
+                      Upstream documents separate source and model licenses; the sample-motion
+                      license restricts sample poses to evaluation and testing.
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd><code>-Models motion-bricks</code> (supports <code>-Activate</code>)</dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd>
+                      <code>forge_stage_soma_pose</code>, <code>forge_queue_motionbricks</code>
+                    </dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      A real isolated Forge queue test produced a SOMA BVH clip on CUDA from
+                      NVIDIA’s evaluation-only sample poses; visual quality has not been assessed.
+                    </li>
+                    <li>
+                      No endpoint correction or character retargeting. G1 CUDA inference and the
+                      ONNX paths are not connected.
+                    </li>
+                    <li>
+                      Input BVH must be Y-up in centimetres, contain the 30 named SOMA joints, use
+                      30, 60 or 120 fps, and stay under 10 MiB.
+                    </li>
+                    <li>
+                      Earlier TensorRT-RTX tests failed with CUDA error 716 and DirectML required
+                      CPU fallback, so neither path is enabled.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, WINDOWS_ARM64.md, MODEL_SOURCES.md
+                </p>
+              </article>
+
+              <!-- H3 -->
+              <article class="model" id="model-h3" data-ws="video" aria-labelledby="mt-h3">
+                <header>
+                  <p class="model-ws">Video</p>
+                  <h3 id="mt-h3">MiniMax H3 Ref2VA</h3>
+                  <span class="badge badge-ok">Verified through Forge</span>
+                </header>
+                <p class="model-purpose">Animate reference images into short video clips.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>
+                      Text prompt and 1–9 reference images (10 MiB each, 40 MiB total) → WebM video
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>
+                      H3 Studio companion app, its own stable-diffusion.cpp on Vulkan, behind a
+                      guard · <code>:8274</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>~6 GiB render — H3’s configured VRAM limit plus 2 GiB reserve</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/MiniMaxAI/MiniMax-H3">MiniMaxAI/MiniMax-H3</a>
+                      ·
+                      <a href="https://huggingface.co/leejet/MiniMax-H3-GGUF"
+                        >leejet/MiniMax-H3-GGUF</a
+                      >
+                      (Q4_K_M)
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>Not recorded in Forge’s docs; review the model card.</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd>
+                      <code>-Models video</code> stages diffusion and encoder GGUFs, not the VAEs
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd>
+                      <code>forge_stage_video_reference</code>, <code>forge_queue_video</code>
+                    </dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      The exact source of the installed model copies has not been established from
+                      local metadata.
+                    </li>
+                    <li>
+                      The current service fixes resolution by aspect and does not expose a seed.
+                    </li>
+                    <li>
+                      H3 exposes only its current job; if it no longer recognizes an accepted job,
+                      Forge stops the queue for review.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, MODEL_SOURCES.md, WINDOWS_ARM64.md,
+                  install-models.json
+                </p>
+              </article>
+
+              <!-- YuE2 -->
+              <article class="model" id="model-yue2" data-ws="music" aria-labelledby="mt-yue2">
+                <header>
+                  <p class="model-ws">Music</p>
+                  <h3 id="mt-yue2">YuE2</h3>
+                  <span class="badge badge-ok">Verified through Forge</span>
+                </header>
+                <p class="model-purpose">Create music from a style direction and lyrics.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>Style description, lyrics or <code>[Instrumental]</code> → music audio</dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>YuE2 Studio in the Snapdargon-DJ companion app · <code>:8765</code></dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>~24 GiB load (the CUDA pipeline’s budget) plus 2 GiB reserve</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/m-a-p/YuE2-3B">m-a-p/YuE2-3B</a> ·
+                      <a href="https://huggingface.co/m-a-p/YuE2-Vae">YuE2-Vae</a> ·
+                      <a href="https://github.com/multimodal-art-projection/YuE">source</a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>Review the model’s license terms (not summarized in Forge’s docs).</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd><code>-Models music</code>; needs the Snapdargon-DJ CUDA environment</dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_queue_music</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      The companion service lacks a guarded stop, so it is never offloaded
+                      automatically; the memory dialog offers manual choices.
+                    </li>
+                    <li>
+                      Model loads pause later renders until loading finishes or fails; the barrier
+                      survives cancellation and restarts.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, MODEL_SOURCES.md, install-models.json
+                </p>
+              </article>
+
+              <!-- Stable Audio -->
+              <article
+                class="model"
+                id="model-stable-audio"
+                data-ws="sfx"
+                aria-labelledby="mt-stable-audio"
+              >
+                <header>
+                  <p class="model-ws">Sound effects</p>
+                  <h3 id="mt-stable-audio">Stable Audio 3 Medium</h3>
+                  <span class="badge badge-ok">Verified · gated access</span>
+                </header>
+                <p class="model-purpose">Generate sound effects and ambient audio.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>Text prompt with custom duration and steps → sound-effect audio</dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>Stable Audio Lab companion app · <code>:7863</code></dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>~20 GiB load — uncalibrated working budget plus 2 GiB reserve</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/stabilityai/stable-audio-3-medium"
+                        >stabilityai/stable-audio-3-medium</a
+                      >
+                      ·
+                      <a href="https://github.com/Stability-AI/stable-audio-tools"
+                        >stable-audio-tools</a
+                      >
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Access</dt>
+                    <dd>
+                      Gated: approved Hugging Face access required. License terms are on the model
+                      card.
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd>
+                      <code>-Models sfx</code>; Stable Audio Lab’s downloader builds the Hub cache
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_queue_sound</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      The token is used only by Forge’s own managed sound worker and is not written
+                      to the queue, MCP calls or Forge logs.
+                    </li>
+                    <li>Like YuE2, the companion service is not automatically offloaded.</li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, MODEL_SOURCES.md, INSTALLATION.md
+                </p>
+              </article>
+
+              <!-- Qwen3-TTS -->
+              <article class="model" id="model-tts" data-ws="voices" aria-labelledby="mt-tts">
+                <header>
+                  <p class="model-ws">Voices</p>
+                  <h3 id="mt-tts">Qwen3-TTS CustomVoice</h3>
+                  <span class="badge badge-ok">Verified · preset voices</span>
+                </header>
+                <p class="model-purpose">Turn dialogue into speech with preset voices.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>
+                      Dialogue text, one of nine preset speakers, optional voice direction →
+                      completed WAV
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>Qwen3-TTS worker (12Hz, 1.7B) · <code>:8281</code></dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>~12 GiB load · +8 GiB render</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+                        >Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice</a
+                      >
+                      · <a href="https://github.com/QwenLM/Qwen3-TTS">source</a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>Not recorded in Forge’s docs; review the model card.</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd><code>-Models tts</code> (supports <code>-Activate</code>)</dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_queue_voice</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      Returns a completed file, not a live stream. Voice cloning and voice design
+                      need other models and are not connected.
+                    </li>
+                    <li>
+                      Its environment shares CUDA libraries from the Snapdargon-DJ runtime, so it is
+                      not self-contained.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, WINDOWS_ARM64.md, MODEL_SOURCES.md
+                </p>
+              </article>
+
+              <!-- Nemotron ASR -->
+              <article class="model" id="model-asr" data-ws="voices" aria-labelledby="mt-asr">
+                <header>
+                  <p class="model-ws">Voices · speech to text</p>
+                  <h3 id="mt-asr">Nemotron Speech Streaming 0.6B</h3>
+                  <span class="badge badge-part">Connected</span>
+                </header>
+                <p class="model-purpose">Transcribe spoken English from audio or a microphone.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>
+                      Microphone audio or a project WAV → English transcript (partial and final)
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>
+                      NVIDIA NeMo-Speech.cpp 0.3.0, Windows ARM64 CUDA, behind a guard ·
+                      <code>:8282</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>~4 GiB load — uncalibrated, plus 2 GiB reserve</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b"
+                        >nvidia/nemotron-speech-streaming-en-0.6b</a
+                      >
+                      (Q8_0 GGUF) ·
+                      <a href="https://github.com/NVIDIA/NeMo-Speech.cpp/releases/tag/v0.3.0"
+                        >runtime v0.3.0</a
+                      >
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>Not recorded in Forge’s docs; review the model card.</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd>
+                      <code>-Models asr</code> (supports <code>-Activate</code>); runtime installed
+                      separately
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd>
+                      <code>forge_load_asr_model</code>, <code>forge_transcribe_project_audio</code>
+                    </dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>Model and runtime verified against upstream SHA-256 checksums.</li>
+                    <li>
+                      Not automatically restarted after a crash, because a restart needs a fresh GPU
+                      check.
+                    </li>
+                    <li>
+                      Files in the UI: up to two minutes and 25 MiB. API: project WAVs up to 32 MiB.
+                      MCP transcription is buffered, not realtime.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, MODEL_SOURCES.md, MCP.md
+                </p>
+              </article>
+
+              <!-- SAM 3.1 -->
+              <article class="model" id="model-sam" data-ws="seg" aria-labelledby="mt-sam">
+                <header>
+                  <p class="model-ws">Segmentation</p>
+                  <h3 id="mt-sam">Meta SAM 3.1</h3>
+                  <span class="badge badge-ok">Verified · still images</span>
+                </header>
+                <p class="model-purpose">Select and isolate objects in an image.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>
+                      One PNG, JPEG or WebP image and a text description → transparent PNG or mask
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>SAM 3.1 worker (isolated) · <code>:8284</code></dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>~12 GiB load plus 2 GiB reserve; 9 GiB free system memory</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/facebook/sam3.1">facebook/sam3.1</a>
+                      (<code>sam3.1_multiplex.pt</code>) ·
+                      <a href="https://github.com/facebookresearch/sam3">source</a>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Access</dt>
+                    <dd>Gated: access approval required.</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd><code>-Models segmentation</code> (supports <code>-Activate</code>)</dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_queue_segmentation</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      A real Windows ARM64 test isolated a truck in Meta’s example image and saved a
+                      transparent PNG through MCP and the queue. That single sample does not
+                      establish general quality.
+                    </li>
+                    <li>Point and box prompts and video tracking are not connected.</li>
+                    <li>
+                      The Python 3.14 / NumPy 2 environment is outside SAM’s declared NumPy range
+                      and remains experimental.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, WINDOWS_ARM64.md, MODEL_SOURCES.md
+                </p>
+              </article>
+
+              <!-- Mammoth -->
+              <article class="model" id="model-mammoth" data-ws="game" aria-labelledby="mt-mammoth">
+                <header>
+                  <p class="model-ws">Game logic</p>
+                  <h3 id="mt-mammoth">Mammoth-1</h3>
+                  <span class="badge badge-part">Requests verified</span>
+                </header>
+                <p class="model-purpose">Test structured decisions for game characters.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>Game state and a choice, score or yes/no question → structured decision</dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>
+                      Mammoth Studio companion app, or Forge’s guarded worker · <code>:8791</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>~24 GiB load plus 2 GiB reserve; 6 GiB free system memory</dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/magnitudedev/mammoth-1-GGUF"
+                        >magnitudedev/mammoth-1-GGUF</a
+                      >, <code>mammoth-1-Q4_K_M.gguf</code> (16,547,406,624 bytes)
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>Not recorded in Forge’s docs; review the model card.</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd><code>-Models game</code>; needs the Mammoth Studio environment</dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd><code>forge_game_decide</code>, <code>forge_load_game_model</code></dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      A real request through Forge has been verified using the existing external
+                      Mammoth decision bridge.
+                    </li>
+                    <li>A full managed GPU model load has not yet been verified.</li>
+                    <li>Never automatically stopped by the queue’s memory manager.</li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, MODEL_SOURCES.md
+                </p>
+              </article>
+
+              <!-- Chat -->
+              <article class="model" id="model-chat" data-ws="chat" aria-labelledby="mt-chat">
+                <header>
+                  <p class="model-ws">Chat</p>
+                  <h3 id="mt-chat">Qwen3.8-27B</h3>
+                  <span class="badge badge-part">Connected · MTP unverified</span>
+                </header>
+                <p class="model-purpose">Chat and create structured data for your game.</p>
+                <dl class="facts-list">
+                  <div>
+                    <dt>In → out</dt>
+                    <dd>Chat messages, optional JSON schema → text or structured JSON</dd>
+                  </div>
+                  <div>
+                    <dt>Engine</dt>
+                    <dd>
+                      Official llama.cpp <code>b12180</code> Windows ARM64 CUDA 13.5 server ·
+                      <code>/api/chat/completions</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>GPU</dt>
+                    <dd>
+                      ~18.75 GiB at 4K context (LM Studio’s offline estimate); admission at 4K needs
+                      21 GiB free system and 21 GiB free GPU memory
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Upstream</dt>
+                    <dd>
+                      <a href="https://huggingface.co/lmstudio-community/Qwen3.8-27B-GGUF"
+                        >lmstudio-community/Qwen3.8-27B-GGUF</a
+                      >
+                      (Q4_K_M) ·
+                      <a href="https://github.com/ggml-org/llama.cpp/releases/tag/b12180"
+                        >llama.cpp b12180</a
+                      >
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>License</dt>
+                    <dd>Not recorded in Forge’s docs; review the model card.</dd>
+                  </div>
+                  <div>
+                    <dt>Install</dt>
+                    <dd><code>-Models chat</code>; LM Studio is not the inference server</dd>
+                  </div>
+                  <div>
+                    <dt>MCP</dt>
+                    <dd>
+                      <code>forge_chat</code>, <code>forge_chat_models</code>,
+                      <code>forge_load_chat_model</code>
+                    </dd>
+                  </div>
+                </dl>
+                <details>
+                  <summary>Verification &amp; limits</summary>
+                  <ul>
+                    <li>
+                      MTP speculative decoding is requested at startup; activation and performance
+                      have not been verified.
+                    </li>
+                    <li>
+                      Thinking budgets of 256 / 768 / 1536 tokens for low / medium / high on the
+                      managed local server.
+                    </li>
+                    <li>
+                      No safe idle-stop guard; Force stop interrupts a response. OpenAI and other
+                      compatible providers can be configured separately — a cloud request sends its
+                      conversation to that provider.
+                    </li>
+                  </ul>
+                </details>
+                <p class="model-src">
+                  Sources: model-catalog.js, STUDIO_GUIDE.md, MCP.md, AGENT_SETUP.md,
+                  install-models.json
+                </p>
+              </article>
+
+              <!-- Supporting -->
+              <article
+                class="model model-support"
+                id="model-support"
+                data-ws="3d seg motion worlds"
+                aria-labelledby="mt-support"
+              >
+                <header>
+                  <p class="model-ws">Supporting checkpoints</p>
+                  <h3 id="mt-support">Encoders, decoders &amp; extras</h3>
+                  <span class="badge badge-info">Dependencies</span>
+                </header>
+                <p class="model-purpose">
+                  Files other models rely on. They are not separate studio tools.
+                </p>
+                <ul class="support-list">
+                  <li>
+                    <strong>TRELLIS image decoder</strong> —
+                    <a href="https://huggingface.co/microsoft/TRELLIS-image-large"
+                      >microsoft/TRELLIS-image-large</a
+                    >; used by TRELLIS.2.
+                  </li>
+                  <li>
+                    <strong>DINOv3 ViT-L/16</strong> —
+                    <a href="https://huggingface.co/facebook/dinov3-vitl16-pretrain-lvd1689m"
+                      >facebook/dinov3-vitl16-pretrain-lvd1689m</a
+                    >; image encoder for TRELLIS.2. Access approval required.
+                  </li>
+                  <li>
+                    <strong>SAM 3 checkpoint</strong> —
+                    <a href="https://huggingface.co/facebook/sam3">facebook/sam3</a>; optional, with
+                    its own access requirements. Its presence does not establish that the SAM 3.1
+                    worker uses it.
+                  </li>
+                  <li>
+                    <strong>CLIP ViT-L/14 and Qwen3-8B</strong> — text encoders stored under
+                    <code>models/HY-Motion/</code>.
+                  </li>
+                  <li>
+                    <strong>FLUX.1 components, panorama LoRAs and DA-2</strong> — required by
+                    WorldGen and restored with its own scripts.
+                  </li>
+                </ul>
+                <p class="model-src">
+                  Sources: model-catalog.js, MODEL_SOURCES.md, INSTALLATION.md
+                </p>
+              </article>
+            </div>
+            <p class="model-foot">
+              Revisions, representative SHA-256 hashes and restore commands are in
+              <a
+                href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/MODEL_SOURCES.md"
+                >Model sources and restoration</a
+              >. Source repositories and terms can change; review the model card before downloading
+              or using a model.
+            </p>
           </div>
         </div>
       </section>
 
-      <section class="start-section wrap" id="get-started">
-        <div>
-          <p class="kicker">Start making</p>
-          <h2>Build something<br /><em>worth exploring.</em></h2>
-          <p>
-            Forge is an early-stage open-source project. The current local setup targets Windows
-            ARM64 and NVIDIA GPU inference. Models, runtimes and some companion apps require
-            separate installation.
+      <!-- ARCHITECTURE -->
+      <section class="section" id="architecture" aria-labelledby="arch-title">
+        <div class="wrap">
+          <p class="kicker">Architecture</p>
+          <h2 id="arch-title">Supervised, isolated, local<span class="dot">.</span></h2>
+          <p class="section-lead">
+            <code>server.js</code> supervises an HTTP host in a separate process. That host
+            supervises a runtime process that runs the durable SQLite queue and a GPU-monitor worker
+            thread. Engine processes are isolated from the HTTP and queue processes, and the main
+            supervisor keeps handles to the engines it started, so an HTTP-host restart does not
+            give up ownership.
           </p>
-          <div class="start-actions">
-            <a
-              class="button button-primary"
-              href="https://github.com/monstercameron/Game-Development-Studio"
-              >Explore on GitHub <span aria-hidden="true">↗</span></a
-            ><a
-              class="button button-quiet"
-              href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/INSTALLATION.md"
-              >Read the installation guide</a
-            >
+
+          <figure class="diagram">
+            <div class="diagram-scroll" tabindex="0" role="region" aria-labelledby="arch-caption">
+              <svg
+                viewBox="0 0 1000 600"
+                role="img"
+                aria-labelledby="arch-svg-title arch-svg-desc"
+                class="arch"
+              >
+                <title id="arch-svg-title">Forge architecture</title>
+                <desc id="arch-svg-desc">
+                  The browser UI and the Electron desktop window talk to the local Studio service at
+                  127.0.0.1:5173. Agents connect over Streamable HTTP MCP at /mcp, or through the
+                  stdio bridge runtime/mcp.js, which calls the same HTTP API. Inside the service,
+                  the server.js parent supervisor runs the HTTP host, which supervises the runtime
+                  process holding the durable SQLite queue and GPU monitor. The engine broker
+                  handles memory admission, start, load and ownership for isolated engine processes
+                  on fixed loopback ports. Models, projects and runtime state live in models/,
+                  projects/ and .forge-runtime/.
+                </desc>
+                <defs>
+                  <marker
+                    id="arrow"
+                    viewBox="0 0 10 10"
+                    refX="9"
+                    refY="5"
+                    markerWidth="7"
+                    markerHeight="7"
+                    orient="auto-start-reverse"
+                  >
+                    <path d="M0 0 L10 5 L0 10 z" class="d-arrowhead" />
+                  </marker>
+                </defs>
+
+                <!-- Clients -->
+                <text x="20" y="28" class="d-label">CLIENTS</text>
+                <rect x="20" y="44" width="200" height="66" rx="10" class="d-box" />
+                <text x="36" y="72" class="d-title">React UI</text>
+                <text x="36" y="94" class="d-sub">in your browser</text>
+
+                <rect x="20" y="126" width="200" height="66" rx="10" class="d-box" />
+                <text x="36" y="154" class="d-title">Desktop window</text>
+                <text x="36" y="176" class="d-sub">Electron + Windows tray</text>
+
+                <rect x="20" y="262" width="200" height="66" rx="10" class="d-box d-box-purple" />
+                <text x="36" y="290" class="d-title">Agent</text>
+                <text x="36" y="312" class="d-sub">MCP client, 2026-07-28</text>
+
+                <rect x="20" y="380" width="200" height="66" rx="10" class="d-box d-box-purple" />
+                <text x="36" y="408" class="d-title">stdio bridge</text>
+                <text x="36" y="430" class="d-sub d-mono">runtime/mcp.js</text>
+
+                <!-- Studio service container -->
+                <rect x="262" y="12" width="290" height="466" rx="14" class="d-group" />
+                <text x="280" y="36" class="d-label d-accent">STUDIO SERVICE · 127.0.0.1:5173</text>
+
+                <rect x="280" y="50" width="254" height="60" rx="10" class="d-box" />
+                <text x="296" y="76" class="d-title">Parent supervisor</text>
+                <text x="296" y="96" class="d-sub d-mono">server.js</text>
+
+                <rect x="280" y="140" width="254" height="84" rx="10" class="d-box d-box-orange" />
+                <text x="296" y="166" class="d-title">HTTP host</text>
+                <text x="296" y="186" class="d-sub">React app · HTTP API</text>
+                <text x="296" y="206" class="d-sub">Streamable HTTP MCP at /mcp</text>
+
+                <rect x="280" y="254" width="254" height="84" rx="10" class="d-box d-box-orange" />
+                <text x="296" y="280" class="d-title">Runtime process</text>
+                <text x="296" y="300" class="d-sub">Durable SQLite render queue</text>
+                <text x="296" y="320" class="d-sub">GPU-monitor worker thread</text>
+
+                <rect x="280" y="368" width="254" height="92" rx="10" class="d-box" />
+                <text x="296" y="394" class="d-title">Engine broker</text>
+                <text x="296" y="414" class="d-sub">Memory admission · start / load</text>
+                <text x="296" y="434" class="d-sub">Ownership · safe stop · force stop</text>
+
+                <!-- Engines container -->
+                <rect x="598" y="12" width="382" height="466" rx="14" class="d-group" />
+                <text x="616" y="36" class="d-label d-accent">
+                  ISOLATED ENGINES · LOOPBACK ONLY
+                </text>
+                <g class="d-chips">
+                  <rect x="616" y="52" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="630" y="77" class="d-chip-t">
+                    Qwen Image
+                    <tspan class="d-port">:8189</tspan>
+                  </text>
+                  <rect x="794" y="52" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="808" y="77" class="d-chip-t">
+                    YuE2
+                    <tspan class="d-port">:8765</tspan>
+                  </text>
+                  <rect x="616" y="100" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="630" y="125" class="d-chip-t">
+                    Stable Audio
+                    <tspan class="d-port">:7863</tspan>
+                  </text>
+                  <rect x="794" y="100" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="808" y="125" class="d-chip-t">
+                    H3 video
+                    <tspan class="d-port">:8274</tspan>
+                  </text>
+                  <rect x="616" y="148" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="630" y="173" class="d-chip-t">
+                    Worlds
+                    <tspan class="d-port">:8288</tspan>
+                  </text>
+                  <rect x="794" y="148" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="808" y="173" class="d-chip-t">
+                    Mammoth-1
+                    <tspan class="d-port">:8791</tspan>
+                  </text>
+                  <rect x="616" y="196" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="630" y="221" class="d-chip-t">
+                    TRELLIS.2
+                    <tspan class="d-port">:8285</tspan>
+                  </text>
+                  <rect x="794" y="196" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="808" y="221" class="d-chip-t">
+                    Hunyuan3D
+                    <tspan class="d-port">:8283</tspan>
+                  </text>
+                  <rect x="616" y="244" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="630" y="269" class="d-chip-t">
+                    HY-Motion
+                    <tspan class="d-port">:8286</tspan>
+                  </text>
+                  <rect x="794" y="244" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="808" y="269" class="d-chip-t">
+                    MotionBricks
+                    <tspan class="d-port">:8287</tspan>
+                  </text>
+                  <rect x="616" y="292" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="630" y="317" class="d-chip-t">
+                    Qwen3-TTS
+                    <tspan class="d-port">:8281</tspan>
+                  </text>
+                  <rect x="794" y="292" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="808" y="317" class="d-chip-t">
+                    Nemotron ASR
+                    <tspan class="d-port">:8282</tspan>
+                  </text>
+                  <rect x="616" y="340" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="630" y="365" class="d-chip-t">
+                    SAM 3.1
+                    <tspan class="d-port">:8284</tspan>
+                  </text>
+                  <rect x="794" y="340" width="170" height="40" rx="8" class="d-chip" />
+                  <text x="808" y="365" class="d-chip-t">llama.cpp chat</text>
+                </g>
+                <text x="616" y="410" class="d-sub">Some engines bridge companion apps:</text>
+                <text x="616" y="430" class="d-sub">Qwen Image Studio, Snapdargon-DJ,</text>
+                <text x="616" y="450" class="d-sub">
+                  Stable Audio Lab, H3 Studio, Mammoth Studio
+                </text>
+
+                <!-- Storage -->
+                <text x="20" y="520" class="d-label">LOCAL STATE · IGNORED BY GIT</text>
+                <rect x="20" y="534" width="300" height="52" rx="10" class="d-box" />
+                <text x="36" y="566" class="d-title d-mono">projects/</text>
+                <text x="150" y="566" class="d-sub">your assets</text>
+                <rect x="350" y="534" width="300" height="52" rx="10" class="d-box" />
+                <text x="366" y="566" class="d-title d-mono">.forge-runtime/</text>
+                <text x="530" y="566" class="d-sub">queue · logs</text>
+                <rect x="680" y="534" width="300" height="52" rx="10" class="d-box" />
+                <text x="696" y="566" class="d-title d-mono">models/</text>
+                <text x="790" y="566" class="d-sub">checkpoints</text>
+
+                <!-- Arrows -->
+                <g class="d-lines" marker-end="url(#arrow)">
+                  <path d="M220 77 C250 77 250 172 280 172" />
+                  <path d="M220 159 C250 159 250 182 280 182" />
+                  <path d="M220 290 C250 290 250 200 280 200" class="d-line-purple" />
+                  <path d="M120 328 L120 380" class="d-line-purple" />
+                  <path d="M220 413 C252 413 248 214 280 214" class="d-line-purple" />
+                  <path d="M407 110 L407 140" />
+                  <path d="M407 224 L407 254" />
+                  <path d="M407 338 L407 368" />
+                  <path d="M534 414 C566 414 566 246 598 246" />
+                  <path d="M330 478 C330 506 300 512 290 534" />
+                  <path d="M470 478 C470 506 480 512 486 534" />
+                  <path d="M790 478 L790 534" />
+                </g>
+                <text x="128" y="360" class="d-sub d-small">or</text>
+              </svg>
+            </div>
+            <figcaption id="arch-caption">
+              How a request flows: clients and agents reach one loopback service; the queue hands
+              work to the engine broker, which starts or loads isolated engines after a memory
+              check.
+            </figcaption>
+          </figure>
+
+          <div class="cols-3">
+            <div class="card">
+              <h3>Engine pattern</h3>
+              <p>
+                A Python backend loads and runs the model, a worker owns the local HTTP service and
+                busy state, preparation code checks resources and starts or loads it, and a job
+                adapter moves inputs and outputs through the durable queue. Existing companion apps
+                keep their own APIs.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Process recovery</h3>
+              <p>
+                HTTP and runtime supervisors retry failed starts with backoff. Unexpected exits of
+                services started by the current runtime are retried up to three times, without
+                automatic model loading. On Windows, a restarted supervisor can re-adopt a verified
+                TRELLIS.2 worker; other engines are not yet adopted this way.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Honest status</h3>
+              <p>
+                A port answering is not proof of the expected engine. Forge checks each status
+                response against the engine it expects before reporting it reachable; otherwise the
+                service is shown as unverified or unavailable.
+              </p>
+            </div>
           </div>
         </div>
-        <div class="start-aside">
-          <span aria-hidden="true">✳</span>
-          <p>
-            <strong>Open source at the core.</strong><br />Forge is MIT licensed. Models and their
-            weights have their own licenses and access requirements.
+      </section>
+
+      <!-- QUEUE -->
+      <section class="section section-band" id="queue" aria-labelledby="queue-title">
+        <div class="wrap">
+          <p class="kicker">Render queue</p>
+          <h2 id="queue-title">One queue that remembers<span class="dot">.</span></h2>
+          <p class="section-lead">
+            Image, music, sound-effect, video, voice, Hunyuan shape, SAM segmentation, HY-Motion and
+            MotionBricks jobs (plus experimental TRELLIS.2 and world renders) run sequentially and
+            are stored in <code>.forge-runtime/jobs.sqlite</code>. Queue leases and accepted remote
+            IDs keep a crash from silently submitting duplicate work.
           </p>
+
+          <ol class="flow" aria-label="Job lifecycle">
+            <li>
+              <span class="flow-n">01</span>
+              <h3>Queued</h3>
+              <p>
+                Waiting jobs can be cancelled. Image, video and BVH inputs are snapshotted into the
+                project for recovery and retries.
+              </p>
+            </li>
+            <li>
+              <span class="flow-n">02</span>
+              <h3>Preparing</h3>
+              <p>
+                The engine starts on demand; GPU and system memory are checked before loading. If
+                short, Forge may stop one verified idle, Forge-managed worker, then re-check.
+              </p>
+            </li>
+            <li>
+              <span class="flow-n">03</span>
+              <h3>Accepted</h3>
+              <p>
+                The engine accepts the job and its remote ID is recorded. Render timing starts here.
+              </p>
+            </li>
+            <li>
+              <span class="flow-n">04</span>
+              <h3>Saved</h3>
+              <p>
+                Output is written atomically to the project’s matching asset folder, with render
+                history kept for reruns and refinement.
+              </p>
+            </li>
+          </ol>
+          <div class="flow-branch">
+            <span class="badge badge-exp">Interrupted</span>
+            <p>
+              If a crash makes a submission uncertain, the queue stops on an
+              <strong>interrupted</strong>
+              item instead of resubmitting. Check the engine’s own queue and history, then resolve
+              it. Later jobs wait until you do.
+            </p>
+          </div>
+
+          <div class="cols-3">
+            <div class="card">
+              <h3>Survives restarts</h3>
+              <p>
+                A job with a known remote ID resumes monitoring after a runtime restart. Completed
+                files from the Hunyuan3D, SAM, HY-Motion, MotionBricks and Qwen3-TTS workers can be
+                recovered without reloading the model. Model-load barriers persist too.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Retries reuse work</h3>
+              <p>
+                Retrying a failed job with a known engine job ID rechecks that job rather than
+                rendering again. Submit a new request with a different seed for a new variation.
+                Running jobs cannot yet be cancelled from Forge.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Estimates, labelled</h3>
+              <p>
+                Exact estimates use completed jobs with matching settings; nearby settings give a
+                result marked <strong>rough</strong>. Without suitable history the studio says the
+                time is unknown instead of inventing one.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STORAGE -->
+      <section class="section" id="storage" aria-labelledby="storage-title">
+        <div class="wrap">
+          <p class="kicker">Data &amp; storage</p>
+          <h2 id="storage-title">Your files stay on disk<span class="dot">.</span></h2>
+          <p class="section-lead">
+            These directories, installed dependencies and native binaries are ignored by Git. Back
+            up
+            <code>projects/</code> and any runtime state you need separately from the source
+            repository.
+          </p>
+          <div class="cols-3">
+            <div class="card tree-card">
+              <h3><code>projects/</code></h3>
+              <pre class="tree"><code>projects/
+└── Your Game/
+    ├── .forge-project.json
+    ├── images/
+    ├── video/
+    ├── music/
+    ├── sfx/
+    ├── voices/
+    └── masks/</code></pre>
+              <p>
+                Created per project with sanitized names. Generated motion goes to
+                <code>motion/</code> and saved transcripts, chat replies and decisions to
+                <code>text/</code>. Hidden <code>.forge-inputs</code> and
+                <code>.forge-thumbnails</code> hold reference snapshots and cached thumbnails.
+              </p>
+            </div>
+            <div class="card tree-card">
+              <h3><code>.forge-runtime/</code></h3>
+              <pre class="tree"><code>.forge-runtime/
+├── jobs.sqlite
+├── runtime-worker.log
+├── engine-chat.log
+├── credentials/
+│   └── keys.sqlite
+└── …engine environments</code></pre>
+              <p>
+                Launcher state, server logs, the persistent queue database, notification preferences
+                and DPAPI-encrypted API keys. Keep it if you need queue history.
+              </p>
+            </div>
+            <div class="card tree-card">
+              <h3><code>models/</code></h3>
+              <pre class="tree"><code>models/
+├── Qwen-Image-2.1/
+├── Hunyuan3D-2.1/
+├── TRELLIS.2-4B/
+├── HY-Motion/
+├── sam3.1/
+├── worldgen/
+└── …</code></pre>
+              <p>
+                The canonical model directory. Some standalone apps reach the same files through
+                compatibility links, and shared models are protected from Studio removal until their
+                consumers can be coordinated.
+              </p>
+            </div>
+          </div>
+          <p class="note">
+            Drafts, the selected project, notification preferences and sample ratings live in
+            browser local storage, so switching browsers or ports can make them unavailable.
+          </p>
+        </div>
+      </section>
+
+      <!-- API & MCP -->
+      <section class="section section-band" id="api" aria-labelledby="api-title">
+        <div class="wrap">
+          <p class="kicker">API &amp; MCP</p>
+          <h2 id="api-title">Built for people and agents<span class="dot">.</span></h2>
+          <div class="api-grid">
+            <div class="prose">
+              <p>
+                Forge provides local HTTP APIs and MCP tools for model discovery, project and asset
+                operations, queue control and supported creation workflows. The same MCP tools are
+                served over Streamable HTTP at <code>http://127.0.0.1:5173/mcp</code> and through
+                the stdio bridge in <code>runtime/mcp.js</code>; both use one shared tool registry
+                and require the <strong>2026-07-28</strong> MCP protocol. Older handshakes are
+                rejected.
+              </p>
+              <p>
+                <code>GET /api/models</code> returns the shared model catalog: each model’s purpose,
+                inputs, outputs, engine, related MCP tools and the latest service and storage
+                observations. If the runtime is unavailable, the static catalog is still returned
+                with <code>runtimeAvailable: false</code>.
+              </p>
+
+              <div class="code">
+                <div class="code-head"><span>PowerShell · model catalog</span></div>
+                <pre><code>Invoke-RestMethod 'http://127.0.0.1:5173/api/models'</code></pre>
+              </div>
+              <div class="code">
+                <div class="code-head">
+                  <span>Start the stdio bridge (Studio must be running)</span>
+                </div>
+                <pre><code>npm run mcp</code></pre>
+              </div>
+              <div class="code">
+                <div class="code-head"><span>MCP client config · stdio</span></div>
+                <pre><code>{
+  "mcpServers": {
+    "forge": {
+      "command": "node",
+      "args": ["C:\\path\\to\\Game Development Studio\\runtime\\mcp.js"],
+      "env": { "FORGE_STUDIO_URL": "http://127.0.0.1:5173" }
+    }
+  }
+}</code></pre>
+              </div>
+              <p class="note">
+                API calls and tests using substitute workers do not prove that a real model can
+                render on a particular machine. Use the client’s <code>tools/list</code> for current
+                schemas.
+              </p>
+            </div>
+
+            <div>
+              <div class="table-wrap" tabindex="0" role="region" aria-labelledby="mcp-table-cap">
+                <table>
+                  <caption id="mcp-table-cap">
+                    MCP tool groups
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Task</th>
+                      <th scope="col">Tools</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Discover</th>
+                      <td>
+                        <code>forge_models</code> <code>forge_services</code>
+                        <code>forge_hardware</code> <code>forge_model_storage</code>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Projects</th>
+                      <td><code>forge_create_project</code> <code>forge_projects</code></td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Assets</th>
+                      <td>
+                        <code>forge_read_text_asset</code> <code>forge_view_thumbnail</code>
+                        <code>forge_update_asset</code> <code>forge_rename_asset</code>
+                        <code>forge_trash_asset</code> <code>forge_restore_asset</code>
+                        <code>forge_convert_asset</code> <code>forge_save_text_asset</code>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Generate</th>
+                      <td>
+                        <code>forge_stage_reference</code> <code>forge_stage_soma_pose</code>
+                        <code>forge_queue_*</code>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Queue</th>
+                      <td>
+                        <code>forge_jobs</code> <code>forge_job</code>
+                        <code>forge_estimate_render</code> <code>forge_estimate_queue</code>
+                        <code>forge_cancel_queued_job</code> <code>forge_retry_job</code>
+                        <code>forge_resolve_interrupted_job</code>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Models</th>
+                      <td>
+                        <code>forge_start_engines</code> <code>forge_load_*</code>
+                        <code>forge_offload_model</code> <code>forge_close_model</code>
+                        <code>forge_force_stop_model</code> <code>forge_remove_managed_model</code>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Chat</th>
+                      <td>
+                        <code>forge_chat_models</code> <code>forge_estimate_chat_memory</code>
+                        <code>forge_load_chat_model</code> <code>forge_chat</code>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Speech &amp; games</th>
+                      <td>
+                        <code>forge_transcribe_project_audio</code> <code>forge_game_decide</code>
+                      </td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Diagnose</th>
+                      <td>
+                        <code>forge_diagnostics</code> <code>forge_logs</code>
+                        <code>forge_runtime_health</code> <code>forge_power_status</code>
+                        <code>forge_set_keep_awake</code>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="table-wrap" tabindex="0" role="region" aria-labelledby="http-table-cap">
+                <table>
+                  <caption id="http-table-cap">
+                    A few HTTP endpoints
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Endpoint</th>
+                      <th scope="col">Purpose</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row"><code>GET /api/models</code></th>
+                      <td>Shared model catalog with observations</td>
+                    </tr>
+                    <tr>
+                      <th scope="row"><code>GET /api/diagnostics</code></th>
+                      <td>Server metadata and service reachability</td>
+                    </tr>
+                    <tr>
+                      <th scope="row"><code>GET /api/logs/stream</code></th>
+                      <td>Live logs as server-sent events</td>
+                    </tr>
+                    <tr>
+                      <th scope="row"><code>GET /api/runtime/hardware</code></th>
+                      <td>NVIDIA GPU memory snapshot, project volume free space</td>
+                    </tr>
+                    <tr>
+                      <th scope="row"><code>POST /api/runtime/jobs</code></th>
+                      <td>Queue a supported render job</td>
+                    </tr>
+                    <tr>
+                      <th scope="row"><code>POST /api/runtime/estimate</code></th>
+                      <td>Estimate a render from completed jobs</td>
+                    </tr>
+                    <tr>
+                      <th scope="row"><code>POST /api/runtime/game/decide</code></th>
+                      <td>Structured decision from Mammoth-1</td>
+                    </tr>
+                    <tr>
+                      <th scope="row"><code>WS /api/asr/realtime</code></th>
+                      <td>Live PCM16 transcription</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="note">
+                Force stop needs a literal confirmation; permanent model deletion and emptying
+                project trash need their own. Agents should ask the user before destructive actions.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- REQUIREMENTS -->
+      <section class="section" id="requirements" aria-labelledby="req-title">
+        <div class="wrap">
+          <p class="kicker">Requirements</p>
+          <h2 id="req-title">Where it runs today<span class="dot">.</span></h2>
+          <div class="req-grid">
+            <div class="table-wrap" tabindex="0" role="region" aria-labelledby="platform-cap">
+              <table class="platforms">
+                <caption id="platform-cap">
+                  Platform support, as documented
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Platform</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Windows ARM64 + NVIDIA GPU</th>
+                    <td><span class="badge badge-ok">Targeted</span></td>
+                    <td>
+                      The observed installation was assembled on an NVIDIA RTX Spark N1X, natively,
+                      without WSL.
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Other Windows hardware</th>
+                    <td><span class="badge badge-info">Not validated</span></td>
+                    <td>Other platforms and hardware have not been validated to the same level.</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">macOS and Linux</th>
+                    <td><span class="badge badge-info">Unverified</span></td>
+                    <td>
+                      Shell launchers are syntax checked, but model integration has not been
+                      verified end to end. Keep-awake is Windows-only.
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Multiple GPUs</th>
+                    <td><span class="badge badge-exp">Refused</span></td>
+                    <td>
+                      Memory admission needs a single identifiable NVIDIA GPU and refuses ambiguous
+                      multi-GPU readings.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card">
+              <h3>You will need</h3>
+              <ul class="ticks">
+                <li>Node.js 24 or later and npm (pnpm is a supported alternative).</li>
+                <li>
+                  An NVIDIA GPU and compatible driver. Memory and storage needs depend on the model
+                  and settings; model files and working memory can each take many gigabytes.
+                </li>
+                <li>
+                  Enough free Windows <em>commit</em> memory as well as GPU memory — they are
+                  separate measurements.
+                </li>
+                <li>
+                  Model weights, native runtimes, credentials and companion apps, installed
+                  separately. Some model repositories require access approval.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- INSTALL -->
+      <section class="section section-band" id="install" aria-labelledby="install-title">
+        <div class="wrap">
+          <p class="kicker">Install</p>
+          <h2 id="install-title">Two layers, installed deliberately<span class="dot">.</span></h2>
+          <p class="section-lead">
+            Forge has a <strong>web app</strong> and <strong>local model engines</strong>. The
+            installer sets up the web app and can download selected model files, but several engines
+            still depend on separate Windows applications, native CUDA packages or Python
+            environments. Run these from PowerShell in the cloned repository.
+          </p>
+
+          <ol class="steps">
+            <li>
+              <h3>Inspect first — nothing is downloaded</h3>
+              <p>
+                <code>-CheckOnly</code> reports prerequisites without changing them;
+                <code>-ListModels</code> lists every model ID, source and location;
+                <code>-Plan</code> prints intended downloads.
+              </p>
+              <div class="code">
+                <pre><code>powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -CheckOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -ListModels
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Plan -Models worldgen,hy-world</code></pre>
+              </div>
+            </li>
+            <li>
+              <h3>Install and launch the web app</h3>
+              <p>
+                The installer runs <code>npm ci</code> when <code>node_modules</code> is missing,
+                then builds. The app can start with no model files.
+              </p>
+              <div class="code">
+                <pre><code>powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start-server.ps1</code></pre>
+              </div>
+              <p>
+                Open <code>http://127.0.0.1:5173</code>, or run <code>start-desktop.cmd</code> for
+                the desktop window. Starting the studio does not load model weights.
+              </p>
+            </li>
+            <li>
+              <h3>Download only the models you need</h3>
+              <p>
+                Install the Hugging Face CLI, request access for gated models and sign in with
+                <code>hf auth login</code>. Never put tokens in a command or repository file.
+                Downloads go to a new staging folder; no existing model is changed.
+              </p>
+              <div class="code">
+                <pre><code># Preview the exact sources first.
+.\install.ps1 -SkipApp -Plan -Models asr,tts
+
+# Download to a new, separate staging folder.
+.\install.ps1 -SkipApp -Models asr,tts
+
+# Or install supported model folders after staging and checks.
+.\install.ps1 -SkipApp -Models asr,tts -Activate</code></pre>
+              </div>
+              <p>
+                <code>-Activate</code> is available for <code>worldgen</code>,
+                <code>3d-hunyuan</code>, <code>motion-hy</code>, <code>motion-bricks</code>,
+                <code>tts</code>, <code>asr</code> and <code>segmentation</code>. It installs model
+                files only and refuses to replace an existing target.
+              </p>
+            </li>
+            <li>
+              <h3>Restore each engine’s environment</h3>
+              <p>
+                Python environments, companion apps and native runtimes are separate dependencies.
+                Follow the
+                <a
+                  href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/INSTALLATION.md"
+                  >installation guide</a
+                >,
+                <a
+                  href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/MODEL_SOURCES.md"
+                  >model sources</a
+                >
+                and
+                <a
+                  href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/WINDOWS_ARM64.md"
+                  >Windows ARM64 notes</a
+                >.
+              </p>
+            </li>
+            <li>
+              <h3>Verify, one small render at a time</h3>
+              <p>
+                Open <strong>Models &amp; services</strong> and <strong>Diagnostics</strong>. A
+                reachable service or present file does not prove a model is loaded; run one small
+                render per installed workflow and inspect the asset.
+              </p>
+              <div class="code">
+                <pre><code>powershell -NoProfile -ExecutionPolicy Bypass -File .\stop-server.ps1
+# Port 5173 busy? Use the same port to start and stop.
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start-server.ps1 -Port 5199</code></pre>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- SECURITY -->
+      <section class="section" id="security" aria-labelledby="sec-title">
+        <div class="wrap">
+          <p class="kicker">Security &amp; privacy</p>
+          <h2 id="sec-title">Local by default<span class="dot">.</span></h2>
+          <ul class="sec-grid">
+            <li class="card">
+              <h3>Loopback only</h3>
+              <p>
+                The unified service binds to <code>127.0.0.1</code>. Engine addresses are fixed to
+                loopback, and a configured engine URL must be a local HTTP origin. It is not a
+                production authentication or remote-access system.
+              </p>
+            </li>
+            <li class="card">
+              <h3>Encrypted API keys</h3>
+              <p>
+                OpenAI and Hugging Face keys saved in Studio settings are encrypted with the Windows
+                Data Protection API under the current user, stored in a local SQLite database, and
+                never returned to the browser.
+              </p>
+            </li>
+            <li class="card">
+              <h3>Tokens stay out of logs</h3>
+              <p>
+                Keys and tokens are passed to helpers over stdin rather than on command lines, and
+                are not written to queue state, MCP calls or Forge logs. Never put an API key in MCP
+                arguments.
+              </p>
+            </li>
+            <li class="card">
+              <h3>Review logs before sharing</h3>
+              <p>
+                Known secret patterns are redacted on a best-effort basis in the API and UI, but
+                logs can still contain prompts and local paths. The raw log file is not redacted.
+              </p>
+            </li>
+            <li class="card">
+              <h3>Your microphone, locally</h3>
+              <p>
+                Microphone access is requested only when you start recording and released on stop.
+                Audio is sent only to the local speech service.
+              </p>
+            </li>
+            <li class="card">
+              <h3>Cloud is opt-in</h3>
+              <p>
+                A cloud chat request sends its conversation to that provider. Prompts, credentials
+                and uploaded files are never placed in shareable URLs.
+              </p>
+            </li>
+          </ul>
+          <p class="note">
+            Other processes running as your Windows user can potentially use that user’s
+            credentials. Review the security implications before exposing the server to another
+            machine.
+          </p>
+        </div>
+      </section>
+
+      <!-- DEVELOPMENT -->
+      <section class="section section-band" id="development" aria-labelledby="dev-title">
+        <div class="wrap">
+          <p class="kicker">Development &amp; quality</p>
+          <h2 id="dev-title">Test the right layer<span class="dot">.</span></h2>
+          <div class="api-grid">
+            <div>
+              <div class="code">
+                <div class="code-head"><span>PowerShell</span></div>
+                <pre><code>npm ci
+npm run dev                 # Vite development server
+npm test                    # JavaScript tests
+npm run build               # Production frontend build
+npm run lint                # ESLint
+npm run format:check        # Prettier</code></pre>
+              </div>
+              <p class="note">
+                Python checks use Ruff in a separate <code>.venv-dev</code> environment (Python
+                3.12) so developer tools never land in a model’s environment.
+              </p>
+            </div>
+            <div class="prose">
+              <p>
+                The JavaScript suite (<code>node --test</code>) covers queue persistence and
+                recovery, lease fencing, model-load barriers, GPU-memory admission, worker
+                protocols, project assets and trash, model inventory and removal, HTTP, and MCP.
+              </p>
+              <p>
+                A native TRELLIS component suite checks CuMesh, FlexGEMM, O-Voxel, nvdiffrast,
+                OpenCV preprocessing and sparse SDPA on small inputs. Separate real-model checks
+                load gigabytes of weights; none of them generates a complete TRELLIS.2 asset.
+              </p>
+              <p class="callout">
+                Tests that use fake engines establish protocol behaviour; they do not prove real GPU
+                generation or visual and audio quality. ESLint and Ruff don’t verify inference,
+                security, accessibility or output quality either.
+              </p>
+              <p class="stack">
+                Built with React 19, Vite 6, Express 5, three.js, Electron, the MCP TypeScript SDK
+                and zod, with Lucide icons.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LICENSE -->
+      <section class="section" id="license" aria-labelledby="license-title">
+        <div class="wrap license">
+          <div>
+            <p class="kicker">License</p>
+            <h2 id="license-title">MIT, with care for upstream<span class="dot">.</span></h2>
+          </div>
+          <div class="prose">
+            <p>
+              Forge source code is available under the
+              <a href="https://github.com/monstercameron/Game-Development-Studio/blob/main/LICENSE"
+                >MIT License</a
+              >. Model weights, companion applications, third-party dependencies and their example
+              assets have their own licenses and access terms; the MIT license does not replace
+              them.
+            </p>
+            <ul class="ticks">
+              <li>
+                FLUX.1 dev — and the Q5 transformers WorldGen can use — carry non-commercial terms.
+              </li>
+              <li>
+                MotionBricks has separate source and model licenses; its sample poses are for
+                evaluation and testing only.
+              </li>
+              <li>Stable Audio 3, SAM 3 / 3.1 and DINOv3 are gated and require approved access.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section class="section section-band" id="faq" aria-labelledby="faq-title">
+        <div class="wrap">
+          <p class="kicker">FAQ</p>
+          <h2 id="faq-title">Straight answers<span class="dot">.</span></h2>
+          <div class="faq">
+            <details>
+              <summary>Will cloning the repository give me working AI models?</summary>
+              <p>
+                No. A fresh clone can run the web application after JavaScript dependencies are
+                installed, but it cannot reproduce the local inference stack by itself. Weights,
+                native runtimes, Python environments and some companion apps are installed
+                separately.
+              </p>
+            </details>
+            <details>
+              <summary>Does it work on macOS or Linux?</summary>
+              <p>
+                Shell launchers are included and syntax checked, but macOS and Linux model
+                integration has not been verified end to end. The local GPU integrations are
+                Windows-specific and not automatically portable.
+              </p>
+            </details>
+            <details>
+              <summary>Is TRELLIS.2 ready to use?</summary>
+              <p>
+                Not yet. It is an experimental queue workflow on a native Windows ARM64 port. The
+                pipeline has loaded and its DINOv3 encoder has run on CUDA, but a complete textured
+                render and its memory budget remain unverified.
+              </p>
+            </details>
+            <details>
+              <summary>Can it rig or retarget my characters?</summary>
+              <p>
+                No. HY-Motion and MotionBricks produce BVH motion and are experimental; automatic
+                character rigging and retargeting are not connected.
+              </p>
+            </details>
+            <details>
+              <summary>Can I clone a voice?</summary>
+              <p>
+                No. The integrated Qwen3-TTS CustomVoice model uses nine preset speakers with
+                optional voice direction. Voice cloning and voice design need other models and are
+                not connected.
+              </p>
+            </details>
+            <details>
+              <summary>What happens if the studio crashes mid-render?</summary>
+              <p>
+                Jobs with a known remote ID resume monitoring after restart, and some workers’
+                completed files can be recovered. If the submission is uncertain, the job is marked
+                interrupted and blocks the queue until you check the engine and resolve it, so work
+                isn’t silently duplicated.
+              </p>
+            </details>
+            <details>
+              <summary>Will a render download missing model files?</summary>
+              <p>
+                No. Forge does not download missing model files during a render. Downloads happen
+                only when you run the installer or a documented downloader deliberately.
+              </p>
+            </details>
+            <details>
+              <summary>How much GPU memory do I need?</summary>
+              <p>
+                It depends on the model. The catalog lists estimates, from about 4 GiB to load
+                Nemotron ASR up to a conservative ~48 GiB budget for Qwen Image 2.1. These are
+                uncalibrated estimates and snapshots, not reservations; Windows commit memory
+                matters too.
+              </p>
+            </details>
+            <details>
+              <summary>Can I reach it from another computer?</summary>
+              <p>
+                It is intended for use on the same computer and binds to loopback. Do not expose the
+                development server to an untrusted network; it is not a remote-access system.
+              </p>
+            </details>
+            <details>
+              <summary>Can an agent delete my files?</summary>
+              <p>
+                Deleted project assets go to recoverable trash. Permanent model deletion, emptying
+                project trash and force stop each need their own explicit confirmation, and the MCP
+                guide tells agents to ask the user before destructive actions.
+              </p>
+            </details>
+          </div>
         </div>
       </section>
     </main>
+
     <footer class="site-footer">
-      <div class="wrap footer-inner">
-        <a class="brand" href="#top"
-          ><span class="brand-mark" aria-hidden="true">✳</span
-          ><span>forge<span class="brand-dot">.</span></span></a
-        >
-        <p>A little more room for imagination.</p>
+      <div class="wrap footer-grid">
         <div>
-          <a href="https://github.com/monstercameron/Game-Development-Studio">GitHub</a
-          ><a href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/MCP.md"
-            >MCP guide</a
-          ><a href="https://github.com/monstercameron/Game-Development-Studio/blob/main/LICENSE"
-            >MIT license</a
-          >
+          <a class="brand" href="#top">
+            <img src="assets/favicon.svg" alt="" width="28" height="28" />
+            <span class="brand-name">forge<span class="dot">.</span></span>
+          </a>
+          <p>Game Development Studio · v0.1.0 · an early-stage, open-source project.</p>
         </div>
+        <nav aria-label="Documentation">
+          <h2 class="footer-h">Docs</h2>
+          <ul>
+            <li>
+              <a
+                href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/INSTALLATION.md"
+                >Installation</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/MODEL_SOURCES.md"
+                >Model sources</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/STUDIO_GUIDE.md"
+                >Studio guide</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/MCP.md"
+                >MCP guide</a
+              >
+            </li>
+          </ul>
+        </nav>
+        <nav aria-label="Project">
+          <h2 class="footer-h">Project</h2>
+          <ul>
+            <li>
+              <a href="https://github.com/monstercameron/Game-Development-Studio"
+                >GitHub repository</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://github.com/monstercameron/Game-Development-Studio/blob/main/docs/WINDOWS_ARM64.md"
+                >Windows ARM64 notes</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://github.com/monstercameron/Game-Development-Studio/blob/main/test/README.md"
+                >Tests</a
+              >
+            </li>
+            <li>
+              <a href="https://github.com/monstercameron/Game-Development-Studio/blob/main/LICENSE"
+                >MIT license</a
+              >
+            </li>
+          </ul>
+        </nav>
       </div>
     </footer>
   </body>

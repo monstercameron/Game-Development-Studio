@@ -1,0 +1,187 @@
+/* ux-mobile-creation: phone and small-tablet refinements for the creation pages
+   (/images, /3d, /video, /music, /sfx, /voices, /segmentation, /game).
+   Breakpoints: 850px (nav collapses, columns stack) and 600px (phone). Loaded last. */
+
+/* ---------- Small tablet and phone: columns stack, queue is not sticky ---------- */
+@media (max-width: 850px) {
+  .editor-page .editor-layout,
+  .editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ux-space-4);
+    min-width: 0;
+  }
+
+  .editor-layout > .form-panel,
+  .editor-layout > .right-column {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .right-column .runtime-queue,
+  .right-column > * {
+    position: static;
+    max-height: none;
+  }
+
+  .editor-page img,
+  .editor-page video,
+  .editor-page canvas,
+  .editor-page iframe,
+  .editor-page audio {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Touch devices zoom on focus for inputs under 16px. */
+  .editor-page input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  .editor-page select,
+  .editor-page textarea,
+  .editor-page .form-panel .options select,
+  .editor-page .form-panel .options input {
+    font-size: 16px;
+  }
+
+  .editor-page .options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ux-space-3);
+    min-width: 0;
+  }
+
+  .editor-page .options > * {
+    min-width: 0;
+  }
+
+  .editor-page .options select,
+  .editor-page .options input {
+    min-height: var(--ux-target-touch);
+    max-width: 100%;
+  }
+
+  .editor-page .form-panel textarea {
+    min-height: 120px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .editor-page .form-panel .creation-action-note {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .editor-page .form-panel .text-action {
+    min-height: var(--ux-target-touch);
+  }
+}
+
+/* ---------- Phone (360-430px) ---------- */
+@media (max-width: 600px) {
+  .editor-page .options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Inputs at 16px so iOS does not zoom the page on focus. */
+  .editor-page input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  .editor-page select,
+  .editor-page textarea {
+    font-size: 16px;
+  }
+
+  /* Sticky submit bar: compact, full width, above the home indicator. */
+  .editor-page .form-panel > .form-bottom {
+    display: grid;
+    gap: var(--ux-space-2);
+    margin-top: var(--ux-space-3);
+    padding: var(--ux-space-2) var(--ux-space-3)
+      calc(var(--ux-space-2) + env(safe-area-inset-bottom, 0px));
+    border-radius: var(--ux-radius-md);
+    box-shadow: 0 -6px 14px rgb(0 0 0 / 35%);
+  }
+
+  .editor-page .form-panel > .form-bottom > div:first-child {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: baseline;
+    gap: var(--ux-space-2);
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .editor-page .form-panel > .form-bottom .estimate-label {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .editor-page .form-panel > .form-bottom strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--ux-text-sm);
+  }
+
+  .editor-page .form-panel > .form-bottom .create-action {
+    width: 100%;
+    min-height: var(--ux-target-touch);
+    justify-content: center;
+  }
+
+  /* Project card: stack icon/label above, select and "New project" full width. */
+  .editor-page + .creation-context,
+  .creation-context {
+    flex-wrap: wrap;
+    gap: var(--ux-space-2);
+  }
+
+  .creation-context > select,
+  .creation-context select {
+    flex: 1 1 100%;
+    min-width: 0;
+    min-height: var(--ux-target-touch);
+    font-size: 16px;
+  }
+
+  .creation-context button {
+    min-height: var(--ux-target-touch);
+  }
+
+  /* Reference images: full-width drop target and library button. */
+  .editor-page .form-panel label:has(input[type='file']) {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .editor-page .form-panel button.text-action,
+  .editor-page .form-panel .creation-action-note .text-action {
+    min-height: var(--ux-target-touch);
+  }
+
+  /* Disclosures (fine-tune, advanced settings) get full-width tap targets. */
+  .editor-page summary,
+  .editor-page .form-panel [aria-expanded] {
+    min-height: var(--ux-target-touch);
+    display: flex;
+    align-items: center;
+  }
+
+  .editor-page .form-panel .helper,
+  .editor-page .form-panel .creation-model-note {
+    overflow-wrap: anywhere;
+  }
+
+  /* Tap targets for the page-level action row. */
+  .editor-page .form-panel .creation-timing {
+    gap: var(--ux-space-1) var(--ux-space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-page .form-panel > .form-bottom {
+    transition: none;
+  }
+}

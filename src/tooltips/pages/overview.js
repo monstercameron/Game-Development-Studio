@@ -17,12 +17,15 @@ export default {
   Music: 'Create a music track from a style description and lyrics.',
   'Sound effects': 'Create a sound effect from a text description.',
   '3D models': 'Create a 3D shape from a reference image.',
-  'Character motion': 'Create or explore character movement and rigging tools.',
-  Voices: 'Create spoken audio from dialogue and voice direction.',
+  'Character motion':
+    'Generate experimental motion clips from a text description. Automatic rigging is not available yet.',
+  Worlds: 'Generate an explorable 3D scene from text, a reference image, or a panorama.',
+  Voices: 'Create spoken audio from dialogue, or transcribe speech with the local ASR model.',
   Segmentation: 'Select objects in a reference image using a text description.',
   'Game logic': 'Ask the local game decision model a question about your game state.',
   'Start with a spark': 'Choose a sample idea to use as the starting prompt for an image.',
-  'Create an image': 'Open the image tool with a sample prompt ready to edit.',
+  'Create an image': 'Open the image tool.',
+  'View project assets': 'Browse the assets saved in the selected project.',
   'Pause draft queue':
     'Pause the browser-saved draft list. Pausing does not stop or pause renders.',
   'Resume draft queue':

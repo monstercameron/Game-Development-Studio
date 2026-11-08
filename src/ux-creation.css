@@ -1,0 +1,159 @@
+/* ux-creation: creation pages (image, 3D, video, music, sfx, voices, segmentation)
+   at laptop and desktop widths. Tokens come from ux-tokens.css and theme.css. Loaded last. */
+
+/* Two-column form and queue only where there is room for both. Between 850px and
+   1000px the queue column drops below the form instead of squeezing it. */
+@media (min-width: 851px) and (max-width: 1000px) {
+  .editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ux-space-4, 16px);
+  }
+
+  .editor-layout > .right-column {
+    min-width: 0;
+  }
+}
+
+/* Wide screens: give the form and queue more room and keep the prompt readable. */
+@media (min-width: 1600px) {
+  .editor-layout {
+    grid-template-columns: minmax(0, 1.75fr) minmax(320px, 0.75fr);
+  }
+
+  .form-panel textarea {
+    font-size: var(--ux-text-md, 15px);
+  }
+}
+
+/* Estimated render time: one compact row instead of a tall block before the prompt. */
+.form-panel .form-bottom > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ux-space-1, 4px) var(--ux-space-2, 8px);
+  min-width: 0;
+}
+
+.form-panel .form-bottom strong {
+  font-size: var(--ux-text-sm, 13px);
+  line-height: 1.35;
+}
+
+.form-panel .estimate-label {
+  font-size: var(--ux-text-xs, 12px);
+}
+
+.form-panel .create-action {
+  min-height: var(--ux-target-min, 36px);
+  transition: transform 150ms ease;
+}
+
+.form-panel .create-action:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Helper rows: keep text at 12px or larger and let long rows wrap cleanly. */
+.form-panel .helper,
+.form-panel .creation-model-note {
+  font-size: var(--ux-text-sm, 13px);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.form-panel .field-label span,
+.form-panel .image-video-optional {
+  font-size: var(--ux-text-xs, 12px);
+}
+
+.form-panel .prompt-foot {
+  flex-wrap: wrap;
+  gap: var(--ux-space-1, 4px) var(--ux-space-3, 12px);
+  font-size: var(--ux-text-xs, 12px);
+  line-height: 1.4;
+}
+
+.form-panel .prompt-foot > span:last-child {
+  white-space: nowrap;
+}
+
+.form-panel .creation-timing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-1, 4px) var(--ux-space-3, 12px);
+  font-size: var(--ux-text-sm, 13px);
+}
+
+.form-panel .creation-action-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-1, 4px) var(--ux-space-3, 12px);
+  font-size: var(--ux-text-xs, 12px);
+  line-height: 1.4;
+}
+
+.integration-badge {
+  font-size: var(--ux-text-xs, 12px);
+}
+
+/* Touch and click targets: at least 36px tall for secondary actions. */
+.form-panel .text-action,
+.queue-all-link,
+.right-column .icon-btn {
+  min-height: var(--ux-target-min, 36px);
+  display: inline-flex;
+  align-items: center;
+}
+
+.form-panel .text-action {
+  padding-block: var(--ux-space-1, 4px);
+}
+
+.right-column .icon-btn {
+  min-width: var(--ux-target-min, 36px);
+  justify-content: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form-panel .create-action,
+  .form-panel .create-action:active:not(:disabled) {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Purpose pass: the submit row belongs after the inputs, not before them. Reorder visually
+   (DOM order and tab order of the inputs are unchanged apart from the action row, which is
+   now also last in tab order) and keep the action reachable while a long form scrolls. */
+.editor-page .form-panel {
+  display: flex;
+  flex-direction: column;
+}
+.editor-page .form-panel > * {
+  order: 0;
+}
+.editor-page .form-panel > .panel-heading {
+  order: -1;
+}
+.editor-page .form-panel > .form-bottom {
+  order: 90;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: var(--ux-space-4);
+  padding: var(--ux-space-3) var(--ux-space-4);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-md);
+  background: var(--forge-surface-raised, var(--forge-raised));
+  box-shadow: 0 -8px 16px rgb(0 0 0 / 25%);
+}
+.editor-page .form-panel > .creation-timing {
+  order: 91;
+  margin-top: var(--ux-space-2);
+}
+.editor-page .form-panel > .creation-action-note {
+  order: 92;
+}
+.editor-page .form-panel > .creation-model-note {
+  order: 93;
+}

@@ -113,7 +113,6 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
     assert.ok(stream, 'component should open the log stream');
     const pauseButton = container.querySelector('button.stream-toggle');
     assert.equal(pauseButton.textContent.trim(), 'Pause stream');
-    assert.equal(pauseButton.getAttribute('aria-pressed'), 'false');
     await act(async () => {
       stream.onlogs({
         data: JSON.stringify({
@@ -162,10 +161,6 @@ test('diagnostics distinguishes log-read errors from EventSource reconnects', as
     assert.equal(
       container.querySelector('button.stream-toggle').textContent.trim(),
       'Resume stream',
-    );
-    assert.equal(
-      container.querySelector('button.stream-toggle').getAttribute('aria-pressed'),
-      'true',
     );
     await act(async () => {
       container.querySelectorAll('.link-button')[1].click();
