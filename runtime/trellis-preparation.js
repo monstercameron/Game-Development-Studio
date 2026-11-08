@@ -7,6 +7,19 @@ const HOST_LOAD = 8 * 1024 ** 3,
   GPU_LOAD = 4 * 1024,
   GPU_RENDER = 24 * 1024;
 const engine = 'forge-trellis2-512-experimental-v1';
+// Per-pipeline render budgets. Only the 512 budget has any measurement behind it; the
+// higher-resolution values are deliberately generous guesses for a large GPU. The first render
+// that needs the 1024 checkpoints also reads about 5 GiB of them into host memory, which is why
+// the host figure is higher. Host memory is only a soft floor unless FORGE_HOST_MEMORY_POLICY=strict.
+export const TRELLIS_RENDER_BUDGETS = {
+  512: { hostBytes: HOST_RENDER, gpuMiB: GPU_RENDER },
+  1024: { hostBytes: 18 * 1024 ** 3, gpuMiB: 40 * 1024 },
+  '1024_cascade': { hostBytes: 18 * 1024 ** 3, gpuMiB: 48 * 1024 },
+  '1536_cascade': { hostBytes: 20 * 1024 ** 3, gpuMiB: 64 * 1024 },
+};
+export function trellisRenderBudget(request) {
+  return TRELLIS_RENDER_BUDGETS[request?.pipeline ?? '512'] || TRELLIS_RENDER_BUDGETS[512];
+}
 
 export function createTrellisLoader({
   hardware,
@@ -217,23 +230,24 @@ export function createTrellisPreparation({
 }
 
 export function createTrellisRenderPreparation({ hardware, services, freeMemory = os.freemem }) {
-  return async () => {
+  return async (request = {}) => {
+    const budget = trellisRenderBudget(request);
     const free = freeMemory();
-    if (hostMemoryShort(free, HOST_RENDER)) {
+    if (hostMemoryShort(free, budget.hostBytes)) {
       return {
         status: 'waiting_memory',
         stage: 'Waiting for system memory.',
-        details: hostMemoryConflict(free, HOST_RENDER, await services(), ['3d-trellis']),
+        details: hostMemoryConflict(free, budget.hostBytes, await services(), ['3d-trellis']),
       };
     }
     const snapshot = await hardware();
-    let plan = planModelLoad(snapshot, [], GPU_RENDER);
+    let plan = planModelLoad(snapshot, [], budget.gpuMiB);
     if (plan.code === 'insufficient_gpu_memory') {
       plan = {
         ...planModelLoad(
           snapshot,
           (await services()).filter((service) => service.id !== '3d-trellis'),
-          GPU_RENDER,
+          budget.gpuMiB,
         ),
         estimate: 'Uncalibrated additional TRELLIS.2 rendering budget plus GPU reserve.',
       };

@@ -16,10 +16,29 @@ test('installer catalog covers each selectable studio model and uses HTTPS sourc
   const entries = manifest.models;
   const ids = entries.map((item) => item.id);
   assert.equal(new Set(ids).size, ids.length);
+  // Optional entries stage extra checkpoints for features beyond the core studio models.
+  // Optional entries stage extra checkpoints; the catalog marks the same entries as optional.
   assert.deepEqual(
-    [...ids].sort(),
+    entries
+      .filter((item) => item.optional)
+      .map((item) => item.id)
+      .sort(),
+    ['tts-base', 'tts-voicedesign'],
+  );
+  assert.deepEqual(
     modelCatalog
-      .filter((item) => !item.role)
+      .filter((item) => item.optional)
+      .map((item) => item.id)
+      .sort(),
+    ['tts-base', 'tts-voicedesign'],
+  );
+  assert.deepEqual(
+    entries
+      .filter((item) => !item.optional)
+      .map((item) => item.id)
+      .sort(),
+    modelCatalog
+      .filter((item) => !item.role && !item.optional)
       .map((item) => item.id)
       .sort(),
   );
@@ -79,7 +98,11 @@ test(
       { encoding: 'utf8' },
     );
     for (const model of manifest.models) {
-      assert.ok(all.includes(`${model.id}:`), `missing ${model.id} in all-model plan`);
+      assert.equal(
+        all.includes(`${model.id}:`),
+        !model.optional,
+        `${model.id} in the all-model plan`,
+      );
     }
     const bad = spawnSync(
       shell,

@@ -50,7 +50,13 @@ test('TRELLIS.2 MCP tools forward rendering, loading and guarded offload', async
     body: {
       type: 'trellis',
       projectId,
-      request: { seed: 7, steps: 3, texture_size: 512, references: [reference] },
+      request: {
+        seed: 7,
+        steps: 3,
+        texture_size: 512,
+        target_faces: 100000,
+        references: [reference],
+      },
     },
   });
   assert.notEqual(

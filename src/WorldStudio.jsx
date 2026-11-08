@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { Clock3, Dices, Globe2, ImagePlus, Layers3, Plus, RotateCcw, X } from 'lucide-react';
 import AssetPicker from './AssetPicker';
@@ -7,10 +7,38 @@ import PreviewArea from './PreviewArea';
 import RuntimeQueue, { post } from './RuntimeQueue';
 import { CreationQueueTiming } from './QueueTiming';
 import { formatDuration } from './queue-timing';
-import { updateSearch } from './useNav';
+import { reusePlan } from './generation-details';
+import { routeDetails, updateSearch, useRouteToggle } from './useNav';
 import './world-studio.css';
 
-function ReferencePreview({ file, index, panorama, onRemove }) {
+const WORLDGEN_SIZES = [1024, 1600, 2048];
+const HY_SIZES = [336, 518, 700, 952];
+const SPLAT_LIMITS = [250000, 500000, 1000000, 2000000, 5000000];
+const MAX_SEED = 2147483647;
+const NO_NOTICE = { text: '', kind: 'error' };
+// Library pages hand a reused world to this page through the session, as it can be a long prompt.
+const REUSE_KEY = 'forge-world-reuse';
+
+// Every field is validated here as the backend validates it (runtime/jobs.js and world_worker.py).
+const seedProblem = (value) =>
+  value === '' || (/^\d+$/.test(value) && Number(value) <= MAX_SEED)
+    ? ''
+    : 'Enter a whole number from 0 to 2,147,483,647, or leave blank for a random seed.';
+const stepsProblem = (value) =>
+  /^\d+$/.test(value) && Number(value) >= 10 && Number(value) <= 60
+    ? ''
+    : 'Enter a whole number from 10 to 60.';
+const guidanceProblem = (value) =>
+  value === '' || (/^\d+(\.\d+)?$/.test(value) && Number(value) >= 1 && Number(value) <= 50)
+    ? ''
+    : 'Enter a number from 1 to 50, or leave blank for the default.';
+const confidenceProblem = (value) =>
+  /^\d+(\.\d+)?$/.test(value) && Number(value) <= 50 ? '' : 'Enter a number from 0 to 50.';
+const fileKey = (file, index) => `${file.name}-${file.lastModified}-${index}`;
+const formatCount = (count) =>
+  count >= 1e6 ? `${(count / 1e6).toFixed(1)}M` : `${Math.round(count / 1000)}k`;
+
+function ReferencePreview({ file, index, panorama, onRemove, onShape }) {
   const [url, setUrl] = useState(''),
     [dimensions, setDimensions] = useState(null);
   useEffect(() => {
@@ -27,12 +55,11 @@ function ReferencePreview({ file, index, panorama, onRemove }) {
         <img
           src={url}
           alt={`Reference ${index + 1}: ${file.name}`}
-          onLoad={(event) =>
-            setDimensions({
-              width: event.currentTarget.naturalWidth,
-              height: event.currentTarget.naturalHeight,
-            })
-          }
+          onLoad={(event) => {
+            const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
+            setDimensions({ width, height });
+            onShape?.(width / height);
+          }}
         />
       )}
       <div>
@@ -60,28 +87,44 @@ function ReferencePreview({ file, index, panorama, onRemove }) {
 
 export default function WorldStudio({ project, projects, onRefresh, onOpenLibrary, onNewProject }) {
   const [params, setParams] = useSearchParams();
+  const [tuneOpen, setTuneOpen] = useRouteToggle('tune');
   const model = params.get('model') === 'hy-world' ? 'hy-world' : 'worldgen';
   const mode = ['image', 'panorama'].includes(params.get('mode')) ? params.get('mode') : 'text';
   const [prompt, setPrompt] = useState(''),
     [output, setOutput] = useState('splat'),
     [size, setSize] = useState(1600),
-    [seed, setSeed] = useState('42'),
+    [seed, setSeed] = useState(''),
     [steps, setSteps] = useState('50'),
+    [guidance, setGuidance] = useState(''),
+    [savePanorama, setSavePanorama] = useState(false),
+    [splatLimit, setSplatLimit] = useState(1000000),
+    [removeSky, setRemoveSky] = useState(false),
+    [confidence, setConfidence] = useState('10'),
     [files, setFiles] = useState([]),
     [busy, setBusy] = useState(false),
-    [message, setMessage] = useState(''),
-    [messageKind, setMessageKind] = useState('error'),
+    [notice, setNotice] = useState(NO_NOTICE),
+    [attempted, setAttempted] = useState(false),
     [estimate, setEstimate] = useState(null),
     [estimateError, setEstimateError] = useState(false),
     [version, setVersion] = useState(0);
   const [resetArmed, setResetArmed] = useState(false);
+  const focusField = (id) => setTimeout(() => document.getElementById(id)?.focus(), 0);
+  const [shapes, setShapes] = useState({});
+  const message = notice.text,
+    messageKind = notice.kind;
+  const setMessage = (text, kind = 'error') => setNotice(text ? { text, kind } : NO_NOTICE);
   // Gated reset: disabled while everything is at its default, and an enabled click only arms a confirmation.
   const isDirty =
     prompt !== '' ||
     output !== 'splat' ||
     size !== 1600 ||
-    seed !== '42' ||
+    seed !== '' ||
     steps !== '50' ||
+    guidance !== '' ||
+    savePanorama ||
+    splatLimit !== 1000000 ||
+    removeSky ||
+    confidence !== '10' ||
     files.length > 0 ||
     params.has('mode') ||
     params.has('model');
@@ -89,23 +132,38 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
     setPrompt('');
     setOutput('splat');
     setSize(1600);
-    setSeed('42');
+    setSeed('');
     setSteps('50');
+    setGuidance('');
+    setSavePanorama(false);
+    setSplatLimit(1000000);
+    setRemoveSky(false);
+    setConfidence('10');
     setFiles([]);
     setMessage('');
+    setAttempted(false);
     updateSearch(setParams, { model: null, mode: null });
     setResetArmed(false);
+    // The confirmation buttons disappear, so focus moves to the first field of the clean form.
+    focusField('world-mode');
   };
-  const actualMode = model === 'hy-world' ? 'image' : mode,
+  const cancelReset = () => {
+    setResetArmed(false);
+    focusField('world-reset');
+  };
+  const actualMode = model === 'hy-world' ? (mode === 'panorama' ? 'panorama' : 'image') : mode,
     actualSize =
       model === 'hy-world'
-        ? size === 336 || size === 518 || size === 700
+        ? HY_SIZES.includes(size)
           ? size
           : 518
-        : [1024, 1600, 2048].includes(size)
+        : WORLDGEN_SIZES.includes(size)
           ? size
           : 1600,
     actualOutput = model === 'hy-world' ? 'splat' : output;
+  const usesGeneration = model === 'worldgen' && actualMode !== 'panorama';
+  const maxViews = model === 'hy-world' && actualMode === 'image' ? 8 : 1;
+  const hasAdvanced = model === 'hy-world' || usesGeneration;
   const selectModel = (value) => {
     if (value === model) {
       return;
@@ -124,30 +182,122 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
     setFiles([]);
     setSize(value === 'hy-world' ? 518 : 1600);
     setMessage('');
+    setAttempted(false);
   };
   const picker = params.get('picker') === 'world';
+  // Closing the library hands focus back to the button that opened it.
+  const pickerWasOpen = useRef(false);
+  useEffect(() => {
+    if (pickerWasOpen.current && !picker) {
+      document.getElementById('world-library-button')?.focus();
+    }
+    pickerWasOpen.current = picker;
+  }, [picker]);
   const addFiles = (added) => {
     const multi = actualMode === 'image' && model === 'hy-world';
     const next = multi ? [...files, ...added].slice(0, 8) : added.slice(0, 1);
     setFiles(next);
-    setMessageKind('error');
     setMessage(
       multi && files.length + added.length > 8 ? 'A maximum of eight views can be selected.' : '',
     );
   };
-  const usesGeneration = model === 'worldgen' && actualMode !== 'panorama';
+  // Restore the settings of a finished world. Reference files are never attached again.
+  const applyWorld = useCallback(
+    (settings) => {
+      const hy = settings.model === 'hy-world';
+      const sizes = hy ? HY_SIZES : WORLDGEN_SIZES;
+      setPrompt(settings.prompt || '');
+      setOutput(['mesh', 'glb'].includes(settings.output) ? settings.output : 'splat');
+      setSize(sizes.includes(settings.resolution) ? settings.resolution : hy ? 518 : 1600);
+      setSeed(Number.isSafeInteger(settings.seed) ? String(settings.seed) : '');
+      setSteps(String(settings.steps ?? 50));
+      setGuidance(
+        settings.guidance === null || settings.guidance === undefined
+          ? ''
+          : String(settings.guidance),
+      );
+      setSavePanorama(settings.save_panorama === true);
+      setSplatLimit(settings.splat_limit ?? 1000000);
+      setRemoveSky(settings.remove_sky === true);
+      setConfidence(String(settings.confidence_percentile ?? 10));
+      setFiles([]);
+      setAttempted(false);
+      updateSearch(setParams, {
+        model: hy ? 'hy-world' : null,
+        mode: (hy ? ['panorama'] : ['image', 'panorama']).includes(settings.mode)
+          ? settings.mode
+          : null,
+        picker: null,
+      });
+      setNotice({
+        kind: 'info',
+        text:
+          hy || settings.mode !== 'text'
+            ? 'Settings restored from the asset. Choose the reference images again before queuing.'
+            : 'Settings restored from the asset.',
+      });
+    },
+    [setParams],
+  );
+  useEffect(() => {
+    let stored = null;
+    try {
+      stored = window.sessionStorage.getItem(REUSE_KEY);
+      window.sessionStorage.removeItem(REUSE_KEY);
+    } catch {
+      // Session storage can be unavailable; the model is still selected from the address.
+    }
+    if (stored) {
+      try {
+        applyWorld(JSON.parse(stored));
+      } catch {
+        // A damaged hand-off is ignored.
+      }
+    }
+  }, [applyWorld]);
   const buildRequest = useCallback(
-    (references) => ({
+    (references) => {
+      const request = {
+        model,
+        mode: actualMode,
+        prompt: usesGeneration ? prompt.trim() : '',
+        output: actualOutput,
+        resolution: actualSize,
+        references,
+      };
+      // Only valid values are sent, so a half-typed field never breaks the time estimate.
+      if (usesGeneration) {
+        request.seed = seed !== '' && !seedProblem(seed) ? Number(seed) : null;
+        request.steps = stepsProblem(steps) ? 50 : Number(steps);
+        if (guidance !== '' && !guidanceProblem(guidance)) {
+          request.guidance = Number(guidance);
+        }
+        if (savePanorama) {
+          request.save_panorama = true;
+        }
+      }
+      if (model === 'hy-world') {
+        request.splat_limit = splatLimit;
+        request.remove_sky = removeSky;
+        request.confidence_percentile = confidenceProblem(confidence) ? 10 : Number(confidence);
+      }
+      return request;
+    },
+    [
       model,
-      mode: actualMode,
-      prompt: usesGeneration ? prompt.trim() : '',
-      output: actualOutput,
-      resolution: actualSize,
-      references,
-      seed: usesGeneration ? Number(seed) : 42,
-      steps: usesGeneration ? Number(steps) : 50,
-    }),
-    [model, actualMode, usesGeneration, prompt, actualOutput, actualSize, seed, steps],
+      actualMode,
+      usesGeneration,
+      prompt,
+      actualOutput,
+      actualSize,
+      seed,
+      steps,
+      guidance,
+      savePanorama,
+      splatLimit,
+      removeSky,
+      confidence,
+    ],
   );
   const projectId = project?.id;
   useEffect(() => {
@@ -182,39 +332,54 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
     };
   }, [projectId, buildRequest, actualMode, files.length, version]);
   useEffect(() => {
-    setMessage('');
-  }, [projectId, model, mode, prompt, output, size, seed, steps]);
-  async function enqueue(event) {
-    event.preventDefault();
-    setMessageKind('error');
-    if (!project) {
-      setMessage('Choose or create a project first.');
-      return;
-    }
-    if (actualMode === 'text' && !prompt.trim()) {
-      setMessage('Describe the world you want to create.');
-      return;
-    }
+    // Editing clears an old error or confirmation, but keeps the note about restored settings.
+    setNotice((current) => (current.kind === 'info' ? current : NO_NOTICE));
+  }, [projectId, model, mode, prompt, output, size, seed, steps, guidance, confidence]);
+  // The first problem in page order, with the field that should receive focus.
+  const firstProblem = () => {
     if (actualMode !== 'text' && !files.length) {
-      setMessage('Choose a reference image first.');
-      return;
+      return { text: 'Choose a reference image first.', id: 'world-files' };
     }
     if (
       files.some((file) => file.size > 10 * 1024 * 1024) ||
       files.reduce((sum, file) => sum + file.size, 0) > 40 * 1024 * 1024
     ) {
-      setMessage('Use images up to 10 MiB each and 40 MiB total.');
+      return { text: 'Use images up to 10 MiB each and 40 MiB total.', id: 'world-files' };
+    }
+    if (actualMode === 'text' && !prompt.trim()) {
+      return { text: 'Describe the world you want to create.', id: 'world-prompt' };
+    }
+    if (usesGeneration && stepsProblem(steps)) {
+      return { text: stepsProblem(steps), id: 'world-steps' };
+    }
+    if (usesGeneration && seedProblem(seed)) {
+      return { text: seedProblem(seed), id: 'world-seed' };
+    }
+    if (usesGeneration && guidanceProblem(guidance)) {
+      return { text: guidanceProblem(guidance), id: 'world-guidance', tune: true };
+    }
+    if (model === 'hy-world' && confidenceProblem(confidence)) {
+      return { text: confidenceProblem(confidence), id: 'world-confidence', tune: true };
+    }
+    return null;
+  };
+  async function enqueue(event) {
+    event.preventDefault();
+    if (!project) {
+      // Field errors would only distract from the one thing that blocks every field.
+      setMessage('Choose or create a project first.');
       return;
     }
-    if (
-      usesGeneration &&
-      (!/^\d+$/.test(seed) ||
-        Number(seed) > 2147483647 ||
-        !/^\d+$/.test(steps) ||
-        Number(steps) < 10 ||
-        Number(steps) > 60)
-    ) {
-      setMessage('Use a seed from 0 to 2147483647 and 10–60 steps.');
+    setAttempted(true);
+    const problem = firstProblem();
+    if (problem) {
+      setMessage(problem.text);
+      if (problem.tune) {
+        setTuneOpen(true);
+      }
+      if (problem.id) {
+        focusField(problem.id);
+      }
       return;
     }
     setBusy(true);
@@ -244,15 +409,13 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
         request: buildRequest(ids),
       });
       setVersion((v) => v + 1);
-      setMessage('World added to the render queue.');
-      setMessageKind('success');
+      setMessage('World added to the render queue.', 'success');
     } catch (error) {
       setMessage(
         submittingJob && error.status === undefined
           ? 'The connection ended before Forge could confirm the queue result. Check the render queue before submitting again.'
           : error.message,
       );
-      setMessageKind('error');
     } finally {
       setBusy(false);
     }
@@ -269,6 +432,29 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
       estimateLabel = 'Not enough history yet';
     }
   }
+  // HY-World rejects views of different proportions; the worker crops them to the first one.
+  const ratios = files.map((file, index) => shapes[fileKey(file, index)]).filter(Boolean);
+  const mixedShapes =
+    model === 'hy-world' &&
+    actualMode === 'image' &&
+    ratios.some((ratio) => Math.abs(ratio / ratios[0] - 1) > 0.01);
+  const promptInvalid = attempted && actualMode === 'text' && !prompt.trim(),
+    filesInvalid = attempted && actualMode !== 'text' && !files.length,
+    stepsError = stepsProblem(steps),
+    seedError = seedProblem(seed),
+    guidanceError = guidanceProblem(guidance),
+    confidenceError = confidenceProblem(confidence);
+  const panoramaWidth =
+    actualMode === 'panorama'
+      ? `The image is resized to ${actualSize} × ${actualSize / 2} px, so use a 2:1 panorama. `
+      : `Generates a 2:1 panorama of ${actualSize} × ${actualSize / 2} px. `;
+  const advancedChanged = [
+    guidance !== '' && usesGeneration && 'guidance',
+    savePanorama && usesGeneration && 'saved panorama',
+    model === 'hy-world' && splatLimit !== 1000000 && 'splat limit',
+    model === 'hy-world' && removeSky && 'sky removed',
+    model === 'hy-world' && confidence !== '10' && 'confidence filter',
+  ].filter(Boolean);
   return (
     <div className="page world-page">
       <div className="world-heading">
@@ -303,7 +489,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                 </p>
               </div>
             </div>
-            <div className="world-models">
+            <div className="world-models" role="group" aria-label="Generator">
               <button
                 type="button"
                 className={model === 'worldgen' ? 'world-model selected' : 'world-model'}
@@ -329,34 +515,46 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                 </span>
               </button>
             </div>
-            <form className="world-form" onSubmit={enqueue}>
-              {model === 'worldgen' && (
-                <label>
-                  Starting point
-                  <select
-                    value={mode}
-                    onChange={(e) => {
-                      if (
-                        files.length &&
-                        !window.confirm(
-                          'Changing the starting point removes the selected images. Continue?',
-                        )
-                      ) {
-                        return;
-                      }
-                      updateSearch(setParams, {
-                        mode: e.target.value === 'text' ? null : e.target.value,
-                        picker: null,
-                      });
-                      setFiles([]);
-                    }}
-                  >
-                    <option value="text">Text description</option>
-                    <option value="image">Single reference image</option>
-                    <option value="panorama">360° panorama</option>
-                  </select>
-                </label>
-              )}
+            <form className="world-form" onSubmit={enqueue} noValidate>
+              <div className="world-field">
+                <label htmlFor="world-mode">Starting point</label>
+                <select
+                  id="world-mode"
+                  value={actualMode}
+                  onChange={(e) => {
+                    if (
+                      files.length &&
+                      !window.confirm(
+                        'Changing the starting point removes the selected images. Continue?',
+                      )
+                    ) {
+                      return;
+                    }
+                    updateSearch(setParams, {
+                      mode:
+                        e.target.value === (model === 'hy-world' ? 'image' : 'text')
+                          ? null
+                          : e.target.value,
+                      picker: null,
+                    });
+                    setFiles([]);
+                    setAttempted(false);
+                  }}
+                >
+                  {model === 'hy-world' ? (
+                    <>
+                      <option value="image">Reference views (1–8 images)</option>
+                      <option value="panorama">360° panorama</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="text">Text description</option>
+                      <option value="image">Single reference image</option>
+                      <option value="panorama">360° panorama</option>
+                    </>
+                  )}
+                </select>
+              </div>
               {actualMode !== 'text' && (
                 <div className="world-input">
                   <strong>
@@ -366,11 +564,15 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                         ? 'Reference views'
                         : 'Reference image'}
                   </strong>
-                  <p className="helper">
-                    {model === 'hy-world'
-                      ? 'Choose 1–8 overlapping views of the same scene. More angles help fill in the geometry.'
-                      : actualMode === 'panorama'
-                        ? 'Choose a 2:1 equirectangular panorama in PNG, JPEG, or WebP.'
+                  <p className="helper" id="world-files-help">
+                    {actualMode === 'panorama'
+                      ? `Choose a 2:1 equirectangular panorama in PNG, JPEG, or WebP. A panorama saved with “Save the generated panorama” works here.${
+                          model === 'hy-world'
+                            ? ' HY-World cuts it into eight 90° views taken from one point, so you get a shell around the viewpoint with no depth behind objects.'
+                            : ''
+                        }`
+                      : model === 'hy-world'
+                        ? 'Choose 1–8 overlapping views of the same scene. More angles help fill in the geometry.'
                         : 'Choose one PNG, JPEG, or WebP image.'}
                   </p>
                   <div className="world-file-actions">
@@ -378,9 +580,12 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                       <ImagePlus size={16} aria-hidden="true" />{' '}
                       {files.length ? 'Add or replace files' : 'Choose files'}
                       <input
+                        id="world-files"
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
-                        multiple={model === 'hy-world'}
+                        multiple={maxViews > 1}
+                        aria-invalid={filesInvalid ? 'true' : undefined}
+                        aria-describedby="world-files-help world-files-status"
                         onChange={(e) => {
                           addFiles([...e.target.files]);
                           e.target.value = '';
@@ -388,6 +593,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                       />
                     </label>
                     <button
+                      id="world-library-button"
                       type="button"
                       className="outline-button"
                       onClick={() => updateSearch(setParams, { picker: 'world' })}
@@ -397,15 +603,22 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                   </div>
                   {files.length > 0 && (
                     <div className="world-reference-list">
-                      <span className="helper">
-                        {files.length} of {model === 'hy-world' ? 8 : 1} selected
+                      <span className="helper" id="world-files-status">
+                        {files.length} of {maxViews} selected
                       </span>
                       {files.map((file, index) => (
                         <ReferencePreview
                           file={file}
                           index={index}
-                          key={`${file.name}-${file.lastModified}-${index}`}
+                          key={fileKey(file, index)}
                           panorama={actualMode === 'panorama'}
+                          onShape={(ratio) =>
+                            setShapes((current) =>
+                              current[fileKey(file, index)] === ratio
+                                ? current
+                                : { ...current, [fileKey(file, index)]: ratio },
+                            )
+                          }
                           onRemove={() => {
                             setFiles((current) => current.filter((_, i) => i !== index));
                             setMessage('');
@@ -414,8 +627,21 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                       ))}
                     </div>
                   )}
+                  {mixedShapes && (
+                    <p className="world-reference-warning" id="world-shapes-note" role="note">
+                      These views have different shapes. HY-World needs one shape, so Forge crops
+                      every view to the first view’s proportions, centred, before reconstructing.
+                    </p>
+                  )}
                   {!files.length && (
-                    <p className="world-reference-empty">
+                    <p
+                      className={
+                        filesInvalid
+                          ? 'world-reference-empty world-reference-invalid'
+                          : 'world-reference-empty'
+                      }
+                      id="world-files-status"
+                    >
                       {actualMode === 'panorama'
                         ? 'No panorama selected yet.'
                         : model === 'hy-world'
@@ -426,76 +652,121 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                 </div>
               )}
               {model === 'worldgen' && actualMode !== 'panorama' && (
-                <label>
-                  {actualMode === 'text' ? 'Describe your world' : 'Description (optional)'}
+                <div className="world-field">
+                  <label htmlFor="world-prompt">
+                    {actualMode === 'text' ? 'Describe your world' : 'Description (optional)'}
+                  </label>
                   <textarea
+                    id="world-prompt"
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     maxLength={4000}
+                    aria-invalid={promptInvalid ? 'true' : undefined}
+                    aria-describedby={`world-prompt-help${promptInvalid ? ' world-prompt-error' : ''}`}
                     placeholder="A moss-covered village at the edge of a misty lake…"
                   />
-                  <span className="helper">Up to 4,000 characters.</span>
-                </label>
+                  <small id="world-prompt-help">
+                    {actualMode === 'text'
+                      ? 'Required. Up to 4,000 characters.'
+                      : 'Optional: say what lies outside the photo. Up to 4,000 characters.'}
+                  </small>
+                  {promptInvalid && (
+                    <small id="world-prompt-error" className="world-field-error">
+                      Describe the world you want to create.
+                    </small>
+                  )}
+                </div>
               )}
               <div className="world-settings">
-                <label>
-                  {model === 'hy-world' ? 'Resolution per view' : 'Panorama width'}
-                  <select value={actualSize} onChange={(e) => setSize(Number(e.target.value))}>
-                    {(model === 'hy-world' ? [336, 518, 700] : [1024, 1600, 2048]).map((n) => (
+                <div className="world-field">
+                  <label htmlFor="world-size">
+                    {model === 'hy-world' ? 'Resolution per view' : 'Panorama width'}
+                  </label>
+                  <select
+                    id="world-size"
+                    value={actualSize}
+                    aria-describedby="world-size-help"
+                    onChange={(e) => setSize(Number(e.target.value))}
+                  >
+                    {(model === 'hy-world' ? HY_SIZES : WORLDGEN_SIZES).map((n) => (
                       <option key={n} value={n}>
                         {n} px
                       </option>
                     ))}
                   </select>
-                  <span className="helper">
+                  <small id="world-size-help">
                     {model === 'hy-world'
-                      ? 'Size used to reconstruct each view.'
-                      : 'Width of the generated 2:1 panorama. Higher values use more memory.'}
-                  </span>
-                </label>
+                      ? `${
+                          actualMode === 'panorama'
+                            ? 'Size of each of the eight views cut from the panorama'
+                            : 'Longest side used to reconstruct each view'
+                        }; 952 is HY-World’s own default. More pixels add splats and need more memory.`
+                      : `${panoramaWidth}About ${formatCount((actualSize * actualSize) / 2)} ${
+                          actualOutput === 'splat' ? 'splats' : 'mesh vertices'
+                        }; larger widths use more memory.`}
+                  </small>
+                </div>
                 {model === 'worldgen' && (
-                  <label>
-                    Output
-                    <select value={output} onChange={(e) => setOutput(e.target.value)}>
+                  <div className="world-field">
+                    <label htmlFor="world-output">Output</label>
+                    <select
+                      id="world-output"
+                      value={output}
+                      aria-describedby="world-output-help"
+                      onChange={(e) => setOutput(e.target.value)}
+                    >
                       <option value="splat">Gaussian splat · PLY</option>
                       <option value="mesh">Mesh · PLY</option>
+                      <option value="glb">Mesh · GLB</option>
                     </select>
-                    <span className="helper">
+                    <small id="world-output-help">
                       {output === 'splat'
                         ? 'Best for interactive visual previews.'
-                        : 'Vertex-colored geometry for editing.'}
-                    </span>
-                  </label>
+                        : output === 'mesh'
+                          ? 'Vertex-coloured triangle mesh in PLY.'
+                          : 'Vertex-coloured triangle mesh in GLB, ready for game engines and 3D tools.'}
+                    </small>
+                  </div>
                 )}
               </div>
-              {model === 'worldgen' && actualMode !== 'panorama' && (
+              {usesGeneration && (
                 <div className="world-settings">
-                  <label>
-                    Generation steps
+                  <div className="world-field">
+                    <label htmlFor="world-steps">Generation steps</label>
                     <input
+                      id="world-steps"
                       type="number"
+                      inputMode="numeric"
                       min="10"
                       max="60"
                       step="1"
                       value={steps}
+                      aria-invalid={attempted && stepsError ? 'true' : undefined}
+                      aria-describedby={`world-steps-help${attempted && stepsError ? ' world-steps-error' : ''}`}
                       onChange={(e) => setSteps(e.target.value)}
                     />
-                    <span className="helper">
+                    <small id="world-steps-help">
                       10–60. More steps can improve detail but take longer.
-                    </span>
-                  </label>
-                  <div className="world-seed-field" role="group" aria-labelledby="world-seed-label">
-                    <label id="world-seed-label" htmlFor="world-seed">
-                      Seed
-                    </label>
+                    </small>
+                    {attempted && stepsError && (
+                      <small id="world-steps-error" className="world-field-error">
+                        {stepsError}
+                      </small>
+                    )}
+                  </div>
+                  <div className="world-field">
+                    <label htmlFor="world-seed">Seed</label>
                     <div className="world-seed">
                       <input
                         id="world-seed"
                         type="number"
+                        inputMode="numeric"
                         min="0"
-                        max="2147483647"
+                        max={MAX_SEED}
                         step="1"
-                        aria-describedby="world-seed-help"
+                        placeholder="Random"
+                        aria-invalid={attempted && seedError ? 'true' : undefined}
+                        aria-describedby={`world-seed-help${attempted && seedError ? ' world-seed-error' : ''}`}
                         value={seed}
                         onChange={(e) => setSeed(e.target.value)}
                       />
@@ -513,23 +784,158 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                         <Dices size={18} aria-hidden="true" />
                       </button>
                     </div>
-                    <span className="helper" id="world-seed-help">
-                      Reuse a seed to repeat the same settings.
-                    </span>
+                    <small id="world-seed-help">
+                      Blank picks a random seed and records it with the world. Reuse a seed with the
+                      same settings to repeat a result.
+                    </small>
+                    {attempted && seedError && (
+                      <small id="world-seed-error" className="world-field-error">
+                        {seedError}
+                      </small>
+                    )}
                   </div>
                 </div>
               )}
+              {hasAdvanced && (
+                <details className="world-advanced" {...routeDetails(tuneOpen, setTuneOpen)}>
+                  <summary aria-expanded={tuneOpen} aria-controls="world-advanced-body">
+                    <span className="world-advanced-heading">Advanced options</span>
+                    <span className="world-advanced-hint">
+                      {tuneOpen
+                        ? 'Hide optional controls'
+                        : advancedChanged.length
+                          ? `Show optional controls · changed: ${advancedChanged.join(', ')}`
+                          : 'Show optional controls'}
+                    </span>
+                  </summary>
+                  <div className="world-advanced-body" id="world-advanced-body">
+                    {usesGeneration && (
+                      <>
+                        <div className="world-field">
+                          <label htmlFor="world-guidance">Prompt guidance</label>
+                          <input
+                            id="world-guidance"
+                            type="number"
+                            inputMode="decimal"
+                            min="1"
+                            max="50"
+                            step="0.5"
+                            placeholder={actualMode === 'text' ? '7' : '30'}
+                            value={guidance}
+                            aria-invalid={guidanceError ? 'true' : undefined}
+                            aria-describedby={`world-guidance-help${guidanceError ? ' world-guidance-error' : ''}`}
+                            onChange={(e) => setGuidance(e.target.value)}
+                          />
+                          <small id="world-guidance-help">
+                            How strongly FLUX follows the description, 1–50. Blank uses the model’s
+                            own {actualMode === 'text' ? '7' : '30'}.
+                          </small>
+                          {guidanceError && (
+                            <small id="world-guidance-error" className="world-field-error">
+                              {guidanceError}
+                            </small>
+                          )}
+                        </div>
+                        <div className="world-field">
+                          <label className="world-check" htmlFor="world-save-panorama">
+                            <input
+                              id="world-save-panorama"
+                              type="checkbox"
+                              checked={savePanorama}
+                              aria-describedby="world-save-panorama-help"
+                              onChange={(e) => setSavePanorama(e.target.checked)}
+                            />
+                            <span>Save the generated panorama</span>
+                          </label>
+                          <small id="world-save-panorama-help">
+                            Also keeps the 360° image as a project image. Use it as a panorama input
+                            to build the other output type without generating it again.
+                          </small>
+                        </div>
+                      </>
+                    )}
+                    {model === 'hy-world' && (
+                      <>
+                        <div className="world-field">
+                          <label htmlFor="world-splat-limit">Splat limit</label>
+                          <select
+                            id="world-splat-limit"
+                            value={splatLimit}
+                            aria-describedby="world-splat-limit-help"
+                            onChange={(e) => setSplatLimit(Number(e.target.value))}
+                          >
+                            {SPLAT_LIMITS.map((n) => (
+                              <option key={n} value={n}>
+                                {n.toLocaleString('en-US')}
+                                {n === 1000000 ? ' (default)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <small id="world-splat-limit-help">
+                            The most Gaussians kept in the PLY. Many views at a high resolution
+                            exceed the default, so extra detail is thinned out; raise it for more
+                            detail or lower it for a smaller file.
+                          </small>
+                        </div>
+                        <div className="world-field">
+                          <label className="world-check" htmlFor="world-remove-sky">
+                            <input
+                              id="world-remove-sky"
+                              type="checkbox"
+                              checked={removeSky}
+                              aria-describedby="world-remove-sky-help"
+                              onChange={(e) => setRemoveSky(e.target.checked)}
+                            />
+                            <span>Remove sky</span>
+                          </label>
+                          <small id="world-remove-sky-help">
+                            Drops sky pixels with HY-World’s sky model, for outdoor views. Leave it
+                            off for indoor scenes.
+                          </small>
+                        </div>
+                        <div className="world-field">
+                          <label htmlFor="world-confidence">Drop least-confident points (%)</label>
+                          <input
+                            id="world-confidence"
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            max="50"
+                            step="1"
+                            value={confidence}
+                            aria-invalid={confidenceError ? 'true' : undefined}
+                            aria-describedby={`world-confidence-help${confidenceError ? ' world-confidence-error' : ''}`}
+                            onChange={(e) => setConfidence(e.target.value)}
+                          />
+                          <small id="world-confidence-help">
+                            0–50. Removes this share of the points HY-World is least sure about,
+                            which clears floaters. 0 keeps every point; the default is 10.
+                          </small>
+                          {confidenceError && (
+                            <small id="world-confidence-error" className="world-field-error">
+                              {confidenceError}
+                            </small>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </details>
+              )}
               <p className="helper">
                 {model === 'hy-world'
-                  ? 'HY-World reconstructs a Gaussian splat from the supplied views.'
+                  ? actualMode === 'panorama'
+                    ? 'HY-World reconstructs a Gaussian splat from eight views cut from the panorama.'
+                    : 'HY-World reconstructs a Gaussian splat from the supplied views.'
                   : 'WorldGen runs locally with its installed models. Text and image modes require cached FLUX weights.'}{' '}
                 Models unload after each render. GPU memory needed varies; no reliable memory
                 estimate is available yet.
               </p>
               {model === 'worldgen' && actualMode !== 'panorama' && (
                 <p className="helper" role="note">
-                  Text and image generation also use Windows system memory. If a render runs out,
-                  offload another model and retry.
+                  Text and image generation also use Windows system memory: loading FLUX can leave
+                  almost none free for a while, and a 1024 px test used about 16 GB of GPU memory.
+                  Offload other models first; if a render runs out, retry.
                   {actualMode === 'image'
                     ? ' Single photos are projected using an estimated 90° field of view.'
                     : ''}
@@ -551,7 +957,17 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                 </div>
                 <div className="world-reset">
                   {resetArmed ? (
-                    <span className="reset-confirm" role="group" aria-label="Confirm reset">
+                    <span
+                      className="reset-confirm"
+                      role="group"
+                      aria-label="Confirm reset"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.stopPropagation();
+                          cancelReset();
+                        }
+                      }}
+                    >
                       <span>Discard this page&apos;s settings?</span>
                       <button
                         type="button"
@@ -561,16 +977,13 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                       >
                         Yes, reset
                       </button>
-                      <button
-                        type="button"
-                        className="text-action"
-                        onClick={() => setResetArmed(false)}
-                      >
+                      <button type="button" className="text-action" onClick={cancelReset}>
                         Cancel
                       </button>
                     </span>
                   ) : (
                     <button
+                      id="world-reset"
                       type="button"
                       className="text-action reset-defaults"
                       disabled={!isDirty || busy}
@@ -588,7 +1001,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
                 {message && (
                   <p
                     className={`world-notice ${messageKind}`}
-                    role={messageKind === 'success' ? 'status' : 'alert'}
+                    role={messageKind === 'error' ? 'alert' : 'status'}
                   >
                     {message}
                   </p>
@@ -604,6 +1017,12 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
             onRefresh={onRefresh}
             onOpenLibrary={onOpenLibrary}
             onQueued={() => setVersion((v) => v + 1)}
+            onReuse={(meta) => {
+              const plan = reusePlan(meta);
+              if (plan?.world) {
+                applyWorld(plan.world);
+              }
+            }}
             refreshKey={version}
           />
           <RuntimeQueue refreshKey={version} projects={projects} />
@@ -615,7 +1034,7 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
           projects={projects}
           project={project}
           extensions={IMAGE_EXTENSIONS}
-          maxFiles={model === 'hy-world' ? 8 - files.length : 1}
+          maxFiles={maxViews > 1 ? maxViews - files.length : 1}
           totalBytes={40 * 1024 * 1024 - files.reduce((sum, file) => sum + file.size, 0)}
           onSelect={(selected) => {
             addFiles(selected);

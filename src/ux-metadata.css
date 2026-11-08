@@ -1,0 +1,136 @@
+/* Generation details: model, prompt, settings and references for an asset. */
+.generation-details {
+  display: grid;
+  gap: var(--ux-space-3);
+  margin-top: var(--ux-space-4);
+  border-top: var(--ux-border);
+  padding-top: var(--ux-space-4);
+  min-width: 0;
+  color: var(--forge-text);
+}
+.generation-heading {
+  margin: 0;
+  font-size: var(--ux-text-md);
+  color: var(--forge-text-strong, var(--forge-text));
+}
+.generation-empty,
+.generation-job {
+  margin: 0;
+  font-size: var(--ux-text-sm);
+  color: var(--forge-text-secondary);
+}
+.generation-job {
+  font-size: var(--ux-text-xs);
+  overflow-wrap: anywhere;
+}
+.generation-facts,
+.generation-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ux-space-3) var(--ux-space-5);
+  margin: 0;
+}
+.generation-settings {
+  gap: var(--ux-space-2) var(--ux-space-4);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+  padding: var(--ux-space-3);
+  background: var(--forge-surface-inset, transparent);
+}
+.generation-facts > div,
+.generation-settings > div {
+  min-width: 0;
+}
+.generation-facts dt,
+.generation-settings dt,
+.generation-label {
+  color: var(--forge-text-secondary);
+  font-size: var(--ux-text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.generation-facts dd,
+.generation-settings dd {
+  margin: var(--ux-space-1) 0 0;
+  font-size: var(--ux-text-sm);
+  overflow-wrap: anywhere;
+}
+.generation-settings dd {
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.generation-facts small,
+.generation-references small {
+  color: var(--forge-text-secondary);
+}
+.generation-block {
+  display: grid;
+  gap: var(--ux-space-1);
+  min-width: 0;
+}
+.generation-text {
+  margin: 0;
+  font-size: var(--ux-text-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 16rem;
+  overflow: auto;
+}
+.generation-link {
+  justify-self: start;
+  min-height: var(--ux-target-min);
+  border: 0;
+  padding: 0 var(--ux-space-1);
+  background: none;
+  color: var(--forge-action, var(--forge-text));
+  font: inherit;
+  font-size: var(--ux-text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.generation-references {
+  margin: 0;
+  padding-left: var(--ux-space-4);
+  font-size: var(--ux-text-sm);
+  overflow-wrap: anywhere;
+}
+.generation-actions,
+.generation-reuse {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2) var(--ux-space-3);
+}
+.generation-reuse p {
+  flex: 1 1 14rem;
+  margin: 0;
+  font-size: var(--ux-text-xs);
+  color: var(--forge-text-secondary);
+}
+.generation-details button:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+.generation-details.is-compact {
+  margin-top: var(--ux-space-3);
+  padding-top: var(--ux-space-3);
+}
+/* Library: model line on cards and the model filter. */
+.gallery-card-model {
+  display: block;
+  overflow: hidden;
+  color: var(--forge-text-secondary);
+  font-size: var(--ux-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gallery-model-filter select {
+  max-width: 14rem;
+}
+@media (max-width: 600px) {
+  .generation-link,
+  .generation-details .outline-button {
+    min-height: var(--ux-target-touch);
+  }
+}

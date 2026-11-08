@@ -191,6 +191,35 @@ test(
       body: image,
     });
     assert.equal(unauthorized.status, 403);
+    // H3 reference clips are copied from project assets by path, never uploaded.
+    await fs.writeFile(path.join(project.folder, 'video', 'motion.webm'), 'webm bytes');
+    const clipRequest = (body, headers = {}) =>
+      fetch(`${base}/api/projects/${project.id}/clips/from-asset`, {
+        method: 'POST',
+        headers: { Origin: base, 'X-Forge-Request': 'project', ...headers },
+        body: JSON.stringify(body),
+      });
+    const clip = await clipRequest({ path: 'video/motion.webm' });
+    assert.equal(clip.status, 201);
+    const stagedClip = (await clip.json()).reference;
+    assert.match(stagedClip.id, /^[a-f0-9-]{36}.webm$/);
+    assert.equal(stagedClip.kind, 'video');
+    assert.equal(
+      await fs.readFile(path.join(project.folder, '.forge-inputs', stagedClip.id), 'utf8'),
+      'webm bytes',
+    );
+    assert.equal((await clipRequest({ path: '../escape.webm' })).status, 400);
+    assert.equal((await clipRequest({ path: 'video/missing.webm' })).status, 400);
+    assert.equal(
+      (await clipRequest({ path: 'video/motion.webm' }, { Origin: 'http://evil.example' })).status,
+      403,
+    );
+    const uploadedClip = await fetch(`${base}/api/projects/${project.id}/clips`, {
+      method: 'POST',
+      headers: { Origin: base, 'X-Forge-Request': 'project' },
+      body: 'webm bytes',
+    });
+    assert.equal(uploadedClip.status, 400);
     await fs.writeFile(path.join(project.folder, 'images', 'reference.png'), image);
     const runtime = await waitFor(async () => {
       const response = await fetch(`${base}/api/runtime/health`);

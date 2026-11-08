@@ -67,7 +67,9 @@ if ($requested -contains 'all') {
     if ($requested.Count -ne 1) { throw "Use 'all' alone or list specific model IDs." }
     # Check access-sensitive models first so a missing approval is discovered
     # before starting the other very large downloads.
-    $requested = @('3d-trellis','segmentation','sfx') + @($manifest.models | Where-Object { $_.id -notin @('3d-trellis','segmentation','sfx') } | ForEach-Object { $_.id })
+    # Entries marked "optional" are extra checkpoints for features beyond the studio's core set;
+    # they are staged only when named explicitly.
+    $requested = @('3d-trellis','segmentation','sfx') + @($manifest.models | Where-Object { $_.id -notin @('3d-trellis','segmentation','sfx') -and -not $_.optional } | ForEach-Object { $_.id })
 }
 $selected = @()
 foreach ($id in $requested) {

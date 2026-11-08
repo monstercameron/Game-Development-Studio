@@ -33,8 +33,9 @@ test('Hunyuan controls describe supported ranges, units, defaults, and invalid v
     const valid = render({});
     assert.match(valid, /Octree resolution/);
     assert.match(valid, /128 samples per axis/);
-    assert.match(valid, /tested/);
-    assert.match(valid, /experimental/);
+    assert.match(valid, /about 90,000 triangles/);
+    assert.match(valid, /Guidance scale/);
+    assert.match(valid, /Triangle budget/);
     assert.match(valid, /Denoising steps/);
     assert.match(valid, /default is 30/);
     assert.match(valid, /id="hunyuan-resolution-help"/);

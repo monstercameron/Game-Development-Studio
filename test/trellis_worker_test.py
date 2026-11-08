@@ -54,7 +54,18 @@ class WorkerTest(unittest.TestCase):
         finish = threading.Event()
 
         def generate(model, image, destination, **kwargs):
-            self.assertEqual(kwargs, {"seed": 42, "steps": 3, "texture_size": 512})
+            report = kwargs.pop("report")
+            self.assertTrue(callable(report))
+            self.assertEqual(
+                kwargs,
+                {
+                    "seed": 42,
+                    "steps": 3,
+                    "texture_size": 512,
+                    "target_faces": 100000,
+                    "pipeline_type": "512",
+                },
+            )
             started.set()
             if not finish.wait(5):
                 raise RuntimeError("Test timed out.")
@@ -112,6 +123,48 @@ class WorkerTest(unittest.TestCase):
             recovered = self.client.get(f"/api/jobs/{job_id}").json()
             self.assertTrue(recovered["recovered"])
             self.assertEqual(self.client.get(f"/api/jobs/{job_id}/mesh").content, b"glTF-test")
+
+    def test_pipeline_selection_is_validated_budgeted_and_forwarded(self):
+        seen = {}
+
+        def generate(model, image, destination, **kwargs):
+            seen.update(kwargs)
+            kwargs["report"]("Loading the 1024 checkpoints (first use of this pipeline).")
+            Path(destination).write_bytes(b"glTF-test")
+
+        fake = types.SimpleNamespace(load_trellis=lambda: object(), generate_glb=generate)
+        with (
+            patch.dict(
+                sys.modules,
+                {
+                    "trellis_backend": fake,
+                    "trellis_toolchain": types.SimpleNamespace(configure_toolchain=lambda: None),
+                },
+            ),
+            patch.object(worker, "missing_files", return_value=[]),
+            patch.object(worker, "pipelines_available", return_value=["512", "1024"]),
+            patch.object(worker, "check_memory") as memory,
+        ):
+            self.assertEqual(
+                self.client.get("/api/status").json()["pipelines_available"], ["512", "1024"]
+            )
+            self.assertEqual(self.client.post("/api/model/load").status_code, 202)
+            wait_for(lambda: worker.state["phase"] == "ready")
+            for pipeline in ("2048", "1536_cascade"):
+                response = self.client.post(
+                    "/api/generate", json={"image": image_data(), "pipeline": pipeline}
+                )
+                self.assertEqual(response.status_code, 400)
+            memory.reset_mock()
+            response = self.client.post(
+                "/api/generate", json={"image": image_data(), "pipeline": "1024"}
+            )
+            self.assertEqual(response.status_code, 202)
+            job_id = response.json()["id"]
+            wait_for(lambda: worker.jobs[job_id]["status"] == "completed")
+            self.assertEqual(seen["pipeline_type"], "1024")
+            # The 1024 budget is 18 GiB of host memory and 40 GiB of GPU memory.
+            memory.assert_called_once_with(18 * 1024**3, 40 * 1024**3)
 
     def test_failed_memory_check_does_not_create_output(self):
         fake = types.SimpleNamespace(

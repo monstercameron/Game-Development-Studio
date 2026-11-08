@@ -96,7 +96,7 @@ def set_message(job_id, message):
 def paint_mesh(job_id, mesh, image, request):
     # Texture models are loaded for this job and released afterwards so the
     # idle worker keeps only the shape model resident.
-    from hunyuan_paint_backend import generate_texture, load_texture_models
+    from hunyuan_paint_backend import SIMPLIFY_FACES, generate_texture, load_texture_models
 
     release_gpu_cache()
     set_message(job_id, "Loading texture models.")
@@ -108,6 +108,9 @@ def paint_mesh(job_id, mesh, image, request):
             image,
             texture_size=request.texture_size,
             progress=lambda message: set_message(job_id, message),
+            view_count=request.texture_views,
+            view_size=request.texture_view_size,
+            target_faces=request.target_faces or SIMPLIFY_FACES,
         )
     finally:
         models.close()
@@ -117,17 +120,25 @@ def paint_mesh(job_id, mesh, image, request):
 
 def render_worker(job_id, image, request):
     try:
-        from hunyuan_backend import generate_shape
+        from hunyuan_backend import generate_shape, reduce_faces
 
         with lock:
             jobs[job_id].update(status="running", message="Generating 3D shape.")
         mesh = generate_shape(
-            model, image, seed=request.seed, steps=request.steps, resolution=request.resolution
+            model,
+            image,
+            seed=request.seed,
+            steps=request.steps,
+            resolution=request.resolution,
+            guidance_scale=request.guidance_scale,
         )
         done = "3D shape ready."
         if request.texture:
             mesh = paint_mesh(job_id, mesh, image, request)
             done = "Textured 3D model ready."
+        elif request.target_faces:
+            set_message(job_id, f"Reducing the mesh to about {request.target_faces:,} triangles.")
+            mesh = reduce_faces(mesh, request.target_faces)
         temp = OUTPUTS / f".{job_id}.part"
         mesh.export(str(temp), file_type="glb")
         os.replace(temp, OUTPUTS / f"{job_id}.glb")
@@ -147,8 +158,17 @@ class ShapeRequest(BaseModel):
     seed: int = Field(default=123, ge=0, le=2147483647)
     steps: int = Field(default=30, ge=1, le=100)
     resolution: int = 128
+    # Classifier-free guidance; upstream's default for Hunyuan3D 2.1 is 5.0.
+    guidance_scale: float = Field(default=5.0, ge=1.0, le=20.0)
+    # Triangle budget. None keeps the raw mesh for shape-only jobs and means 40,000 when painting.
+    target_faces: int | None = Field(default=None, ge=1000, le=1_000_000)
     texture: bool = False
     texture_size: int = 2048
+    # Advanced painter knobs, offered in the studio with that warning: 8 views at 768 px gave no
+    # visible improvement over the default 6 views at 512 px, took twice as long and used about
+    # 15 GB more GPU memory (jobs 6548ec69 and f9c52766, 2026-11-07).
+    texture_views: int = 6
+    texture_view_size: int = 512
 
 
 @app.get("/api/status")
@@ -188,6 +208,8 @@ def generate(request: ShapeRequest):
         raise HTTPException(400, "Unsupported mesh resolution.")
     if request.texture_size not in (1024, 2048):
         raise HTTPException(400, "Unsupported texture size.")
+    if request.texture_views not in (6, 7, 8, 9) or request.texture_view_size not in (512, 768):
+        raise HTTPException(400, "Unsupported number of painted views or view size.")
     if request.texture and not texture_ready():
         raise HTTPException(
             409, "Texture models or native helpers are missing; install them or turn texture off."

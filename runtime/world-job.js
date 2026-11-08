@@ -82,14 +82,33 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       await sleep(2000);
     }
     send(job.id, 'finalizing');
+    // A mesh can be exported as GLB; everything else is a PLY.
     const output = await saveAsset(
       projectFolder,
       '3d',
       job.id,
-      'ply',
+      job.request.output === 'glb' ? 'glb' : 'ply',
       `${baseUrl}/api/jobs/${remoteId}/world`,
     );
-    send(job.id, 'complete', { output });
+    const extraOutputs = [];
+    let stage;
+    if (job.request.save_panorama) {
+      try {
+        extraOutputs.push(
+          await saveAsset(
+            projectFolder,
+            'images',
+            `${job.id}-panorama`,
+            'png',
+            `${baseUrl}/api/jobs/${remoteId}/panorama`,
+          ),
+        );
+      } catch (error) {
+        // The world itself is finished; say plainly that the extra image was not kept.
+        stage = `Completed. The panorama image could not be saved: ${String(error.message).slice(0, 150)}`;
+      }
+    }
+    send(job.id, 'complete', { output, extraOutputs, stage });
   } catch (error) {
     send(job.id, 'failed', { error: String(error.message).slice(0, 2000) });
   } finally {

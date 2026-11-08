@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
 import { ViewerError } from './viewer-core';
 
+const POINT_MODE_SCALE = 3;
+
 // A few stray splats far from the scene would make the library's own radius frame an
 // empty void, so the framing is derived from a sample of splat centres: the median centre
 // and the 97th percentile distance from it.
@@ -47,6 +49,12 @@ export async function loadSplatSource(engine, { url, signal, onStage, onProgress
     logLevel: GaussianSplats3D.LogLevel.None,
   });
   viewer.controls = engine.controls;
+  // The library draws a point as a fixed 1-2 px dot, which on a dense scene reads as a near-black
+  // screen. Point mode therefore enlarges its dots; the size slider still scales them.
+  let splatScale = 1,
+    pointMode = false;
+  const applyScale = () =>
+    viewer.splatMesh?.setSplatScale(splatScale * (pointMode ? POINT_MODE_SCALE : 1));
   const adapter = {
     update: () => viewer.update(),
     render(force) {
@@ -68,8 +76,15 @@ export async function loadSplatSource(engine, { url, signal, onStage, onProgress
       }
       viewer.forceRenderNextFrame();
     },
-    setSplatScale: (scale) => viewer.splatMesh?.setSplatScale(scale),
-    setPointCloudMode: (enabled) => viewer.splatMesh?.setPointCloudModeEnabled(enabled),
+    setSplatScale(scale) {
+      splatScale = scale;
+      applyScale();
+    },
+    setPointCloudMode(enabled) {
+      pointMode = enabled;
+      viewer.splatMesh?.setPointCloudModeEnabled(enabled);
+      applyScale();
+    },
     dispose: () => viewer.dispose(),
   };
   engine.attachAdapter(adapter);

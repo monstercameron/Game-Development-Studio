@@ -58,4 +58,38 @@ test('MCP queues a world with its selected model and staged references', async (
   assert.equal(request.body.type, 'world');
   assert.equal(request.body.request.model, 'hy-world');
   assert.deepEqual(request.body.request.references, [reference]);
+  // The seed is optional so Forge can pick and record a random one.
+  assert.equal('seed' in request.body.request, false);
+
+  const tools = await client.listTools();
+  const schema = tools.tools.find((tool) => tool.name === 'forge_queue_world').inputSchema;
+  for (const option of [
+    'guidance',
+    'save_panorama',
+    'splat_limit',
+    'remove_sky',
+    'confidence_percentile',
+  ]) {
+    assert.ok(schema.properties[option], `${option} is offered`);
+    assert.equal(schema.required.includes(option), false);
+  }
+  assert.equal(schema.required.includes('seed'), false);
+  assert.deepEqual(schema.properties.output.enum, ['splat', 'mesh', 'glb']);
+  const tuned = await client.callTool({
+    name: 'forge_queue_world',
+    arguments: {
+      projectId,
+      model: 'worldgen',
+      mode: 'text',
+      prompt: 'a harbour',
+      output: 'glb',
+      resolution: 1024,
+      guidance: 4,
+      save_panorama: true,
+    },
+  });
+  assert.notEqual(tuned.isError, true);
+  assert.equal(request.body.request.guidance, 4);
+  assert.equal(request.body.request.save_panorama, true);
+  assert.equal(request.body.request.output, 'glb');
 });

@@ -1,5 +1,7 @@
-"""Offline, GPU-only TRELLIS.2 512 pipeline for an isolated Windows worker.
+"""Offline, GPU-only TRELLIS.2 pipelines for an isolated Windows worker.
 
+The 512 pipeline is loaded at startup; the 1024, 1024_cascade and 1536_cascade pipelines load
+their extra checkpoints on first use (see trellis_manifest.PIPELINE_EXTRAS).
 The caller must perform host/GPU memory admission before loading or rendering.
 Only transparent inputs are supported until the gated background remover is
 available. Checkpoints are memory-mapped to avoid an extra full CPU copy.
@@ -28,7 +30,17 @@ import numpy as np  # noqa: E402
 import torch  # noqa: E402
 from accelerate import init_empty_weights  # noqa: E402
 from safetensors.torch import load_file  # noqa: E402
-from trellis_manifest import COMPONENTS, DECODER, DINO, MODEL, missing_files  # noqa: E402
+from trellis_manifest import (  # noqa: E402
+    COMPONENTS,
+    DECODER,
+    DINO,
+    EXTRA_COMPONENTS,
+    MODEL,
+    PIPELINE_EXTRAS,
+    PIPELINE_TYPES,
+    missing_files,
+    pipelines_available,
+)
 
 
 def _load_component(base):
@@ -140,6 +152,30 @@ def load_trellis():
     return pipeline
 
 
+def ensure_pipeline_models(pipeline, pipeline_type, report=None):
+    """Load the checkpoints a higher-resolution pipeline needs, once, the first time it is used.
+
+    They stay on the CPU like the base models: the pipeline runs in low_vram mode and moves one
+    model at a time to the GPU while it samples. The caller checks host memory beforehand.
+    """
+    if pipeline_type not in PIPELINE_TYPES:
+        raise ValueError(f"Unsupported TRELLIS.2 pipeline: {pipeline_type}.")
+    needed = [key for key in PIPELINE_EXTRAS[pipeline_type] if key not in pipeline.models]
+    if not needed:
+        return
+    if pipeline_type not in pipelines_available():
+        raise RuntimeError(f"The TRELLIS.2 {pipeline_type} checkpoints are not installed.")
+    config = json.loads((MODEL / "pipeline.json").read_text(encoding="utf-8"))["args"]
+    for key in needed:
+        if config["models"].get(key) != EXTRA_COMPONENTS[key]:
+            raise RuntimeError(f"Unexpected TRELLIS.2 pipeline component: {key}.")
+    for key in needed:
+        if report:
+            report(f"Loading the {pipeline_type} checkpoints (first use of this pipeline).")
+        pipeline.models[key] = _load_component(MODEL / EXTRA_COMPONENTS[key])
+    gc.collect()
+
+
 def validate_transparent(image):
     if image.mode != "RGBA":
         raise ValueError(
@@ -148,26 +184,53 @@ def validate_transparent(image):
     alpha = np.asarray(image.getchannel("A"))
     if alpha.min() == 255 or np.count_nonzero(alpha > 204) < 4:
         raise ValueError("The image needs a transparent background and a visible foreground.")
+    if np.count_nonzero(alpha < 128) < alpha.size * 0.01:
+        raise ValueError("The image has no real transparent background.")
     ys, xs = np.where(alpha > 204)
     if xs.max() == xs.min() or ys.max() == ys.min():
         raise ValueError("The visible foreground is too small.")
 
 
-def generate_glb(pipeline, image, destination, *, seed=42, steps=12, texture_size=1024):
+# Upstream's default is 1,000,000 triangles, which is far too heavy for a game asset. The
+# Forge default is 100,000; the full-detail ceiling remains selectable.
+DEFAULT_TARGET_FACES = 100000
+MIN_TARGET_FACES = 5000
+MAX_TARGET_FACES = 1000000
+
+
+def generate_glb(
+    pipeline,
+    image,
+    destination,
+    *,
+    seed=42,
+    steps=12,
+    texture_size=1024,
+    target_faces=DEFAULT_TARGET_FACES,
+    pipeline_type="512",
+    report=None,
+):
     if not torch.cuda.is_available():
         raise RuntimeError("TRELLIS.2 requires CUDA; CPU inference is disabled.")
+    if pipeline_type not in PIPELINE_TYPES:
+        raise ValueError(f"Unsupported TRELLIS.2 pipeline: {pipeline_type}.")
     validate_transparent(image)
     if not isinstance(seed, int) or not 0 <= seed <= 2147483647:
         raise ValueError("Invalid seed.")
     if not isinstance(steps, int) or not 1 <= steps <= 50 or texture_size not in (512, 1024, 2048):
         raise ValueError("Unsupported sampling steps or texture size.")
+    if not isinstance(target_faces, int) or not (
+        MIN_TARGET_FACES <= target_faces <= MAX_TARGET_FACES
+    ):
+        raise ValueError("Triangle target must be between 5,000 and 1,000,000.")
     import o_voxel
 
+    ensure_pipeline_models(pipeline, pipeline_type, report)
     with torch.inference_mode():
         mesh = pipeline.run(
             image,
             seed=seed,
-            pipeline_type="512",
+            pipeline_type=pipeline_type,
             sparse_structure_sampler_params={"steps": steps},
             shape_slat_sampler_params={"steps": steps},
             tex_slat_sampler_params={"steps": steps},
@@ -183,7 +246,7 @@ def generate_glb(pipeline, image, destination, *, seed=42, steps=12, texture_siz
             attr_layout=mesh.layout,
             voxel_size=mesh.voxel_size,
             aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]],
-            decimation_target=1000000,
+            decimation_target=target_faces,
             texture_size=texture_size,
             remesh=True,
             remesh_band=1,

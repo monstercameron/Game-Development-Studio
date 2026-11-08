@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  hunyuanGuidance,
   hunyuanShapeRequest,
   hunyuanSteps,
+  hunyuanTriangles,
   HUNYUAN_ESTIMATE_REFERENCE,
 } from '../src/hunyuan-settings.js';
 
@@ -24,6 +26,24 @@ test('3D settings preserve all supported tuning for submissions and estimates', 
   });
   assert.equal(hunyuanSteps(1), 1);
   assert.equal(hunyuanSteps('100'), 100);
+});
+
+test('3D shape tuning is sent only when it differs from the defaults', () => {
+  const id = '4d4ad065-ce7e-44e6-b4fc-c1c62d6d326e.png';
+  const plain = hunyuanShapeRequest({ shapeGuidance: '5', shapeTriangles: '' }, [id]);
+  assert.equal('guidance' in plain, false);
+  assert.equal('target_faces' in plain, false);
+  const tuned = hunyuanShapeRequest({ shapeGuidance: '7.5', shapeTriangles: '20000' }, [id]);
+  assert.equal(tuned.guidance, 7.5);
+  assert.equal(tuned.target_faces, 20000);
+  assert.equal(hunyuanGuidance(undefined), 5);
+  assert.equal(hunyuanTriangles(''), null);
+  for (const shapeGuidance of [0.5, 21, '', 'x', null, NaN]) {
+    assert.throws(() => hunyuanShapeRequest({ shapeGuidance }, [id]), /Guidance/);
+  }
+  for (const shapeTriangles of [999, 1000001, 2500.5, 'many', true]) {
+    assert.throws(() => hunyuanShapeRequest({ shapeTriangles }, [id]), /Triangle target/);
+  }
 });
 
 test('3D settings reject malformed controls before uploading references', () => {

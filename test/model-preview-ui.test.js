@@ -196,9 +196,9 @@ test('switching assets and unmounting dispose every engine', async (t) => {
 test('unsupported formats show an actionable message instead of a viewer', async (t) => {
   const harness = await createViewerHarness(t);
   const { default: ModelPreview } = await harness.load('ModelPreview.jsx');
-  await render(harness, ModelPreview, { url: '/model.stl', name: 'model.stl' });
+  await render(harness, ModelPreview, { url: '/model.dae', name: 'model.dae' });
   assert.match(harness.container.textContent, /Preview unavailable/);
-  assert.match(harness.container.textContent, /GLB, self-contained glTF, FBX and PLY/);
+  assert.match(harness.container.textContent, /GLB, self-contained glTF, FBX, PLY, OBJ and STL/);
   assert.equal(harness.container.querySelector('.vw'), null);
   assert.equal(harness.log.engines.length, 0);
 });

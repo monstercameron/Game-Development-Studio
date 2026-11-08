@@ -13,6 +13,7 @@ import { expectedEngineExecutables, inspectWindowsProcess } from './engine-owner
 import { forceStopWindows } from './force-stop.js';
 import { DEFAULT_CHAT_CONTEXT, validateChatContext } from './chat-memory.js';
 import { resolveEngineLaunch } from './engine-launch.js';
+import { asrLatencyArgs } from './asr-latency.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const desktop = path.join(os.homedir(), 'Desktop');
@@ -71,7 +72,10 @@ export const engineDefinitions = [
       '--engine-dir',
       images,
     ],
-    env: { QWEN_MODEL: path.join(root, 'models', 'Qwen-Image-2.1') },
+    env: {
+      QWEN_MODEL: path.join(root, 'models', 'Qwen-Image-2.1'),
+      QWEN_LORA_DIR: path.join(root, 'models', 'Qwen-Image-2.1-LoRA'),
+    },
     quiesce: 'qwen-v1',
   },
   {
@@ -129,6 +133,9 @@ export const engineDefinitions = [
     env: {
       FORGE_H3_MODEL_ROOT: path.join(defaultModelsRoot, 'MiniMax-H3', 'h3-studio'),
       FORGE_H3_VAE_ROOT: path.join(defaultModelsRoot, 'MiniMax-H3', 'sol-engine'),
+      // Prepared reference clips and frames for the extra video options (runtime/h3_args.cjs).
+      FORGE_H3_INPUT_ROOT: path.join(root, '.forge-runtime', 'h3-inputs'),
+      FORGE_H3_LORA_DIR: path.join(defaultModelsRoot, 'MiniMax-H3', 'loras'),
     },
   },
   {
@@ -294,6 +301,10 @@ export function engineStartArgs(definition, options = {}) {
       '--parallel',
       '1',
     ];
+  }
+  if (definition.id === 'asr') {
+    // The saved streaming latency mode (80, 160, 560 or 1120 ms); the default adds no argument.
+    return [...definition.args, ...asrLatencyArgs()];
   }
   return definition.args;
 }

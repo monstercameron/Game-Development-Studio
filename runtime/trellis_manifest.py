@@ -38,3 +38,53 @@ def missing_files():
         except (OSError, UnicodeError, json.JSONDecodeError):
             missing.append(path)
     return missing
+
+
+# Extra checkpoints for the higher-resolution pipelines. They live in the same repository as the
+# 512 files (models/TRELLIS.2-4B/ckpts), so no extra download source is involved. The worker loads
+# them on first use of a pipeline that needs them, not at startup, to keep the host-memory
+# footprint of the default 512 pipeline unchanged.
+EXTRA_COMPONENTS = {
+    "shape_slat_flow_model_1024": "ckpts/slat_flow_img2shape_dit_1_3B_1024_bf16",
+    "tex_slat_flow_model_1024": "ckpts/slat_flow_imgshape2tex_dit_1_3B_1024_bf16",
+}
+# Component keys (see Trellis2ImageTo3DPipeline.run) that each pipeline type needs beyond the
+# always-loaded base set. The 1536 cascade reuses the 1024 checkpoints with a larger target grid.
+PIPELINE_EXTRAS = {
+    "512": (),
+    "1024": ("shape_slat_flow_model_1024", "tex_slat_flow_model_1024"),
+    "1024_cascade": ("shape_slat_flow_model_1024", "tex_slat_flow_model_1024"),
+    "1536_cascade": ("shape_slat_flow_model_1024", "tex_slat_flow_model_1024"),
+}
+PIPELINE_TYPES = tuple(PIPELINE_EXTRAS)
+
+
+def _usable(path):
+    try:
+        if not path.is_file() or path.stat().st_size == 0:
+            return False
+        if path.suffix == ".json":
+            with path.open("r", encoding="utf-8") as stream:
+                json.load(stream)
+        return True
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+
+
+def extra_files(keys):
+    paths = []
+    for key in keys:
+        base = MODEL / EXTRA_COMPONENTS[key]
+        paths.extend((Path(f"{base}.json"), Path(f"{base}.safetensors")))
+    return paths
+
+
+def pipelines_available():
+    """Pipeline types whose checkpoints are all on disk (the base files are required for all)."""
+    if missing_files():
+        return []
+    return [
+        name
+        for name, keys in PIPELINE_EXTRAS.items()
+        if all(_usable(path) for path in extra_files(keys))
+    ]

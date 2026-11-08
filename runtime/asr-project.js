@@ -6,7 +6,7 @@ import { transcribeWav } from './asr-client.js';
 // Read only a named WAV inside a project. Resolve links before the boundary
 // check so this tool cannot be used to read arbitrary files through a project.
 export async function transcribeProjectAudio(
-  { projectId, path: relative },
+  { projectId, path: relative, ...options },
   { baseUrl, projectsRoot, transcribe = transcribeWav } = {},
 ) {
   if (
@@ -32,5 +32,5 @@ export async function transcribeProjectAudio(
   if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
     throw Error('The WAV must be inside this project.');
   }
-  return transcribe(await fs.readFile(real), { baseUrl });
+  return transcribe(await fs.readFile(real), { baseUrl, options });
 }

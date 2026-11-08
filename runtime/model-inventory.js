@@ -25,6 +25,8 @@ export const managedModels = Object.freeze([
   { id: 'motion-hy', folder: 'HY-Motion' },
   { id: 'motion-bricks', folder: 'MotionBricks', removable: false },
   { id: 'tts', folder: 'Qwen3-TTS-12Hz-1.7B-CustomVoice' },
+  { id: 'tts-base', folder: 'Qwen3-TTS-12Hz-1.7B-Base', removable: false },
+  { id: 'tts-voicedesign', folder: 'Qwen3-TTS-12Hz-1.7B-VoiceDesign', removable: false },
   { id: 'asr', folder: 'nemotron-speech-streaming-en-0.6b' },
   { id: 'segmentation', folder: 'sam3.1' },
   { id: 'sam3-base', folder: 'sam3' },

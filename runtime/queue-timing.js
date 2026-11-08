@@ -1,3 +1,10 @@
+import { STANDARD_PIXELS, videoDimensions } from './video-options.js';
+
+function videoPixelFactor(request) {
+  const size = videoDimensions(request.aspect || 'landscape', request.resolution || 'standard');
+  return size ? (size[0] * size[1]) / STANDARD_PIXELS : 1;
+}
+
 // Queue order comes from the durable runtime. These are estimates, not reservations;
 // preparation, model loading, and outside GPU activity cannot be predicted reliably.
 export const ACTIVE_QUEUE_STATES = new Set([
@@ -31,14 +38,25 @@ export function formatDuration(seconds) {
   return remaining ? `${hours}h ${remaining}m` : `${hours}h`;
 }
 
-function work(type, request) {
+export function work(type, request) {
   const number = (value, fallback = 1) =>
     Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : fallback;
   switch (type) {
     case 'images':
-      return number(request.width) * number(request.height) * number(request.num_inference_steps);
+      // A size matched to the last reference is about one megapixel (Qwen's output_resolution of 1024).
+      return (
+        (request.size_from_reference
+          ? 1024 * 1024
+          : number(request.width) * number(request.height)) * number(request.num_inference_steps)
+      );
     case 'video':
-      return number(request.frames) * number(request.steps);
+      // A larger picture has proportionally more tokens, and guidance runs the model twice.
+      return (
+        number(request.frames) *
+        number(request.steps) *
+        videoPixelFactor(request) *
+        ((request.cfg_scale || 1) > 1 ? 2 : 1)
+      );
     case 'sfx':
       return number(request.duration) * number(request.steps);
     case 'music':
@@ -60,6 +78,14 @@ function work(type, request) {
   }
 }
 
+// A reference that will come from an earlier render (request.referenceFrom) counts as soon as
+// the render is queued, so a waiting chained render matches its finished siblings.
+function referenceCount(request) {
+  const own = request?.references?.length || 0;
+  const pending = request?.referenceFrom && typeof request.referenceFrom.output !== 'string';
+  return own + (pending ? 1 : 0);
+}
+
 // When there are no exact matches, use nearby completed settings only. This is
 // deliberately labeled rough and is omitted if the workloads differ too much.
 export function estimateFromNearbyHistory(type, request, jobs) {
@@ -79,7 +105,7 @@ export function estimateFromNearbyHistory(type, request, jobs) {
     }
     if (
       ['images', 'video'].includes(type) &&
-      (request.references?.length || 0) !== (job.request?.references?.length || 0)
+      referenceCount(request) !== referenceCount(job.request)
     ) {
       continue;
     }
@@ -107,10 +133,29 @@ export function estimateFromNearbyHistory(type, request, jobs) {
     if (type === 'trellis' && request.texture_size !== job.request?.texture_size) {
       continue;
     }
+    // Pipelines differ by far more than the 2x ratio check allows for.
+    if (type === 'trellis' && (request.pipeline ?? '512') !== (job.request?.pipeline ?? '512')) {
+      continue;
+    }
     if (
       type === '3d' &&
       (request.texture === true ? request.texture_size : false) !==
         (job.request?.texture === true ? job.request.texture_size : false)
+    ) {
+      continue;
+    }
+    // More or larger painted views take about twice as long, so they never borrow default timings.
+    if (
+      type === '3d' &&
+      request.texture === true &&
+      (request.texture_views ?? 6) !== (job.request?.texture_views ?? 6)
+    ) {
+      continue;
+    }
+    if (
+      type === '3d' &&
+      request.texture === true &&
+      (request.texture_view_size ?? 512) !== (job.request?.texture_view_size ?? 512)
     ) {
       continue;
     }

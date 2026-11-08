@@ -1,6 +1,7 @@
 import { fork } from 'node:child_process';
 import { createRuntimeLog } from './runtime-log.js';
 import { buildModelCatalog } from './model-catalog.js';
+import { LORA_FOLDER_NAME, listImageLoras } from './image-loras.js';
 
 const ENGINE_OPERATIONS = new Set([
   'health',
@@ -11,6 +12,7 @@ const ENGINE_OPERATIONS = new Set([
   'modelCatalog',
   'job',
   'enqueue',
+  'enqueueChain',
   'estimate',
   'decide',
   'transcribe',
@@ -19,6 +21,8 @@ const ENGINE_OPERATIONS = new Set([
   'loadSound',
   'loadTts',
   'loadAsr',
+  'asrLatency',
+  'setAsrLatency',
   'loadGame',
   'loadHunyuan',
   'loadTrellis',
@@ -281,12 +285,17 @@ export function runtimeService({ engineBroker = null } = {}) {
         return send(403, { error: 'Local studio requests only.' });
       }
       const url = new URL(req.url, 'http://127.0.0.1');
+      // A plain folder listing; it needs neither the worker nor a running engine.
+      if (req.method === 'GET' && url.pathname === '/image-loras') {
+        return send(200, { folder: `models/${LORA_FOLDER_NAME}`, loras: listImageLoras() });
+      }
       const routes = {
         '/health': 'health',
         '/services': 'services',
         '/hardware': 'hardware',
         '/jobs': 'jobs',
         '/model-storage': 'modelStorage',
+        '/asr/latency': 'asrLatency',
       };
       const match = /^\/jobs\/([a-f0-9-]{36})(?:\/(cancel|resolve|retry))?$/i.exec(url.pathname);
       const modelMatch =
@@ -322,6 +331,8 @@ export function runtimeService({ engineBroker = null } = {}) {
           method = 'loadChat';
         } else if (url.pathname === '/jobs') {
           method = 'enqueue';
+        } else if (url.pathname === '/jobs/chain') {
+          method = 'enqueueChain';
         } else if (url.pathname === '/estimate') {
           method = 'estimate';
         } else if (url.pathname === '/game/decide') {
@@ -336,6 +347,8 @@ export function runtimeService({ engineBroker = null } = {}) {
           method = 'loadTts';
         } else if (url.pathname === '/models/asr/load') {
           method = 'loadAsr';
+        } else if (url.pathname === '/asr/latency') {
+          method = 'setAsrLatency';
         } else if (url.pathname === '/models/game/load') {
           method = 'loadGame';
         } else if (url.pathname === '/models/3d-hunyuan/load') {
@@ -472,7 +485,7 @@ export function runtimeService({ engineBroker = null } = {}) {
           return send(result.status, result.body);
         }
         send(
-          method === 'enqueue' ? 201 : method === 'removeModel' ? 202 : 200,
+          ['enqueue', 'enqueueChain'].includes(method) ? 201 : method === 'removeModel' ? 202 : 200,
           method === 'health' ? { ...result, supervisor: supervisor.status() } : result,
         );
       } catch (error) {

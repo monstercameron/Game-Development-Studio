@@ -255,6 +255,30 @@ class Guard:
             writer.close()
 
 
+# Cache-aware streaming right context R gives a chunk of (R + 1) x 80 ms: 0, 1, 6 and 13 are the
+# 80, 160, 560 and 1120 ms modes of the Nemotron streaming model. Omitted keeps the engine default (1).
+RIGHT_CONTEXTS = (0, 1, 6, 13)
+
+
+def native_command(args, port):
+    command = [
+        str(args.native),
+        "serve",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "--asr-model",
+        str(args.model),
+        "--device",
+        "cuda:0",
+        "--no-ui",
+    ]
+    if args.right_context is not None:
+        command += ["--asr.streaming.rnnt_right_context", str(args.right_context)]
+    return command
+
+
 async def run(args):
     if not TOKEN:
         raise RuntimeError("A Forge control token is required.")
@@ -273,19 +297,7 @@ async def run(args):
             guard.handle, "127.0.0.1", args.port, limit=MAX_HEADER + 1
         )
         process = subprocess.Popen(
-            [
-                str(args.native),
-                "serve",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(port),
-                "--asr-model",
-                str(args.model),
-                "--device",
-                "cuda:0",
-                "--no-ui",
-            ],
+            native_command(args, port),
             cwd=str(args.cwd),
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
@@ -330,6 +342,7 @@ if __name__ == "__main__":
     parser.add_argument("--native", type=Path, required=True)
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--cwd", type=Path, required=True)
+    parser.add_argument("--right-context", type=int, choices=RIGHT_CONTEXTS, default=None)
     try:
         asyncio.run(run(parser.parse_args()))
     except Exception as error:

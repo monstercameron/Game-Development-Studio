@@ -10,6 +10,7 @@ import { stageReference } from '../runtime/references.js';
 import { interpretStatus } from '../runtime/catalog.js';
 import { parsePlyPreview } from '../src/ply-preview.js';
 import { rerunRequest } from '../src/rerun-request.js';
+import { readAssetMeta } from '../runtime/asset-metadata.js';
 
 const ply =
   'ply\nformat ascii 1.0\nelement vertex 3\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n1 0 0\n0 1 0\n';
@@ -137,6 +138,14 @@ test(
         assert.equal(done.status, 'completed', done.error || done.stage);
         assert.equal(await fs.readFile(path.join(folder, ...done.output.split('/')), 'utf8'), ply);
       }
+      // Completed jobs leave their model, prompt, and settings in the project's database.
+      const recorded = readAssetMeta(folder, queue.get(third.id).output);
+      assert.equal(recorded.source, 'job');
+      assert.equal(recorded.job.id, third.id);
+      assert.equal(recorded.model.name, 'WorldGen');
+      assert.equal(recorded.seed, 123);
+      assert.equal(recorded.settings.steps, 12);
+      assert.equal(readAssetMeta(folder, queue.get(second.id).output).model.name, 'HY-World 2.0');
       assert.deepEqual(
         requests.map((request) => request.model),
         ['worldgen', 'hy-world', 'worldgen'],

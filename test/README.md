@@ -15,6 +15,10 @@ To run a focused group, pass the filenames after `node --test`, for example `tes
 
 For World studio changes, `node --test test/world-queue.test.js test/world-mcp.test.js test/nav-queue-status.test.js` covers the queue adapter, MCP and page indicators using substitute services. The WorldGen LoRA and perspective-ray helpers and Windows memory guard also have Python unit tests; see [agent setup](../docs/AGENT_SETUP.md#4-validate-the-right-layer) for the commands and environment paths. These tests do not run full GPU inference.
 
+## 3D chaining, recipes, pipelines and conversion
+
+`node --test test/job-chain.test.js test/three-d-chain-e2e.test.js test/three-d-inputs.test.js test/three-d-inputs-ui.test.js test/three-d-mcp.test.js test/three-d-options.test.js test/model-convert.test.js` covers job chaining in the durable queue (validation, restart, cancel and failure policy, legacy databases), a full chain through the real queue and job workers against fake SAM, Qwen, Hunyuan and TRELLIS.2 services, the 3D page controls in jsdom, the MCP tools, TRELLIS.2 pipeline budgets, and 3D conversion. `test/model_convert_test.py` and the last test in `model-convert.test.js` run the real trimesh converter on tiny generated meshes; run the Python file with the Hunyuan3D environment (`.forge-runtime\hunyuan3d-venv\Scripts\python.exe test\model_convert_test.py`). None of these load a model or use the GPU.
+
 ## Native TRELLIS component suite
 
 ```powershell

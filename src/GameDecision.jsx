@@ -270,6 +270,10 @@ export default function GameDecision({ draft, project, onSaved }) {
         project?.id,
         'decision',
         JSON.stringify(result, null, 2),
+        {
+          prompt: draft.prompt,
+          settings: { question_type: draft.options?.[0], result_view: draft.options?.[1] },
+        },
       );
       setSavedPath(output.path);
       onSaved?.();

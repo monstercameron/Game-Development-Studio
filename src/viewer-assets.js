@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { BVHLoader } from 'three/addons/loaders/BVHLoader.js';
 import { parsePlyPreview } from './ply-preview';
 import { ViewerError, byteLimitFor, fileExtension } from './viewer-core';
@@ -89,6 +91,21 @@ export async function parseModelBytes(bytes, name) {
   if (extension === 'ply') {
     const root = parsePlyPreview(bytes);
     return { root, animations: [], kind: root.isPoints ? 'points' : 'mesh' };
+  }
+  if (extension === 'obj') {
+    // Geometry only: the viewer does not read the sibling .mtl or its textures.
+    const root = new OBJLoader().parse(new TextDecoder().decode(bytes));
+    return { root, animations: [], kind: 'mesh' };
+  }
+  if (extension === 'stl') {
+    const geometry = new STLLoader().parse(bytes);
+    if (!geometry.getAttribute('normal')) {
+      geometry.computeVertexNormals();
+    }
+    const material = new THREE.MeshStandardMaterial({ color: 0xc8c8d0, roughness: 0.7 });
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geometry, material));
+    return { root, animations: [], kind: 'mesh' };
   }
   if (extension === 'fbx') {
     const root = new FBXLoader(selfContainedManager()).parse(bytes, '');

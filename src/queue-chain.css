@@ -1,0 +1,14 @@
+/* Queue rows for renders that take their reference from an earlier render. */
+.runtime-queue .runtime-job-chained {
+  position: relative;
+  margin-left: var(--forge-space-5, 20px);
+  border-left: 2px solid var(--forge-control-border, #684b5b);
+  padding-left: var(--forge-space-3, 12px);
+}
+
+.runtime-queue .runtime-job-chain-hint {
+  display: block;
+  color: var(--forge-muted, #d4c0ca);
+  font-size: var(--forge-font-support, 0.875rem);
+  line-height: 1.5;
+}

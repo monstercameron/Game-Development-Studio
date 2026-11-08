@@ -1,6 +1,10 @@
 import { saveAsset } from './job-io.js';
 import { readReferences } from './references.js';
+import { parseSigmaSchedule } from './image-options.js';
 
+// Qwen Image 2.1's documented wording for native transparency (RGBA) output.
+export const transparentPrompt = (prompt) =>
+  `This is an RGBA image with transparency. ${String(prompt).trim()} The image has alpha channel and the background is transparent.`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function send(jobId, type, values = {}) {
   if (process.connected) {
@@ -12,7 +16,47 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
   let remoteId = job.remoteId;
   try {
     if (!remoteId) {
-      const { references = [], ...request } = job.request;
+      const {
+        references = [],
+        transparent = false,
+        size_from_reference: sizeFromReference = false,
+        ...request
+      } = job.request;
+      // Forge-only options become Qwen's own inputs here; the engine never sees them.
+      if (transparent) {
+        request.prompt = transparentPrompt(request.prompt);
+      }
+      if (sizeFromReference) {
+        // Without width and height Qwen derives the size from the last reference image.
+        delete request.width;
+        delete request.height;
+      }
+      // Variation labels are Forge's own grouping; the engine renders one image per job.
+      delete request.variation_group;
+      delete request.variation_index;
+      delete request.variation_count;
+      if (request.sigma_schedule) {
+        request.sigmas = parseSigmaSchedule(request.sigma_schedule);
+      }
+      delete request.sigma_schedule;
+      if (request.lora) {
+        // An engine without LoRA support ignores the fields and would render without the LoRA.
+        try {
+          const response = await fetch(`${baseUrl}/api/loras`, {
+            signal: AbortSignal.timeout(10000),
+            redirect: 'error',
+          });
+          const listed = response.ok ? (await response.json()).loras : null;
+          if (!Array.isArray(listed) || !listed.some((item) => item?.name === request.lora)) {
+            throw Error('not listed');
+          }
+        } catch {
+          send(job.id, 'failed', {
+            error: `The running Qwen Image Studio cannot apply the LoRA "${request.lora}". It needs the updated app.py and the peft package, and the file must be in its LoRA folder (see the Studio guide).`,
+          });
+          return;
+        }
+      }
       let images = [];
       if (references.length) {
         try {

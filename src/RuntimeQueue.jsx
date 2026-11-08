@@ -1,10 +1,25 @@
 import { useRouteToggle } from './useNav';
 import useDialogFocus from './useDialogFocus';
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link } from 'react-router';
 import { Check, CircleAlert, Copy, ListMusic, RefreshCw, X, Zap } from 'lucide-react';
 import { audioPayload } from './audio-payload';
-import { imageRequest, videoRequest } from './imageVideoInputs';
+import {
+  imageRequest,
+  imageVariationCount,
+  variationRequests,
+  videoRequest,
+} from './imageVideoInputs';
+import { jobHint } from './job-hints.js';
+import {
+  chainHint,
+  isChained,
+  isWaitingForReference,
+  orderChains,
+  waitingDependents,
+} from './queue-chain.js';
+import './queue-chain.css';
+import { getVideoFrames } from './video-media-store';
 import { hunyuanShapeRequest } from './hunyuan-settings.js';
 import { trellisRequest } from './trellis-settings.js';
 import { hyMotionRequest } from './hymotion-settings.js';
@@ -118,7 +133,7 @@ export const enqueueSound = (projectId, draft) =>
   post('/api/runtime/jobs', payload('sfx', projectId, draft));
 export const enqueueVoice = (projectId, draft) =>
   post('/api/runtime/jobs', payload('voices', projectId, draft));
-async function stageReferences(projectId, files) {
+export async function stageReferences(projectId, files) {
   const referenceIds = [];
   for (const file of files) {
     const response = await fetch(`/api/projects/${projectId}/references`, {
@@ -138,22 +153,75 @@ async function stageReferences(projectId, files) {
   return referenceIds;
 }
 export async function enqueueImage(projectId, draft, files = []) {
-  imageRequest(draft);
-  return post(
-    '/api/runtime/jobs',
-    payload('images', projectId, {
-      ...draft,
-      referenceIds: await stageReferences(projectId, files),
-    }),
-  );
+  // Validate before saving references; the staged IDs only exist afterwards.
+  imageRequest({ ...draft, referenceIds: files.map((file) => file.name) });
+  const count = imageVariationCount(draft);
+  const queued = payload('images', projectId, {
+    ...draft,
+    referenceIds: await stageReferences(projectId, files),
+  });
+  // Variations are sibling jobs that differ only in seed, queued one after another.
+  const jobs = [];
+  for (const request of variationRequests(queued.request, count)) {
+    try {
+      jobs.push(await post('/api/runtime/jobs', { ...queued, request }));
+    } catch (error) {
+      error.message = jobs.length
+        ? `Queued ${jobs.length} of ${count} variations, then: ${error.message}`
+        : error.message;
+      throw error;
+    }
+  }
+  return count === 1 ? jobs[0] : jobs;
+}
+// Reference videos and audio are copied from the project's own assets (by path), not uploaded.
+async function stageClips(projectId, clips) {
+  const ids = [];
+  for (const clip of clips) {
+    const response = await fetch(`/api/projects/${projectId}/clips/from-asset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'project' },
+      body: JSON.stringify({ path: clip.path }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw Error(result.error || 'Could not save the reference clip.');
+    }
+    ids.push(result.reference.id);
+  }
+  return ids;
 }
 export async function enqueueVideo(projectId, draft, files) {
+  // Validate before saving anything; the staged IDs only exist afterwards.
   videoRequest(draft);
+  const source = ['frames', 'text'].includes(draft.videoSource) ? draft.videoSource : 'references';
+  const { first, last } = getVideoFrames();
+  const frames = source === 'frames' ? [first, last].filter(Boolean) : [];
+  if (source === 'frames' && !first) {
+    throw Error('Choose the first frame again before queuing.');
+  }
+  if (source === 'frames' && draft.videoLastFrame && !last) {
+    throw Error('Choose the last frame again before queuing.');
+  }
+  const [firstFrameId, lastFrameId] = await stageReferences(projectId, frames);
+  const referenceIds = await stageReferences(projectId, source === 'references' ? files : []);
+  const clipIds = await stageClips(
+    projectId,
+    source === 'references' ? draft.videoClips || [] : [],
+  );
+  const audioIds = await stageClips(
+    projectId,
+    source === 'references' ? draft.videoAudios || [] : [],
+  );
   return post(
     '/api/runtime/jobs',
     payload('video', projectId, {
       ...draft,
-      referenceIds: await stageReferences(projectId, files),
+      referenceIds,
+      firstFrameId,
+      lastFrameId,
+      clipIds,
+      audioIds,
     }),
   );
 }
@@ -213,6 +281,15 @@ export const estimatePayload = (type, projectId, draft) =>
     prompt: type === 'voices' ? draft.prompt || 'estimate' : 'estimate',
     second: type === 'voices' ? draft.second || '' : '[Instrumental]',
     seed: '',
+    // Estimates never save files: stand-in ids are enough to validate the settings.
+    ...(type === 'video' && draft.videoSource === 'frames'
+      ? {
+          firstFrameId: '00000000-0000-0000-0000-000000000000.png',
+          lastFrameId: draft.videoLastFrame
+            ? '00000000-0000-0000-0000-000000000000.png'
+            : undefined,
+        }
+      : {}),
     ...(['images', 'video'].includes(type)
       ? {
           referenceIds: Array.from(
@@ -259,7 +336,6 @@ function JobTiming({ job, timing }) {
   );
 }
 export default function RuntimeQueue({ refreshKey, projects = [], expanded = false }) {
-  const [searchParams] = useSearchParams();
   const {
     jobs,
     error: queueError,
@@ -337,7 +413,174 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
       setError('Could not copy the error. Select its text and copy it instead.');
     }
   }
-  const visible = jobs.filter((job) => !hiddenIds.includes(job.id)).slice(0, expanded ? 200 : 8);
+  const visible = jobs.filter((job) => !hiddenIds.includes(job.id));
+  // Renders that wait for an earlier render are listed directly under it.
+  const nestedIds = new Set();
+  const pick = (statuses, limit) => {
+    const { ordered, nested } = orderChains(
+      visible.filter((job) => statuses.includes(job.status)).slice(0, limit),
+    );
+    nested.forEach((id) => nestedIds.add(id));
+    return ordered;
+  };
+  const groups = [
+    {
+      id: 'processing',
+      title: 'Processing now',
+      always: true,
+      empty: 'Nothing is processing right now.',
+      items: pick(['running', 'finalizing'], 20),
+    },
+    {
+      id: 'waiting',
+      title: 'Waiting in line',
+      items: pick(['queued', 'waiting_engine', 'waiting_memory'], expanded ? 200 : 10),
+    },
+    {
+      id: 'attention',
+      title: 'Needs attention',
+      items: pick(['failed', 'needs_attention', 'interrupted'], expanded ? 100 : 5),
+    },
+    {
+      id: 'recent',
+      title: 'Recently finished',
+      items: pick(['completed', 'cancelled'], expanded ? 50 : 3),
+    },
+  ];
+  const countOf = (id) => groups.find((group) => group.id === id).items.length;
+  const renderJob = (job) => (
+    <article
+      className={
+        'runtime-job' +
+        (isChained(job) ? ' runtime-job-linked' : '') +
+        (nestedIds.has(job.id) ? ' runtime-job-chained' : '')
+      }
+      key={job.id}
+    >
+      <div className="runtime-job-content">
+        <div className="runtime-job-top">
+          <span className={'render-status ' + job.status}>
+            {job.status === 'queued' && isWaitingForReference(job)
+              ? 'waiting for earlier render'
+              : job.status.replaceAll('_', ' ')}
+          </span>
+          <span>
+            {{
+              sfx: 'Sound effect',
+              music: 'Music',
+              images: 'Image',
+              video: 'Video',
+              voices: 'Voice',
+              '3d': '3D shape',
+              trellis: '3D model',
+              motion: 'Motion',
+              'motion-bricks': 'Motion transition',
+              world: 'World',
+            }[job.type] || job.type}
+          </span>
+        </div>
+        <strong
+          title={job.request.title || job.request.style || job.request.prompt || job.request.text}
+        >
+          {job.type === 'world' && job.request.model === 'hy-world'
+            ? 'HY-World reconstruction'
+            : job.request.title ||
+              job.request.style ||
+              job.request.prompt ||
+              job.request.text ||
+              (job.type === '3d'
+                ? 'Hunyuan 3D shape'
+                : job.type === 'trellis'
+                  ? 'TRELLIS.2 3D model'
+                  : job.type === 'motion-bricks'
+                    ? 'SOMA pose transition'
+                    : job.type === 'world'
+                      ? job.request.model === 'hy-world'
+                        ? 'HY-World reconstruction'
+                        : 'WorldGen scene'
+                      : '')}
+        </strong>
+        <small>
+          {projects.find((project) => project.id === job.projectId)?.name || 'Project'}
+          {job.stage ? ` · ${job.stage}` : ''}
+        </small>
+        {jobHint(job) && <small className="runtime-job-hint">{jobHint(job)}</small>}
+        {chainHint(job, jobs) && (
+          <small className="runtime-job-chain-hint">{chainHint(job, jobs)}</small>
+        )}
+        <JobTiming job={job} timing={forecast.perJob[job.id]} />
+        {job.output && <small>{job.output}</small>}
+        {job.error && (
+          <div className="runtime-job-error">
+            <CircleAlert size={15} />
+            <span>{job.error}</span>
+            <button
+              className="copy-render-error"
+              aria-label="Copy render error"
+              title="Copy error"
+              onClick={() => copyError(job)}
+            >
+              {copied === job.id ? <Check size={15} /> : <Copy size={15} />}
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="runtime-job-actions">
+        {['queued', 'waiting_engine', 'waiting_memory', 'needs_attention'].includes(job.status) && (
+          <button
+            disabled={busy === job.id}
+            className="icon-outline"
+            title={
+              waitingDependents(job, jobs).length
+                ? `Also cancels ${waitingDependents(job, jobs).length} waiting render(s) that use its result.`
+                : undefined
+            }
+            onClick={() => action(job, 'cancel')}
+          >
+            <X size={14} />
+            Cancel
+          </button>
+        )}
+        {['failed', 'needs_attention'].includes(job.status) && (
+          <button
+            disabled={busy === job.id}
+            className="icon-outline"
+            onClick={() => action(job, 'retry')}
+          >
+            <RefreshCw size={14} />
+            Retry
+          </button>
+        )}
+        {job.status === 'waiting_memory' && job.details && !job.details.autoManaging && (
+          <button
+            className="icon-outline"
+            onClick={() =>
+              window.dispatchEvent(new CustomEvent('forge:memory-alert', { detail: job }))
+            }
+          >
+            <Zap size={14} />
+            Free memory
+          </button>
+        )}
+        {job.status === 'interrupted' && (
+          <>
+            <small className="runtime-job-review-note">
+              Check the engine’s queue and history first. Forge cannot verify whether this
+              interrupted render is still running.
+            </small>
+            <button
+              disabled={busy === job.id}
+              className="icon-outline"
+              onClick={() => action(job, 'resolve')}
+            >
+              <CircleAlert size={14} />
+              Mark cancelled after checking…
+            </button>
+          </>
+        )}
+      </div>
+    </article>
+  );
   const hiddenCount = jobs.filter((job) => hiddenIds.includes(job.id)).length;
   const activeCount = jobs.filter(
     (job) =>
@@ -381,6 +624,10 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
             )}
           </h2>
           <p className="queue-intro">One render at a time, started when its model is ready.</p>
+          <p className="queue-summary" role="status">
+            {countOf('processing')} processing · {countOf('waiting')} waiting ·{' '}
+            {countOf('attention')} need attention
+          </p>
         </div>
         <button className="icon-btn" aria-label="Refresh render queue" onClick={refresh}>
           <RefreshCw size={17} />
@@ -388,7 +635,7 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
       </div>
       {(jobs.length > 0 || queueError) && <QueueTimingSummary />}
       {jobs.length > 0 && (
-        <details className="queue-manage-menu" open={expanded}>
+        <details className="queue-manage-menu">
           <summary>Manage queue</summary>
           <p className="queue-manage-note queue-scope-note">
             Clear cancels waiting renders in every project; running and uncertain jobs continue.
@@ -445,136 +692,29 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
         </div>
       ) : (
         <div className="runtime-job-list" role="region" aria-label="Render jobs" tabIndex={0}>
-          {visible.map((job) => (
-            <article className="runtime-job" key={job.id}>
-              <div className="runtime-job-content">
-                <div className="runtime-job-top">
-                  <span className={'render-status ' + job.status}>
-                    {job.status.replaceAll('_', ' ')}
-                  </span>
-                  <span>
-                    {{
-                      sfx: 'Sound effect',
-                      music: 'Music',
-                      images: 'Image',
-                      video: 'Video',
-                      voices: 'Voice',
-                      '3d': '3D shape',
-                      trellis: '3D model',
-                      motion: 'Motion',
-                      'motion-bricks': 'Motion transition',
-                      world: 'World',
-                    }[job.type] || job.type}
-                  </span>
-                </div>
-                <strong
-                  title={
-                    job.request.title || job.request.style || job.request.prompt || job.request.text
-                  }
-                >
-                  {job.type === 'world' && job.request.model === 'hy-world'
-                    ? 'HY-World reconstruction'
-                    : job.request.title ||
-                      job.request.style ||
-                      job.request.prompt ||
-                      job.request.text ||
-                      (job.type === '3d'
-                        ? 'Hunyuan 3D shape'
-                        : job.type === 'trellis'
-                          ? 'TRELLIS.2 3D model'
-                          : job.type === 'motion-bricks'
-                            ? 'SOMA pose transition'
-                            : job.type === 'world'
-                              ? job.request.model === 'hy-world'
-                                ? 'HY-World reconstruction'
-                                : 'WorldGen scene'
-                              : '')}
-                </strong>
-                <small>
-                  {projects.find((project) => project.id === job.projectId)?.name || 'Project'}
-                  {job.stage ? ` · ${job.stage}` : ''}
-                </small>
-                <JobTiming job={job} timing={forecast.perJob[job.id]} />
-                {job.output && <small>{job.output}</small>}
-                {job.error && (
-                  <div className="runtime-job-error">
-                    <CircleAlert size={15} />
-                    <span>{job.error}</span>
-                    <button
-                      className="copy-render-error"
-                      aria-label="Copy render error"
-                      title="Copy error"
-                      onClick={() => copyError(job)}
-                    >
-                      {copied === job.id ? <Check size={15} /> : <Copy size={15} />}
-                    </button>
-                  </div>
+          {groups.map((group) =>
+            group.items.length || group.always ? (
+              <section
+                key={group.id}
+                className={'queue-group queue-group-' + group.id}
+                aria-labelledby={'queue-group-' + group.id}
+              >
+                <h3 id={'queue-group-' + group.id}>
+                  {group.title} <span className="queue-group-count">{group.items.length}</span>
+                </h3>
+                {group.items.length ? (
+                  group.items.map(renderJob)
+                ) : (
+                  <p className="queue-group-empty">{group.empty}</p>
                 )}
-              </div>
-              <div className="runtime-job-actions">
-                {['queued', 'waiting_engine', 'waiting_memory', 'needs_attention'].includes(
-                  job.status,
-                ) && (
-                  <button
-                    disabled={busy === job.id}
-                    className="icon-outline"
-                    onClick={() => action(job, 'cancel')}
-                  >
-                    <X size={14} />
-                    Cancel
-                  </button>
-                )}
-                {['failed', 'needs_attention'].includes(job.status) && (
-                  <button
-                    disabled={busy === job.id}
-                    className="icon-outline"
-                    onClick={() => action(job, 'retry')}
-                  >
-                    <RefreshCw size={14} />
-                    Retry
-                  </button>
-                )}
-                {job.status === 'waiting_memory' && job.details && !job.details.autoManaging && (
-                  <button
-                    className="icon-outline"
-                    onClick={() =>
-                      window.dispatchEvent(new CustomEvent('forge:memory-alert', { detail: job }))
-                    }
-                  >
-                    <Zap size={14} />
-                    Free memory
-                  </button>
-                )}
-                {job.status === 'interrupted' && (
-                  <>
-                    <small className="runtime-job-review-note">
-                      Check the engine’s queue and history first. Forge cannot verify whether this
-                      interrupted render is still running.
-                    </small>
-                    <button
-                      disabled={busy === job.id}
-                      className="icon-outline"
-                      onClick={() => action(job, 'resolve')}
-                    >
-                      <CircleAlert size={14} />
-                      Mark cancelled after checking…
-                    </button>
-                  </>
-                )}
-              </div>
-            </article>
-          ))}
+              </section>
+            ) : null,
+          )}
         </div>
       )}
       {!expanded && jobs.length > 0 && (
-        <Link
-          className="queue-all-link"
-          to={{
-            pathname: '/assets',
-            search: `?${new URLSearchParams({ queue: '1', ...(searchParams.get('project') ? { project: searchParams.get('project') } : {}) })}`,
-          }}
-        >
-          View full render queue <span aria-hidden="true">→</span>
+        <Link className="queue-all-link" to="/queue">
+          Open the full render queue <span aria-hidden="true">→</span>
         </Link>
       )}
       {confirmClear && (

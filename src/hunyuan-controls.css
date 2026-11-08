@@ -73,10 +73,14 @@
 }
 
 .hunyuan-controls__field .hunyuan-controls__switch input {
-  width: 20px;
-  height: 20px;
-  min-height: 20px;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
   flex: none;
   padding: 0;
   accent-color: var(--forge-focus, #ffad8d);
+}
+
+.hunyuan-controls__paint {
+  margin-top: var(--forge-space-3, 12px);
 }

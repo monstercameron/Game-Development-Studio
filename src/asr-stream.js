@@ -2,6 +2,7 @@
 export function openAsrStream({
   url,
   sampleRate,
+  session = {},
   onDelta = () => {},
   onFinal = () => {},
   WebSocketImpl = WebSocket,
@@ -56,7 +57,10 @@ export function openAsrStream({
     try {
       if (data.type === 'session.created') {
         socket.send(
-          JSON.stringify({ type: 'session.update', session: { sample_rate: sampleRate } }),
+          JSON.stringify({
+            type: 'session.update',
+            session: { ...session, sample_rate: sampleRate },
+          }),
         );
         return;
       }

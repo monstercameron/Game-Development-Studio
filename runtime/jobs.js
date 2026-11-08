@@ -1,9 +1,16 @@
 import { DatabaseSync } from 'node:sqlite';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { fork } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { recordConversion, recordJobOutput } from './asset-metadata.js';
+import { normalizeImageExtras } from './image-options.js';
+import { normalizeDerivedMusic, resolveDerivedMusic } from './music-derived.js';
+import { normalizeSoundSource } from './sfx-request.js';
+import { normalizeVideoRequest } from './video-options.js';
+import { stageProjectAsset } from './references.js';
+import { checkpointForRequest, checkpointLoadedFor, voiceModeFields } from './voice-modes.js';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtimeDir = process.env.FORGE_RUNTIME_DIR || path.join(appRoot, '.forge-runtime');
@@ -31,7 +38,81 @@ export function findProject(id, root = projectsRoot) {
   }
   throw Error('Project was not found.');
 }
+// A render may take one of its references from the finished output of an earlier render
+// (request.referenceFrom = { jobId }). Until that render completes, the placeholder below
+// stands in for the missing reference so each type's own validation still applies.
+export const CHAIN_PLACEHOLDER = '00000000-0000-0000-0000-000000000000.png';
+// Renders that can consume another render's image, and renders whose image output can be consumed.
+export const CHAIN_CHILD_TYPES = ['3d', 'trellis', 'segmentation', 'images', 'video'];
+export const CHAIN_PARENT_TYPES = ['images', 'segmentation'];
+const CHAIN_WAITING_STAGE = 'Waiting for the render it depends on.';
+export const DEPENDENCY_FAILED_STAGE = 'Dependency failed.';
+const WAITING_STATUSES = ['queued', 'waiting_engine', 'waiting_memory'];
+const OPEN_STATUSES = [
+  'queued',
+  'waiting_engine',
+  'waiting_memory',
+  'preparing',
+  'needs_attention',
+  'submitting',
+  'running',
+  'finalizing',
+  'interrupted',
+];
+const jobIdPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+// TRELLIS.2 resolutions (upstream names). 512 is the original connected pipeline.
+export const TRELLIS_PIPELINES = ['512', '1024', '1024_cascade', '1536_cascade'];
+
+function isPendingChain(request) {
+  return !!request?.referenceFrom && typeof request.referenceFrom.output !== 'string';
+}
 function validate(input, root = projectsRoot) {
+  const from = input?.request?.referenceFrom;
+  if (from === undefined) {
+    return validateType(input, root);
+  }
+  if (
+    !from ||
+    typeof from !== 'object' ||
+    Array.isArray(from) ||
+    typeof from.jobId !== 'string' ||
+    !jobIdPattern.test(from.jobId) ||
+    Object.keys(from).some((key) => !['jobId', 'output'].includes(key)) ||
+    (from.output !== undefined &&
+      (typeof from.output !== 'string' ||
+        !from.output ||
+        from.output.length > 300 ||
+        from.output.includes('\\')))
+  ) {
+    throw Error('referenceFrom must be an object with the ID of the earlier render.');
+  }
+  if (!CHAIN_CHILD_TYPES.includes(input.type)) {
+    throw Error('This kind of render cannot take its reference from another render.');
+  }
+  const rest = { ...input.request };
+  delete rest.referenceFrom;
+  const own = Array.isArray(rest.references) ? rest.references : [];
+  // Once resolved (an estimate of a running chain), the staged reference is already in place.
+  if (typeof from.output === 'string') {
+    const value = validateType({ ...input, request: rest }, root);
+    return {
+      ...value,
+      request: { ...value.request, referenceFrom: { jobId: from.jobId, output: from.output } },
+    };
+  }
+  if (['3d', 'trellis', 'segmentation'].includes(input.type) && own.length) {
+    throw Error('A render that takes its reference from another render cannot also have its own.');
+  }
+  const value = validateType(
+    { ...input, request: { ...rest, references: [...own, CHAIN_PLACEHOLDER] } },
+    root,
+  );
+  return {
+    ...value,
+    request: { ...value.request, references: own, referenceFrom: { jobId: from.jobId } },
+  };
+}
+function validateType(input, root = projectsRoot) {
   if (
     !input ||
     ![
@@ -61,15 +142,20 @@ function validate(input, root = projectsRoot) {
       output = 'splat',
       resolution,
       references = [],
-      seed = 42,
+      seed = null,
       steps = 50,
+      guidance = null,
+      save_panorama = false,
+      splat_limit = 1000000,
+      remove_sky = false,
+      confidence_percentile = 10,
     } = input.request;
     if (
       !['worldgen', 'hy-world'].includes(model) ||
       !['text', 'image', 'panorama'].includes(mode) ||
       typeof prompt !== 'string' ||
       prompt.length > 4000 ||
-      !['mesh', 'splat'].includes(output)
+      !['mesh', 'splat', 'glb'].includes(output)
     ) {
       throw Error('Invalid world generator settings.');
     }
@@ -83,9 +169,7 @@ function validate(input, root = projectsRoot) {
       throw Error('Provide up to 8 staged reference images.');
     }
     if (
-      !Number.isInteger(seed) ||
-      seed < 0 ||
-      seed > 2147483647 ||
+      !(seed === null || (Number.isInteger(seed) && seed >= 0 && seed <= 2147483647)) ||
       !Number.isInteger(steps) ||
       steps < 10 ||
       steps > 60
@@ -101,22 +185,81 @@ function validate(input, root = projectsRoot) {
     }
     if (
       model === 'hy-world' &&
-      (mode !== 'image' ||
+      (mode === 'text' ||
         references.length < 1 ||
+        (mode === 'panorama' && references.length !== 1) ||
         output !== 'splat' ||
-        ![336, 518, 700].includes(resolution))
+        ![336, 518, 700, 952].includes(resolution))
     ) {
-      throw Error('HY-World requires 1–8 reference images and a supported resolution.');
+      throw Error(
+        'HY-World requires 1–8 reference views or one panorama and a supported resolution.',
+      );
+    }
+    // Only WorldGen text and image renders generate a panorama with FLUX.
+    const generates = model === 'worldgen' && mode !== 'panorama';
+    if (
+      guidance !== null &&
+      (!generates ||
+        typeof guidance !== 'number' ||
+        !Number.isFinite(guidance) ||
+        guidance < 1 ||
+        guidance > 50)
+    ) {
+      throw Error(
+        'Guidance is a number from 1 to 50 and applies to WorldGen text and image renders.',
+      );
+    }
+    if (typeof save_panorama !== 'boolean' || (save_panorama && !generates)) {
+      throw Error('Saving the panorama applies to WorldGen text and image renders.');
+    }
+    if (
+      !Number.isInteger(splat_limit) ||
+      splat_limit < 100000 ||
+      splat_limit > 5000000 ||
+      typeof remove_sky !== 'boolean' ||
+      typeof confidence_percentile !== 'number' ||
+      !Number.isFinite(confidence_percentile) ||
+      confidence_percentile < 0 ||
+      confidence_percentile > 50 ||
+      (model !== 'hy-world' &&
+        (splat_limit !== 1000000 || remove_sky || confidence_percentile !== 10))
+    ) {
+      throw Error(
+        'HY-World splat limit is 100,000–5,000,000, sky removal is on or off, and the confidence filter is 0–50 percent.',
+      );
     }
     findProject(input.projectId, root);
     return {
       type: 'world',
       projectId: input.projectId,
-      request: { model, mode, prompt: prompt.trim(), output, resolution, references, seed, steps },
+      request: {
+        model,
+        mode,
+        prompt: prompt.trim(),
+        output,
+        resolution,
+        references,
+        // Seed and steps only mean something when FLUX generates the panorama. A random seed is
+        // chosen here so the render is reproducible and the seed lands in the asset's details.
+        ...(generates ? { seed: seed === null ? randomInt(0, 2147483648) : seed, steps } : {}),
+        // Defaults are omitted so earlier requests, history and timing profiles keep matching.
+        ...(generates && guidance !== null ? { guidance } : {}),
+        ...(generates && save_panorama ? { save_panorama: true } : {}),
+        ...(model === 'hy-world' && splat_limit !== 1000000 ? { splat_limit } : {}),
+        ...(model === 'hy-world' && remove_sky ? { remove_sky: true } : {}),
+        ...(model === 'hy-world' && confidence_percentile !== 10 ? { confidence_percentile } : {}),
+      },
     };
   }
   if (input.type === 'trellis') {
-    const { references, seed = 42, steps = 12, texture_size = 1024 } = input.request;
+    const {
+      references,
+      seed = 42,
+      steps = 12,
+      texture_size = 1024,
+      target_faces = 100000,
+      pipeline = '512',
+    } = input.request;
     if (
       !Array.isArray(references) ||
       references.length !== 1 ||
@@ -124,6 +267,9 @@ function validate(input, root = projectsRoot) {
       !/^[a-f0-9-]{36}\.(png|webp)$/i.test(references[0])
     ) {
       throw Error('Provide one staged transparent PNG or WebP image.');
+    }
+    if (!TRELLIS_PIPELINES.includes(pipeline)) {
+      throw Error(`TRELLIS.2 pipeline must be one of ${TRELLIS_PIPELINES.join(', ')}.`);
     }
     if (
       !Number.isInteger(seed) ||
@@ -136,11 +282,23 @@ function validate(input, root = projectsRoot) {
     ) {
       throw Error('Invalid TRELLIS.2 seed, steps, or texture size.');
     }
+    if (!Number.isInteger(target_faces) || target_faces < 5000 || target_faces > 1000000) {
+      throw Error('TRELLIS.2 triangle target must be a whole number from 5,000 to 1,000,000.');
+    }
     findProject(input.projectId, root);
     return {
       type: 'trellis',
       projectId: input.projectId,
-      request: { model: 'trellis', references, seed, steps, texture_size },
+      request: {
+        model: 'trellis',
+        references,
+        seed,
+        steps,
+        texture_size,
+        target_faces,
+        // The default 512 pipeline is omitted so earlier requests, history and timing keep matching.
+        ...(pipeline !== '512' ? { pipeline } : {}),
+      },
     };
   }
   if (input.type === 'motion-bricks') {
@@ -244,8 +402,12 @@ function validate(input, root = projectsRoot) {
       seed = 123,
       steps = 30,
       resolution = 128,
+      guidance = 5,
+      target_faces = null,
       texture = false,
       texture_size = 2048,
+      texture_views = 6,
+      texture_view_size = 512,
     } = input.request;
     if (model !== 'hunyuan') {
       throw Error('Only Hunyuan3D shape generation is connected.');
@@ -269,8 +431,31 @@ function validate(input, root = projectsRoot) {
     ) {
       throw Error('Invalid 3D seed, steps, or resolution.');
     }
+    if (
+      typeof guidance !== 'number' ||
+      !Number.isFinite(guidance) ||
+      guidance < 1 ||
+      guidance > 20
+    ) {
+      throw Error('Hunyuan guidance must be a number from 1 to 20.');
+    }
+    if (
+      target_faces !== null &&
+      (!Number.isInteger(target_faces) || target_faces < 1000 || target_faces > 1000000)
+    ) {
+      throw Error('Hunyuan triangle target must be a whole number from 1,000 to 1,000,000.');
+    }
     if (typeof texture !== 'boolean' || ![1024, 2048].includes(texture_size)) {
       throw Error('Invalid 3D texture option or texture size.');
+    }
+    // How many views the painter renders, and at what size. The model was trained on 6 views of
+    // 512 px; the other values only apply to painting.
+    if (
+      ![6, 7, 8, 9].includes(texture_views) ||
+      ![512, 768].includes(texture_view_size) ||
+      (!texture && (texture_views !== 6 || texture_view_size !== 512))
+    ) {
+      throw Error('Painted views are 6 to 9 at 512 or 768 pixels, and only apply with texture on.');
     }
     findProject(input.projectId, root);
     return {
@@ -283,7 +468,12 @@ function validate(input, root = projectsRoot) {
         seed,
         steps,
         resolution,
+        // Defaults are omitted so earlier requests, history and timing profiles keep matching.
+        ...(guidance !== 5 ? { guidance } : {}),
+        ...(target_faces !== null ? { target_faces } : {}),
         ...(texture ? { texture: true, texture_size } : {}),
+        ...(texture && texture_views !== 6 ? { texture_views } : {}),
+        ...(texture && texture_view_size !== 512 ? { texture_view_size } : {}),
       },
     };
   }
@@ -294,6 +484,21 @@ function validate(input, root = projectsRoot) {
       language = 'English',
       instruct = '',
       max_new_tokens = 1024,
+      seed = null,
+      temperature = null,
+      top_p = null,
+      top_k = null,
+      repetition_penalty = null,
+      do_sample = null,
+      subtalker_dosample = null,
+      subtalker_temperature = null,
+      subtalker_top_p = null,
+      subtalker_top_k = null,
+      mode,
+      reference_audio,
+      reference_text,
+      reference_consent,
+      voice_description,
     } = input.request;
     if (
       typeof text !== 'string' ||
@@ -331,45 +536,75 @@ function validate(input, root = projectsRoot) {
       ].includes(language) ||
       !Number.isInteger(max_new_tokens) ||
       max_new_tokens < 64 ||
-      max_new_tokens > 2048
+      max_new_tokens > 4096
     ) {
       throw Error('Invalid voice, language, or generation limit.');
+    }
+    // Sampling overrides are optional; null leaves the model's own default in place.
+    const inRange = (value, min, max) =>
+      value === null || (typeof value === 'number' && value >= min && value <= max);
+    if (
+      !(seed === null || (Number.isSafeInteger(seed) && seed >= 0 && seed <= 2147483647)) ||
+      !inRange(temperature, 0.05, 2) ||
+      !inRange(top_p, 0.01, 1) ||
+      !(top_k === null || (Number.isInteger(top_k) && top_k >= 1 && top_k <= 1000)) ||
+      !inRange(repetition_penalty, 1, 2)
+    ) {
+      throw Error(
+        'Invalid voice seed or sampling: temperature 0.05–2, top-p 0.01–1, top-k 1–1000, repetition penalty 1–2.',
+      );
+    }
+    // Sub-talker settings steer the second-stage model that fills in the fine acoustic detail.
+    if (
+      ![do_sample, subtalker_dosample].every(
+        (flag) => flag === null || typeof flag === 'boolean',
+      ) ||
+      !inRange(subtalker_temperature, 0.05, 2) ||
+      !inRange(subtalker_top_p, 0.01, 1) ||
+      !(
+        subtalker_top_k === null ||
+        (Number.isInteger(subtalker_top_k) && subtalker_top_k >= 1 && subtalker_top_k <= 1000)
+      )
+    ) {
+      throw Error(
+        'Invalid sampling switch or sub-talker setting: temperature 0.05–2, top-p 0.01–1, top-k 1–1000.',
+      );
     }
     findProject(input.projectId, root);
     return {
       type: 'voices',
       projectId: input.projectId,
-      request: { text, speaker, language, instruct, max_new_tokens },
+      request: {
+        text,
+        language,
+        max_new_tokens,
+        ...voiceModeFields({
+          mode,
+          speaker,
+          instruct,
+          reference_audio,
+          reference_text,
+          reference_consent,
+          voice_description,
+        }),
+        // Pick the random seed here so the render is reproducible and the seed lands in the asset's details.
+        seed: seed === null ? randomInt(0, 2147483648) : seed,
+        ...(temperature === null ? {} : { temperature }),
+        ...(top_p === null ? {} : { top_p }),
+        ...(top_k === null ? {} : { top_k }),
+        ...(repetition_penalty === null ? {} : { repetition_penalty }),
+        ...(do_sample === null ? {} : { do_sample }),
+        ...(subtalker_dosample === null ? {} : { subtalker_dosample }),
+        ...(subtalker_temperature === null ? {} : { subtalker_temperature }),
+        ...(subtalker_top_p === null ? {} : { subtalker_top_p }),
+        ...(subtalker_top_k === null ? {} : { subtalker_top_k }),
+      },
     };
   }
   if (input.type === 'video') {
-    const { prompt, references, aspect = 'landscape', frames = 124, steps = 12 } = input.request;
-    if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 4000) {
-      throw Error('Video description must contain 1–4000 characters.');
-    }
-    if (
-      !Array.isArray(references) ||
-      references.length < 1 ||
-      references.length > 9 ||
-      references.some(
-        (id) => typeof id !== 'string' || !/^[a-f0-9-]{36}\.(png|jpg|webp)$/i.test(id),
-      )
-    ) {
-      throw Error('Provide 1 to 9 staged reference image IDs.');
-    }
-    if (
-      !['landscape', 'square', 'portrait'].includes(aspect) ||
-      ![56, 124, 175, 243].includes(frames) ||
-      ![8, 12, 20, 30].includes(steps)
-    ) {
-      throw Error('Invalid video aspect, frame count, or steps.');
-    }
+    const request = normalizeVideoRequest(input.request, () => randomInt(0, 2147483648));
     findProject(input.projectId, root);
-    return {
-      type: 'video',
-      projectId: input.projectId,
-      request: { prompt, references, aspect, frames, steps },
-    };
+    return { type: 'video', projectId: input.projectId, request };
   }
   if (input.type === 'images') {
     const {
@@ -381,12 +616,24 @@ function validate(input, root = projectsRoot) {
       references = [],
       negative_prompt = '',
       true_cfg_scale = 1,
+      transparent = false,
+      size_from_reference = false,
     } = input.request;
     if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 4000) {
       throw Error('Image description must contain 1–4000 characters.');
     }
+    if (typeof transparent !== 'boolean' || typeof size_from_reference !== 'boolean') {
+      throw Error('Transparent background and match-reference size must be true or false.');
+    }
+    if (size_from_reference && !(Array.isArray(references) && references.length)) {
+      throw Error('Matching the reference size needs at least one reference image.');
+    }
     if (
-      ![width, height].every((n) => Number.isInteger(n) && n >= 32 && n <= 2048 && n % 32 === 0) ||
+      // Qwen's published sizes reach 2752 px (16:9 at 2752 × 1536). A matched size is chosen by the model.
+      (!size_from_reference &&
+        ![width, height].every(
+          (n) => Number.isInteger(n) && n >= 32 && n <= 2752 && n % 32 === 0,
+        )) ||
       !Number.isInteger(num_inference_steps) ||
       num_inference_steps < 1 ||
       num_inference_steps > 100 ||
@@ -416,17 +663,24 @@ function validate(input, root = projectsRoot) {
     ) {
       throw Error('Provide up to 10 staged reference image IDs.');
     }
+    const extras = normalizeImageExtras(input.request, {
+      sizeFromReference: size_from_reference,
+      steps: num_inference_steps,
+    });
     findProject(input.projectId, root);
     return {
       type: 'images',
       projectId: input.projectId,
       request: {
         prompt,
-        width,
-        height,
+        // With a matched size the model derives width and height from the last reference.
+        ...(size_from_reference ? { size_from_reference: true } : { width, height }),
         num_inference_steps,
         references,
-        ...(seed === null ? {} : { seed }),
+        ...(transparent ? { transparent: true } : {}),
+        ...extras,
+        // Pick the random seed here so the render is reproducible and the seed lands in the asset's details.
+        seed: seed === null ? randomInt(0, 2147483648) : seed,
         ...(true_cfg_scale > 1 ? { negative_prompt: negative_prompt.trim(), true_cfg_scale } : {}),
       },
     };
@@ -449,19 +703,42 @@ function validate(input, root = projectsRoot) {
     ) {
       throw Error('Invalid sound duration, steps, or seed.');
     }
+    const sourceFields = normalizeSoundSource(input.request, duration);
     findProject(input.projectId, root);
-    return { type: 'sfx', projectId: input.projectId, request: { prompt, duration, steps, seed } };
+    return {
+      type: 'sfx',
+      projectId: input.projectId,
+      // -1 means random; choose the seed here so it is recorded and the render can be repeated.
+      request: {
+        prompt,
+        duration,
+        steps,
+        seed: seed === -1 ? randomInt(0, 2147483648) : seed,
+        ...sourceFields,
+      },
+    };
+  }
+  if (input.request.operation !== undefined) {
+    // Extend or re-synthesize a finished track; the source is resolved when the job is queued.
+    const derived = normalizeDerivedMusic(input.request);
+    findProject(input.projectId, root);
+    return { type: 'music', projectId: input.projectId, request: derived };
   }
   const {
     style,
     lyrics,
     duration_seconds = 15,
-    seed = 831001,
+    seed = randomInt(0, 2147483648),
     cot = 'full',
     title = '',
     ode_steps = 32,
     negative = '',
     cfg_scale = null,
+    abc = '',
+    temperature = null,
+    top_p = null,
+    top_k = null,
+    repetition_penalty = null,
   } = input.request;
   if (typeof style !== 'string' || !style.trim() || style.length > 2000) {
     throw Error('Style must contain 1–2000 characters.');
@@ -491,11 +768,44 @@ function validate(input, root = projectsRoot) {
   ) {
     throw Error('Invalid title, negative prompt, or CFG scale (0–20).');
   }
+  if (typeof abc !== 'string' || abc.length > 20000 || (abc.trim() && cot === 'off')) {
+    throw Error('Score must be ABC text of at most 20000 characters and needs Planning on.');
+  }
+  const sampling = { temperature, top_p, top_k, repetition_penalty };
+  const within = (value, min, max, integer = false) =>
+    value === null ||
+    (Number.isFinite(value) &&
+      value >= min &&
+      value <= max &&
+      (!integer || Number.isInteger(value)));
+  if (
+    !within(temperature, 0, 5) ||
+    !(top_p === null || (Number.isFinite(top_p) && top_p > 0 && top_p <= 1)) ||
+    !within(top_k, 1, 1000, true) ||
+    !within(repetition_penalty, 1, 2)
+  ) {
+    throw Error(
+      'Invalid sampling: temperature 0–5, top-p above 0 up to 1, top-k 1–1000, repetition penalty 1–2.',
+    );
+  }
   findProject(input.projectId, root);
   return {
     type: 'music',
     projectId: input.projectId,
-    request: { style, lyrics, duration_seconds, seed, cot, title, ode_steps, negative, cfg_scale },
+    request: {
+      style,
+      lyrics,
+      duration_seconds,
+      seed,
+      cot,
+      title,
+      ode_steps,
+      negative,
+      cfg_scale,
+      // Optional engine controls are saved only when set, so older requests keep their exact shape.
+      ...(abc.trim() ? { abc: abc.trim() } : {}),
+      ...Object.fromEntries(Object.entries(sampling).filter(([, value]) => value !== null)),
+    },
   };
 }
 function publicJob(row) {
@@ -517,11 +827,13 @@ function publicJob(row) {
     updatedAt: row.updated_at,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
+    // The earlier render this one waits for (see request.referenceFrom); null for older rows.
+    dependsOn: row.depends_on || null,
   };
 }
 function profile(type, request) {
   const keys = {
-    images: ['width', 'height', 'num_inference_steps'],
+    images: ['width', 'height', 'num_inference_steps', 'size_from_reference'],
     music: ['duration_seconds', 'cot', 'ode_steps'],
     sfx: ['duration', 'steps'],
     video: ['aspect', 'frames', 'steps'],
@@ -535,13 +847,27 @@ function profile(type, request) {
   }[type];
   const values = keys.map((key) => request[key]);
   if (['images', 'video', 'world'].includes(type)) {
-    values.push(Array.isArray(request.references) ? request.references.length : 0);
+    // A reference still to come from an earlier render counts, so the profile matches the finished one.
+    values.push(
+      (Array.isArray(request.references) ? request.references.length : 0) +
+        (isPendingChain(request) ? 1 : 0),
+    );
   }
   if (type === 'world' && request.model === 'worldgen' && request.mode !== 'panorama') {
     values.push(request.steps ?? 50);
   }
   if (type === 'images') {
     values.push((request.true_cfg_scale || 1) > 1);
+  }
+  if (type === 'video') {
+    // Larger pictures, guidance, reference clips and the turbo adapter change the render time a lot.
+    values.push(
+      request.resolution || 'standard',
+      request.source || 'references',
+      (request.cfg_scale || 1) > 1,
+      request.turbo === true,
+      (request.reference_videos?.length || 0) + (request.reference_audios?.length || 0),
+    );
   }
   if (type === 'music') {
     values.push(
@@ -550,15 +876,38 @@ function profile(type, request) {
         : request.cfg_scale !== 1,
     );
   }
+  if (type === 'music' && request.operation) {
+    values.push(request.operation);
+  }
+  if (type === 'sfx' && request.edit_mode) {
+    values.push(request.edit_mode);
+  }
+  if (type === 'images' && request.use_kv_cache === false) {
+    values.push('no-kv-cache');
+  }
   if (type === 'motion') {
     values.push(request.guidance !== 1);
   }
   if (type === 'voices') {
     values.push(Math.ceil((request.text?.length || 0) / 50));
+    // Cloned and designed voices run on other checkpoints, so they never share preset timing history.
+    if (request.mode && request.mode !== 'preset') {
+      values.push(request.mode);
+    }
   }
   if (type === '3d') {
     // Painted renders take far longer, so they never share timing history with shape-only ones.
-    values.push(request.texture === true ? request.texture_size : false);
+    values.push(
+      request.texture === true
+        ? [request.texture_size, request.texture_views ?? 6, request.texture_view_size ?? 512]
+        : false,
+    );
+  }
+  if (type === 'trellis') {
+    // Earlier requests had no triangle target and exported up to a million triangles.
+    values.push(request.target_faces ?? 1000000);
+    // Higher-resolution pipelines take far longer; earlier requests all used the 512 pipeline.
+    values.push(request.pipeline ?? '512');
   }
   return JSON.stringify(values);
 }
@@ -622,7 +971,10 @@ export class JobQueue {
     autoMemory = null,
     onModelLoadBarrier = null,
     onQueueLog = null,
+    // Finds where a finished output lives now (it may have been renamed); tests can replace it.
+    resolveOutputs = null,
   } = {}) {
+    this.resolveOutputs = resolveOutputs;
     this.projects = projects;
     this.leaseMs = leaseMs;
     this.autoStart = autoStart;
@@ -662,7 +1014,8 @@ export class JobQueue {
     this.db.exec("INSERT OR IGNORE INTO model_loads(id,state) VALUES('motion-bricks','idle')");
     this.db.exec("INSERT OR IGNORE INTO model_loads(id,state) VALUES('game','idle')");
     this.db.exec("INSERT OR IGNORE INTO model_loads(id,state) VALUES('chat','idle')");
-    for (const column of ['started_at', 'finished_at', 'details']) {
+    // depends_on: the earlier render this one takes its reference from. Older rows leave it empty.
+    for (const column of ['started_at', 'finished_at', 'details', 'depends_on']) {
       if (!columns.includes(column)) {
         try {
           this.db.exec(`ALTER TABLE jobs ADD COLUMN ${column} TEXT`);
@@ -679,7 +1032,7 @@ export class JobQueue {
       }
     }
     this.db.exec(
-      'CREATE INDEX IF NOT EXISTS jobs_status_created ON jobs(status,created_at); CREATE INDEX IF NOT EXISTS jobs_history_lookup ON jobs(type,status,updated_at);',
+      'CREATE INDEX IF NOT EXISTS jobs_status_created ON jobs(status,created_at); CREATE INDEX IF NOT EXISTS jobs_history_lookup ON jobs(type,status,updated_at); CREATE INDEX IF NOT EXISTS jobs_depends_on ON jobs(depends_on);',
     );
     const ownerColumns = this.db
       .prepare('PRAGMA table_info(runtime_owner)')
@@ -824,20 +1177,177 @@ export class JobQueue {
       value,
     );
   }
-  enqueue(input) {
-    const value = validate(input, this.projects),
-      id = randomUUID(),
-      now = new Date().toISOString();
+  insertJob(value, id, now, dependsOn = null) {
     this.db
       .prepare(
-        'INSERT INTO jobs(id,type,project_id,request,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
+        'INSERT INTO jobs(id,type,project_id,request,status,stage,created_at,updated_at,depends_on) VALUES(?,?,?,?,?,?,?,?,?)',
       )
-      .run(id, value.type, value.projectId, JSON.stringify(value.request), 'queued', now, now);
+      .run(
+        id,
+        value.type,
+        value.projectId,
+        JSON.stringify(value.request),
+        'queued',
+        dependsOn ? CHAIN_WAITING_STAGE : null,
+        now,
+        now,
+        dependsOn,
+      );
     this.logLifecycle('enqueued', { id, type: value.type, status: 'queued' });
+  }
+  // Rules for taking a reference from another render. `parent` only needs type, status,
+  // projectId and request, so a chain can be checked before any of its rows exist.
+  assertChainParent(value, parent) {
+    if (!parent) {
+      throw Error('The render to take the reference from was not found.');
+    }
+    if (parent.projectId !== value.projectId) {
+      throw Error('A render can only take its reference from a render in the same project.');
+    }
+    if (!CHAIN_PARENT_TYPES.includes(parent.type)) {
+      throw Error('Only an image or a cutout render can supply a reference.');
+    }
+    if (parent.type === 'segmentation' && parent.request?.output !== 'transparent') {
+      throw Error('Only a transparent cutout can be used as a reference, not a mask.');
+    }
+    if (['failed', 'cancelled'].includes(parent.status)) {
+      throw Error(`The render to take the reference from has already ${parent.status}.`);
+    }
+  }
+  // Extend and re-synthesize requests name a project music asset. The completed render that
+  // produced it supplies the YuE2 job whose saved song tokens the engine continues from.
+  resolveDerived(value) {
+    if (value.type !== 'music' || !value.request.operation) {
+      return value;
+    }
+    return resolveDerivedMusic(value, {
+      projectFolder: findProject(value.projectId, this.projects),
+      lookup: (jobId) => this.get(jobId),
+    });
+  }
+  enqueue(input) {
+    // Forge fills in the output when the earlier render finishes; a client cannot pre-set it.
+    if (input?.request?.referenceFrom?.output !== undefined) {
+      throw Error('referenceFrom.output is set by Forge when the earlier render finishes.');
+    }
+    const value = this.resolveDerived(validate(input, this.projects)),
+      id = randomUUID(),
+      now = new Date().toISOString(),
+      parentId = value.request.referenceFrom?.jobId || null;
+    if (parentId) {
+      this.assertChainParent(value, this.get(parentId));
+    }
+    this.insertJob(value, id, now, parentId);
     if (this.autoStart) {
       setImmediate(() => this.tick());
     }
     return this.get(id);
+  }
+  // Queues 2 to 4 renders at once, where each later step takes its reference from an earlier one
+  // (request.referenceFrom = { step: index }). All steps are validated first and inserted in one
+  // transaction, so a rejected step never leaves an earlier one behind.
+  enqueueChain(steps) {
+    if (!Array.isArray(steps) || steps.length < 2 || steps.length > 4) {
+      throw Error('A chain needs 2 to 4 renders.');
+    }
+    const ids = steps.map(() => randomUUID());
+    const values = steps.map((step, index) => {
+      const from = step?.request?.referenceFrom;
+      if (index === 0 && from !== undefined) {
+        throw Error('The first render in a chain cannot depend on another render.');
+      }
+      if (index === 0) {
+        return validate(step, this.projects);
+      }
+      if (
+        !from ||
+        typeof from !== 'object' ||
+        !Number.isInteger(from.step) ||
+        from.step < 0 ||
+        from.step >= index ||
+        Object.keys(from).some((key) => key !== 'step')
+      ) {
+        throw Error('Each later render in a chain must take its reference from an earlier step.');
+      }
+      const request = { ...step.request, referenceFrom: { jobId: ids[from.step] } };
+      return validate({ ...step, request }, this.projects);
+    });
+    values.forEach((value, index) => {
+      const parentIndex = steps[index]?.request?.referenceFrom?.step;
+      if (parentIndex !== undefined) {
+        const parent = values[parentIndex];
+        this.assertChainParent(value, { ...parent, status: 'queued' });
+      }
+    });
+    const now = new Date().toISOString();
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      values.forEach((value, index) => {
+        this.insertJob(value, ids[index], now, value.request.referenceFrom?.jobId || null);
+      });
+      this.db.exec('COMMIT');
+    } catch (error) {
+      try {
+        this.db.exec('ROLLBACK');
+      } catch (rollbackError) {
+        console.error('Could not roll back chain enqueue:', rollbackError.message);
+      }
+      throw error;
+    }
+    if (this.autoStart) {
+      setImmediate(() => this.tick());
+    }
+    return ids.map((id) => this.get(id));
+  }
+  // Renders still waiting on a reference from `parentId`. Renders that already have their
+  // reference (resolved) are independent and are left alone.
+  pendingDependents(parentId, statuses) {
+    return this.db
+      .prepare(
+        `SELECT * FROM jobs WHERE depends_on=? AND remote_id IS NULL AND status IN (${statuses.map(() => '?').join(',')})`,
+      )
+      .all(parentId, ...statuses)
+      .map(publicJob)
+      .filter((job) => isPendingChain(job.request));
+  }
+  // Cancelling (or resolving to cancelled) a render also cancels the renders still waiting for
+  // its output, because their input will never exist. Renders that already have it keep going.
+  cancelDependents(parentId) {
+    const changes = {
+      stage: 'Cancelled because the render it depends on was cancelled.',
+      at: new Date().toISOString(),
+    };
+    for (const child of this.pendingDependents(parentId, [
+      ...WAITING_STATUSES,
+      'needs_attention',
+    ])) {
+      const result = this.db
+        .prepare(
+          "UPDATE jobs SET status='cancelled',stage=?,updated_at=? WHERE id=? AND remote_id IS NULL AND status IN ('queued','waiting_engine','waiting_memory','needs_attention')",
+        )
+        .run(changes.stage, changes.at, child.id);
+      if (result.changes) {
+        this.memoryRetryAt.delete(child.id);
+        this.logLifecycle('cancelled', this.get(child.id));
+        this.cancelDependents(child.id);
+      }
+    }
+  }
+  // Retrying a failed render also requeues the renders that failed only because it failed.
+  requeueDependents(parentId) {
+    const now = new Date().toISOString();
+    for (const child of this.pendingDependents(parentId, ['failed'])) {
+      if (child.stage !== DEPENDENCY_FAILED_STAGE) {
+        continue;
+      }
+      this.db
+        .prepare(
+          "UPDATE jobs SET status='queued',stage=?,error=NULL,updated_at=? WHERE id=? AND status='failed' AND remote_id IS NULL",
+        )
+        .run(CHAIN_WAITING_STAGE, now, child.id);
+      this.logLifecycle('retry_queued', this.get(child.id));
+      this.requeueDependents(child.id);
+    }
   }
   cancel(id) {
     const result = this.db
@@ -850,6 +1360,7 @@ export class JobQueue {
     }
     this.memoryRetryAt.delete(id);
     this.logLifecycle('cancelled', this.get(id));
+    this.cancelDependents(id);
     return this.get(id);
   }
   clearWaiting(confirmation) {
@@ -882,6 +1393,7 @@ export class JobQueue {
     this.memoryRetryAt.delete(id);
     const retried = this.get(id);
     this.logLifecycle(retried.remoteId ? 'retry_recheck' : 'retry_queued', retried);
+    this.requeueDependents(id);
     if (this.autoStart) {
       setImmediate(() => this.tick());
     }
@@ -900,6 +1412,7 @@ export class JobQueue {
       throw Error('Only interrupted jobs can be resolved.');
     }
     this.logLifecycle('resolved', this.get(id));
+    this.cancelDependents(id);
     if (this.autoStart) {
       setImmediate(() => this.tick());
     }
@@ -1347,6 +1860,116 @@ export class JobQueue {
     }
     return true;
   }
+  endChainedJob(job, token, status, stage, error = null) {
+    this.update(
+      job.id,
+      { status, stage, error },
+      token,
+      status === 'cancelled' ? 'cancelled' : undefined,
+    );
+    if (status === 'cancelled') {
+      this.cancelDependents(job.id);
+    }
+    if (this.autoStart) {
+      setImmediate(() => this.tick());
+    }
+    return null;
+  }
+  async currentOutput(parent) {
+    try {
+      const resolver =
+        this.resolveOutputs || (await import('./asset-output.js')).resolveAssetOutputs;
+      const [resolved] = await resolver([parent], { root: this.projects });
+      return resolved?.output || parent.output;
+    } catch {
+      // A renamed file is only an optimisation; the original path is the durable record.
+      return parent.output;
+    }
+  }
+  // Called for the job at the head of the queue that still waits for its reference. Returns the
+  // job with the reference staged when it can run now. Returns null after failing or cancelling
+  // it, or while the earlier render is still open (the next tick checks again).
+  async resolveChainReference(job, token) {
+    const parent = this.get(job.dependsOn);
+    const label = parent?.type === 'segmentation' ? 'cutout' : 'image';
+    if (!parent) {
+      return this.endChainedJob(
+        job,
+        token,
+        'failed',
+        DEPENDENCY_FAILED_STAGE,
+        'The render this one depends on is no longer in the queue history.',
+      );
+    }
+    if (OPEN_STATUSES.includes(parent.status)) {
+      if (job.stage !== CHAIN_WAITING_STAGE) {
+        this.updatePending(job.id, { stage: CHAIN_WAITING_STAGE }, token);
+      }
+      return null;
+    }
+    if (parent.status === 'cancelled') {
+      return this.endChainedJob(
+        job,
+        token,
+        'cancelled',
+        'Cancelled because the render it depends on was cancelled.',
+      );
+    }
+    if (parent.status === 'failed') {
+      return this.endChainedJob(
+        job,
+        token,
+        'failed',
+        DEPENDENCY_FAILED_STAGE,
+        `The ${label} this render depends on failed${parent.error ? `: ${parent.error}` : '.'} ` +
+          'Retry that render and this one is queued again.',
+      );
+    }
+    const output = parent.status === 'completed' ? await this.currentOutput(parent) : null;
+    if (!output) {
+      return this.endChainedJob(
+        job,
+        token,
+        'failed',
+        DEPENDENCY_FAILED_STAGE,
+        `The ${label} this render depends on did not save a file.`,
+      );
+    }
+    let staged;
+    try {
+      staged = await stageProjectAsset(findProject(job.projectId, this.projects), output);
+      if (job.type === 'trellis' && !/\.(png|webp)$/i.test(staged.id)) {
+        throw Error('TRELLIS.2 needs a transparent PNG or WebP.');
+      }
+    } catch (error) {
+      return this.endChainedJob(
+        job,
+        token,
+        'failed',
+        DEPENDENCY_FAILED_STAGE,
+        `Could not use the finished ${label} (${output}) as the reference: ${error.message}`,
+      );
+    }
+    const request = {
+      ...job.request,
+      references: [...(job.request.references || []), staged.id],
+      referenceFrom: { jobId: parent.id, output },
+    };
+    const changed = this.db
+      .prepare(
+        "UPDATE jobs SET request=?,stage=?,error=NULL,updated_at=? WHERE id=? AND remote_id IS NULL AND status IN ('queued','waiting_engine','waiting_memory') AND EXISTS (SELECT 1 FROM runtime_owner WHERE id=1 AND owner=? AND epoch=? AND expires>?)",
+      )
+      .run(
+        JSON.stringify(request),
+        `Using the finished ${label} as the reference.`,
+        new Date().toISOString(),
+        job.id,
+        token.owner,
+        token.epoch,
+        Date.now(),
+      );
+    return changed.changes ? this.get(job.id) : null;
+  }
   async tick() {
     if (this.stopped || this.polling || this.modelLoadInProgress) {
       return;
@@ -1357,7 +1980,7 @@ export class JobQueue {
         return;
       }
       const token = { owner: this.owner, epoch: this.epoch };
-      const job = publicJob(
+      let job = publicJob(
         this.db
           .prepare(
             "SELECT * FROM jobs WHERE status IN ('queued','waiting_engine','waiting_memory','preparing','needs_attention','running','finalizing','interrupted') ORDER BY created_at, rowid LIMIT 1",
@@ -1370,6 +1993,14 @@ export class JobQueue {
         this.suspendedEngines.has(engineId(job.type))
       ) {
         return;
+      }
+      // A render that takes its reference from an earlier render starts only once that render
+      // has finished and its output is staged. Parents are older, so they normally run first.
+      if (!job.remoteId && job.dependsOn && isPendingChain(job.request)) {
+        job = await this.resolveChainReference(job, token);
+        if (!job) {
+          return;
+        }
       }
       // Resume known remote jobs; new jobs wait for an already-loaded engine.
       if (!job.remoteId) {
@@ -1445,6 +2076,7 @@ export class JobQueue {
                   ].includes(job.type)
                 ? health.loaded === true &&
                   (job.type !== 'motion-bricks' || health.rig === 'soma') &&
+                  (job.type !== 'voices' || checkpointLoadedFor(health, job.request)) &&
                   !['generating', 'loading', 'preparing'].includes(health.phase)
                 : job.type === 'video'
                   ? health.ready === true && health.job?.state !== 'running'
@@ -1492,6 +2124,7 @@ export class JobQueue {
                 health,
                 reachable,
                 retryModel: job.stage === 'Queued for retry.' || job.status === 'waiting_memory',
+                variant: job.type === 'voices' ? checkpointForRequest(job.request) : undefined,
                 claimLoad: () => {
                   loadClaimed = this.claimQueuedModelLoad(job.id, token, engine);
                   return loadClaimed;
@@ -1587,12 +2220,12 @@ export class JobQueue {
         const gpuPreparation =
           job.type === 'video'
             ? this.prepareVideo
-            : job.type === 'images' && health.status !== 'ready'
-              ? this.prepareImage
+            : job.type === 'images' && this.prepareImage
+              ? () => this.prepareImage(job.request, health.status === 'ready')
               : job.type === '3d' && this.prepareHunyuanRender
                 ? () => this.prepareHunyuanRender(job.request)
-                : job.type === 'trellis'
-                  ? this.prepareTrellisRender
+                : job.type === 'trellis' && this.prepareTrellisRender
+                  ? () => this.prepareTrellisRender(job.request)
                   : job.type === 'segmentation'
                     ? this.prepareSam31Render
                     : job.type === 'motion' && this.prepareHyMotionRender
@@ -1783,7 +2416,7 @@ export class JobQueue {
           status: 'completed',
           output: message.output,
           finished_at: new Date().toISOString(),
-          stage: 'Completed.',
+          stage: typeof message.stage === 'string' ? message.stage.slice(0, 300) : 'Completed.',
           error: null,
         },
         failed: { status: 'failed', error: message.error, stage: 'Failed.' },
@@ -1801,6 +2434,24 @@ export class JobQueue {
       if (!this.update(job.id, changes, token, event)) {
         child.kill();
         return;
+      }
+      if (message.type === 'complete') {
+        // Provenance is best effort; recordJobOutput never throws or fails the job.
+        recordJobOutput(this.get(job.id) || { ...job, output: message.output }, projectFolder);
+        // A video can also be saved as MP4; record that copy as a conversion of the WebM.
+        for (const conversion of Array.isArray(message.conversions) ? message.conversions : []) {
+          if (typeof conversion?.path === 'string' && typeof conversion.format === 'string') {
+            recordConversion(projectFolder, message.output, conversion.path, {
+              format: conversion.format,
+            });
+          }
+        }
+        // Some renders also keep an intermediate, such as the panorama a world was built from.
+        for (const extra of Array.isArray(message.extraOutputs) ? message.extraOutputs : []) {
+          if (typeof extra === 'string') {
+            recordJobOutput({ ...(this.get(job.id) || job), output: extra }, projectFolder);
+          }
+        }
       }
       if (['complete', 'failed', 'interrupted'].includes(message.type)) {
         terminal = true;

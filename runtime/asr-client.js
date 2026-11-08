@@ -31,9 +31,18 @@ function pcmBytes(frame) {
   }
   return frame;
 }
+// Optional per-request recognition settings, validated here so every caller shares the same limits.
+// Word boosting is deliberately absent: the installed GGUF has no embedded tokenizer, so the engine
+// ignores boost phrases.
+export function recognitionOptions({ punctuation = true, wordTimestamps = false } = {}) {
+  if (typeof punctuation !== 'boolean' || typeof wordTimestamps !== 'boolean') {
+    throw Error('Punctuation and word timestamps must be true or false.');
+  }
+  return { punctuation, wordTimestamps };
+}
 export async function transcribeWav(
   bytes,
-  { baseUrl, timeoutMs = 120000, signal, fetcher = fetch } = {},
+  { baseUrl, timeoutMs = 120000, signal, fetcher = fetch, options } = {},
 ) {
   if (
     !(bytes instanceof Uint8Array) ||
@@ -46,6 +55,13 @@ export async function transcribeWav(
   }
   const form = new FormData();
   form.set('file', new Blob([bytes], { type: 'audio/wav' }), 'audio.wav');
+  const settings = recognitionOptions(options);
+  if (!settings.punctuation) {
+    form.set('automatic_punctuation', 'false');
+  }
+  if (settings.wordTimestamps) {
+    form.set('response_format', 'verbose_json');
+  }
   const timeout = AbortSignal.timeout(timeoutMs);
   const response = await fetcher(new URL('/v1/audio/transcriptions', localAsrUrl(baseUrl)), {
     method: 'POST',
@@ -62,7 +78,27 @@ export async function transcribeWav(
   if (typeof body?.text !== 'string') {
     throw Error('Speech service returned an invalid transcript.');
   }
-  return { text: body.text };
+  if (!settings.wordTimestamps) {
+    return { text: body.text };
+  }
+  // Times come from the model's token timeline, not a forced aligner, so they are approximate.
+  const words = Array.isArray(body.words)
+    ? body.words
+        .filter((word) => typeof word?.word === 'string' && Number.isFinite(word.start))
+        .slice(0, 20000)
+        .map((word) => ({
+          word: word.word,
+          start: Math.round(word.start * 1000) / 1000,
+          end: Number.isFinite(word.end) ? Math.round(word.end * 1000) / 1000 : null,
+        }))
+    : [];
+  return {
+    text: body.text,
+    words,
+    ...(Number.isFinite(body.duration)
+      ? { duration: Math.round(body.duration * 1000) / 1000 }
+      : {}),
+  };
 }
 
 // Emits the server's original partial and final events, without inventing

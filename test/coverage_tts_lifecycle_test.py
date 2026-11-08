@@ -43,6 +43,10 @@ def load_worker_module(runtime_dir):
 
     class FakeBaseModel:
         def __init__(self, **values):
+            # Class-level defaults (such as mode = "preset") apply as they do in pydantic.
+            for key, value in vars(type(self)).items():
+                if not key.startswith("_") and not callable(value):
+                    setattr(self, key, value)
             for key, value in values.items():
                 setattr(self, key, value)
 
@@ -98,7 +102,7 @@ class TtsWorkerLifecycleTests(unittest.TestCase):
 
         soundfile = types.SimpleNamespace(write=write_partial_then_fail)
         with patch.dict(sys.modules, {"soundfile": soundfile}):
-            worker.render_worker("a" * 32, worker.SpeechRequest(text="hello"))
+            worker.render_worker("a" * 32, worker.SpeechRequest(text="hello"), None)
 
         self.assertFalse((worker.OUTPUTS / f".{('a' * 32)}.part").exists())
         self.assertEqual(worker.jobs["a" * 32]["status"], "failed")
@@ -120,6 +124,7 @@ class TtsWorkerLifecycleTests(unittest.TestCase):
     def test_generate_fails_queued_job_when_thread_cannot_start(self):
         worker = self.worker
         worker.model = object()
+        worker.loaded_variant = "custom_voice"
         with patch.object(worker.threading, "Thread", StartFailureThread):
             with self.assertRaises(worker.HTTPException) as raised:
                 worker.generate(worker.SpeechRequest(text="hello"))

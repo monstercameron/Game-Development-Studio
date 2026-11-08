@@ -4,6 +4,7 @@ import { useRouteToggle, updateSearch } from './useNav';
 import InteractiveAssetViewer from './InteractiveAssetViewer';
 import AssetThumbnail, { isVisualAsset } from './AssetThumbnail';
 import AssetConverter, { canConvert } from './AssetConverter';
+import MusicDerive from './MusicDerive';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDownToLine,
@@ -17,7 +18,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { RepeatButton, ShrinkButton } from './MiniPlayer';
-import { rerunRequest } from './rerun-request';
+import { isDerivedMusic, rerunRequest } from './rerun-request';
+import GenerationDetails from './GenerationDetails';
 import './preview-area.css';
 
 const folders = {
@@ -61,6 +63,7 @@ export default function PreviewArea({
   onOpenLibrary,
   onQueued,
   refreshKey,
+  onReuse = null,
 }) {
   const [params, setParams] = useSearchParams();
   const [converting, setConverting] = useRouteToggle('convert');
@@ -212,7 +215,7 @@ export default function PreviewArea({
     try {
       const seed =
         newSeed &&
-        (['images', 'music', 'sfx', '3d', 'trellis', 'motion'].includes(job.type) ||
+        (['images', 'music', 'sfx', 'voices', '3d', 'trellis', 'motion'].includes(job.type) ||
           (job.type === 'world' &&
             job.request.model === 'worldgen' &&
             job.request.mode !== 'panorama'))
@@ -381,6 +384,9 @@ export default function PreviewArea({
               <Trash2 size={15} /> Delete
             </button>
           </div>
+          {section === 'music' && (
+            <MusicDerive project={project} asset={asset} onQueued={() => onQueued?.()} />
+          )}
           {converting && (
             <AssetConverter
               asset={asset}
@@ -411,6 +417,7 @@ export default function PreviewArea({
               ))}
             </div>
           </div>
+          <GenerationDetails compact project={project} asset={asset} onReuse={onReuse} />
           {!job && (
             <p className="iteration-hint">
               {section === 'game'
@@ -439,6 +446,7 @@ export default function PreviewArea({
           {refining && job && (
             <form className="iteration-refine" onSubmit={rerun}>
               {!['3d', 'trellis', 'motion-bricks'].includes(job.type) &&
+                !isDerivedMusic(job) &&
                 !(
                   job.type === 'world' &&
                   (job.request.model === 'hy-world' || job.request.mode === 'panorama')
@@ -459,7 +467,9 @@ export default function PreviewArea({
                     />
                   </>
                 )}
-              {(['images', 'music', 'sfx', '3d', 'trellis', 'motion'].includes(job.type) ||
+              {(['images', 'music', 'sfx', 'voices', '3d', 'trellis', 'motion'].includes(
+                job.type,
+              ) ||
                 (job.type === 'world' &&
                   job.request.model === 'worldgen' &&
                   job.request.mode !== 'panorama')) && (
@@ -486,6 +496,9 @@ export default function PreviewArea({
                 Other settings and original references are reused.
                 {job.type === 'motion-bricks' ? ' MotionBricks controls the variation.' : ''}
                 {job.type === 'video' ? ' The video engine controls the seed.' : ''}
+                {isDerivedMusic(job)
+                  ? ' The style and lyrics come from the track this one continues.'
+                  : ''}
               </p>
               <div>
                 <button type="button" className="ghost-button" onClick={() => setRefining(false)}>

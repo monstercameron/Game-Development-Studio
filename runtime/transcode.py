@@ -121,6 +121,87 @@ def audio(source, target, fmt, quality):
     return "CPU"
 
 
+def video(source, target, fmt, quality):
+    """Re-encode a clip for tools that cannot play WebM: H.264 + AAC MP4, or a looping GIF."""
+    from fractions import Fraction
+
+    import av
+
+    if fmt == "gif":
+        from PIL import Image
+
+        frames = []
+        with av.open(source) as src:
+            stream = src.streams.video[0]
+            step = max(1, round(float(stream.average_rate or 24) / 12))
+            for index, decoded in enumerate(src.decode(stream)):
+                if index % step or len(frames) >= 300:
+                    continue
+                picture = decoded.to_image().convert("RGB")
+                scale = min(1.0, 480 / picture.width)
+                if scale < 1:
+                    picture = picture.resize(
+                        (round(picture.width * scale), round(picture.height * scale)),
+                        Image.LANCZOS,
+                    )
+                frames.append(picture.quantize(colors=128, method=Image.Quantize.MEDIANCUT))
+        if not frames:
+            raise ValueError("The video has no frames.")
+        frames[0].save(
+            target,
+            format="GIF",
+            save_all=True,
+            append_images=frames[1:],
+            duration=round(1000 * step / 24),
+            loop=0,
+            optimize=True,
+        )
+        return "CPU (PyAV + Pillow)"
+    crf = max(16, min(34, round(36 - quality * 0.18)))
+    with av.open(source) as src:
+        vin = src.streams.video[0]
+        ain = src.streams.audio[0] if src.streams.audio else None
+        rate = Fraction(vin.average_rate or 24).limit_denominator(1000)
+        with av.open(target, "w", format="mp4", options={"movflags": "+faststart"}) as dst:
+            vout = dst.add_stream("libx264", rate=rate)
+            vout.width = vin.codec_context.width - vin.codec_context.width % 2
+            vout.height = vin.codec_context.height - vin.codec_context.height % 2
+            vout.pix_fmt = "yuv420p"
+            vout.options = {"crf": str(crf), "preset": "medium"}
+            sample_rate = (ain.rate if ain else 0) or 32000
+            aout = dst.add_stream("aac", rate=sample_rate, layout="stereo") if ain else None
+            resampler = (
+                av.AudioResampler(format="fltp", layout="stereo", rate=sample_rate, frame_size=1024)
+                if ain
+                else None
+            )
+            count = samples = 0
+            streams = [vin] + ([ain] if ain else [])
+            for decoded in src.decode(*streams):
+                if isinstance(decoded, av.VideoFrame):
+                    out = decoded.reformat(width=vout.width, height=vout.height, format="yuv420p")
+                    out.pts = count
+                    out.time_base = 1 / rate
+                    count += 1
+                    dst.mux(vout.encode(out))
+                else:
+                    decoded.pts = None
+                    for chunk in resampler.resample(decoded):
+                        chunk.pts = samples
+                        chunk.time_base = Fraction(1, sample_rate)
+                        samples += chunk.samples
+                        dst.mux(aout.encode(chunk))
+            dst.mux(vout.encode(None))
+            if aout:
+                for chunk in resampler.resample(None):
+                    chunk.pts = samples
+                    chunk.time_base = Fraction(1, sample_rate)
+                    samples += chunk.samples
+                    dst.mux(aout.encode(chunk))
+                dst.mux(aout.encode(None))
+    return "CPU (PyAV, x264)"
+
+
 if __name__ == "__main__":
     try:
         config = json.loads(sys.stdin.read())
@@ -132,6 +213,8 @@ if __name__ == "__main__":
                 config["quality"],
                 config["background"],
             )
+        elif config["kind"] == "video":
+            backend = video(config["source"], config["target"], config["format"], config["quality"])
         else:
             backend = audio(config["source"], config["target"], config["format"], config["quality"])
         print(json.dumps({"backend": backend}))

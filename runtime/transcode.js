@@ -3,6 +3,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { backfillAssetMeta, recordConversion } from './asset-metadata.js';
+import { convertModelAsset, isModelAsset } from './model-convert.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const python =
@@ -12,6 +14,8 @@ const script = path.join(root, 'runtime', 'transcode.py');
 const formats = {
   image: { png: 'png', jpeg: 'jpg', webp: 'webp', bmp: 'bmp', tga: 'tga' },
   audio: { wav: 'wav', mp3: 'mp3', ogg: 'ogg', opus: 'opus', flac: 'flac' },
+  // WebM (VP8) is poorly supported by game engines and editors; MP4 (H.264 + AAC) is not.
+  video: { mp4: 'mp4', gif: 'gif' },
 };
 
 function run(input) {
@@ -67,11 +71,17 @@ export async function convertAsset(project, input) {
   if (!asset) {
     throw Error('Asset not found.');
   }
+  // 3D models convert between mesh formats in their own helper (see model-convert.js).
+  if (isModelAsset(asset)) {
+    return convertModelAsset(project, asset, input);
+  }
   const kind = ['Images', 'Masks'].includes(asset.category)
     ? 'image'
     : asset.category === 'Audio'
       ? 'audio'
-      : null;
+      : asset.category === 'Video'
+        ? 'video'
+        : null;
   if (!kind || !Object.hasOwn(formats[kind], input.format || '')) {
     throw Error('Choose a supported format for this asset.');
   }
@@ -108,6 +118,9 @@ export async function convertAsset(project, input) {
       try {
         await fs.link(temporary, destination);
         const relative = path.relative(rootReal, destination).split(path.sep).join('/');
+        // Make sure an older source has its details so the copy can inherit them.
+        backfillAssetMeta(rootReal, project.id, project.assets);
+        recordConversion(rootReal, asset.id, relative, { format: input.format });
         return {
           path: relative,
           name,
@@ -125,3 +138,6 @@ export async function convertAsset(project, input) {
     await fs.unlink(temporary).catch(() => {});
   }
 }
+
+// Lower-level entry for jobs that already know the exact source and target files.
+export const convertFile = (input) => run(input);

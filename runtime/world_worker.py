@@ -117,7 +117,26 @@ class WorldRequest(BaseModel):
     resolution: int = 512
     seed: int = Field(default=42, ge=0, le=2147483647)
     steps: int = Field(default=50, ge=10, le=60)
+    # WorldGen only: FLUX guidance (the model's own default is 7 for text, 30 for images).
+    guidance: float | None = Field(default=None, ge=1, le=50)
+    # HY-World only: splat budget, sky removal and how many least-confident points are dropped.
+    splat_limit: int = Field(default=1_000_000, ge=100_000, le=5_000_000)
+    remove_sky: bool = False
+    confidence_percentile: float = Field(default=10, ge=0, le=50)
     images: list[str] = Field(default_factory=list, max_length=8)
+
+
+def result_path(work, require_data=True):
+    """The finished world file: a PLY, or a GLB mesh."""
+    for extension in ("ply", "glb"):
+        candidate = work / f"result.{extension}"
+        if (
+            candidate.is_file()
+            and not candidate.is_symlink()
+            and (not require_data or candidate.stat().st_size)
+        ):
+            return candidate
+    return None
 
 
 def run_job(job_id, request, work):
@@ -168,7 +187,7 @@ def run_job(job_id, request, work):
                 else f"World generator exited with code {code}. Check Diagnostics for the CUDA engine log."
             )
             raise RuntimeError(detail)
-        if not (work / "result.ply").is_file():
+        if result_path(work, require_data=False) is None:
             raise RuntimeError("The generator exited without a world file.")
         with lock:
             jobs[job_id].update(status="completed", message="World ready.")
@@ -203,16 +222,18 @@ def generate(request: WorldRequest):
     if (
         request.model not in ("worldgen", "hy-world")
         or request.mode not in ("text", "image", "panorama")
-        or request.output not in ("mesh", "splat")
+        or request.output not in ("mesh", "splat", "glb")
     ):
         raise HTTPException(400, "Invalid world generator settings.")
     if request.model == "hy-world" and (
-        request.mode != "image"
-        or not 1 <= len(request.images) <= 8
+        request.mode == "text"
+        or not 1 <= len(request.images) <= (8 if request.mode == "image" else 1)
         or request.output != "splat"
-        or request.resolution not in (336, 518, 700)
+        or request.resolution not in (336, 518, 700, 952)
     ):
-        raise HTTPException(400, "HY-World requires 1–8 images and a supported resolution.")
+        raise HTTPException(
+            400, "HY-World requires 1–8 views or one panorama and a supported resolution."
+        )
     if request.model == "worldgen" and (
         request.resolution not in (1024, 1600, 2048)
         or (request.mode == "text" and (not request.prompt.strip() or request.images))
@@ -279,8 +300,7 @@ def get_job(job_id: str):
             except (OSError, UnicodeError):
                 pass
         return result
-    result = work / "result.ply"
-    if result.is_file() and not result.is_symlink() and result.stat().st_size:
+    if result_path(work):
         return {"id": job_id, "status": "completed", "message": "Recovered completed world."}
     raise HTTPException(404, "World job not found.")
 
@@ -289,10 +309,21 @@ def get_job(job_id: str):
 def get_world(job_id: str):
     work = valid_job(job_id)
     job = get_job(job_id)
-    result = work / "result.ply"
-    if job["status"] != "completed" or result.is_symlink() or not result.is_file():
+    result = result_path(work)
+    if job["status"] != "completed" or result is None:
         raise HTTPException(404, "World not found.")
     return FileResponse(result, media_type="application/octet-stream")
+
+
+@app.get("/api/jobs/{job_id}/panorama")
+def get_panorama(job_id: str):
+    """The 360-degree panorama a WorldGen text or image render built the world from."""
+    work = valid_job(job_id)
+    job = get_job(job_id)
+    panorama = work / "panorama.png"
+    if job["status"] != "completed" or panorama.is_symlink() or not panorama.is_file():
+        raise HTTPException(404, "Panorama not found.")
+    return FileResponse(panorama, media_type="image/png")
 
 
 if __name__ == "__main__":

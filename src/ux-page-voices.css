@@ -1,1 +1,167 @@
 /* ux-page-voices: refinements for the voices page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+/* Recognition options and word timing */
+.speech-options {
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+  line-height: 1.45;
+}
+.speech-options > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--forge-space-2);
+  width: fit-content;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--forge-border);
+  text-underline-offset: 3px;
+}
+.speech-options > summary:focus-visible,
+.speech-words > summary:focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 3px;
+  border-radius: var(--forge-radius-sm);
+}
+.speech-options-badge {
+  padding: 1px var(--forge-space-2);
+  border: 1px solid var(--forge-border);
+  border-radius: 999px;
+  color: var(--forge-text);
+  font-size: 0.75rem;
+  text-decoration: none;
+  display: inline-block;
+}
+.speech-options-body {
+  display: grid;
+  gap: var(--forge-space-3);
+  margin-top: var(--forge-space-3);
+  padding: var(--forge-space-3) var(--forge-space-4);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-md);
+  background: var(--forge-surface-inset);
+}
+.speech-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--forge-space-2-5);
+  align-items: start;
+  color: var(--forge-text);
+  cursor: pointer;
+}
+.speech-check input {
+  margin-top: 0.2em;
+}
+.speech-check small {
+  display: block;
+  margin-top: 2px;
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+  line-height: 1.4;
+}
+.speech-options-note {
+  margin: 0;
+  color: var(--forge-muted);
+  line-height: 1.5;
+}
+.speech-words {
+  color: var(--forge-muted);
+  font-size: var(--forge-font-support);
+}
+.speech-words > summary {
+  width: fit-content;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--forge-border);
+  text-underline-offset: 3px;
+}
+.speech-words pre {
+  max-height: 220px;
+  margin: var(--forge-space-2) 0 0;
+  overflow: auto;
+  padding: var(--forge-space-3) var(--forge-space-4);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-md);
+  background: var(--forge-surface-inset);
+  color: var(--forge-text);
+  font-size: var(--forge-font-support);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Disclosure carets so the three speech summaries read as expandable */
+.speech-options > summary,
+.speech-estimate > summary,
+.speech-words > summary {
+  list-style: none;
+  text-decoration: none;
+}
+.speech-options > summary::-webkit-details-marker,
+.speech-estimate > summary::-webkit-details-marker,
+.speech-words > summary::-webkit-details-marker {
+  display: none;
+}
+.speech-options > summary::before,
+.speech-estimate > summary::before,
+.speech-words > summary::before {
+  content: '';
+  display: inline-block;
+  width: 0.45em;
+  height: 0.45em;
+  margin-inline-end: 0.55em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 150ms ease;
+}
+.speech-options[open] > summary::before,
+.speech-estimate[open] > summary::before,
+.speech-words[open] > summary::before {
+  transform: rotate(45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .speech-options > summary::before,
+  .speech-estimate > summary::before,
+  .speech-words > summary::before {
+    transition: none;
+  }
+}
+.speech-check input[type='checkbox'] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--forge-accent, #ff7a4d);
+}
+
+/* Speech engine latency mode in Recognition options. */
+.speech-latency {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--forge-space-2);
+}
+.speech-latency label {
+  display: grid;
+  gap: 4px;
+}
+.speech-latency small {
+  grid-column: 1 / -1;
+}
+.speech-latency-error {
+  color: var(--forge-danger);
+}
+
+/* Keep the voice-type switch clear of the clone clip or design description that follows it. */
+.audio-setting-group.voice-mode {
+  margin-bottom: var(--forge-space-4);
+}
+
+/* Inline errors for the clone and design fields. These sit outside .audio-setting, so the shared
+   error rules there do not reach them. Colors match those rules. */
+.voice-field-error {
+  color: var(--forge-danger, #ff9b9b);
+  font-weight: 600;
+}
+.short-text[aria-invalid='true'],
+.sound-source [aria-invalid='true'] {
+  border-color: var(--forge-danger-border, #a56262);
+  outline-color: var(--forge-danger, #ff9b9b);
+}

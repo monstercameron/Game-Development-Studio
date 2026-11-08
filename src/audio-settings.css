@@ -106,13 +106,19 @@
 }
 
 .audio-setting {
-  display: flex;
-  flex-direction: column;
-  gap: var(--forge-space-value-7);
+  /* Label text and its injected help button share the first row; everything else spans both columns. */
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  row-gap: var(--forge-space-value-7);
   min-width: 0;
   color: var(--forge-text, #f6eeef);
   font-size: var(--forge-font-support);
   font-weight: 600;
+}
+
+.audio-setting > :not(:first-child):not(.field-help-slot) {
+  grid-column: 1 / -1;
 }
 
 .audio-setting input,
@@ -159,6 +165,28 @@
 
 .audio-setting-wide {
   grid-column: 1 / -1;
+}
+
+.audio-setting .audio-setting-score {
+  font-family: var(--forge-font-mono, ui-monospace, 'Cascadia Mono', Consolas, monospace);
+  font-size: var(--forge-font-support);
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  resize: vertical;
+}
+
+.audio-setting textarea[aria-invalid='true'] {
+  border-color: var(--forge-danger-border, #a56262);
+}
+
+.audio-settings-unavailable {
+  margin: var(--forge-space-4) 0 0;
+  padding: var(--forge-space-3) var(--forge-space-4);
+  color: var(--forge-muted, #d4c0ca);
+  font-size: var(--forge-font-support);
+  line-height: 1.5;
+  border-left: 2px solid var(--forge-border, #553348);
 }
 
 @media (min-width: 1500px) {

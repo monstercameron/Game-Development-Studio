@@ -1,4 +1,5 @@
 import { saveAsset } from './job-io.js';
+import { derivedSubmission, sourceTrack, submission } from './music-request.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function send(jobId, type, values = {}) {
@@ -11,12 +12,29 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
   let remoteId = job.remoteId;
   try {
     if (!remoteId) {
+      // Extending or re-synthesizing names a track YuE2 already holds. Looking it up submits
+      // nothing, so a failure here is a plain failure rather than an unknown outcome.
+      let planned = null;
+      if (job.request.operation) {
+        try {
+          planned = derivedSubmission(
+            job.request,
+            await sourceTrack(baseUrl, job.request.source_remote),
+          );
+        } catch (error) {
+          send(job.id, 'failed', {
+            error: `Could not find the source track in YuE2: ${String(error.message).slice(0, 500)}`,
+          });
+          return;
+        }
+      }
       let response, body;
       try {
-        response = await fetch(`${baseUrl}/api/v1/jobs`, {
+        const { path, payload } = planned || submission(job.request);
+        response = await fetch(`${baseUrl}${path}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(job.request),
+          body: JSON.stringify(payload),
           signal: AbortSignal.timeout(15000),
           redirect: 'error',
         });
@@ -33,6 +51,8 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
         });
         return;
       }
+      // The studio endpoint wraps its jobs in a list; the compact v1 endpoint returns one job.
+      body = Array.isArray(body.jobs) ? body.jobs[0] || {} : body;
       if (typeof body.id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(body.id)) {
         send(job.id, 'interrupted', {
           error:

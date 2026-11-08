@@ -11,7 +11,7 @@ import { transformWithEsbuild } from 'vite';
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 
-async function renderSettings(section, draft, search = '') {
+async function renderSettings(section, draft, search = '', props = {}) {
   const temporaryDirectory = await mkdtemp(path.join(repositoryRoot, 'test', '.image-video-ui-'));
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
     pretendToBeVisual: true,
@@ -44,11 +44,34 @@ async function renderSettings(section, draft, search = '') {
       '',
     );
     const navModule = pathToFileURL(path.join(repositoryRoot, 'src', 'useNav.js')).href;
-    const preparedSource = source.replace("from './useNav'", `from '${navModule}'`);
+    const inputsModule = pathToFileURL(
+      path.join(repositoryRoot, 'src', 'imageVideoInputs.js'),
+    ).href;
+    const preparedSource = source
+      .replace("from './useNav'", `from '${navModule}'`)
+      .replace("from './imageVideoInputs'", `from '${inputsModule}'`)
+      .replace("from './VideoSettings'", "from './VideoSettings.mjs'");
     const transformed = await transformWithEsbuild(preparedSource, sourcePath, {
       loader: 'jsx',
       jsx: 'automatic',
     });
+    // The video controls live in their own component next to this one.
+    const videoPath = path.join(repositoryRoot, 'src', 'VideoSettings.jsx');
+    const optionsModule = pathToFileURL(
+      path.join(repositoryRoot, 'runtime', 'video-options.js'),
+    ).href;
+    const videoSource = (await readFile(videoPath, 'utf8'))
+      .replace("from '../runtime/video-options.js'", `from '${optionsModule}'`)
+      .replace("from './imageVideoInputs'", `from '${inputsModule}'`);
+    const videoTransformed = await transformWithEsbuild(videoSource, videoPath, {
+      loader: 'jsx',
+      jsx: 'automatic',
+    });
+    await writeFile(
+      path.join(temporaryDirectory, 'VideoSettings.mjs'),
+      videoTransformed.code,
+      'utf8',
+    );
     const modulePath = path.join(temporaryDirectory, 'ImageVideoSettings.mjs');
     await writeFile(modulePath, transformed.code, 'utf8');
     const { default: ImageVideoSettings } = await import(pathToFileURL(modulePath).href);
@@ -63,6 +86,7 @@ async function renderSettings(section, draft, search = '') {
             section,
             draft,
             update: () => {},
+            ...props,
           }),
         ),
       );
@@ -150,7 +174,7 @@ test('video settings keep the supported quality value and explain its render con
     const summary = disclosure.querySelector('summary');
     assert.equal(disclosure.open, false);
     assert.equal(summary.getAttribute('aria-expanded'), 'false');
-    assert.match(summary.textContent, /Video quality/);
+    assert.match(summary.textContent, /Fine-tune video/);
     assert.match(summary.textContent, /Show optional controls/);
 
     const steps = container.querySelector('#video-steps');
@@ -159,8 +183,11 @@ test('video settings keep the supported quality value and explain its render con
     assert.match(container.querySelector('.image-video-settings-facts').textContent, /448 × 448/);
     assert.match(
       container.querySelector('.image-video-settings-facts').textContent,
-      /24 frames per second/,
+      /24 frames per second.*stereo sound/,
     );
+    const seed = container.querySelector('#video-seed');
+    assert.equal(seed.getAttribute('placeholder'), 'Random');
+    assert.match(seed.getAttribute('aria-describedby'), /video-seed-help/);
   } finally {
     await cleanup(rendered);
   }
@@ -193,5 +220,160 @@ test('invalid image size is associated with its explanatory error', async () => 
     );
   } finally {
     await cleanup(rendered);
+  }
+});
+
+test('image settings expose transparency and matched size, and say what is unavailable', async () => {
+  const rendered = await renderSettings(
+    'images',
+    {
+      options: ['Square · 1:1', 'Balanced'],
+      imageTransparent: true,
+      imageMatchReference: true,
+      imageWidth: '640',
+      refs: [{ name: 'a.png' }],
+    },
+    '?tune=1',
+  );
+  try {
+    const { container } = rendered;
+    assert.equal(container.querySelector('#image-transparent').checked, true);
+    assert.equal(container.querySelector('#image-match-reference').checked, true);
+    const width = container.querySelector('#image-width');
+    assert.equal(width.disabled, true, 'the size follows the reference');
+    assert.equal(width.value, '');
+    assert.equal(container.querySelector('.image-video-settings-override'), null);
+    assert.match(container.querySelector('#image-width-help').textContent, /last reference/);
+    assert.match(
+      container.querySelector('.image-video-settings-facts').textContent,
+      /painted mask is not an engine input/,
+    );
+    assert.equal(
+      container.querySelector('#image-target-size').placeholder,
+      '1024',
+      'a matched size can be built around a different target',
+    );
+  } finally {
+    await cleanup(rendered);
+  }
+
+  const orphan = await renderSettings(
+    'images',
+    { imageMatchReference: true, imageWidth: '4096', refs: [] },
+    '?tune=1',
+  );
+  try {
+    assert.match(
+      orphan.container.querySelector('#image-match-reference-help + [role="alert"]').textContent,
+      /Add a reference image first/,
+    );
+    assert.equal(orphan.container.querySelector('#image-width').disabled, false);
+    assert.match(orphan.container.querySelector('#image-width-error').textContent, /32 to 2752/);
+  } finally {
+    await cleanup(orphan);
+  }
+});
+
+test('the closed disclosure names the hidden values that were changed', async () => {
+  const rendered = await renderSettings('images', {
+    options: ['Square · 1:1', 'Balanced'],
+    imageWidth: '640',
+    seed: '7',
+    imageTransparent: true,
+  });
+  try {
+    const summary = rendered.container.querySelector('summary');
+    assert.match(summary.textContent, /changed: size, seed, transparent background/);
+  } finally {
+    await cleanup(rendered);
+  }
+});
+
+test('video seed accepts 0 to 2147483647 and ties an error to its field', async () => {
+  const rendered = await renderSettings('video', { seed: '2147483648' });
+  try {
+    const seed = rendered.container.querySelector('#video-seed');
+    assert.equal(seed.getAttribute('aria-invalid'), 'true');
+    assert.match(seed.getAttribute('aria-describedby'), /video-seed-error/);
+    assert.match(
+      rendered.container.querySelector('#video-seed-error').textContent,
+      /0 to 2147483647/,
+    );
+    assert.match(rendered.container.querySelector('summary').textContent, /seed/);
+  } finally {
+    await cleanup(rendered);
+  }
+  const valid = await renderSettings('video', { seed: '0' }, '?tune=1');
+  try {
+    assert.equal(valid.container.querySelector('#video-seed').getAttribute('aria-invalid'), null);
+    assert.equal(valid.container.querySelector('#video-seed-error'), null);
+  } finally {
+    await cleanup(valid);
+  }
+});
+
+test('image settings offer variations, LoRA, KV cache and a sampling schedule', async () => {
+  const rendered = await renderSettings(
+    'images',
+    {
+      options: ['Square · 1:1', 'Balanced'],
+      imageVariations: 3,
+      imageLora: 'pixel-art.safetensors',
+      imageLoraScale: '0.8',
+      imageKvCache: false,
+      imageSigmas: '1, 0.6, 0.2',
+    },
+    '',
+    { loras: [{ name: 'pixel-art.safetensors' }, { name: 'ink.safetensors' }] },
+  );
+  try {
+    const { container } = rendered;
+    assert.equal(container.querySelector('#image-variations').value, '3');
+    assert.match(container.querySelector('#image-variations-help').textContent, /variation 1 of 3/);
+    const lora = container.querySelector('#image-lora');
+    assert.equal(lora.value, 'pixel-art.safetensors');
+    assert.deepEqual(
+      [...lora.options].map((option) => option.value),
+      ['', 'pixel-art.safetensors', 'ink.safetensors'],
+    );
+    assert.equal(container.querySelector('#image-lora-scale').value, '0.8');
+    assert.equal(container.querySelector('#image-kv-cache').checked, false);
+    assert.equal(container.querySelector('#image-sigmas').value, '1, 0.6, 0.2');
+    assert.equal(container.querySelector('#image-steps').disabled, true, 'the schedule sets steps');
+    assert.equal(container.querySelector('#image-target-size'), null, 'only with a matched size');
+    assert.match(
+      container.querySelector('summary').textContent,
+      /variations, LoRA, KV cache off, sampling schedule/,
+    );
+  } finally {
+    await cleanup(rendered);
+  }
+});
+
+test('image settings explain an empty LoRA folder and reject bad schedules and strengths', async () => {
+  const empty = await renderSettings('images', { imageLora: 'gone.safetensors' }, '?tune=1');
+  try {
+    assert.match(empty.container.querySelector('#image-lora-help').textContent, /No LoRA files/);
+    assert.match(
+      empty.container.querySelector('#image-lora-missing').textContent,
+      /not in the LoRA/,
+    );
+  } finally {
+    await cleanup(empty);
+  }
+  const invalid = await renderSettings(
+    'images',
+    { imageLora: 'a.safetensors', imageLoraScale: '3', imageSigmas: '0.2, 0.6' },
+    '?tune=1',
+    { loras: [{ name: 'a.safetensors' }] },
+  );
+  try {
+    const { container } = invalid;
+    assert.equal(container.querySelector('#image-lora-scale').getAttribute('aria-invalid'), 'true');
+    assert.equal(container.querySelector('#image-sigmas').getAttribute('aria-invalid'), 'true');
+    assert.match(container.querySelector('#image-sigmas-error').textContent, /must fall/);
+    assert.equal(container.querySelector('#image-steps').disabled, false);
+  } finally {
+    await cleanup(invalid);
   }
 });

@@ -85,4 +85,71 @@ with (
         pass
     else:
         raise AssertionError("Invalid step count was accepted.")
+
+
+class Recorder:
+    def __init__(self):
+        self.models = {}
+        self.types = []
+
+    def run(self, provided, **kwargs):
+        self.types.append(kwargs["pipeline_type"])
+        return [Mesh()]
+
+
+with (
+    tempfile.TemporaryDirectory() as folder,
+    patch.dict(
+        sys.modules,
+        {"o_voxel": types.SimpleNamespace(postprocess=types.SimpleNamespace(to_glb=bake))},
+    ),
+    patch.object(backend.torch.cuda, "is_available", return_value=True),
+    patch.object(backend, "ensure_pipeline_models") as ensure,
+):
+    recorder = Recorder()
+    output = Path(folder) / "test.glb"
+    backend.generate_glb(
+        recorder, image, output, seed=1, steps=3, texture_size=512, pipeline_type="1024_cascade"
+    )
+    assert recorder.types == ["1024_cascade"]
+    assert ensure.call_args.args[:2] == (recorder, "1024_cascade")
+    for bad in ("2048", "", None):
+        try:
+            backend.generate_glb(recorder, image, output, texture_size=512, pipeline_type=bad)
+        except ValueError:
+            continue
+        raise AssertionError("Unsupported pipeline type was accepted.")
+
+
+class Component:
+    pass
+
+
+with patch.object(backend, "pipelines_available", return_value=["512"]):
+    pipeline = types.SimpleNamespace(models={"shape_slat_flow_model_512": Component()})
+    backend.ensure_pipeline_models(pipeline, "512")
+    try:
+        backend.ensure_pipeline_models(pipeline, "1024")
+    except RuntimeError as error:
+        assert "not installed" in str(error)
+    else:
+        raise AssertionError("A pipeline without checkpoints was accepted.")
+loaded = []
+with (
+    patch.object(
+        backend, "pipelines_available", return_value=["512", "1024", "1024_cascade", "1536_cascade"]
+    ),
+    patch.object(backend, "_load_component", side_effect=lambda base: loaded.append(base) or base),
+):
+    pipeline = types.SimpleNamespace(models={"shape_slat_flow_model_512": Component()})
+    messages = []
+    backend.ensure_pipeline_models(pipeline, "1536_cascade", messages.append)
+    assert set(pipeline.models) == {
+        "shape_slat_flow_model_512",
+        "shape_slat_flow_model_1024",
+        "tex_slat_flow_model_1024",
+    }
+    assert len(loaded) == 2 and messages
+    backend.ensure_pipeline_models(pipeline, "1024")  # Already loaded: nothing more to read.
+    assert len(loaded) == 2
 print("TRELLIS.2 input validation and render controls passed with a substitute renderer.")

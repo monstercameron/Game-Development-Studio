@@ -8,6 +8,7 @@ import { Check, Copy, FolderOpen, LoaderCircle, Mic, Save, Square, X } from 'luc
 import MemoryDialog from './MemoryDialog';
 import { openAsrStream } from './asr-stream.js';
 import { formatDuration } from './queue-timing.js';
+import { formatWordTimes } from './asr-options.js';
 import './speech-transcriber.css';
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -38,7 +39,12 @@ async function post(path) {
   return { response, body };
 }
 
-export default function SpeechTranscriber({ onUseText, projects = [], project = null }) {
+export default function SpeechTranscriber({
+  onUseText,
+  projects = [],
+  project = null,
+  renderLatency = null,
+}) {
   const [params, setParams] = useSearchParams();
   const [libraryAudio, setLibraryAudio] = useState(null);
   const [phase, setPhase] = useState('idle'),
@@ -48,7 +54,11 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
     [completionNotice, setCompletionNotice] = useState(''),
     [copied, setCopied] = useState(false),
     [conflict, setConflict] = useState(null),
-    [working, setWorking] = useState(false);
+    [working, setWorking] = useState(false),
+    [punctuation, setPunctuation] = useState(true),
+    [wordTiming, setWordTiming] = useState(false),
+    [words, setWords] = useState([]),
+    [progress, setProgress] = useState(0);
   const [fileRates, setFileRates] = useState(readFileRates);
   const [saving, setSaving] = useState(false),
     [savedPath, setSavedPath] = useState('');
@@ -94,6 +104,7 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
       return;
     }
     run.cancelled = true;
+    run.abort?.abort();
     clearTimeout(run.flushTimer);
     try {
       run.source?.disconnect();
@@ -144,8 +155,12 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
       setError('Choose an audio file smaller than 25 MiB.');
       return;
     }
+    // Word timing needs the whole file in one request, which only works for WAV files that live in
+    // a project. Everything else is streamed through the browser, which keeps punctuation better.
+    const whole = Boolean(wordTiming && inputFile?.forgeSource && /\.wav$/i.test(inputFile.name));
     pendingFile.current = inputFile;
     setError('');
+    setWords([]);
     setCompletionNotice('');
     setPartial('');
     setCopied(false);
@@ -156,8 +171,9 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
     current.current = run;
     try {
       if (
-        !window.AudioContext ||
-        (!inputFile && (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode))
+        !whole &&
+        (!window.AudioContext ||
+          (!inputFile && (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode)))
       ) {
         throw Error(
           inputFile
@@ -165,10 +181,12 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
             : 'This browser does not support the microphone features needed for live transcription.',
         );
       }
-      run.context = new AudioContext();
-      await run.context.resume();
-      if (!active(run)) {
-        return;
+      if (!whole) {
+        run.context = new AudioContext();
+        await run.context.resume();
+        if (!active(run)) {
+          return;
+        }
       }
       const status = await fetch('/api/runtime/services');
       const services = status.ok ? (await status.json()).services : [];
@@ -229,11 +247,44 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
           'Speech recognition is still starting. Check Models & services before trying again.',
         );
       }
+      if (whole) {
+        setTranscript('');
+        setPhase('transcribing');
+        run.abort = new AbortController();
+        const response = await fetch('/api/runtime/asr/transcribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
+          body: JSON.stringify({
+            ...inputFile.forgeSource,
+            punctuation,
+            wordTimestamps: wordTiming,
+          }),
+          signal: run.abort.signal,
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!active(run)) {
+          return;
+        }
+        if (!response.ok || typeof result.text !== 'string') {
+          throw Error(result.error || result.message || 'Could not transcribe this audio file.');
+        }
+        setTranscript(result.text.trim());
+        setWords(Array.isArray(result.words) ? result.words : []);
+        cleanup(run);
+        setPhase('idle');
+        setCompletionNotice(
+          result.text.trim() ? 'Transcription complete.' : 'No speech was recognized in this file.',
+        );
+        return;
+      }
       const url = new URL('/api/asr/realtime', window.location.href);
       url.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       run.stream = openAsrStream({
         url: url.href,
         sampleRate: run.context.sampleRate,
+        session: {
+          ...(punctuation ? {} : { automatic_punctuation: false }),
+        },
         onDelta: (delta) => {
           if (!active(run)) {
             return;
@@ -274,6 +325,7 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
           throw Error('Choose an audio file no longer than two minutes.');
         }
         setTranscript('');
+        setProgress(0);
         setPhase('transcribing');
         const started = performance.now();
         const channels = Array.from({ length: audio.numberOfChannels }, (_, index) =>
@@ -296,6 +348,7 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
             );
           }
           run.stream.send(buffer);
+          setProgress(Math.floor(((offset + count) / audio.length) * 100));
           await pause(10);
         }
         if (!active(run)) {
@@ -415,9 +468,29 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
     setPartial('');
     setError('');
   }
+  // Older or non-secure pages (such as a remote http address) have no async clipboard.
+  function legacyCopy(text) {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(area);
+    area.select();
+    try {
+      return document.execCommand('copy');
+    } finally {
+      area.remove();
+    }
+  }
   async function copy() {
     try {
-      await navigator.clipboard.writeText(transcript);
+      try {
+        await navigator.clipboard.writeText(transcript);
+      } catch (reason) {
+        if (!legacyCopy(transcript)) {
+          throw reason;
+        }
+      }
       setCopied(true);
       setTimeout(() => {
         if (mounted.current) {
@@ -430,6 +503,7 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
   }
   function clearTranscript() {
     setTranscript('');
+    setWords([]);
     setCopied(false);
     setSavedPath('');
     setCompletionNotice('');
@@ -479,6 +553,48 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
         Speak live or choose an audio file. Audio stays on this computer; recording starts only
         after you allow microphone access.
       </p>
+      <details className="speech-options">
+        <summary>
+          Recognition options
+          {(!punctuation || wordTiming) && <span className="speech-options-badge">Customized</span>}
+        </summary>
+        <div className="speech-options-body">
+          <label className="speech-check">
+            <input
+              type="checkbox"
+              checked={punctuation}
+              disabled={phase !== 'idle'}
+              onChange={(event) => setPunctuation(event.target.checked)}
+            />
+            <span>
+              Punctuation and capitalization
+              <small>Turn off for plain lowercase text without punctuation.</small>
+            </span>
+          </label>
+          <label className="speech-check">
+            <input
+              type="checkbox"
+              checked={wordTiming}
+              disabled={phase !== 'idle'}
+              onChange={(event) => setWordTiming(event.target.checked)}
+            />
+            <span>
+              Word timing
+              <small>
+                Lists roughly when each word starts. Only for WAV files from the asset library (up
+                to 25 MiB). Times can be off by up to a second, and long files may lose some
+                punctuation.
+              </small>
+            </span>
+          </label>
+          {renderLatency?.({ disabled: phase !== 'idle' })}
+          <p className="speech-options-note">
+            Not available: other languages (this model is English only), word boosting for names
+            (the installed model file lacks the tokenizer it needs), and speaker labels, profanity
+            masking and spoken-number formatting (their add-on models are not installed).
+          </p>
+        </div>
+      </details>
       <details className="speech-estimate">
         <summary>Audio-file timing details</summary>
         <div className="speech-estimate-copy">
@@ -554,7 +670,9 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
       <p className={'speech-status ' + phase} role="status" aria-live="polite">
         {phase === 'idle'
           ? completionNotice || 'Microphone off. Your browser asks for access when you start.'
-          : phaseLabels[phase]}
+          : phase === 'transcribing' && progress > 0 && progress < 100
+            ? `Transcribing file, ${progress}% sent. Audio streams to the model faster than real time.`
+            : phaseLabels[phase]}
       </p>
       {micBlocked && phase === 'idle' && (
         <p className="speech-blocked" id="mic-blocked-help">
@@ -583,7 +701,8 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
         </div>
       )}
       <p className="helper">
-        Audio files can be up to two minutes and 25 MiB. Supported formats depend on your browser.
+        Audio files are streamed: up to two minutes and 25 MiB, with formats depending on your
+        browser. Live microphone sessions stop after roughly ten minutes.
       </p>
       <div className="speech-output" role="region" aria-label="Transcript">
         <span>{transcript}</span>
@@ -597,6 +716,12 @@ export default function SpeechTranscriber({ onUseText, projects = [], project = 
           <span className="speech-placeholder">Your transcript will appear here.</span>
         )}
       </div>
+      {words.length > 0 && (
+        <details className="speech-words">
+          <summary>Word timing, approximate ({words.length} words)</summary>
+          <pre aria-label="Word start times">{formatWordTimes(words)}</pre>
+        </details>
+      )}
       {transcript && (
         <>
           <div className="speech-actions">

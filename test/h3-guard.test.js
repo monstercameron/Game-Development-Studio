@@ -50,8 +50,9 @@ function body(req){return new Promise((resolve,reject)=>{let text='';req.on('dat
 async function generate(req,res){
  if(job && job.state==='running')return json(res,{error:'A video is already generating.'},409);
  let b;try{b=await body(req)}catch(e){return json(res,{error:e.message},400)}
+ const args=['-p','x','--rng','cpu','-o','y'];
  const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true});
- job={id:'test',state:'running',pid:child.pid};return json(res,{id:'test',pid:child.pid});
+ job={id:'test',state:'running',pid:child.pid};child.on('exit',()=>{job=null});return json(res,{id:'test',pid:child.pid,args});
 }
 http.createServer((req,res)=>{if(req.url==='/api/status')return json(res,{ready:true,files:[],videos:[],job,serverPid:process.pid});if(req.method==='POST'&&req.url==='/api/generate')return generate(req,res);return json(res,{},404)}).listen(PORT,'127.0.0.1');`;
 
@@ -73,6 +74,55 @@ test('H3 bootstrap refuses changed upstream code rather than starting without th
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /startup code changed/);
 });
+
+test(
+  'H3 bootstrap forwards only a valid integer seed to the renderer arguments',
+  { timeout: 15000 },
+  async (t) => {
+    const probe = createServer();
+    probe.listen(0, '127.0.0.1');
+    await once(probe, 'listening');
+    const port = probe.address().port;
+    await new Promise((resolve) => probe.close(resolve));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-h3-seed-'));
+    await fs.writeFile(path.join(dir, 'server.js'), fixture);
+    const child = spawn(process.execPath, [path.join(root, 'runtime', 'h3_bootstrap.cjs'), dir], {
+      env: { ...process.env, FORGE_H3_INTERNAL_PORT: String(port) },
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    let renderer = null;
+    t.after(() => {
+      child.kill();
+      if (renderer && alive(renderer)) {
+        process.kill(renderer);
+      }
+    });
+    const base = `http://127.0.0.1:${port}`;
+    await waitFor(async () => (await fetch(`${base}/api/status`)).ok);
+    const cases = [
+      [{ seed: 1234 }, ['-p', 'x', '--rng', 'cpu', '--seed', '1234', '-o', 'y']],
+      [{}, ['-p', 'x', '--rng', 'cpu', '-o', 'y']],
+      [{ seed: -1 }, ['-p', 'x', '--rng', 'cpu', '-o', 'y']],
+      [{ seed: '5' }, ['-p', 'x', '--rng', 'cpu', '-o', 'y']],
+      [{ seed: 2147483648 }, ['-p', 'x', '--rng', 'cpu', '-o', 'y']],
+    ];
+    for (const [body, expected] of cases) {
+      const response = await fetch(`${base}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      assert.equal(response.status, 200);
+      const result = await response.json();
+      renderer = result.pid;
+      assert.deepEqual(result.args, expected);
+      // The fixture's renderer only sleeps; stop it so the next request is accepted.
+      process.kill(renderer);
+      await waitFor(async () => !(await (await fetch(`${base}/api/status`)).json()).job);
+    }
+  },
+);
 
 test(
   'H3 guard fences overlapping uploads and kills the owned renderer after a guard crash',

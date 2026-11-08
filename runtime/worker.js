@@ -44,6 +44,12 @@ import {
   createMotionBricksRenderPreparation,
 } from './motionbricks-preparation.js';
 import { createAsrStarter, probeAsr } from './asr-preparation.js';
+import {
+  ASR_LATENCIES_MS,
+  applyAsrLatency,
+  readAsrLatency,
+  writeAsrLatency,
+} from './asr-latency.js';
 import { createGameLoader } from './game-preparation.js';
 import { transcribeProjectAudio } from './asr-project.js';
 import { ModelInventory, managedModels } from './model-inventory.js';
@@ -739,6 +745,17 @@ async function manualAsrLoad() {
     }
   }
 }
+// The latency mode is read when the speech engine starts, so changing it restarts an idle engine.
+async function setAsrLatency({ latencyMs }) {
+  return applyAsrLatency(latencyMs, {
+    read: () => readAsrLatency(),
+    write: (value) => writeAsrLatency(value),
+    probe: () => probeAsr(asrBase),
+    managed: async () => Boolean((await engines.status()).asr?.managed),
+    stop: () => handlers.offload({ id: 'asr' }),
+    start: () => manualAsrLoad(),
+  });
+}
 async function manualGameLoad() {
   queue.suspendForModelLoad('game');
   let monitoring = false;
@@ -1180,6 +1197,7 @@ const handlers = {
     return { job: (await resolveAssetOutputs([job]))[0] };
   },
   enqueue: async (input) => ({ job: queue.enqueue(input) }),
+  enqueueChain: async (input) => ({ jobs: queue.enqueueChain(input.steps) }),
   estimate: async (input) => queue.estimate(input),
   cancel: async ({ id }) => ({ job: queue.cancel(id) }),
   clearWaiting: async ({ confirmation }) => queue.clearWaiting(confirmation),
@@ -1199,6 +1217,8 @@ const handlers = {
   loadHyMotion: manualHyMotionLoad,
   loadMotionBricks: manualMotionBricksLoad,
   loadAsr: manualAsrLoad,
+  asrLatency: async () => ({ latencyMs: readAsrLatency(), modes: ASR_LATENCIES_MS }),
+  setAsrLatency,
   loadGame: manualGameLoad,
   clearMusicLoadBarrier,
   clearSoundLoadBarrier,

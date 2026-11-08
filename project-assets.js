@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { deleteAssetMeta, moveAssetMeta, recordSavedText } from './runtime/asset-metadata.js';
 
 const locks = new Map();
 const filename = '.forge-assets.json';
@@ -172,11 +173,25 @@ export function clearTrash(project, confirmation) {
       await fs.unlink(path.join(folder, `${item.trashId}.json`));
       deleted++;
     }
+    // Generation details go with the file unless a new file now uses that path.
+    const gone = [];
+    for (const item of items) {
+      try {
+        await fs.lstat(path.join(project.folder, ...item.path.split('/')));
+      } catch {
+        gone.push(item.path);
+      }
+    }
+    try {
+      deleteAssetMeta(project.folder, gone);
+    } catch (error) {
+      warn(console.warn, 'asset_meta_delete', 'trash_clear', error);
+    }
     return { deleted };
   });
 }
 // Save generated text under a fixed project subfolder; never accept a client path.
-export async function saveGeneratedText(project, { kind, content } = {}) {
+export async function saveGeneratedText(project, { kind, content, provenance } = {}) {
   const extensions = { transcript: 'txt', chat: 'txt', decision: 'json' };
   if (!Object.hasOwn(extensions, kind)) {
     throw Error('Unsupported text asset type.');
@@ -206,6 +221,7 @@ export async function saveGeneratedText(project, { kind, content } = {}) {
   }
   const name = `${kind}-${randomUUID()}.${extensions[kind]}`;
   await fs.writeFile(path.join(real, name), content, { encoding: 'utf8', flag: 'wx' });
+  recordSavedText(root, `text/${name}`, kind, provenance);
   return { path: `text/${name}` };
 }
 export function updateAsset(project, rel, changes) {
@@ -321,6 +337,11 @@ export function renameAsset(
         );
       }
       throw Error('Could not rename the asset; the original file was kept.', { cause: error });
+    }
+    try {
+      moveAssetMeta(project.folder, rel, next);
+    } catch (error) {
+      warn(logger, 'asset_rename', 'metadata', error);
     }
     return { path: next };
   });

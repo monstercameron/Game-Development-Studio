@@ -146,6 +146,7 @@ test('speech UI accepts 100,000 final characters and reports a later overflow', 
       .replace("from './MemoryDialog'", "from './speech-ui-stubs.mjs'")
       .replace("from './queue-timing.js'", "from './speech-ui-stubs.mjs'")
       .replace("from './asr-stream.js'", "from '../../src/asr-stream.js'")
+      .replace("from './asr-options.js'", "from '../../src/asr-options.js'")
       .replace("import './speech-transcriber.css';", '');
     await writeFile(
       path.join(temporaryDirectory, 'speech-ui-stubs.mjs'),

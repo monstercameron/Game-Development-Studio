@@ -1,1 +1,44 @@
 /* ux-page-video: refinements for the video page, loaded last. Use --ux-* tokens from ux-tokens.css. */
+
+/* The inline help button follows its label's text instead of dropping to its own row. */
+.options[data-section='video'] > label > .field-label:has(+ .field-help-slot),
+.image-video-settings-video-field > .field-label:has(+ .field-help-slot) {
+  display: inline-block;
+}
+
+.image-video-settings-video-field {
+  display: block;
+}
+
+.image-video-settings-video-field select {
+  margin-top: var(--ux-space-1, 4px);
+}
+
+/* The live reference count sits close to the list it describes. */
+.ref-count {
+  margin-top: var(--ux-space-1, 4px);
+}
+
+/* In the stacked (column) layout a flex-basis is a height: without this the tip above the
+   character count grew to 230 px tall on phones. */
+@media (max-width: 600px) {
+  .form-panel .prompt-foot > span:first-child {
+    flex: 0 0 auto;
+  }
+}
+
+/* The help button stays a round 20 px mark (the shared 44 px minimum made it an oval); its touch
+   target is enlarged invisibly instead. */
+@media (max-width: 850px) {
+  .form-panel .field-help-trigger {
+    position: relative;
+    min-width: 20px;
+    min-height: 20px;
+  }
+
+  .form-panel .field-help-trigger::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+  }
+}

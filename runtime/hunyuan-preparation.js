@@ -10,6 +10,9 @@ export const HUNYUAN_HOST_REQUIRED_BYTES = 8 * 1024 ** 3;
 // working memory is released before painting, so the stages need the larger of the two, not the sum.
 export const HUNYUAN_TEXTURE_GPU_BUDGET_MIB = 16 * 1024;
 export const HUNYUAN_TEXTURE_HOST_REQUIRED_BYTES = 12 * 1024 ** 3;
+// Eight views at 768 px used about 15 GB more GPU memory than the default six at 512 px
+// (measured 2026-11-07). The same increase is added for any larger painter setting.
+export const HUNYUAN_TEXTURE_EXTRA_VIEWS_MIB = 16 * 1024;
 
 export function createHunyuanLoader({
   hardware,
@@ -219,7 +222,7 @@ export function createHunyuanPreparation({ startEngine, loadModel, autoStart = t
 }
 
 export function createHunyuanRenderPreparation({ hardware, services, freeMemory = os.freemem }) {
-  return async ({ resolution, texture = false }) => {
+  return async ({ resolution, texture = false, texture_views = 6, texture_view_size = 512 }) => {
     const free = freeMemory();
     const hostRequired = texture ? HUNYUAN_TEXTURE_HOST_REQUIRED_BYTES : 4 * 1024 ** 3;
     if (hostMemoryShort(free, hostRequired)) {
@@ -231,7 +234,10 @@ export function createHunyuanRenderPreparation({ hardware, services, freeMemory 
     }
     const shapeBudget = { 128: 4096, 256: 8192, 384: 16384 }[resolution];
     const budget =
-      shapeBudget && texture ? Math.max(shapeBudget, HUNYUAN_TEXTURE_GPU_BUDGET_MIB) : shapeBudget;
+      shapeBudget && texture
+        ? Math.max(shapeBudget, HUNYUAN_TEXTURE_GPU_BUDGET_MIB) +
+          (texture_views > 6 || texture_view_size > 512 ? HUNYUAN_TEXTURE_EXTRA_VIEWS_MIB : 0)
+        : shapeBudget;
     if (!budget) {
       return {
         status: 'needs_attention',

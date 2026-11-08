@@ -14,6 +14,7 @@ export const panels = new Set([
   'voices',
   'segmentation',
   'game',
+  'queue',
   'assets',
   'models',
   'diagnostics',

@@ -125,6 +125,17 @@
     font-size: var(--ux-text-sm);
   }
 
+  /* An unavailable estimate explains what is missing, so let that reason wrap instead of clipping. */
+  .editor-page .form-panel > .form-bottom > div:first-child:has(.estimate-note) {
+    flex-wrap: wrap;
+  }
+
+  .editor-page .form-panel > .form-bottom strong.estimate-note {
+    flex: 1 1 100%;
+    overflow: visible;
+    white-space: normal;
+  }
+
   .editor-page .form-panel > .form-bottom .create-action {
     width: 100%;
     min-height: var(--ux-target-touch);

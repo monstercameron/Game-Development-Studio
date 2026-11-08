@@ -293,6 +293,8 @@ const FORMATS = {
   gltf: { label: 'glTF', description: 'glTF JSON' },
   fbx: { label: 'FBX', description: 'Autodesk FBX' },
   ply: { label: 'PLY', description: 'Polygon file' },
+  obj: { label: 'OBJ', description: 'Wavefront OBJ (geometry only in the viewer)' },
+  stl: { label: 'STL', description: 'STL triangle mesh' },
   bvh: { label: 'BVH', description: 'Biovision motion' },
 };
 const KIND_LABELS = {

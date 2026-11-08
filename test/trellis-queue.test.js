@@ -130,8 +130,13 @@ test(
         const body = JSON.parse(raw);
         assert.equal(body.image, `data:image/png;base64,${png.toString('base64')}`);
         assert.deepEqual(
-          { seed: body.seed, steps: body.steps, texture_size: body.texture_size },
-          { seed: 5, steps: 3, texture_size: 512 },
+          {
+            seed: body.seed,
+            steps: body.steps,
+            texture_size: body.texture_size,
+            target_faces: body.target_faces,
+          },
+          { seed: 5, steps: 3, texture_size: 512, target_faces: 100000 },
         );
         submissions++;
         return res.end(JSON.stringify({ id: remoteId }));
@@ -167,6 +172,21 @@ test(
       assert.throws(
         () => queue.enqueue({ ...input, request: { ...input.request, texture_size: 100 } }),
         /Invalid/,
+      );
+      assert.equal(job.request.target_faces, 100000);
+      for (const target_faces of [4999, 1000001, 20000.5, '20000']) {
+        assert.throws(
+          () => queue.enqueue({ ...input, request: { ...input.request, target_faces } }),
+          /triangle target/i,
+        );
+      }
+      const light = queue.enqueue({ ...input, request: { ...input.request, target_faces: 20000 } });
+      assert.equal(light.request.target_faces, 20000);
+      // A different triangle target must not borrow another target's timing history.
+      assert.equal(
+        queue.estimate({ ...input, request: { ...input.request, target_faces: 20000 } })
+          .sampleCount,
+        0,
       );
     } finally {
       queue.stop();

@@ -144,6 +144,32 @@ test('3D texture options are validated and kept only when on', async () => {
     assert.equal(painted.request.texture_size, 1024);
     const defaults = queue.enqueue({ ...base, request: { ...base.request, texture: true } });
     assert.equal(defaults.request.texture_size, 2048);
+    assert.equal('guidance' in defaults.request, false);
+    assert.equal('target_faces' in defaults.request, false);
+    const tuned = queue.enqueue({
+      ...base,
+      request: {
+        ...base.request,
+        guidance: 8,
+        target_faces: 20000,
+        texture: true,
+      },
+    });
+    assert.equal(tuned.request.guidance, 8);
+    assert.equal(tuned.request.target_faces, 20000);
+    for (const bad of [
+      { guidance: 0 },
+      { guidance: 21 },
+      { guidance: '5' },
+      { target_faces: 999 },
+      { target_faces: 2000000 },
+      { target_faces: 1500.5 },
+    ]) {
+      assert.throws(
+        () => queue.enqueue({ ...base, request: { ...base.request, ...bad } }),
+        /guidance|triangle target/i,
+      );
+    }
   } finally {
     queue.stop();
     await fs.rm(dir, { recursive: true, force: true });

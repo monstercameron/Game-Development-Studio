@@ -1,9 +1,22 @@
 import { planModelLoad } from './model-load.js';
+import { TTS_CHECKPOINTS, loadedCheckpoint } from './voice-modes.js';
 
-export const TTS_BUDGET_MIB = 12 * 1024;
+export const TTS_BUDGET_MIB = TTS_CHECKPOINTS.custom_voice.budgetMiB;
+
+// Whether the worker has this checkpoint's files. Workers from before the variant change only report
+// model_downloaded for the preset checkpoint.
+export function checkpointInstalled(health, checkpoint) {
+  if (health?.variants) {
+    return health.variants[checkpoint] === true;
+  }
+  return checkpoint === 'custom_voice' && health?.model_downloaded === true;
+}
+
+// variant selects the checkpoint to load (custom_voice, base or voice_design). Without one, the
+// call only confirms that some checkpoint is loaded and never swaps the resident model.
 export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }) {
   let inFlight = null;
-  return function loadTts() {
+  return function loadTts(variant = null) {
     if (inFlight) {
       return inFlight;
     }
@@ -31,7 +44,8 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
           },
         };
       }
-      if (status.loaded) {
+      const resident = loadedCheckpoint(status);
+      if (status.loaded && (variant === null || resident === variant)) {
         return {
           status: 200,
           body: { code: 'already_loaded', message: 'Qwen3-TTS is already loaded.' },
@@ -40,18 +54,39 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
       if (status.phase === 'loading') {
         return { status: 202, body: { code: 'loading', message: 'Qwen3-TTS is already loading.' } };
       }
-      if (status.model_downloaded !== true) {
+      const target = variant ?? 'custom_voice';
+      const checkpoint = TTS_CHECKPOINTS[target];
+      if (!checkpoint) {
+        return {
+          status: 400,
+          body: { code: 'unknown_checkpoint', message: 'Unknown speech checkpoint.' },
+        };
+      }
+      if (target !== 'custom_voice' && !status.variants) {
         return {
           status: 409,
-          body: { code: 'model_missing', message: 'Qwen3-TTS model files are missing.' },
+          body: {
+            code: 'worker_restart_required',
+            message: `Restart Qwen3-TTS so it can load the ${checkpoint.label} checkpoint.`,
+          },
+        };
+      }
+      if (!checkpointInstalled(status, target)) {
+        return {
+          status: 409,
+          body: {
+            code: 'model_missing',
+            message: `${checkpoint.label} files are missing. Install the ${checkpoint.folder} checkpoint, then retry.`,
+          },
         };
       }
       const snapshot = await hardware();
-      let plan = planModelLoad(snapshot, [], TTS_BUDGET_MIB);
+      // The resident checkpoint is still counted: the worker unloads it only after this admission.
+      let plan = planModelLoad(snapshot, [], checkpoint.budgetMiB);
       if (plan.code === 'insufficient_gpu_memory') {
         plan = {
-          ...planModelLoad(snapshot, await services(), TTS_BUDGET_MIB),
-          estimate: 'Conservative uncalibrated estimate for the speech model and working memory.',
+          ...planModelLoad(snapshot, await services(), checkpoint.budgetMiB),
+          estimate: `Conservative uncalibrated estimate for ${checkpoint.label} and working memory.`,
         };
       }
       if (plan.code !== 'ready') {
@@ -60,6 +95,8 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
       try {
         const response = await fetcher(`${baseUrl}/api/model/load`, {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variant: target }),
           signal: AbortSignal.timeout(5000),
           redirect: 'error',
         });
@@ -85,7 +122,8 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
           status: 202,
           body: {
             code: 'load_requested',
-            message: 'Qwen3-TTS model loading requested.',
+            message: `${checkpoint.label} loading requested.`,
+            variant: target,
             memory: plan,
           },
         };
@@ -107,7 +145,13 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
 }
 
 export function createTtsPreparation({ startEngine, loadModel, autoStart = true }) {
-  return async function prepareTts({ health, reachable, claimLoad, retryModel = false }) {
+  return async function prepareTts({
+    health,
+    reachable,
+    claimLoad,
+    retryModel = false,
+    variant = 'custom_voice',
+  }) {
     if (!reachable) {
       if (!autoStart) {
         return { status: 'waiting_engine', stage: 'Waiting for the configured speech worker.' };
@@ -145,11 +189,12 @@ export function createTtsPreparation({ startEngine, loadModel, autoStart = true 
       }
       return { status: 'waiting_engine', stage: 'Loading Qwen3-TTS.', loadBarrier: true };
     }
-    if (!health.model_downloaded) {
+    if (!checkpointInstalled(health, variant)) {
+      const checkpoint = TTS_CHECKPOINTS[variant];
       return {
         status: 'needs_attention',
         stage: 'Speech model files are missing.',
-        error: 'Install the Qwen3-TTS model, then retry.',
+        error: `Install the ${checkpoint.folder} checkpoint (${checkpoint.label}), then retry.`,
       };
     }
     if (health.phase === 'error' && !retryModel) {
@@ -162,7 +207,7 @@ export function createTtsPreparation({ startEngine, loadModel, autoStart = true 
     if (!claimLoad()) {
       return null;
     }
-    const result = await loadModel();
+    const result = await loadModel(variant);
     if (result.body?.code === 'load_unknown') {
       return {
         status: 'needs_attention',

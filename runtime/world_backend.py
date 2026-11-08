@@ -1,6 +1,7 @@
 """Run one isolated CUDA world render and exit to release model memory."""
 
 import argparse
+import contextlib
 import gc
 import json
 import os
@@ -40,7 +41,9 @@ def main():
             "CUDA is unavailable in this world generator environment. CPU rendering is disabled."
         )
     print(f"Using CUDA: {torch.cuda.get_device_name(0)}", flush=True)
-    target = work / "result.part.ply"
+    # A mesh can be written as a game-ready GLB; everything else is a PLY.
+    extension = "glb" if request["output"] == "glb" else "ply"
+    target = work / f"result.part.{extension}"
     images = [work / ("input-" + str(index) + ".png") for index in range(request["image_count"])]
     report_stage(work, "Loading the CUDA world generator.")
     if request["model"] == "worldgen":
@@ -108,15 +111,22 @@ def main():
                     return original_from_pretrained(source, *args, **kwargs)
 
                 pipeline_class.from_pretrained = load_quantized_pipeline
+            # FLUX guidance is optional: leave the upstream defaults (7 for text,
+            # 30 for the fill model) in place unless the request sets one.
+            guidance = (
+                {} if request.get("guidance") is None else {"guidance_scale": request["guidance"]}
+            )
             pano_gen.gen_pano_image = partial(
                 pano_gen.gen_pano_image,
                 seed=request.get("seed", 42),
                 num_inference_steps=request.get("steps", 50),
+                **guidance,
             )
             pano_gen.gen_pano_fill_image = partial(
                 pano_gen.gen_pano_fill_image,
                 seed=request.get("seed", 42),
                 num_inference_steps=request.get("steps", 50),
+                **guidance,
             )
         generator = WorldGen(
             mode={"text": "t2s", "image": "i2s", "panorama": "pano"}[mode],
@@ -133,7 +143,7 @@ def main():
                 )
                 image.save(work / "panorama.png")
                 report_stage(work, "Estimating depth and building the 3D world.")
-                scene = generator._generate_world(image, return_mesh=request["output"] == "mesh")
+                scene = generator._generate_world(image, return_mesh=request["output"] != "splat")
             else:
                 image = Image.open(images[0]).convert("RGB") if mode == "image" else None
                 report_stage(
@@ -157,10 +167,12 @@ def main():
                 gc.collect()
                 torch.cuda.empty_cache()
                 report_stage(work, "Estimating depth and building the 3D world.")
-                scene = generator._generate_world(panorama, return_mesh=request["output"] == "mesh")
+                scene = generator._generate_world(
+                    panorama, return_mesh=request["output"] != "splat"
+                )
         report_stage(work, "Saving the world to your project.")
-        if request["output"] == "mesh":
-            scene.export(str(target), file_type="ply")
+        if request["output"] != "splat":
+            scene.export(str(target), file_type=extension)
         else:
             scene.save(str(target))
     elif request["model"] == "hy-world":
@@ -169,29 +181,51 @@ def main():
         sys.path.insert(0, str(repo))
         os.chdir(repo)
         from hyworld2.worldrecon.pipeline import WorldMirrorPipeline
+        from world_views import Tee, normalize_views, skip_reason
 
         weights = Path(os.environ.get("FORGE_HYWORLD_WEIGHTS", str(root / "weights")))
         if not (weights / "HY-WorldMirror-2.0" / "model.safetensors").is_file():
             raise RuntimeError(f"HY-WorldMirror model weights are missing from {weights}.")
         inputs = work / "views"
         inputs.mkdir(exist_ok=True)
-        for index, image in enumerate(images):
-            shutil.copyfile(image, inputs / f"{index:03d}.png")
+        prior_cameras = None
+        if request["mode"] == "panorama":
+            # The port's helper cuts a 360-degree panorama into eight 90-degree views taken
+            # from one point and writes their exact cameras, which WorldMirror accepts as priors.
+            sys.path.insert(0, str(root))
+            from pano3d import split_panorama
+
+            report_stage(work, "Cutting the panorama into views.")
+            _, prior_cameras = split_panorama(
+                images[0], work / "panorama-views", n_views=8, size=request["resolution"]
+            )
+            inputs = work / "panorama-views" / "images"
+        else:
+            # WorldMirror only accepts views of one shape; differing views are centre-cropped.
+            cropped = normalize_views(images, inputs)
+            if cropped:
+                print(f"Cropped views {cropped} to the first view's proportions.", flush=True)
         model = WorldMirrorPipeline.from_pretrained(str(weights), enable_bf16=True)
         report_stage(work, "Reconstructing the scene from your reference views.")
-        with torch.inference_mode():
+        log = Tee(sys.stdout)
+        with torch.inference_mode(), contextlib.redirect_stdout(log):
             out = model(
                 str(inputs),
                 strict_output_path=str(work / "reconstruction"),
                 target_size=request["resolution"],
-                apply_sky_mask=False,
+                prior_cam_path=prior_cameras,
+                apply_sky_mask=request.get("remove_sky", False),
                 apply_edge_mask=True,
-                apply_confidence_mask=True,
+                apply_confidence_mask=request.get("confidence_percentile", 10) > 0,
+                confidence_percentile=request.get("confidence_percentile", 10),
                 save_rendered=False,
-                compress_gs_max_points=1_000_000,
+                compress_gs_max_points=request.get("splat_limit", 1_000_000),
             )
         if not out:
-            raise RuntimeError("HY-World did not produce a reconstruction.")
+            # The pipeline only prints why it skipped the scene; say it in the error.
+            raise RuntimeError(
+                skip_reason(log.text) or "HY-World did not produce a reconstruction."
+            )
         generated = Path(out) / "gaussians.ply"
         if not generated.is_file():
             raise RuntimeError("HY-World did not produce a Gaussian splat file.")
@@ -201,7 +235,7 @@ def main():
         raise RuntimeError("Unsupported world generator.")
     if not target.is_file() or not target.stat().st_size:
         raise RuntimeError("The generator produced an empty world.")
-    os.replace(target, work / "result.ply")
+    os.replace(target, work / f"result.{extension}")
     print("World render complete.", flush=True)
 
 

@@ -278,14 +278,56 @@ export function registerExtendedTools(server, { base, read, write, readonly }) {
   );
 
   server.registerTool(
+    'forge_asset_details',
+    {
+      description:
+        'Return the recorded generation details of a project asset: model, prompt, negative prompt, lyrics or voice direction, settings, seed, references, timing and origin. Returns metadata: null when nothing was recorded. Older assets are recovered from render history when possible.',
+      inputSchema: { projectId, path: assetPath },
+      annotations: readonly,
+    },
+    ({ projectId: id, path }) =>
+      read(`/api/projects/${id}/assets/details?path=${encodeURIComponent(path)}`),
+  );
+
+  server.registerTool(
+    'forge_search_asset_details',
+    {
+      description:
+        'Find project assets whose prompt, negative prompt, lyrics, title or model name contains the given words. Returns matching asset paths.',
+      inputSchema: { projectId, query: z.string().min(1).max(200) },
+      annotations: readonly,
+    },
+    ({ projectId: id, query }) =>
+      read(`/api/projects/${id}/assets/search?q=${encodeURIComponent(query)}`),
+  );
+
+  server.registerTool(
     'forge_convert_asset',
     {
       description:
-        'Convert a project image or audio asset into a new file; the original is retained. The response reports the conversion backend. Image: png, jpeg, webp, bmp, tga. Audio: wav, mp3, ogg, opus, flac.',
+        'Convert a project image, audio or video asset into a new file; the original is retained. The response reports the conversion backend. Image: png, jpeg, webp, bmp, tga. Audio: wav, mp3, ogg, opus, flac. Video: mp4 (H.264 + AAC, quality sets the compression) or gif (silent loop, up to 480 px wide); a converted video keeps the generation details of its source. 3D models (glb, gltf, obj, ply, stl) convert to any of those formats except their own; an obj also gets an .mtl file and a PNG texture beside it, and the response lists those extra files. Point clouds and Gaussian splats cannot be converted. Every copy is a new file named forge-<id>-converted.<ext> that keeps the generation details of the original asset.',
       inputSchema: {
         projectId,
         path: assetPath,
-        format: z.enum(['png', 'jpeg', 'webp', 'bmp', 'tga', 'wav', 'mp3', 'ogg', 'opus', 'flac']),
+        format: z.enum([
+          'png',
+          'jpeg',
+          'webp',
+          'bmp',
+          'tga',
+          'wav',
+          'mp3',
+          'ogg',
+          'opus',
+          'flac',
+          'mp4',
+          'gif',
+          'glb',
+          'gltf',
+          'obj',
+          'ply',
+          'stl',
+        ]),
         quality: z.number().int().min(1).max(100).default(90),
         background: z
           .string()
@@ -301,15 +343,21 @@ export function registerExtendedTools(server, { base, read, write, readonly }) {
     'forge_save_text_asset',
     {
       description:
-        'Save a transcript, chat response, or JSON game decision as a new project text asset. Decision content must be valid JSON.',
+        'Save a transcript, chat response, or JSON game decision as a new project text asset. Decision content must be valid JSON. Optionally record the model and prompt that produced it.',
       inputSchema: {
         projectId,
         kind: z.enum(['transcript', 'chat', 'decision']),
         content: z.string().min(1).max(100000),
+        model: z.string().max(120).optional(),
+        prompt: z.string().max(20000).optional(),
       },
       annotations: change,
     },
-    ({ projectId: id, ...input }) => write(`/api/projects/${id}/assets/create-text`, input),
+    ({ projectId: id, model, prompt, ...input }) =>
+      write(`/api/projects/${id}/assets/create-text`, {
+        ...input,
+        ...(model || prompt ? { provenance: { model, prompt } } : {}),
+      }),
   );
 
   server.registerTool(

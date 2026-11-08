@@ -21,9 +21,13 @@ import torch
 from PIL import Image
 
 TEXTURE_SIZES = (1024, 2048)
-# Upstream's default: six selected views of 512x512 images, UniPC, 15 steps.
+# Upstream's default: six selected views of 512x512 images, UniPC, 15 steps. Its own web demo
+# paints 8 views at 768 px, so up to 9 views and 768 px views are accepted (the candidate list
+# below has 30 camera poses). The model was trained on 6 views of 512 px.
 VIEW_COUNT = 6
+VIEW_COUNTS = (6, 7, 8, 9)
 VIEW_SIZE = 512
+VIEW_SIZES = (512, 768)
 DIFFUSION_STEPS = 15
 SIMPLIFY_FACES = 40000
 CANDIDATE_AZIMS = [0, 90, 180, 270, 0, 180]
@@ -260,26 +264,10 @@ def load_texture_models(source_dir, model_dir, *, device="cuda"):
 # ---------------------------------------------------------------- generation
 
 
-def _simplify(mesh):
-    import trimesh
+def _simplify(mesh, target_faces):
+    from hunyuan_backend import reduce_faces
 
-    mesh = trimesh.Trimesh(mesh.vertices, mesh.faces, process=True)
-    mesh.update_faces(mesh.nondegenerate_faces())
-    mesh.remove_unreferenced_vertices()
-    if len(mesh.faces) > SIMPLIFY_FACES:
-        import fast_simplification
-
-        points, faces = fast_simplification.simplify(
-            np.ascontiguousarray(mesh.vertices, dtype=np.float32),
-            np.ascontiguousarray(mesh.faces, dtype=np.int32),
-            target_count=SIMPLIFY_FACES,
-        )
-        mesh = trimesh.Trimesh(points, faces, process=True)
-        mesh.update_faces(mesh.nondegenerate_faces())
-        mesh.remove_unreferenced_vertices()
-    if not len(mesh.faces):
-        raise RuntimeError("The mesh has no faces to texture.")
-    return mesh
+    return reduce_faces(mesh, target_faces)
 
 
 def _vertex_normals(vertices, faces):
@@ -338,10 +326,22 @@ def _to_uint8(array):
     return (np.clip(array, 0.0, 1.0) * 255.0).round().astype(np.uint8)
 
 
-def generate_texture(models, mesh, image, *, texture_size=2048, progress=None):
+def generate_texture(
+    models,
+    mesh,
+    image,
+    *,
+    texture_size=2048,
+    progress=None,
+    view_count=VIEW_COUNT,
+    view_size=VIEW_SIZE,
+    target_faces=SIMPLIFY_FACES,
+):
     """Return a textured trimesh for an untextured shape mesh and reference image."""
     if texture_size not in TEXTURE_SIZES:
         raise ValueError("Unsupported texture size.")
+    if view_count not in VIEW_COUNTS or view_size not in VIEW_SIZES:
+        raise ValueError("Unsupported number of painted views or view size.")
     import cv2
 
     say = progress or (lambda _message: None)
@@ -349,7 +349,7 @@ def generate_texture(models, mesh, image, *, texture_size=2048, progress=None):
 
     with torch.inference_mode():
         say("Preparing the mesh for texturing.")
-        simplified = _simplify(mesh)
+        simplified = _simplify(mesh, target_faces)
         mapping, faces, uv = _unwrap(simplified)
         vertices = np.asarray(simplified.vertices, dtype=np.float32)[mapping]
         normals = _vertex_normals(
@@ -373,16 +373,16 @@ def generate_texture(models, mesh, image, *, texture_size=2048, progress=None):
             render.load_mesh(mesh=wrapped)
             say("Rendering guide views.")
             elevs, azims, weights = views.bake_view_selection(
-                CANDIDATE_ELEVS, CANDIDATE_AZIMS, CANDIDATE_WEIGHTS, VIEW_COUNT
+                CANDIDATE_ELEVS, CANDIDATE_AZIMS, CANDIDATE_WEIGHTS, view_count
             )
             controls = views.render_normal_multiview(
                 elevs, azims, use_abs_coor=True
             ) + views.render_position_multiview(elevs, azims)
-            controls = [item.resize((VIEW_SIZE, VIEW_SIZE)) for item in controls]
+            controls = [item.resize((view_size, view_size)) for item in controls]
             for index, item in enumerate(controls):
                 if item.mode == "L":
                     controls[index] = item.point(lambda x: 255 if x > 1 else 0, mode="1")
-            reference = _white_background(image).resize((VIEW_SIZE, VIEW_SIZE))
+            reference = _white_background(image).resize((view_size, view_size))
 
             say("Painting albedo and material views.")
             random.seed(0)
@@ -397,8 +397,8 @@ def generate_texture(models, mesh, image, *, texture_size=2048, progress=None):
                 sync_condition=None,
                 guidance_scale=3.0,
                 generator=torch.Generator(device=pipeline.device).manual_seed(0),
-                width=VIEW_SIZE,
-                height=VIEW_SIZE,
+                width=view_size,
+                height=view_size,
                 num_in_batch=count,
                 images_normal=[controls[:count]],
                 images_position=[controls[count:]],

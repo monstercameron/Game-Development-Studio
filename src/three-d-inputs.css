@@ -1,0 +1,126 @@
+/* Start-from choice, text-to-3D fields and the remove-background option on the 3D page. */
+.three-d-inputs {
+  display: grid;
+  gap: var(--forge-space-2, 8px);
+  margin: var(--forge-space-3, 12px) 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.three-d-mode legend {
+  padding: 0;
+}
+
+.three-d-mode__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--forge-space-4, 16px);
+}
+
+.three-d-mode__choices label,
+.three-d-background__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--forge-space-2, 8px);
+  cursor: pointer;
+}
+
+.three-d-mode__choices input,
+.three-d-background__switch input {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin: 0;
+}
+
+.three-d-background__switch input:disabled {
+  cursor: not-allowed;
+}
+
+.three-d-background__switch .field-label {
+  margin: 0;
+}
+
+.three-d-text,
+.three-d-background__prompt {
+  display: grid;
+  gap: var(--forge-space-2, 8px);
+}
+
+.three-d-text textarea,
+.three-d-text input,
+.three-d-background__prompt input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--forge-control-height, 46px);
+  padding: var(--forge-space-2, 8px) var(--forge-space-3, 12px);
+  border: 1px solid var(--forge-control-border, #684b5b);
+  border-radius: var(--forge-radius-sm, 6px);
+  background: var(--forge-control-bg, #190710);
+  color: var(--forge-text-strong, #f5edf1);
+  font: inherit;
+}
+
+.three-d-text textarea {
+  resize: vertical;
+}
+
+.three-d-text :is(textarea, input):focus-visible,
+.three-d-background__prompt input:focus-visible,
+.three-d-mode__choices input:focus-visible,
+.three-d-background__switch input:focus-visible {
+  outline: 2px solid var(--forge-focus, #ffad8d);
+  outline-offset: 2px;
+}
+
+.three-d-text input[aria-invalid='true'] {
+  border-color: var(--forge-danger, #ff8a8a);
+}
+
+.three-d-text__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--forge-space-3, 12px);
+}
+
+.three-d-text__fields label,
+.three-d-background__prompt label {
+  display: grid;
+  gap: var(--forge-space-2, 8px);
+}
+
+.three-d-text .field-label,
+.three-d-background__prompt .field-label {
+  margin: 0;
+}
+
+.three-d-inputs__hint,
+.three-d-inputs__error,
+.three-d-inputs__memory {
+  margin: 0;
+  font-size: var(--forge-font-support, 0.875rem);
+  line-height: 1.5;
+}
+
+.three-d-inputs__hint {
+  color: var(--forge-muted, #d4c0ca);
+}
+
+.three-d-inputs__error {
+  color: var(--forge-danger, #ffaaaa);
+}
+
+.three-d-inputs__memory {
+  padding: var(--forge-space-2, 8px) var(--forge-space-3, 12px);
+  border: 1px solid var(--forge-queue-warning-border, #8a6a3a);
+  border-radius: var(--forge-radius-md, 8px);
+  background: var(--forge-queue-warning-surface, transparent);
+  color: var(--forge-text-strong, #f5edf1);
+}
+
+@media (max-width: 560px) {
+  .three-d-text__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

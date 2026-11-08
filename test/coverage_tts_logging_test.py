@@ -33,6 +33,10 @@ def load_worker_module(runtime_dir):
 
     class FakeBaseModel:
         def __init__(self, **values):
+            # Class-level defaults (such as mode = "preset") apply as they do in pydantic.
+            for key, value in vars(type(self)).items():
+                if not key.startswith("_") and not callable(value):
+                    setattr(self, key, value)
             for key, value in values.items():
                 setattr(self, key, value)
 
@@ -95,7 +99,7 @@ class TtsWorkerLoggingTests(unittest.TestCase):
         )
 
         with patch.dict(sys.modules, {"torch": fake_torch, "qwen_tts": fake_qwen}):
-            worker.load_worker()
+            worker.load_worker("custom_voice")
 
         lines = self.log_output.getvalue().splitlines()
         records = [json.loads(line.split(":", 2)[2]) for line in lines]
@@ -119,7 +123,7 @@ class TtsWorkerLoggingTests(unittest.TestCase):
             self.assertIsInstance(record["elapsed_ms"], int)
             self.assertEqual(record["job_id"], None)
             self.assertEqual(record["traceback_frames"], [])
-        self.assertNotIn(str(worker.MODEL), self.log_output.getvalue())
+        self.assertNotIn(str(worker.CHECKPOINTS["custom_voice"]), self.log_output.getvalue())
 
     def test_generation_failure_logs_only_opaque_job_metadata_and_exception_class(self):
         worker = self.worker
@@ -134,7 +138,7 @@ class TtsWorkerLoggingTests(unittest.TestCase):
         fake_soundfile.write = Mock()
 
         with patch.dict(sys.modules, {"soundfile": fake_soundfile}):
-            worker.render_worker(job_id, worker.SpeechRequest(text=secret_text))
+            worker.render_worker(job_id, worker.SpeechRequest(text=secret_text), None)
 
         lines = self.log_output.getvalue().splitlines()
         records = [json.loads(line.split(":", 2)[2]) for line in lines]

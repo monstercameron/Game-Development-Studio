@@ -9,7 +9,7 @@
   gap: var(--ux-space-3, 12px);
   margin: var(--ux-space-3, 12px) 0;
   padding: var(--ux-space-2, 8px) var(--ux-space-3, 12px);
-  border: 1px solid var(--ux-border, currentColor);
+  border: var(--ux-border);
   border-radius: var(--ux-radius-sm, 6px);
   font-size: var(--ux-text-sm, 0.875rem);
   line-height: 1.4;
@@ -22,4 +22,118 @@
 /* Keep optional-controls inputs at the shared minimum target height. */
 .image-video-settings-body input {
   min-height: var(--ux-target-min, 36px);
+}
+
+/* Option toggles: a real checkbox with its label and help text beside it. */
+.image-video-settings-toggles {
+  display: grid;
+  gap: var(--ux-space-3, 12px);
+}
+
+.image-video-settings-body .image-video-settings-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ux-space-3, 12px);
+  padding: var(--ux-space-2, 8px) var(--ux-space-3, 12px);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm, 8px);
+  cursor: pointer;
+}
+
+.image-video-settings-body .image-video-settings-check > span {
+  display: grid;
+  gap: var(--ux-space-1, 4px);
+  min-width: 0;
+}
+
+.image-video-settings-body .image-video-settings-check input[type='checkbox'] {
+  width: 18px;
+  min-height: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: var(--forge-accent, #ff8a5c);
+  cursor: pointer;
+}
+
+.image-video-settings-body .image-video-settings-check:focus-within {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+
+.image-video-settings-body input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Honest note about what Qwen Image cannot do in Forge. */
+.image-video-settings-images .image-video-settings-facts {
+  padding-top: var(--ux-space-3, 12px);
+  border-top: var(--ux-border);
+}
+
+/* References are used in order, so number them to match how a prompt can refer to them. */
+.form-panel:has(.image-video-settings-images) .ref-list {
+  counter-reset: forge-ref;
+}
+
+.form-panel:has(.image-video-settings-images) .ref-list > span::before {
+  counter-increment: forge-ref;
+  content: counter(forge-ref);
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--forge-selection-hover, rgb(255 255 255 / 12%));
+  color: var(--forge-text-strong, #fff4f0);
+  font-size: var(--ux-text-xs, 12px);
+  font-weight: 650;
+}
+
+/* Size caution: noticeable but not an error. */
+.image-video-settings-body .image-video-settings-warning {
+  padding: var(--ux-space-2, 8px) var(--ux-space-3, 12px);
+  border: 1px solid var(--forge-warning-border, #8a6a2f);
+  border-radius: var(--ux-radius-sm, 8px);
+  color: var(--forge-text, #f6eeef);
+}
+
+/* Four short fields read better as two by two than as three plus one orphan. */
+.image-video-settings-images .image-video-settings-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 600px) {
+  .image-video-settings-images .image-video-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The inline help button follows the label text instead of taking a row of its own. */
+.image-video-settings-images .image-video-settings-body label:not(.image-video-settings-check) {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0;
+}
+
+.image-video-settings-images .image-video-settings-body label:not(.image-video-settings-check) > * {
+  grid-column: 1 / -1;
+}
+
+.image-video-settings-images
+  .image-video-settings-body
+  label:not(.image-video-settings-check)
+  > .field-label {
+  grid-column: 1;
+}
+
+.image-video-settings-images
+  .image-video-settings-body
+  label:not(.image-video-settings-check)
+  > .field-help-slot {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
 }

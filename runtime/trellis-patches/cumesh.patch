@@ -23,3 +23,83 @@ index 8849b10..94ad8fb 100644
          "-Xcompiler=/EHsc", 
          "-Xcompiler=/permissive-", 
          "-Xcompiler=/Zc:__cplusplus"
+diff --git a/src/clean_up.cu b/src/clean_up.cu
+index a72b1d0..007888d 100644
+--- a/src/clean_up.cu
++++ b/src/clean_up.cu
+@@ -447,6 +447,16 @@ struct LessThanOp {
+ };
+ 
+ 
++// CUB's Sum() value-initialises its accumulator on the host. Vec3f's constructors are
++// device-only unless marked otherwise, so a host-side Vec3f was left uninitialised and every
++// hole-filling vertex was offset by garbage. Pass an explicit zero and a host/device functor.
++struct Vec3fAdd {
++    __host__ __device__ Vec3f operator()(const Vec3f& a, const Vec3f& b) const {
++        return Vec3f(a.x + b.x, a.y + b.y, a.z + b.z);
++    }
++};
++
++
+ void CuMesh::fill_holes(float max_hole_perimeter) {
+     cudaStream_t stream = current_stream();
+     if (this->loop_boundaries.is_empty() || this->loop_boundaries_offset.is_empty()) {
+@@ -657,21 +667,25 @@ void CuMesh::fill_holes(float max_hole_perimeter) {
+     Vec3f* cu_new_vertices;
+     CUDA_CHECK(cudaMalloc(&cu_new_vertices, new_num_bound_loops * sizeof(Vec3f)));
+     temp_storage_bytes = 0;
+-    CUDA_CHECK(cub::DeviceSegmentedReduce::Sum(
++    CUDA_CHECK(cub::DeviceSegmentedReduce::Reduce(
+         nullptr, temp_storage_bytes,
+         cu_new_loop_bound_centers, cu_new_vertices,
+         new_num_bound_loops,
+         cu_new_loop_boundaries_offset,
+         cu_new_loop_boundaries_offset + 1,
++        Vec3fAdd(),
++        Vec3f(0.0f, 0.0f, 0.0f),
+         stream
+     ));
+     this->cub_temp_storage.resize(temp_storage_bytes);
+-    CUDA_CHECK(cub::DeviceSegmentedReduce::Sum(
++    CUDA_CHECK(cub::DeviceSegmentedReduce::Reduce(
+         this->cub_temp_storage.ptr, temp_storage_bytes,
+         cu_new_loop_bound_centers, cu_new_vertices,
+         new_num_bound_loops,
+         cu_new_loop_boundaries_offset,
+         cu_new_loop_boundaries_offset + 1,
++        Vec3fAdd(),
++        Vec3f(0.0f, 0.0f, 0.0f),
+         stream
+     ));
+     inplace_div_kernel<<<(new_num_bound_loops+BLOCK_SIZE-1)/BLOCK_SIZE, BLOCK_SIZE, 0, stream>>>(
+diff --git a/src/dtypes.cuh b/src/dtypes.cuh
+index bff560c..5e95c0d 100644
+--- a/src/dtypes.cuh
++++ b/src/dtypes.cuh
+@@ -13,8 +13,8 @@ namespace cumesh {
+ struct __align__(16) Vec3f {
+     float x, y, z;
+ 
+-    __device__ __forceinline__ Vec3f();
+-    __device__ __forceinline__ Vec3f(float x, float y, float z);
++    __host__ __device__ __forceinline__ Vec3f();
++    __host__ __device__ __forceinline__ Vec3f(float x, float y, float z);
+     __device__ __forceinline__ Vec3f(float3 v);
+     __device__ __forceinline__ Vec3f operator+(const Vec3f& o) const;
+     __device__ __forceinline__ Vec3f& operator+=(const Vec3f& o);
+@@ -55,13 +55,13 @@ struct __align__(16) QEM
+ };
+ 
+ 
+-__device__ __forceinline__ Vec3f::Vec3f() {
++__host__ __device__ __forceinline__ Vec3f::Vec3f() {
+     x = 0.0f;
+     y = 0.0f;
+     z = 0.0f;
+ }
+ 
+-__device__ __forceinline__ Vec3f::Vec3f(float x, float y, float z) {
++__host__ __device__ __forceinline__ Vec3f::Vec3f(float x, float y, float z) {
+     this->x = x;
+     this->y = y;
+     this->z = z;

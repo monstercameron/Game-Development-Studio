@@ -6,9 +6,12 @@ import { updateSearch, useRouteToggle, routeDetails } from './useNav';
 import InteractiveAssetViewer from './InteractiveAssetViewer';
 import AssetThumbnail, { isVisualAsset } from './AssetThumbnail';
 import AssetConverter, { canConvert } from './AssetConverter';
+import MusicDerive from './MusicDerive';
 import ProjectTrash from './ProjectTrash.jsx';
 import useDialogFocus from './useDialogFocus';
 import RuntimeQueue from './RuntimeQueue';
+import GenerationDetails from './GenerationDetails';
+import { matchesMeta, useAssetMetaIndex, useMetaSearch } from './asset-meta-index';
 import { RepeatButton, ShrinkButton } from './MiniPlayer';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -123,6 +126,7 @@ function AssetPreview({
   project,
   onMutate,
   onConverted,
+  onReuse = null,
   viewerNav = null,
 }) {
   const [, setParams] = useSearchParams();
@@ -358,6 +362,7 @@ function AssetPreview({
               <dd>{date(asset.modified)}</dd>
             </div>
           </dl>
+          {!asset.sample && <GenerationDetails project={project} asset={asset} onReuse={onReuse} />}
           {localPath && (
             <>
               <div className="gallery-path">
@@ -446,6 +451,7 @@ function AssetPreview({
               <Trash2 size={15} /> Delete
             </button>
           </div>
+          {!asset.sample && <MusicDerive project={project} asset={asset} />}
           {converting && (
             <AssetConverter
               asset={asset}
@@ -514,7 +520,15 @@ function AssetPreview({
     </div>
   );
 }
-export default function Gallery({ project, projects, onNew, sampleAssets, loading, error }) {
+export default function Gallery({
+  project,
+  projects,
+  onNew,
+  sampleAssets,
+  loading,
+  error,
+  onReuse = null,
+}) {
   const [localProject, setLocalProject] = useState(project);
   const [trashUndo, setTrashUndo] = useState(null);
   const [trashMessage, setTrashMessage] = useState('');
@@ -530,6 +544,7 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
   }, [project, scope]);
   const category = categories.includes(params.get('type')) ? params.get('type') : 'All';
   const search = params.get('q') || '';
+  const modelFilter = params.get('model') || '';
   const sort = ['newest', 'oldest', 'name'].includes(params.get('sort'))
     ? params.get('sort')
     : 'newest';
@@ -539,6 +554,7 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
   const change = (values, options) => updateSearch(setParams, values, options);
   const setCategory = (value) => change({ type: value === 'All' ? null : value, asset: null });
   const setSearch = (value) => change({ q: value || null, asset: null }, { replace: true });
+  const setModel = (value) => change({ model: value || null, asset: null });
   const setSort = (value) => change({ sort: value === 'newest' ? null : value });
   const setLayout = (value) => change({ view: value === 'grid' ? null : value });
   const setPreviewId = (value) =>
@@ -569,6 +585,21 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
       modelRating: a.sample ? ratings[`${scope}:${a.id}`] || null : a.rating || null,
     }));
   }, [isSample, sampleAssets, localProject, scope, ratings]);
+  const projectKey = !isSample && localProject?.id === scope ? scope : '';
+  const assetRevision = `${(localProject?.assets || []).length}:${localProject?.updatedAt || ''}`;
+  const metaIndex = useAssetMetaIndex(projectKey, assetRevision);
+  const metaMatches = useMetaSearch(projectKey, search, assetRevision);
+  const models = useMemo(
+    () =>
+      [
+        ...new Set(
+          Object.values(metaIndex)
+            .map((item) => item.model)
+            .filter(Boolean),
+        ),
+      ].sort(),
+    [metaIndex],
+  );
   const count = (type) => items.filter((item) => matchesCategory(item, type)).length;
   const filtered = useMemo(
     () =>
@@ -577,9 +608,13 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
           (item) =>
             // An asset named in the link always stays reachable, even from an older category link.
             (matchesCategory(item, category) || item.id === previewId) &&
-            `${item.title} ${item.id} ${item.type || ''}`
+            (!modelFilter || metaIndex[item.id]?.model === modelFilter) &&
+            (`${item.title} ${item.id} ${item.type || ''}`
               .toLowerCase()
-              .includes(search.trim().toLowerCase()),
+              .includes(search.trim().toLowerCase()) ||
+              (!item.sample &&
+                search.trim() &&
+                (metaMatches?.has(item.id) || matchesMeta(metaIndex[item.id], search.trim())))),
         )
         .sort((a, b) =>
           sort === 'name'
@@ -588,20 +623,21 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
               ? (a.modified || '').localeCompare(b.modified || '')
               : (b.modified || '').localeCompare(a.modified || ''),
         ),
-    [items, category, search, sort, previewId],
+    [items, category, search, sort, previewId, metaIndex, metaMatches, modelFilter],
   );
   const previewIndex = filtered.findIndex((item) => item.id === previewId);
   const preview = previewIndex >= 0 ? filtered[previewIndex] : null;
   // Previous / next 3D asset inside the viewer, across the current filtered list.
-  const models = useMemo(() => filtered.filter((item) => item.category === '3D'), [filtered]);
-  const modelIndex = preview?.category === '3D' ? models.findIndex((m) => m.id === preview.id) : -1;
+  const viewerModels = useMemo(() => filtered.filter((item) => item.category === '3D'), [filtered]);
+  const modelIndex =
+    preview?.category === '3D' ? viewerModels.findIndex((m) => m.id === preview.id) : -1;
   const viewerNav =
-    modelIndex >= 0 && models.length > 1
+    modelIndex >= 0 && viewerModels.length > 1
       ? {
           index: modelIndex,
-          total: models.length,
+          total: viewerModels.length,
           onStep: (offset) => {
-            const next = models[modelIndex + offset];
+            const next = viewerModels[modelIndex + offset];
             if (next) {
               // Keep the large viewer open (the `inspect` flag) while switching assets.
               change({ asset: next.id, convert: null, rename: null, trashAsset: null });
@@ -782,7 +818,7 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
           <input
             id="gallery-search"
             aria-label="Search assets"
-            placeholder="Search names or paths…"
+            placeholder="Search names, prompts, or models…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -800,6 +836,23 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
             <option value="name">Name A–Z</option>
           </select>
         </label>
+        {models.length > 0 && (
+          <label className="gallery-sort gallery-model-filter">
+            <span className="sr-only gallery-control-label">Model</span>
+            <select
+              value={models.includes(modelFilter) ? modelFilter : ''}
+              onChange={(e) => setModel(e.target.value)}
+              aria-label="Filter by model"
+            >
+              <option value="">All models</option>
+              {models.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="layout-switch" role="group" aria-label="Display layout">
           <span className="sr-only gallery-control-label">View</span>
           <button
@@ -919,6 +972,11 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
                     <span title={asset.sample ? asset.detail : asset.id}>
                       {asset.sample ? asset.detail : asset.id}
                     </span>
+                    {metaIndex[asset.id]?.model && (
+                      <span className="gallery-card-model" title={metaIndex[asset.id].model}>
+                        {metaIndex[asset.id].model}
+                      </span>
+                    )}
                     <small>
                       {asset.modified ? date(asset.modified) : 'Example asset'}
                       {asset.size !== null && asset.size !== undefined
@@ -964,6 +1022,7 @@ export default function Gallery({ project, projects, onNew, sampleAssets, loadin
           project={isSample ? null : localProject}
           onMutate={changeAsset}
           onConverted={reloadProject}
+          onReuse={onReuse ? (meta) => onReuse(meta, scope) : null}
           viewerNav={viewerNav}
           onClose={() => setPreviewId(null)}
           onStep={(offset) => setPreviewId(filtered[previewIndex + offset]?.id || previewId)}

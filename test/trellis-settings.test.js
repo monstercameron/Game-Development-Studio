@@ -14,8 +14,15 @@ test('TRELLIS.2 controls validate and preserve seed, steps and texture size', ()
     seed: 23,
     steps: 3,
     texture_size: 512,
+    target_faces: 100000,
   });
+  assert.equal(trellisRequest({ trellisTriangles: '20000' }).target_faces, 20000);
+  assert.equal(trellisRequest({ trellisTriangles: 1000000 }).target_faces, 1000000);
   for (const draft of [
+    { trellisTriangles: 4999 },
+    { trellisTriangles: 1000001 },
+    { trellisTriangles: '' },
+    { trellisTriangles: 2500.5 },
     { seed: -1 },
     { trellisSteps: 0 },
     { trellisSteps: 51 },

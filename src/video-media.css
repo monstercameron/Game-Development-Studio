@@ -1,0 +1,83 @@
+/* video-media: what a video starts from (references, first/last frame, text) and reference clips. */
+.video-media {
+  display: grid;
+  gap: var(--forge-space-3, 12px);
+  margin: var(--forge-space-3, 12px) 0;
+}
+
+.video-source {
+  display: grid;
+  gap: var(--forge-space-2, 8px);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.video-source > legend {
+  margin-bottom: var(--forge-space-2, 8px);
+  padding: 0;
+}
+
+.video-source-option,
+.video-media-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--forge-space-2, 10px);
+  padding: var(--forge-space-2, 10px) var(--forge-space-3, 12px);
+  border: 1px solid var(--forge-line, rgba(255, 255, 255, 0.14));
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.video-source-option:has(input:checked) {
+  border-color: var(--forge-accent, #b78cff);
+}
+
+.video-source-option:has(input:focus-visible),
+.video-media-check:has(input:focus-visible) {
+  outline: 2px solid var(--forge-accent, #b78cff);
+  outline-offset: 2px;
+}
+
+.video-source-option input,
+.video-media-check input {
+  flex: none;
+  margin-top: 3px;
+}
+
+.video-source-option > span,
+.video-media-check > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.video-source-option small,
+.video-media-check small {
+  color: var(--forge-muted, #d4c0ca);
+  line-height: 1.45;
+}
+
+.video-frame-slot,
+.video-clip-list {
+  display: grid;
+  gap: var(--forge-space-2, 8px);
+  min-width: 0;
+}
+
+.video-media-error {
+  margin: 0;
+  color: var(--forge-danger, #ff9a9a);
+}
+
+.video-media-warnings {
+  display: grid;
+  gap: var(--forge-space-2, 8px);
+  margin: 0;
+  padding: var(--forge-space-2, 10px) var(--forge-space-3, 12px) var(--forge-space-2, 10px)
+    calc(var(--forge-space-3, 12px) + 14px);
+  border: 1px solid var(--forge-warning-line, rgba(255, 200, 120, 0.4));
+  border-radius: 10px;
+  line-height: 1.5;
+}

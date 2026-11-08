@@ -16,3 +16,17 @@ torch.cuda.synchronize()
 assert normals.is_cuda and normals.shape == (4, 3)
 torch.testing.assert_close(torch.linalg.vector_norm(normals, dim=1), torch.ones(4, device="cuda"))
 print("CuMesh face normals passed on CUDA.")
+
+# Hole filling adds one vertex per boundary loop at the loop's centroid. An uninitialised CUB
+# accumulator once offset every such vertex by garbage (z ~ 1e16), which later produced long
+# "curtain" spikes in TRELLIS.2 meshes.
+open_faces = faces[:3].contiguous()
+mesh = cumesh.CuMesh()
+mesh.init(vertices, open_faces)
+mesh.fill_holes(max_hole_perimeter=10.0)
+filled_vertices, filled_faces = mesh.read()
+torch.cuda.synchronize()
+assert filled_vertices.shape[0] == 5 and filled_faces.shape[0] == 6
+expected = torch.full((3,), 1 / 3, device="cuda")
+torch.testing.assert_close(filled_vertices[4], expected, atol=1e-5, rtol=0)
+print("CuMesh hole filling placed the new vertex at the loop centroid.")

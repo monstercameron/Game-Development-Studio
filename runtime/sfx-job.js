@@ -1,4 +1,5 @@
 import { saveAsset } from './job-io.js';
+import { requireAudioInput, soundPayload } from './sfx-request.js';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function send(jobId, type, values = {}) {
@@ -28,13 +29,25 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
         });
         return;
       }
+      // A source sound is read and the Lab's support checked before anything is submitted, so a
+      // failure here is a plain failure and not an unknown outcome.
+      let payload;
+      try {
+        payload = await soundPayload(job.request, projectFolder);
+        if (job.request.source_audio) {
+          await requireAudioInput(baseUrl);
+        }
+      } catch (error) {
+        send(job.id, 'failed', { error: String(error.message).slice(0, 1000) });
+        return;
+      }
       let response, body;
       try {
         response = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Lab-Session': session },
-          body: JSON.stringify(job.request),
-          signal: AbortSignal.timeout(15000),
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(job.request.source_audio ? 60000 : 15000),
           redirect: 'error',
         });
         body = await response.json();

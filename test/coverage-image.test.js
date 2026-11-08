@@ -55,6 +55,9 @@ test('image request validation rejects malformed options without persisting jobs
     [{ references: ['../outside.png'] }, /staged reference image IDs/],
     [{ negative_prompt: 'blurred' }, /Negative prompt guidance/],
     [{ negative_prompt: 'blurred', true_cfg_scale: 1 }, /Negative prompt guidance/],
+    [{ width: 2784 }, /Invalid image dimensions/],
+    [{ transparent: 'yes' }, /true or false/],
+    [{ size_from_reference: true }, /needs at least one reference/],
   ]) {
     assert.throws(
       () => queue.enqueue({ ...base, request: { ...base.request, ...change } }),
@@ -74,7 +77,10 @@ test('image request validation rejects malformed options without persisting jobs
       true_cfg_scale: 2,
     },
   });
-  assert.deepEqual(queued.request, {
+  // A blank seed is chosen when the job is queued, so the render is reproducible and its seed is recorded.
+  const { seed, ...rest } = queued.request;
+  assert.ok(Number.isSafeInteger(seed) && seed >= 0 && seed <= 2147483647);
+  assert.deepEqual(rest, {
     prompt: '  a tree  ',
     width: 512,
     height: 768,
@@ -83,6 +89,26 @@ test('image request validation rejects malformed options without persisting jobs
     negative_prompt: 'blur',
     true_cfg_scale: 2,
   });
+  const fixed = queue.enqueue({ ...base, request: { prompt: 'a tree', seed: 7 } });
+  assert.equal(fixed.request.seed, 7, 'an explicit seed is kept');
+  const large = queue.enqueue({
+    ...base,
+    request: { prompt: 'a tree', width: 2752, height: 1536, transparent: true, seed: 1 },
+  });
+  assert.equal(large.request.width, 2752);
+  assert.equal(large.request.transparent, true);
+  const matched = queue.enqueue({
+    ...base,
+    request: {
+      prompt: 'a tree',
+      width: 512,
+      references: ['00000000-0000-0000-0000-000000000000.png'],
+      size_from_reference: true,
+      seed: 1,
+    },
+  });
+  assert.equal(matched.request.size_from_reference, true);
+  assert.equal(matched.request.width, undefined, 'a matched size drops width and height');
 });
 
 test('staged image references remain immutable and corrupted snapshots fail at read time', async (t) => {

@@ -1,3 +1,5 @@
+import { installedTrellisPipelines } from './trellis-pipelines.js';
+
 // Service addresses are deliberately fixed to loopback. An open TCP port alone
 // is not enough to claim that an engine is ready or its model is loaded.
 export const services = [
@@ -325,6 +327,11 @@ export function interpretStatus(kind, body) {
 }
 
 export async function inspectService(service) {
+  const state = await inspectServiceStatus(service);
+  // TRELLIS.2 pipelines are read from disk so they are known while the worker is stopped.
+  return service.kind === 'trellis' ? { ...state, pipelines: installedTrellisPipelines() } : state;
+}
+async function inspectServiceStatus(service) {
   const { kind, endpoint, ...visible } = service;
   if (!service.port) {
     return { ...visible, status: 'not_configured', modelLoaded: null, canUnload: false };

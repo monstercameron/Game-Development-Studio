@@ -19,6 +19,7 @@ import Diagnostics from './Diagnostics';
 import { RecentProjects, NewProjectDialog } from './Projects';
 import Gallery from './Gallery';
 import PreviewArea from './PreviewArea';
+import { draftJob, reusePlan } from './generation-details';
 import Models from './Models';
 import RuntimeQueue, {
   enqueueMusic,
@@ -26,8 +27,6 @@ import RuntimeQueue, {
   enqueueImage,
   enqueueVideo,
   enqueueVoice,
-  enqueueHunyuan,
-  enqueueTrellis,
   enqueueSegmentation,
   enqueueMotion,
   enqueueMotionBricks,
@@ -38,11 +37,21 @@ import { useRuntimeNotifications } from './useRuntimeNotifications';
 import GameDecision from './GameDecision';
 import HunyuanControls from './HunyuanControls';
 import TrellisControls from './TrellisControls';
+import { ThreeDBackgroundOption, ThreeDModeSwitch } from './ThreeDInputs';
+import { enqueueTextTo3d, enqueueThreeD } from './three-d-enqueue';
+import { alphaStatusFor } from './image-alpha';
 import HyMotionControls from './HyMotionControls';
 import MotionBricksControls from './MotionBricksControls';
 import SpeechTranscriber from './SpeechTranscriber';
 import AudioSettings from './AudioSettings';
 import ImageVideoSettings from './ImageVideoSettings';
+import VideoMediaInputs from './VideoMediaInputs';
+import { clearVideoFrames, getVideoFrames } from './video-media-store';
+import SoundSource from './SoundSource';
+import VoiceModeControls from './VoiceModeControls';
+import { firstVoiceModeError, voiceModeFieldErrors } from './voice-modes.js';
+import AsrLatency from './AsrLatency';
+import { useImageLoras } from './useImageLoras.js';
 import MemoryAlerts from './MemoryAlerts';
 import MiniPlayer from './MiniPlayer';
 import PageErrorBoundary from './PageErrorBoundary';
@@ -74,6 +83,7 @@ import {
   Image as ImageIcon,
   Layers3,
   LayoutGrid,
+  ListChecks,
   ListMusic,
   MessageSquareText,
   Menu,
@@ -117,6 +127,7 @@ import './ux-page-3d.css';
 import './ux-page-world.css';
 import './ux-page-motion.css';
 import './ux-page-video.css';
+import { videoFormatSummary } from './imageVideoInputs';
 import './ux-page-music.css';
 import './ux-page-sfx.css';
 import './ux-page-voices.css';
@@ -207,8 +218,24 @@ const configs = {
     placeholder: 'A brave knight approaches the castle gates as the camera slowly moves forward...',
     button: 'Add video to queue',
     options: [
-      ['Aspect ratio', 'Landscape · 16:9', 'Square · 1:1', 'Portrait · 9:16'],
-      ['Duration', 'About 5 seconds', 'About 2 seconds', 'About 7 seconds', 'About 10 seconds'],
+      [
+        'Aspect ratio',
+        'Landscape · 16:9',
+        'Square · 1:1',
+        'Portrait · 9:16',
+        'Photo · 4:3',
+        'Photo portrait · 3:4',
+        'Cinema · 21:9',
+      ],
+      [
+        'Duration',
+        'About 5 seconds',
+        'About 2 seconds',
+        'About 7 seconds',
+        'About 10 seconds',
+        'About 13 seconds',
+        'About 15 seconds',
+      ],
     ],
     tip: 'Add a reference image and describe the action, camera, and sound.',
   },
@@ -248,7 +275,7 @@ const configs = {
     eyebrow: 'SPEECH & DIALOGUE',
     description: 'Find a voice for every character in your world.',
     icon: Mic2,
-    model: 'Qwen3-TTS 1.7B · Preset voices',
+    model: 'Qwen3-TTS 1.7B · Preset, clone or design',
     prompt: 'What should your character say?',
     placeholder: 'The forest remembers everyone who passes through it...',
     button: 'Add voice to queue',
@@ -397,6 +424,9 @@ function App() {
   const { jobs: runtimeJobs, loading: queueLoading, error: queueError } = useQueueTiming();
   const queueStatus = (id) =>
     pageQueueStatus(id, runtimeJobs, { loading: queueLoading, error: queueError });
+  const activeRenderCount = runtimeJobs.filter(
+    (job) => !['completed', 'failed', 'cancelled'].includes(job.status),
+  ).length;
   const completedHistory = runtimeJobs
     .filter((job) => job.status === 'completed')
     .map((job) => `${job.id}:${job.finishedAt}`)
@@ -417,6 +447,7 @@ function App() {
     [estimateError, setEstimateError] = useState('');
   const [videoFiles, setVideoFiles] = useState([]);
   const [imageFiles, setImageFiles] = useState([]);
+  const imageLoras = useImageLoras(section === 'images');
   const [shapeFiles, setShapeFiles] = useState([]);
   const [segmentationFiles, setSegmentationFiles] = useState([]);
   const [motionPoseFile, setMotionPoseFile] = useState(null);
@@ -448,6 +479,8 @@ function App() {
   const projectSelectRef = useRef(null);
   const [jobs, setJobs] = useState(() => load('forge-queue', []));
   const [notice, setNotice] = useState('');
+  // Counts failed Voices submits. The voice fields show their errors only after the first one.
+  const [voiceSubmitAttempts, setVoiceSubmitAttempts] = useState(0);
   const [advanced, setAdvanced] = useRouteToggle('advanced');
   const settingsOpen = routeParams.get('dialog') === 'settings';
   const setSettingsOpen = (value) =>
@@ -764,6 +797,7 @@ function App() {
     setDrafts((d) => ({ ...d, [section]: { ...initialDrafts[section] } }));
     if (section === 'video') {
       setVideoFiles([]);
+      clearVideoFrames();
     }
     if (section === 'images') {
       setImageFiles([]);
@@ -782,6 +816,12 @@ function App() {
     }
     setResetArmed(false);
     setNotice(`${current.title} settings were reset to their defaults.`);
+    // The confirm buttons just unmounted; give keyboard focus back to the first field instead of losing it.
+    setTimeout(() => {
+      document
+        .querySelector('.editor-page .form-panel :is(textarea, select, input:not([type=hidden]))')
+        ?.focus();
+    }, 0);
   };
   const addJob = () => {
     const motionBricks = section === 'motion' && draft.model === 'NVIDIA MotionBricks';
@@ -826,10 +866,28 @@ function App() {
   };
   const addReferenceFiles = (files) => {
     const refs = files.map((f) => ({ name: f.name, size: f.size }));
+    let skippedNote = '',
+      addedNothing = false;
     if (files.length) {
       if (section === 'video' || section === 'images') {
         const isVideo = section === 'video',
-          combined = [...(isVideo ? videoFiles : imageFiles), ...files].slice(0, isVideo ? 9 : 10);
+          limit = isVideo ? 9 : 10,
+          current = isVideo ? videoFiles : imageFiles;
+        // Say what was left out instead of silently dropping files.
+        const wrongType = files.filter(
+          (f) => !/^image\/(png|jpeg|webp)$/.test(f.type) && !/\.(png|jpe?g|webp)$/i.test(f.name),
+        );
+        const tooBig = files.filter((f) => !wrongType.includes(f) && f.size > 10 * 1024 * 1024);
+        const usable = files.filter((f) => !wrongType.includes(f) && !tooBig.includes(f));
+        const overflow = Math.max(0, usable.length - Math.max(0, limit - current.length));
+        const skipped = [
+          wrongType.length ? `${wrongType.length} not PNG, JPEG, or WebP` : '',
+          tooBig.length ? `${tooBig.length} over 10 MiB` : '',
+          overflow ? `${overflow} beyond the ${limit}-image limit` : '',
+        ].filter(Boolean);
+        skippedNote = skipped.length ? ` Skipped: ${skipped.join(', ')}.` : '';
+        const combined = [...current, ...usable].slice(0, limit);
+        addedNothing = combined.length === current.length;
         if (isVideo) {
           setVideoFiles(combined);
         } else {
@@ -848,7 +906,11 @@ function App() {
       }
     }
     if (files.length) {
-      setNotice('Reference images selected.');
+      setNotice(
+        addedNothing && skippedNote
+          ? `No reference images added.${skippedNote}`
+          : `Reference images selected.${skippedNote}`,
+      );
     }
   };
   const addRefs = (event) => {
@@ -897,23 +959,39 @@ function App() {
     if (!selectProject()) {
       return;
     }
-    if (shapeFiles.length !== 1 || draft.refs.length !== 1) {
-      setNotice('Choose the reference image again before rendering.');
+    const fromText = draft.threeDMode === 'text';
+    if (!fromText && (shapeFiles.length !== 1 || draft.refs.length !== 1)) {
+      setNotice(
+        draft.refs.length
+          ? 'Choose the reference image again before rendering.'
+          : 'Choose a reference image before rendering.',
+      );
       return;
     }
-    if (shapeFiles[0].size > 10 * 1024 * 1024) {
+    if (!fromText && shapeFiles[0].size > 10 * 1024 * 1024) {
       setNotice('Use an image, up to 10 MiB.');
       return;
     }
     setSubmittingMusic(true);
     try {
-      await ((draft.model || current.model) === 'TRELLIS.2' ? enqueueTrellis : enqueueHunyuan)(
-        activeProject.id,
-        draft,
-        shapeFiles[0],
-      );
+      const fallbackModel = current.model;
+      const alphaStatus = fromText ? 'unknown' : alphaStatusFor(shapeFiles[0], draft.refAlpha);
+      const queued = fromText
+        ? await enqueueTextTo3d(activeProject.id, draft, { fallbackModel })
+        : await enqueueThreeD(activeProject.id, draft, shapeFiles[0], {
+            fallbackModel,
+            alphaStatus,
+          });
       setRenderQueueVersion((v) => v + 1);
-      setNotice('3D shape added to the durable queue.');
+      setNotice(
+        queued.chained
+          ? fromText
+            ? 'Picture and 3D model added to the durable queue. The model waits for the picture.'
+            : 'Cutout and 3D model added to the durable queue. The model waits for the cutout.'
+          : draft.removeBackground && alphaStatus === 'transparent'
+            ? '3D shape added to the durable queue. The picture already had a transparent background, so nothing was cut out.'
+            : '3D shape added to the durable queue.',
+      );
     } catch (error) {
       setNotice(`Could not queue 3D shape: ${error.message}`);
     } finally {
@@ -987,6 +1065,12 @@ function App() {
       setNotice('Add dialogue to queue a voice render.');
       return;
     }
+    const voiceError = firstVoiceModeError(voiceModeFieldErrors(draft));
+    if (voiceError) {
+      setVoiceSubmitAttempts((count) => count + 1);
+      setNotice(voiceError);
+      return;
+    }
     setSubmittingMusic(true);
     try {
       await enqueueVoice(activeProject.id, draft);
@@ -1021,31 +1105,70 @@ function App() {
     try {
       await enqueueImage(activeProject.id, draft, imageFiles);
       setRenderQueueVersion((v) => v + 1);
-      setNotice('Image added to the durable queue.');
+      const variations = Number(draft.imageVariations) || 1;
+      setNotice(
+        variations > 1
+          ? `${variations} image variations added to the durable queue.`
+          : 'Image added to the durable queue.',
+      );
     } catch (error) {
       setNotice(`Could not queue image: ${error.message}`);
     } finally {
       setSubmittingMusic(false);
     }
   };
+  // First/last frame and text-only videos take no reference images.
+  // The 3D page hides the reference picker when the model starts from a description.
+  const showRefs =
+    !(section === 'video' && ['frames', 'text'].includes(draft.videoSource)) &&
+    !(section === '3d' && draft.threeDMode === 'text');
   const renderVideo = async () => {
     if (!selectProject()) {
       return;
     }
     if (!draft.prompt.trim()) {
       setNotice('Add a video description to queue a render.');
+      document.getElementById('prompt')?.focus();
       return;
     }
-    if (!videoFiles.length || videoFiles.length !== draft.refs.length) {
-      setNotice('Choose the video reference images again before queuing.');
-      return;
-    }
-    if (
-      videoFiles.some((f) => f.size > 10 * 1024 * 1024) ||
-      videoFiles.reduce((n, f) => n + f.size, 0) > 40 * 1024 * 1024
-    ) {
-      setNotice('Use reference images under 10 MiB each and 40 MiB in total.');
-      return;
+    const videoSource = ['frames', 'text'].includes(draft.videoSource)
+      ? draft.videoSource
+      : 'references';
+    const hasClips = Boolean(draft.videoClips?.length || draft.videoAudios?.length);
+    if (videoSource === 'frames') {
+      const { first, last } = getVideoFrames();
+      if (!first || (draft.videoLastFrame && !last)) {
+        setNotice(
+          draft.videoFirstFrame
+            ? 'Choose the first and last frame files again before queuing.'
+            : 'Add a first frame to queue a video from frames.',
+        );
+        return;
+      }
+    } else if (videoSource === 'references') {
+      if (!draft.refs.length && !hasClips) {
+        setNotice(
+          'Add 1–9 reference images, or a reference video or audio clip, to queue a video.',
+        );
+        document.querySelector('.editor-page .upload-box input[type="file"]')?.focus();
+        return;
+      }
+      if (draft.refs.length && !videoFiles.length) {
+        setNotice('Choose the video reference images again before queuing.');
+        document.querySelector('.editor-page .upload-box input[type="file"]')?.focus();
+        return;
+      }
+      if (videoFiles.length !== draft.refs.length) {
+        setNotice('Choose the video reference images again before queuing.');
+        return;
+      }
+      if (
+        videoFiles.some((f) => f.size > 10 * 1024 * 1024) ||
+        videoFiles.reduce((n, f) => n + f.size, 0) > 40 * 1024 * 1024
+      ) {
+        setNotice('Use reference images under 10 MiB each and 40 MiB in total.');
+        return;
+      }
     }
     setSubmittingMusic(true);
     try {
@@ -1082,6 +1205,7 @@ function App() {
     }));
     if (job.kind === 'video') {
       setVideoFiles([]);
+      clearVideoFrames();
     }
     if (job.kind === 'images') {
       setImageFiles([]);
@@ -1103,6 +1227,31 @@ function App() {
       ['video', 'images', '3d', 'segmentation'].includes(job.kind) && job.refs?.length
         ? 'Draft opened. Select reference images again before rendering.'
         : 'Draft opened for editing.',
+    );
+  };
+  // Reuse an asset's recorded model, prompt and settings. Reference files are never attached.
+  const reuseSettings = (meta, projectId) => {
+    const plan = reusePlan(meta);
+    if (!plan) {
+      setNotice('These settings cannot be reused on a creation page.');
+      return;
+    }
+    if (plan.section === 'world') {
+      try {
+        // The World page reads this once when it opens; the prompt can be too long for the address.
+        window.sessionStorage.setItem('forge-world-reuse', JSON.stringify(plan.world));
+      } catch {
+        // Without session storage only the generator is selected.
+      }
+      switchTo('world', { project: projectId || null, model: plan.model });
+      setNotice('World page opened with the settings from the asset. Choose reference images again.');
+      return;
+    }
+    openDraft(draftJob(plan, projectId));
+    setNotice(
+      meta.references?.length
+        ? 'Settings reused. Reference files are not attached automatically; choose them again.'
+        : 'Settings reused from the asset.',
     );
   };
   return (
@@ -1196,6 +1345,25 @@ function App() {
         </nav>
         <div className="nav-heading lower">YOUR STUDIO</div>
         <button
+          aria-label={
+            activeRenderCount
+              ? `Render queue, ${activeRenderCount} active or waiting`
+              : 'Render queue'
+          }
+          title="Render queue"
+          className={'nav-item ' + (section === 'queue' ? 'active' : '')}
+          aria-current={section === 'queue' ? 'page' : undefined}
+          onClick={() => switchTo('queue')}
+        >
+          <ListChecks size={17} />
+          <span>Render queue</span>
+          {activeRenderCount > 0 && (
+            <span className="nav-queue-count" aria-hidden="true">
+              {activeRenderCount}
+            </span>
+          )}
+        </button>
+        <button
           aria-label="Asset library"
           title="Asset library"
           className={'nav-item ' + (section === 'assets' ? 'active' : '')}
@@ -1278,13 +1446,15 @@ function App() {
                       ? 'Chat'
                       : section === 'world'
                         ? 'Worlds'
-                        : section === 'assets'
-                          ? 'Asset library'
-                          : section === 'diagnostics'
-                            ? 'Diagnostics'
-                            : section === 'models'
-                              ? 'Models & services'
-                              : 'Page not found')}
+                        : section === 'queue'
+                          ? 'Render queue'
+                          : section === 'assets'
+                            ? 'Asset library'
+                            : section === 'diagnostics'
+                              ? 'Diagnostics'
+                              : section === 'models'
+                                ? 'Models & services'
+                                : 'Page not found')}
               </strong>
             </div>
             {queueStatus(section) && !['free', 'unknown'].includes(queueStatus(section).state) && (
@@ -1299,9 +1469,7 @@ function App() {
             )}
           </div>
           <div className="top-actions">
-            <QueueTimingBadge
-              onOpen={() => switchTo('assets', { queue: '1', project: selectedProjectId })}
-            />
+            <QueueTimingBadge onOpen={() => switchTo('queue')} />
             <button
               type="button"
               className="prototype prototype-button"
@@ -1555,6 +1723,450 @@ function App() {
                       <current.icon size={18} />
                     </div>
                   </div>
+                  {section === '3d' && (
+                    <>
+                      <label htmlFor="model3d" className="field-label">
+                        3D model
+                      </label>
+                      <select
+                        id="model3d"
+                        className="model3d-select"
+                        value={draft.model || current.model}
+                        onChange={(e) => {
+                          update({ model: e.target.value });
+                          updateSearch(setRouteParams, { model: e.target.value });
+                        }}
+                      >
+                        <option value="Hunyuan3D 2.1">
+                          Hunyuan3D 2.1 · shape, optional texture
+                        </option>
+                        <option value="TRELLIS.2">TRELLIS.2 · experimental textured model</option>
+                      </select>
+                      <p className="helper">
+                        Hunyuan creates an untextured shape and can optionally paint it
+                        (experimental). TRELLIS.2 creates an experimental textured model and
+                        needs a transparent PNG or WebP, or an image whose background Forge
+                        removes first. Both save a GLB; the asset library can convert it to
+                        OBJ, PLY, STL or glTF. Multi-view input is not supported.
+                      </p>
+                      <ThreeDModeSwitch
+                        draft={draft}
+                        onChange={update}
+                        trellis={(draft.model || current.model) === 'TRELLIS.2'}
+                      />
+                    </>
+                  )}
+                  {section === 'motion' && (
+                    <>
+                      <label htmlFor="motion-model" className="field-label">
+                        Motion model
+                      </label>
+                      <select
+                        id="motion-model"
+                        className="model3d-select"
+                        value={draft.model || current.model}
+                        onChange={(e) => update({ model: e.target.value })}
+                      >
+                        <option>HY-Motion 1.0</option>
+                        <option>NVIDIA MotionBricks</option>
+                      </select>
+                      <p className="helper">
+                        {draft.model === 'NVIDIA MotionBricks'
+                          ? 'MotionBricks generates transitions from recent and target poses.'
+                          : 'HY-Motion generates human motion from a text description.'}{' '}
+                        These models create motion; automatic skeleton creation and retargeting
+                        require separate tools.
+                      </p>
+                    </>
+                  )}
+                  {!(section === 'motion' && draft.model === 'NVIDIA MotionBricks') &&
+                    !(section === '3d' && supportsRender) && (
+                      <>
+                        <label htmlFor="prompt" className="field-label">
+                          {section === '3d' && supportsRender
+                            ? 'Creative notes (draft only)'
+                            : section === 'motion' && draft.model === 'NVIDIA MotionBricks'
+                              ? 'Motion notes'
+                              : current.prompt}
+                          <span>
+                            {section === '3d' ||
+                            (section === 'motion' && draft.model === 'NVIDIA MotionBricks')
+                              ? 'OPTIONAL'
+                              : 'REQUIRED'}
+                          </span>
+                        </label>
+                        <textarea
+                          id="prompt"
+                          maxLength={
+                            section === 'segmentation' ||
+                            section === 'motion' ||
+                            section === 'voices'
+                              ? 1000
+                              : ['video', 'images', 'sfx'].includes(section)
+                                ? 4000
+                                : section === 'music'
+                                  ? 2000
+                                  : undefined
+                          }
+                          value={draft.prompt}
+                          onChange={(e) => update({ prompt: e.target.value })}
+                          placeholder={
+                            section === 'motion' && draft.model === 'NVIDIA MotionBricks'
+                              ? 'Optional notes about the target pose or scene...'
+                              : current.placeholder
+                          }
+                        />
+                        <div className="prompt-foot">
+                          <span>
+                            <Sparkles size={13} />{' '}
+                            {section === 'motion' && draft.model === 'NVIDIA MotionBricks'
+                              ? 'Provide recent and target pose data to guide a transition.'
+                              : current.tip}
+                          </span>
+                          <span>
+                            {section === 'segmentation' || section === 'motion'
+                              ? `${draft.prompt.length} / 1000 characters`
+                              : section === 'music'
+                                ? `${draft.prompt.length} / 2000 characters`
+                                : section === 'sfx'
+                                  ? `${draft.prompt.length} / 4000 characters`
+                                  : `${draft.prompt.length} characters`}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  {section === 'motion' && draft.model === 'NVIDIA MotionBricks' && (
+                    <MotionBricksControls
+                      draft={draft}
+                      onChange={update}
+                      file={motionPoseFile}
+                      onFile={setMotionPoseFile}
+                      onLibrary={() => updateSearch(setRouteParams, { picker: 'pose' })}
+                    />
+                  )}
+                  {section === 'music' && (
+                    <>
+                      <label className="field-label" htmlFor="extra">
+                        Lyrics <span>REQUIRED FOR RENDER</span>
+                      </label>
+                      <textarea
+                        id="extra"
+                        className="short-text"
+                        value={draft.second}
+                        onChange={(e) => update({ second: e.target.value })}
+                        maxLength={20000}
+                        placeholder="[Verse] Write your lyrics here..."
+                      />
+                      <p className="helper">
+                        Use section tags such as [Verse] or [Chorus]. Write [Instrumental] for an
+                        instrumental track.
+                      </p>
+                    </>
+                  )}
+                  {section === 'voices' && (
+                    <VoiceModeControls
+                      project={activeProject}
+                      projects={projects}
+                      draft={draft}
+                      update={update}
+                      submitAttempts={voiceSubmitAttempts}
+                    />
+                  )}
+                  {section === 'game' && (
+                    <>
+                      <label className="field-label" htmlFor="extra">
+                        {draft.options[0] === 'Yes / No' ? 'Question' : 'Question and choices'}{' '}
+                        <span>REQUIRED FOR A TEST</span>
+                      </label>
+                      <textarea
+                        id="extra"
+                        className="short-text"
+                        value={draft.second}
+                        onChange={(e) => update({ second: e.target.value })}
+                        placeholder={
+                          draft.options[0] === 'Yes / No'
+                            ? 'Should the guard allow the player through?'
+                            : draft.options[0] === 'Score'
+                              ? 'How dangerous is the situation?\n1. Safe\n2. Cautious\n3. Dangerous'
+                              : 'What should the guard do?\n1. Let the player pass\n2. Ask for identification'
+                        }
+                        aria-describedby="extra-help"
+                      />
+                      <p id="extra-help" className="helper">
+                        {draft.options[0] === 'Yes / No'
+                          ? 'One question. Mammoth returns the probability that the answer is yes.'
+                          : `First line is the question. Put each ${draft.options[0] === 'Score' ? 'score level (2 to 10)' : 'choice (2 to 255)'} on its own line; numbers are optional.`}
+                      </p>
+                    </>
+                  )}
+                  {section === 'video' && (
+                    <VideoMediaInputs
+                      part="source"
+                      draft={draft}
+                      update={update}
+                      projects={projects}
+                      project={activeProject}
+                    />
+                  )}
+                  {['images', '3d', 'video', 'segmentation'].includes(section) && showRefs && (
+                    <>
+                      <div className="field-label reference-heading">
+                        {['3d', 'segmentation'].includes(section)
+                          ? 'Reference image'
+                          : 'Reference images'}{' '}
+                        <span>
+                          {section === '3d'
+                            ? 'REQUIRED FOR 3D'
+                            : section === 'segmentation'
+                              ? 'REQUIRED FOR SEGMENTATION'
+                              : section === 'video'
+                                ? 'REQUIRED, OR ADD A CLIP BELOW'
+                                : 'OPTIONAL'}
+                        </span>
+                      </div>
+                      <label className="upload-box">
+                        <input
+                          type="file"
+                          accept={
+                            section === '3d' &&
+                            (draft.model || current.model) === 'TRELLIS.2' &&
+                            !draft.removeBackground
+                              ? 'image/png,image/webp'
+                              : 'image/png,image/jpeg,image/webp'
+                          }
+                          multiple={section !== 'segmentation' && section !== '3d'}
+                          onChange={addRefs}
+                        />
+                        <div className="upload-icon">
+                          <Plus size={19} />
+                        </div>
+                        <div>
+                          <strong>
+                            {['3d', 'segmentation'].includes(section)
+                              ? 'Choose a reference image'
+                              : 'Add reference images'}
+                          </strong>
+                          <small>Choose images from your computer</small>
+                        </div>
+                        <span className="upload-action">BROWSE FILES</span>
+                      </label>
+                      <button
+                        type="button"
+                        className="outline-button asset-library-button"
+                        onClick={() => updateSearch(setRouteParams, { picker: 'images' })}
+                        disabled={
+                          (section === 'images' && imageFiles.length >= 10) ||
+                          (section === 'video' && videoFiles.length >= 9)
+                        }
+                      >
+                        <FolderOpen size={15} /> Choose from asset library
+                      </button>
+                      {draft.refs.length > 0 && (
+                        <div className="ref-list">
+                          {draft.refs.map((ref, i) => (
+                            <span key={i}>
+                              <FileImage size={13} />
+                              {ref.name}
+                              <button
+                                type="button"
+                                aria-label={'Remove ' + ref.name}
+                                onClick={() => {
+                                  // Match by name and size rather than by the rendered index: two quick
+                                  // clicks can arrive before React re-renders, and a stale index would
+                                  // remove the wrong file and desync the list from the staged files.
+                                  const dropFirst = (list) => {
+                                    const at = list.findIndex(
+                                      (item) => item.name === ref.name && item.size === ref.size,
+                                    );
+                                    return at < 0 ? list : list.filter((_, n) => n !== at);
+                                  };
+                                  if (section === 'video') {
+                                    setVideoFiles(dropFirst);
+                                  }
+                                  if (section === 'images') {
+                                    setImageFiles(dropFirst);
+                                  }
+                                  if (section === '3d') {
+                                    setShapeFiles([]);
+                                  }
+                                  if (section === 'segmentation') {
+                                    setSegmentationFiles([]);
+                                  }
+                                  setDrafts((all) => ({
+                                    ...all,
+                                    [section]: {
+                                      ...initialDrafts[section],
+                                      ...all[section],
+                                      refs: dropFirst(all[section]?.refs || []),
+                                    },
+                                  }));
+                                }}
+                              >
+                                <X size={13} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {section === 'video' && (
+                        <p className="helper ref-count" role="status">
+                          {draft.refs.length !== videoFiles.length
+                            ? `${draft.refs.length} reference image${draft.refs.length === 1 ? '' : 's'} listed from a saved draft or reused settings, but the files are not attached. Choose them again before queuing.`
+                            : `${draft.refs.length} of 9 reference images selected${
+                                draft.refs.length > 1
+                                  ? '. In the description, call them <Picture 1>, <Picture 2> and so on, in this order.'
+                                  : '. In the description, call it <Picture 1>.'
+                              }`}
+                        </p>
+                      )}
+                      <p className="helper">{`Choose ${section === 'video' ? '1–9 PNG, JPEG, or WebP images, up to 10 MiB each and 40 MiB total' : section === 'images' ? 'up to 10 PNG, JPEG, or WebP images, up to 10 MiB each and 40 MiB total' : `one ${section === '3d' && (draft.model || current.model) === 'TRELLIS.2' && !draft.removeBackground ? 'transparent PNG or WebP' : 'PNG, JPEG, or WebP'} image, up to 10 MiB${section === 'segmentation' ? ' and 20 megapixels' : ''}`}. Files are saved with the project when you queue a render; select them again after refreshing.`}</p>
+                    </>
+                  )}
+                  {section === 'video' && (
+                    <VideoMediaInputs
+                      part="details"
+                      draft={draft}
+                      update={update}
+                      projects={projects}
+                      project={activeProject}
+                    />
+                  )}
+                  {section === '3d' && supportsRender && draft.threeDMode !== 'text' && (
+                    <ThreeDBackgroundOption
+                      draft={draft}
+                      onChange={update}
+                      file={shapeFiles[0]}
+                      trellis={(draft.model || current.model) === 'TRELLIS.2'}
+                    />
+                  )}
+                  {section === '3d' && supportsRender ? (
+                    (draft.model || current.model) === 'TRELLIS.2' ? (
+                      <TrellisControls draft={draft} onChange={update} />
+                    ) : (
+                      <HunyuanControls draft={draft} onChange={update} />
+                    )
+                  ) : section === 'motion' &&
+                    draft.model === 'NVIDIA MotionBricks' ? null : section === 'motion' &&
+                    supportsRender ? (
+                    <HyMotionControls draft={draft} onChange={update} />
+                  ) : (
+                    <div className="options" data-section={section}>
+                      {current.options.map((o, i) =>
+                        (section === 'segmentation' && i === 0) ||
+                        // Cloned and designed voices come from the clip or description, not a preset.
+                        (section === 'voices' &&
+                          i === 0 &&
+                          ['clone', 'design'].includes(draft.voiceMode)) ? null : (
+                          <label key={o[0]} htmlFor={`option-${section}-${i}`}>
+                            <span className="field-label">{o[0]}</span>
+                            <select
+                              id={`option-${section}-${i}`}
+                              value={o.includes(draft.options[i]) ? draft.options[i] : o[1]}
+                              onChange={(e) =>
+                                update({
+                                  options: draft.options.map((v, j) =>
+                                    j === i ? e.target.value : v,
+                                  ),
+                                })
+                              }
+                            >
+                              {(section === 'video' && o[0] === 'Duration'
+                                ? [...o.slice(1)].sort(
+                                    (a, b) => parseInt(a.slice(6)) - parseInt(b.slice(6)),
+                                  )
+                                : o.slice(1)
+                              ).map((v) => (
+                                <option key={v}>{v}</option>
+                              ))}
+                            </select>
+                          </label>
+                        ),
+                      )}
+                    </div>
+                  )}
+                  {section === 'video' && (
+                    <p className="helper" id="video-format-summary">
+                      {videoFormatSummary(draft.options, draft)}
+                    </p>
+                  )}
+                  {section === 'segmentation' && (
+                    <label>
+                      <span className="field-label">Confidence threshold</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={draft.confidence ?? 0.5}
+                        onChange={(e) => update({ confidence: e.target.value })}
+                      />
+                      <p className="helper">
+                        Use 0 to 1 (default 0.5). Lower values can include more objects; higher
+                        values are more selective.
+                      </p>
+                    </label>
+                  )}
+                  <AudioSettings
+                    section={section}
+                    draft={draft}
+                    update={update}
+                    sourcePicker={
+                      section === 'sfx' ? (
+                        <SoundSource
+                          project={activeProject}
+                          projects={projects}
+                          draft={draft}
+                          update={update}
+                        />
+                      ) : null
+                    }
+                  />
+                  <ImageVideoSettings
+                    section={section}
+                    draft={draft}
+                    update={update}
+                    loras={imageLoras}
+                  />
+                  {!['voices', 'video', 'segmentation', 'game', 'images', 'music', 'sfx'].includes(
+                    section,
+                  ) &&
+                    section !== 'motion' && (
+                      <button
+                        className="advanced"
+                        aria-expanded={Boolean(advanced)}
+                        aria-controls="advanced-settings-body"
+                        onClick={() => setAdvanced(!advanced)}
+                      >
+                        <SlidersHorizontal size={15} /> Advanced settings{' '}
+                        <ChevronDown size={14} className={advanced ? 'rotate' : ''} />
+                      </button>
+                    )}
+                  {advanced &&
+                    !['voices', 'video', 'segmentation', 'game', 'images', 'music', 'sfx'].includes(
+                      section,
+                    ) &&
+                    section !== 'motion' && (
+                      <div className="advanced-body" id="advanced-settings-body">
+                        <label className="field-label" htmlFor="seed">
+                          Seed <span>OPTIONAL</span>
+                        </label>
+                        <input
+                          id="seed"
+                          type="number"
+                          min={0}
+                          max={2147483647}
+                          step={1}
+                          placeholder="Random"
+                          value={draft.seed}
+                          onChange={(e) => update({ seed: e.target.value })}
+                        />
+                        <p className="helper">
+                          Use a whole number from 0 to 2147483647 to help reproduce a result when
+                          the model supports it.
+                        </p>
+                      </div>
+                    )}
+                  {/* The submit bar comes last in the DOM so keyboard users reach it after the fields (CSS keeps it visually pinned). */}
                   {section !== 'game' && (
                     <div className="form-bottom">
                       <div>
@@ -1572,7 +2184,7 @@ function App() {
                             </span>
                           </strong>
                         ) : (
-                          <strong>
+                          <strong className="estimate-note">
                             {supportsRender
                               ? estimateError
                                 ? 'Estimate unavailable'
@@ -1629,356 +2241,6 @@ function App() {
                           : 'Based on previous renders; actual times vary.'}
                     </p>
                   )}
-                  {section === '3d' && (
-                    <>
-                      <label htmlFor="model3d" className="field-label">
-                        3D model
-                      </label>
-                      <select
-                        id="model3d"
-                        className="model3d-select"
-                        value={draft.model || current.model}
-                        onChange={(e) => {
-                          update({ model: e.target.value });
-                          updateSearch(setRouteParams, { model: e.target.value });
-                        }}
-                      >
-                        <option value="Hunyuan3D 2.1">
-                          Hunyuan3D 2.1 · shape, optional texture
-                        </option>
-                        <option value="TRELLIS.2">TRELLIS.2 · experimental textured model</option>
-                      </select>
-                      <p className="helper">
-                        Hunyuan creates an untextured shape and can optionally paint it
-                        (experimental). TRELLIS.2 creates an experimental textured model and
-                        requires a transparent PNG or WebP.
-                      </p>
-                    </>
-                  )}
-                  {section === 'motion' && (
-                    <>
-                      <label htmlFor="motion-model" className="field-label">
-                        Motion model
-                      </label>
-                      <select
-                        id="motion-model"
-                        className="model3d-select"
-                        value={draft.model || current.model}
-                        onChange={(e) => update({ model: e.target.value })}
-                      >
-                        <option>HY-Motion 1.0</option>
-                        <option>NVIDIA MotionBricks</option>
-                      </select>
-                      <p className="helper">
-                        {draft.model === 'NVIDIA MotionBricks'
-                          ? 'MotionBricks generates transitions from recent and target poses.'
-                          : 'HY-Motion generates human motion from a text description.'}{' '}
-                        These models create motion; automatic skeleton creation and retargeting
-                        require separate tools.
-                      </p>
-                    </>
-                  )}
-                  {!(section === 'motion' && draft.model === 'NVIDIA MotionBricks') &&
-                    !(section === '3d' && supportsRender) && (
-                      <>
-                        <label htmlFor="prompt" className="field-label">
-                          {section === '3d' && supportsRender
-                            ? 'Creative notes (draft only)'
-                            : section === 'motion' && draft.model === 'NVIDIA MotionBricks'
-                              ? 'Motion notes'
-                              : current.prompt}
-                          <span>
-                            {section === '3d' ||
-                            (section === 'motion' && draft.model === 'NVIDIA MotionBricks')
-                              ? 'OPTIONAL'
-                              : 'REQUIRED'}
-                          </span>
-                        </label>
-                        <textarea
-                          id="prompt"
-                          maxLength={
-                            section === 'segmentation' ||
-                            section === 'motion' ||
-                            section === 'voices'
-                              ? 1000
-                              : ['video', 'images'].includes(section)
-                                ? 4000
-                                : section === 'music'
-                                  ? 2000
-                                  : undefined
-                          }
-                          value={draft.prompt}
-                          onChange={(e) => update({ prompt: e.target.value })}
-                          placeholder={
-                            section === 'motion' && draft.model === 'NVIDIA MotionBricks'
-                              ? 'Optional notes about the target pose or scene...'
-                              : current.placeholder
-                          }
-                        />
-                        <div className="prompt-foot">
-                          <span>
-                            <Sparkles size={13} />{' '}
-                            {section === 'motion' && draft.model === 'NVIDIA MotionBricks'
-                              ? 'Provide recent and target pose data to guide a transition.'
-                              : current.tip}
-                          </span>
-                          <span>
-                            {section === 'segmentation' || section === 'motion'
-                              ? `${draft.prompt.length} / 1000 characters`
-                              : section === 'music'
-                                ? `${draft.prompt.length} / 2000 characters`
-                                : `${draft.prompt.length} characters`}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  {section === 'motion' && draft.model === 'NVIDIA MotionBricks' && (
-                    <MotionBricksControls
-                      draft={draft}
-                      onChange={update}
-                      file={motionPoseFile}
-                      onFile={setMotionPoseFile}
-                      onLibrary={() => updateSearch(setRouteParams, { picker: 'pose' })}
-                    />
-                  )}
-                  {section === 'music' && (
-                    <>
-                      <label className="field-label" htmlFor="extra">
-                        Lyrics <span>REQUIRED FOR RENDER</span>
-                      </label>
-                      <textarea
-                        id="extra"
-                        className="short-text"
-                        value={draft.second}
-                        onChange={(e) => update({ second: e.target.value })}
-                        maxLength={20000}
-                        placeholder="[Verse] Write your lyrics here..."
-                      />
-                      <p className="helper">
-                        Use section tags such as [Verse] or [Chorus]. Write [Instrumental] for an
-                        instrumental track.
-                      </p>
-                    </>
-                  )}
-                  {section === 'voices' && (
-                    <>
-                      <label className="field-label" htmlFor="extra">
-                        Voice direction <span>OPTIONAL</span>
-                      </label>
-                      <textarea
-                        id="extra"
-                        className="short-text"
-                        maxLength={500}
-                        value={draft.second}
-                        onChange={(e) => update({ second: e.target.value })}
-                        placeholder="Speak warmly and clearly, with a sense of wonder..."
-                      />
-                      <p className="helper">
-                        Choose a preset voice and add direction. Speech is generated as a completed
-                        audio file; streaming and voice cloning are not yet available.
-                      </p>
-                    </>
-                  )}
-                  {section === 'game' && (
-                    <>
-                      <label className="field-label" htmlFor="extra">
-                        {draft.options[0] === 'Yes / No' ? 'Question' : 'Question and choices'}{' '}
-                        <span>REQUIRED FOR A TEST</span>
-                      </label>
-                      <textarea
-                        id="extra"
-                        className="short-text"
-                        value={draft.second}
-                        onChange={(e) => update({ second: e.target.value })}
-                        placeholder={
-                          draft.options[0] === 'Yes / No'
-                            ? 'Should the guard allow the player through?'
-                            : draft.options[0] === 'Score'
-                              ? 'How dangerous is the situation?\n1. Safe\n2. Cautious\n3. Dangerous'
-                              : 'What should the guard do?\n1. Let the player pass\n2. Ask for identification'
-                        }
-                        aria-describedby="extra-help"
-                      />
-                      <p id="extra-help" className="helper">
-                        {draft.options[0] === 'Yes / No'
-                          ? 'One question. Mammoth returns the probability that the answer is yes.'
-                          : `First line is the question. Put each ${draft.options[0] === 'Score' ? 'score level (2 to 10)' : 'choice (2 to 255)'} on its own line; numbers are optional.`}
-                      </p>
-                    </>
-                  )}
-                  {['images', '3d', 'video', 'segmentation'].includes(section) && (
-                    <>
-                      <div className="field-label reference-heading">
-                        {['3d', 'segmentation'].includes(section)
-                          ? 'Reference image'
-                          : 'Reference images'}{' '}
-                        <span>
-                          {section === '3d'
-                            ? 'REQUIRED FOR 3D'
-                            : section === 'segmentation'
-                              ? 'REQUIRED FOR SEGMENTATION'
-                              : section === 'video'
-                                ? 'REQUIRED FOR VIDEO'
-                                : 'OPTIONAL'}
-                        </span>
-                      </div>
-                      <label className="upload-box">
-                        <input
-                          type="file"
-                          accept={
-                            section === '3d' && (draft.model || current.model) === 'TRELLIS.2'
-                              ? 'image/png,image/webp'
-                              : 'image/png,image/jpeg,image/webp'
-                          }
-                          multiple={section !== 'segmentation' && section !== '3d'}
-                          onChange={addRefs}
-                        />
-                        <div className="upload-icon">
-                          <Plus size={19} />
-                        </div>
-                        <div>
-                          <strong>
-                            {['3d', 'segmentation'].includes(section)
-                              ? 'Choose a reference image'
-                              : 'Add reference images'}
-                          </strong>
-                          <small>Choose images from your computer</small>
-                        </div>
-                        <span className="upload-action">BROWSE FILES</span>
-                      </label>
-                      <button
-                        type="button"
-                        className="outline-button asset-library-button"
-                        onClick={() => updateSearch(setRouteParams, { picker: 'images' })}
-                        disabled={
-                          (section === 'images' && imageFiles.length >= 10) ||
-                          (section === 'video' && videoFiles.length >= 9)
-                        }
-                      >
-                        <FolderOpen size={15} /> Choose from asset library
-                      </button>
-                      {draft.refs.length > 0 && (
-                        <div className="ref-list">
-                          {draft.refs.map((ref, i) => (
-                            <span key={i}>
-                              <FileImage size={13} />
-                              {ref.name}
-                              <button
-                                aria-label={'Remove ' + ref.name}
-                                onClick={() => {
-                                  if (section === 'video') {
-                                    setVideoFiles((files) => files.filter((_, n) => n !== i));
-                                  }
-                                  if (section === 'images') {
-                                    setImageFiles((files) => files.filter((_, n) => n !== i));
-                                  }
-                                  if (section === '3d') {
-                                    setShapeFiles([]);
-                                  }
-                                  if (section === 'segmentation') {
-                                    setSegmentationFiles([]);
-                                  }
-                                  update({ refs: draft.refs.filter((_, n) => n !== i) });
-                                }}
-                              >
-                                <X size={13} />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <p className="helper">{`Choose ${section === 'video' ? '1–9 PNG, JPEG, or WebP images, up to 10 MiB each and 40 MiB total' : section === 'images' ? 'up to 10 PNG, JPEG, or WebP images, up to 10 MiB each and 40 MiB total' : `one ${section === '3d' && (draft.model || current.model) === 'TRELLIS.2' ? 'transparent PNG or WebP' : 'PNG, JPEG, or WebP'} image, up to 10 MiB${section === 'segmentation' ? ' and 20 megapixels' : ''}`}. Files are saved with the project when you queue a render; select them again after refreshing.`}</p>
-                    </>
-                  )}
-                  {section === '3d' && supportsRender ? (
-                    (draft.model || current.model) === 'TRELLIS.2' ? (
-                      <TrellisControls draft={draft} onChange={update} />
-                    ) : (
-                      <HunyuanControls draft={draft} onChange={update} />
-                    )
-                  ) : section === 'motion' &&
-                    draft.model === 'NVIDIA MotionBricks' ? null : section === 'motion' &&
-                    supportsRender ? (
-                    <HyMotionControls draft={draft} onChange={update} />
-                  ) : (
-                    <div className="options">
-                      {current.options.map((o, i) =>
-                        section === 'segmentation' && i === 0 ? null : (
-                          <label key={o[0]}>
-                            <span className="field-label">{o[0]}</span>
-                            <select
-                              value={o.includes(draft.options[i]) ? draft.options[i] : o[1]}
-                              onChange={(e) =>
-                                update({
-                                  options: draft.options.map((v, j) =>
-                                    j === i ? e.target.value : v,
-                                  ),
-                                })
-                              }
-                            >
-                              {o.slice(1).map((v) => (
-                                <option key={v}>{v}</option>
-                              ))}
-                            </select>
-                          </label>
-                        ),
-                      )}
-                    </div>
-                  )}
-                  {section === 'segmentation' && (
-                    <label>
-                      <span className="field-label">Confidence threshold</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={draft.confidence ?? 0.5}
-                        onChange={(e) => update({ confidence: e.target.value })}
-                      />
-                      <p className="helper">
-                        Use 0 to 1 (default 0.5). Lower values can include more objects; higher
-                        values are more selective.
-                      </p>
-                    </label>
-                  )}
-                  <AudioSettings section={section} draft={draft} update={update} />
-                  <ImageVideoSettings section={section} draft={draft} update={update} />
-                  {!['voices', 'video', 'segmentation', 'game', 'images'].includes(section) &&
-                    section !== 'motion' && (
-                      <button
-                        className="advanced"
-                        aria-expanded={Boolean(advanced)}
-                        aria-controls="advanced-settings-body"
-                        onClick={() => setAdvanced(!advanced)}
-                      >
-                        <SlidersHorizontal size={15} /> Advanced settings{' '}
-                        <ChevronDown size={14} className={advanced ? 'rotate' : ''} />
-                      </button>
-                    )}
-                  {advanced &&
-                    !['voices', 'video', 'segmentation', 'game', 'images'].includes(section) &&
-                    section !== 'motion' && (
-                      <div className="advanced-body" id="advanced-settings-body">
-                        <label className="field-label" htmlFor="seed">
-                          Seed <span>OPTIONAL</span>
-                        </label>
-                        <input
-                          id="seed"
-                          type="number"
-                          min={0}
-                          max={2147483647}
-                          step={1}
-                          placeholder="Random"
-                          value={draft.seed}
-                          onChange={(e) => update({ seed: e.target.value })}
-                        />
-                        <p className="helper">
-                          Use a whole number from 0 to 2147483647 to help reproduce a result when
-                          the model supports it.
-                        </p>
-                      </div>
-                    )}
                   <div className="creation-action-note">
                     <span>
                       {supportsRender
@@ -2000,12 +2262,29 @@ function App() {
                       </button>
                     )}
                     {resetArmed ? (
-                      <span className="reset-confirm" role="group" aria-label="Confirm reset">
+                      <span
+                        className="reset-confirm"
+                        role="group"
+                        aria-label="Confirm reset"
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') {
+                            event.stopPropagation();
+                            setResetArmed(false);
+                            setTimeout(() => document.querySelector('.reset-defaults')?.focus(), 0);
+                          }
+                        }}
+                      >
                         <span>Discard this page&apos;s settings?</span>
                         <button className="text-action danger" onClick={resetToDefaults} autoFocus>
                           Yes, reset
                         </button>
-                        <button className="text-action" onClick={() => setResetArmed(false)}>
+                        <button
+                          className="text-action"
+                          onClick={() => {
+                            setResetArmed(false);
+                            setTimeout(() => document.querySelector('.reset-defaults')?.focus(), 0);
+                          }}
+                        >
                           Cancel
                         </button>
                       </span>
@@ -2033,11 +2312,13 @@ function App() {
                           : section === 'video'
                             ? 'Forge checks GPU memory before H3 loads and renders.'
                             : section === 'voices'
-                              ? 'Forge loads Qwen3-TTS as needed and checks GPU memory before rendering.'
+                              ? 'Forge loads the Qwen3-TTS checkpoint your voice mode needs and checks GPU memory first. Switching between preset, clone and design unloads the previous checkpoint.'
                               : section === '3d'
                                 ? (draft.model || current.model) === 'TRELLIS.2'
-                                  ? 'A complete TRELLIS.2 render has not yet been verified. Forge checks GPU and system memory before loading.'
-                                  : 'Forge checks GPU and system memory before loading the shape model. The GLB has no texture.'
+                                  ? 'TRELLIS.2 is experimental and its memory use is not calibrated. Forge checks GPU and system memory before loading.'
+                                  : draft.texture === true
+                                    ? 'Forge checks GPU and system memory before loading the shape and texture models. Painting takes several extra minutes.'
+                                    : 'Forge checks GPU and system memory before loading the shape model. The GLB has no texture.'
                                 : section === 'segmentation'
                                   ? 'SAM 3.1 selects objects matching your description. Forge checks GPU and system memory before loading.'
                                   : section === 'motion'
@@ -2054,6 +2335,7 @@ function App() {
                   <SpeechTranscriber
                     projects={projects}
                     project={activeProject}
+                    renderLatency={(props) => <AsrLatency {...props} />}
                     onUseText={(text) => {
                       if (
                         draft.prompt.trim() &&
@@ -2084,6 +2366,7 @@ function App() {
                   onOpenLibrary={() => switchTo('assets')}
                   onQueued={() => setRenderQueueVersion((v) => v + 1)}
                   refreshKey={renderQueueVersion}
+                  onReuse={(meta) => reuseSettings(meta, activeProject?.id)}
                 />
                 {supportsRender && (
                   <RuntimeQueue refreshKey={renderQueueVersion} projects={projects} />
@@ -2133,7 +2416,26 @@ function App() {
             sampleAssets={sampleAssets}
             loading={projectsLoading}
             error={projectsError}
+            onReuse={reuseSettings}
           />
+        ) : section === 'queue' ? (
+          <div className="page queue-page">
+            <div className="editor-title">
+              <div>
+                <div className="overline">
+                  <span className="overline-line" /> ALL PROJECTS
+                </div>
+                <h1>
+                  Render queue<em>.</em>
+                </h1>
+                <p className="lead">
+                  What is processing right now, what is waiting, and what finished. Renders run one
+                  at a time.
+                </p>
+              </div>
+            </div>
+            <RuntimeQueue expanded projects={projects} refreshKey={renderQueueVersion} />
+          </div>
         ) : section === 'models' ? (
           <Models
             onNavigate={(panel, modelName) => {
@@ -2181,7 +2483,7 @@ function App() {
             projects={projects}
             project={activeProject}
             extensions={
-              section === '3d' && draft.model === 'TRELLIS.2'
+              section === '3d' && draft.model === 'TRELLIS.2' && !draft.removeBackground
                 ? TRELLIS_EXTENSIONS
                 : IMAGE_EXTENSIONS
             }

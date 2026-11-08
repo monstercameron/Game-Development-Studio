@@ -1736,6 +1736,11 @@ test(
         assert.equal(input.references, undefined);
         assert.equal(input.negative_prompt, 'blurred');
         assert.equal(input.true_cfg_scale, 2.5);
+        // Forge-only options never reach Qwen; transparency becomes its documented prompt wording.
+        assert.equal(input.transparent, undefined);
+        assert.equal(input.size_from_reference, undefined);
+        assert.match(input.prompt, /^This is an RGBA image with transparency\. A castle /);
+        assert.match(input.prompt, /background is transparent\.$/);
         assert.equal(input.width, 512);
         assert.equal(input.num_inference_steps, 12);
         submissions++;
@@ -1777,6 +1782,7 @@ test(
         references: [reference.id],
         negative_prompt: 'blurred',
         true_cfg_scale: 2.5,
+        transparent: true,
       },
     };
     assert.equal(
@@ -1932,6 +1938,7 @@ test(
       /reference image|images/i,
     );
     let submissions = 0,
+      queuedSeed = null,
       current = null,
       forget = false,
       unverifiedDownloads = 0;
@@ -1956,6 +1963,7 @@ test(
         assert.equal(input.images[0], `data:image/png;base64,${png.toString('base64')}`);
         assert.equal(input.steps, 8);
         assert.equal(input.frames, 56);
+        assert.equal(input.seed, queuedSeed, 'the recorded seed is what H3 receives');
         submissions++;
         current = {
           id: `video-${submissions}`,
@@ -2009,7 +2017,18 @@ test(
         steps: 8,
       },
     };
+    for (const seed of [-1, 2147483648, 1.5, '7']) {
+      assert.throws(
+        () => queue.enqueue({ ...input, request: { ...input.request, seed } }),
+        /video seed/,
+      );
+    }
     const first = queue.enqueue(input);
+    queuedSeed = queue.get(first.id).request.seed;
+    assert.ok(
+      Number.isSafeInteger(queuedSeed) && queuedSeed >= 0 && queuedSeed <= 2147483647,
+      'a blank seed is chosen when the job is queued',
+    );
     await waitFor(() => queue.get(first.id).status === 'waiting_memory');
     assert.equal(submissions, 0);
     assert.equal(queue.get(first.id).details.candidates[0].id, 'music');
@@ -2024,7 +2043,8 @@ test(
     );
     assert.equal(queue.estimate(input).sampleCount, 1);
     forget = true;
-    const second = queue.enqueue(input);
+    const second = queue.enqueue({ ...input, request: { ...input.request, seed: 5 } });
+    queuedSeed = 5;
     await waitFor(() => queue.get(second.id).status === 'interrupted');
     assert.equal(submissions, 2);
     assert.equal(queue.get(second.id).remoteId, 'video-2');

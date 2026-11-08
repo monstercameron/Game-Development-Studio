@@ -9,6 +9,7 @@ import music from './pages/music';
 import sfx from './pages/sfx';
 import voices from './pages/voices';
 import segmentation from './pages/segmentation';
+import world from './pages/world';
 import game from './pages/game';
 import assets from './pages/assets';
 import models from './pages/models';
@@ -26,6 +27,7 @@ export default {
   sfx,
   voices,
   segmentation,
+  world,
   game,
   assets,
   models,

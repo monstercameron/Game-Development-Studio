@@ -20,16 +20,24 @@ from fastapi.responses import FileResponse
 from host_memory import host_bytes_needed
 from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
-from trellis_manifest import ROOT, missing_files
+from trellis_manifest import PIPELINE_TYPES, ROOT, missing_files, pipelines_available
 from worker_outputs import recovered_job
 
 OUTPUTS = Path(os.environ.get("FORGE_RUNTIME_DIR", ROOT / ".forge-runtime")) / "trellis-outputs"
 OUTPUTS.mkdir(parents=True, exist_ok=True)
 TOKEN = os.environ.get("FORGE_ENGINE_CONTROL_TOKEN", "")
 HOST_LOAD_BYTES = 8 * 1024**3
-HOST_RENDER_BYTES = 12 * 1024**3
 GPU_LOAD_BYTES = 4 * 1024**3
-GPU_RENDER_BYTES = 24 * 1024**3
+MIN_TRANSPARENT_FRACTION = 0.01
+# Render budgets in GiB (host, GPU) per pipeline; keep in step with trellis-preparation.js. Only the
+# 512 pipeline has any measurement behind it. The others are generous guesses for a large GPU,
+# and host memory is only a soft floor (see host_memory.py).
+PIPELINE_BUDGETS_GIB = {
+    "512": (12, 24),
+    "1024": (18, 40),
+    "1024_cascade": (18, 48),
+    "1536_cascade": (20, 64),
+}
 lock = threading.Lock()
 state = {"phase": "idle", "error": None, "closing": False}
 jobs = {}
@@ -95,11 +103,23 @@ def load_worker():
 
 def render_worker(job_id, image, request):
     try:
-        check_memory(HOST_RENDER_BYTES, GPU_RENDER_BYTES)
+        host_gib, gpu_gib = PIPELINE_BUDGETS_GIB[request.pipeline]
+        check_memory(host_gib * 1024**3, gpu_gib * 1024**3)
         from trellis_backend import generate_glb
 
+        def report(message):
+            with lock:
+                jobs[job_id].update(message=message)
+
         with lock:
-            jobs[job_id].update(status="running", message="Generating textured 3D model.")
+            jobs[job_id].update(
+                status="running",
+                message=(
+                    "Generating textured 3D model."
+                    if request.pipeline == "512"
+                    else f"Generating textured 3D model ({request.pipeline} pipeline)."
+                ),
+            )
         temp = OUTPUTS / f".{job_id}.part"
         generate_glb(
             model,
@@ -108,6 +128,9 @@ def render_worker(job_id, image, request):
             seed=request.seed,
             steps=request.steps,
             texture_size=request.texture_size,
+            target_faces=request.target_faces,
+            pipeline_type=request.pipeline,
+            report=report,
         )
         os.replace(temp, OUTPUTS / f"{job_id}.glb")
         with lock:
@@ -125,6 +148,10 @@ class RenderRequest(BaseModel):
     seed: int = Field(default=42, ge=0, le=2147483647)
     steps: int = Field(default=12, ge=1, le=50)
     texture_size: int = 1024
+    # Triangles in the exported mesh (upstream decimation target); upstream defaults to 1,000,000.
+    target_faces: int = Field(default=100000, ge=5000, le=1_000_000)
+    # 512 is the original pipeline; the others need extra checkpoints (see pipelines_available).
+    pipeline: str = "512"
 
 
 @app.get("/api/status")
@@ -137,6 +164,7 @@ def status():
             "model_downloaded": not missing_files(),
             "error": state["error"],
             "transparent_input_required": True,
+            "pipelines_available": pipelines_available(),
         }
 
 
@@ -162,6 +190,13 @@ def load():
 def generate(request: RenderRequest):
     if request.texture_size not in (512, 1024, 2048):
         raise HTTPException(400, "Unsupported texture size.")
+    if request.pipeline not in PIPELINE_TYPES:
+        raise HTTPException(400, "Unsupported pipeline.")
+    # The 512 checkpoints are required to load the model at all, so only the others need a check.
+    if request.pipeline != "512" and request.pipeline not in pipelines_available():
+        raise HTTPException(
+            400, f"The {request.pipeline} pipeline's checkpoints are not installed."
+        )
     try:
         prefix, data = request.image.split(",", 1)
         if prefix not in ("data:image/png;base64", "data:image/webp;base64"):
@@ -177,6 +212,14 @@ def generate(request: RenderRequest):
         low, high = alpha.getextrema()
         if low == 255 or high <= 204:
             raise ValueError("A transparent background and visible foreground are required.")
+        # An alpha channel that is almost fully opaque is a flattened picture; TRELLIS.2 would
+        # treat the whole frame as the object and return a block.
+        transparent = sum(alpha.histogram()[:128]) / (image.width * image.height)
+        if transparent < MIN_TRANSPARENT_FRACTION:
+            raise ValueError(
+                "The image has no real transparent background (under 1% of its pixels are "
+                "transparent). Cut the object out first, for example with Segmentation."
+            )
     except (ValueError, binascii.Error, OSError) as error:
         raise HTTPException(400, f"Invalid reference image: {error}") from error
     with lock:

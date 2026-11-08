@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { localAsrUrl, openTranscriptionStream, transcribeWav } from '../runtime/asr-client.js';
+import {
+  localAsrUrl,
+  openTranscriptionStream,
+  recognitionOptions,
+  transcribeWav,
+} from '../runtime/asr-client.js';
 
 class FakeSocket extends EventTarget {
   static instance;
@@ -99,4 +104,34 @@ test('stream rejects stalled completion and applies backpressure', async () => {
   } finally {
     clearTimeout(keepAlive);
   }
+});
+
+test('recognition options become request fields and word timings are returned', async () => {
+  const wav = Buffer.alloc(44);
+  wav.write('RIFF');
+  wav.write('WAVE', 8);
+  let form;
+  const result = await transcribeWav(wav, {
+    options: { punctuation: false, wordTimestamps: true },
+    fetcher: async (_url, request) => {
+      form = request.body;
+      return {
+        ok: true,
+        json: async () => ({
+          text: 'hello',
+          duration: 1.23456,
+          words: [{ word: 'hello', start: 0.08, end: 0.5 }, { nope: 1 }],
+        }),
+      };
+    },
+  });
+  assert.equal(form.get('automatic_punctuation'), 'false');
+  assert.equal(form.get('response_format'), 'verbose_json');
+  assert.equal(form.get('speech_contexts'), null);
+  assert.deepEqual(result, {
+    text: 'hello',
+    words: [{ word: 'hello', start: 0.08, end: 0.5 }],
+    duration: 1.235,
+  });
+  assert.throws(() => recognitionOptions({ punctuation: 'no' }), /true or false/);
 });

@@ -60,8 +60,10 @@ test('gallery preview arrows navigate with buttons and keyboard outside editable
       const isVisualAsset = () => false;
       const AssetConverter = () => null;
       const canConvert = () => false;
+      const MusicDerive = () => null;
       const ProjectTrash = () => null;
       const RuntimeQueue = () => null;
+      const GenerationDetails = () => null;
       const iconStub = () => null;
       const ArrowDownToLine = iconStub;
       const AudioLines = iconStub;

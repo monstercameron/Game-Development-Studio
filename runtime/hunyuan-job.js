@@ -23,11 +23,26 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       let response, body;
       const settings =
         job.type === 'trellis'
-          ? { texture_size: job.request.texture_size }
+          ? {
+              texture_size: job.request.texture_size,
+              ...(job.request.target_faces ? { target_faces: job.request.target_faces } : {}),
+              ...(job.request.pipeline ? { pipeline: job.request.pipeline } : {}),
+            }
           : {
               resolution: job.request.resolution,
+              ...(job.request.guidance ? { guidance_scale: job.request.guidance } : {}),
+              ...(job.request.target_faces ? { target_faces: job.request.target_faces } : {}),
               ...(job.request.texture === true
-                ? { texture: true, texture_size: job.request.texture_size }
+                ? {
+                    texture: true,
+                    texture_size: job.request.texture_size,
+                    ...(job.request.texture_views
+                      ? { texture_views: job.request.texture_views }
+                      : {}),
+                    ...(job.request.texture_view_size
+                      ? { texture_view_size: job.request.texture_view_size }
+                      : {}),
+                  }
                 : {}),
             };
       try {
@@ -52,7 +67,12 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       }
       if (!response.ok) {
         send(job.id, response.status >= 500 ? 'interrupted' : 'failed', {
-          error: `${name} returned ${response.status}: ${JSON.stringify(body).slice(0, 1000)}`,
+          // FastAPI puts a readable validation message in "detail"; keep it unwrapped.
+          error: `${name} returned ${response.status}: ${
+            typeof body?.detail === 'string'
+              ? body.detail.slice(0, 1000)
+              : JSON.stringify(body).slice(0, 1000)
+          }`,
         });
         return;
       }

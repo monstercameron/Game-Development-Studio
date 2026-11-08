@@ -51,12 +51,13 @@ export async function readLibraryFiles(
     if (Number.isFinite(totalBytes) && total > totalBytes) {
       throw Error('The selected files exceed the combined size limit.');
     }
-    files.push(
-      new File([blob], asset.name, {
-        type: asset.type || blob.type || 'application/octet-stream',
-        lastModified: Date.parse(asset.modified) || Date.now(),
-      }),
-    );
+    const file = new File([blob], asset.name, {
+      type: asset.type || blob.type || 'application/octet-stream',
+      lastModified: Date.parse(asset.modified) || Date.now(),
+    });
+    // Remember where the file came from so a consumer can read it from the project instead.
+    file.forgeSource = { projectId: project.id, path: asset.id };
+    files.push(file);
   }
   return files;
 }

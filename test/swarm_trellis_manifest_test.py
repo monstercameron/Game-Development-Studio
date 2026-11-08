@@ -39,6 +39,20 @@ class TrellisManifestTest(unittest.TestCase):
     def test_complete_nonempty_manifest_is_ready(self):
         self.assertEqual(manifest.missing_files(), [])
 
+    def test_higher_pipelines_need_their_extra_checkpoints(self):
+        self.assertEqual(manifest.pipelines_available(), ["512"])
+        for path in manifest.extra_files(manifest.PIPELINE_EXTRAS["1024"]):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("{}", encoding="utf-8") if path.suffix == ".json" else path.write_bytes(
+                b"x"
+            )
+        self.assertEqual(
+            manifest.pipelines_available(), ["512", "1024", "1024_cascade", "1536_cascade"]
+        )
+        # Without the base files nothing is available, even if the extras exist.
+        self.paths[0].unlink()
+        self.assertEqual(manifest.pipelines_available(), [])
+
     def test_empty_required_file_is_reported_missing(self):
         empty_file = self.paths[-1]
         empty_file.write_bytes(b"")

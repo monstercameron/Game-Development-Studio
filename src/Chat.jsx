@@ -401,11 +401,21 @@ export default function Chat({ project }) {
             ? 'Starting'
             : 'Starts on send'
         : 'Compatible endpoint · not checked';
-  async function saveResponse(content, id) {
+  async function saveResponse(content, id, question = '') {
     setSavingMessage(id);
     setError('');
     try {
-      const saved = await saveProjectText(project?.id, 'chat', content);
+      const saved = await saveProjectText(project?.id, 'chat', content, {
+        model: { name: model, id: provider },
+        prompt: question,
+        secondary: system,
+        settings: {
+          provider,
+          temperature,
+          max_tokens: maxTokens,
+          context_size: contextSize,
+        },
+      });
       setStatus(`Saved to ${saved.path}`);
     } catch (reason) {
       setError(reason.message);
@@ -992,7 +1002,15 @@ export default function Chat({ project }) {
                             <div className="chat-message-actions">
                               {m.role === 'assistant' && (
                                 <button
-                                  onClick={() => saveResponse(m.content, `${chat.id}:${i}`)}
+                                  onClick={() =>
+                                    saveResponse(
+                                      m.content,
+                                      `${chat.id}:${i}`,
+                                      chat.messages[i - 1]?.role === 'user'
+                                        ? chat.messages[i - 1].content
+                                        : '',
+                                    )
+                                  }
                                   disabled={!project || !!savingMessage}
                                   title={
                                     !project

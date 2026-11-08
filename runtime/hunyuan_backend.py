@@ -120,16 +120,33 @@ def load_shape(source_dir, model_dir, *, device="cuda"):
     return pipeline
 
 
-def generate_shape(pipeline, image, *, seed=123, steps=30, resolution=128, num_chunks=10000):
+DEFAULT_GUIDANCE = 5.0
+MIN_TARGET_FACES = 1000
+MAX_TARGET_FACES = 1_000_000
+
+
+def generate_shape(
+    pipeline,
+    image,
+    *,
+    seed=123,
+    steps=30,
+    resolution=128,
+    guidance_scale=DEFAULT_GUIDANCE,
+    num_chunks=10000,
+):
     if not isinstance(steps, int) or not 1 <= steps <= 100:
         raise ValueError("Steps must be between 1 and 100.")
     if resolution not in (128, 256, 384):
         raise ValueError("Unsupported mesh resolution.")
+    if not 1.0 <= float(guidance_scale) <= 20.0:
+        raise ValueError("Guidance scale must be between 1 and 20.")
     with torch.inference_mode():
         result = pipeline(
             image=image,
             num_inference_steps=steps,
             octree_resolution=resolution,
+            guidance_scale=float(guidance_scale),
             num_chunks=num_chunks,
             mc_algo="mc",
             generator=torch.Generator(device=pipeline.device).manual_seed(seed),
@@ -138,4 +155,34 @@ def generate_shape(pipeline, image, *, seed=123, steps=30, resolution=128, num_c
     mesh = result[0]
     if mesh is None or not len(mesh.vertices) or not len(mesh.faces):
         raise RuntimeError("No mesh surface was generated; try another seed, image, or more steps.")
+    return mesh
+
+
+def reduce_faces(mesh, target_faces):
+    """Merge duplicate vertices and decimate to about ``target_faces`` triangles.
+
+    Upstream reduces faces with MeshLab, which is unavailable on Windows ARM64; this uses the
+    quadric decimation in ``fast-simplification`` that the texture stage already needs. A mesh
+    that already has fewer faces than the target is only cleaned, never enlarged.
+    """
+    import trimesh
+
+    if not MIN_TARGET_FACES <= int(target_faces) <= MAX_TARGET_FACES:
+        raise ValueError("Triangle target must be between 1,000 and 1,000,000.")
+    mesh = trimesh.Trimesh(mesh.vertices, mesh.faces, process=True)
+    mesh.update_faces(mesh.nondegenerate_faces())
+    mesh.remove_unreferenced_vertices()
+    if len(mesh.faces) > target_faces:
+        import fast_simplification
+
+        points, faces = fast_simplification.simplify(
+            np.ascontiguousarray(mesh.vertices, dtype=np.float32),
+            np.ascontiguousarray(mesh.faces, dtype=np.int32),
+            target_count=int(target_faces),
+        )
+        mesh = trimesh.Trimesh(points, faces, process=True)
+        mesh.update_faces(mesh.nondegenerate_faces())
+        mesh.remove_unreferenced_vertices()
+    if not len(mesh.faces):
+        raise RuntimeError("The mesh has no faces left after reduction.")
     return mesh

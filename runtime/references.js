@@ -154,3 +154,44 @@ export async function readPose(projectFolder, id) {
   }
   return poseText(await fs.readFile(file));
 }
+
+// Audio sources (sound variations, region replacement, continuation) are snapshotted at queue time
+// by the clip staging route (runtime/clips.js), so a queued render keeps the bytes it was queued with.
+export const MAX_AUDIO_SOURCE_BYTES = 32 * 1024 * 1024;
+const audioIdPattern = /^[a-f0-9-]{36}\.(wav|flac|mp3|ogg)$/i;
+export const isAudioSourceId = (id) => typeof id === 'string' && audioIdPattern.test(id);
+function audioType(bytes) {
+  if (bytes.length < 44 || bytes.length > MAX_AUDIO_SOURCE_BYTES) {
+    throw Error('The source sound must be between 44 bytes and 32 MiB.');
+  }
+  if (bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WAVE') {
+    return ['wav', 'audio/wav'];
+  }
+  if (bytes.toString('ascii', 0, 4) === 'fLaC') {
+    return ['flac', 'audio/flac'];
+  }
+  if (bytes.toString('ascii', 0, 4) === 'OggS') {
+    return ['ogg', 'audio/ogg'];
+  }
+  if (
+    bytes.toString('ascii', 0, 3) === 'ID3' ||
+    (bytes[0] === 255 && (bytes[1] & 0xe0) === 0xe0)
+  ) {
+    return ['mp3', 'audio/mpeg'];
+  }
+  throw Error('The source sound must be a WAV, FLAC, MP3, or Ogg file.');
+}
+// Rechecks type, size and link status when the queued job actually runs.
+export async function readAudioSource(projectFolder, id) {
+  if (!isAudioSourceId(id)) {
+    throw Error('Provide a staged source sound ID.');
+  }
+  const file = path.join(await inputDirectory(projectFolder), id),
+    info = await fs.lstat(file);
+  if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_AUDIO_SOURCE_BYTES) {
+    throw Error('Source sound is missing, too large, or is a link.');
+  }
+  const bytes = await fs.readFile(file);
+  audioType(bytes);
+  return bytes;
+}

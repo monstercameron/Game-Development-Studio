@@ -10,6 +10,7 @@ import {
   stageProjectPose,
   MAX_REFERENCE_BYTES,
 } from './runtime/references.js';
+import { stageProjectClip } from './runtime/clips.js';
 import {
   readAssetMetadata,
   updateAsset,
@@ -21,7 +22,14 @@ import {
   saveGeneratedText,
 } from './project-assets.js';
 import { convertAsset } from './runtime/transcode.js';
+import { readGlbStats } from './runtime/glb-stats.js';
 import { readThumbnail, saveThumbnail } from './runtime/thumbnails.js';
+import {
+  backfillAssetMeta,
+  readAssetMeta,
+  readMetaIndex,
+  searchAssetMeta,
+} from './runtime/asset-metadata.js';
 
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectsRoot = process.env.FORGE_PROJECTS_DIR || path.join(appRoot, 'projects');
@@ -49,6 +57,10 @@ const types = {
   '.fbx': ['3D', 'application/octet-stream'],
   '.bvh': ['3D', 'application/octet-stream'],
   '.ply': ['3D', 'application/octet-stream'],
+  '.obj': ['3D', 'text/plain; charset=utf-8'],
+  '.stl': ['3D', 'model/stl'],
+  // The material file written beside a converted OBJ.
+  '.mtl': ['Text', 'text/plain; charset=utf-8'],
 };
 function json(res, data, status = 200) {
   res.writeHead(status, {
@@ -246,6 +258,48 @@ export function projectsService() {
             return json(res, { error: error.message || 'Could not save text.' }, 400);
           }
         }
+        // Generation details (model, prompt, settings) live in the project's own SQLite file.
+        // Older assets are filled in lazily from the job queue history on first read.
+        const details = /^\/([a-f0-9-]{36})\/assets\/(details|details-index|search)$/i.exec(
+          url.pathname,
+        );
+        if (details && req.method === 'GET') {
+          const project = (await listProjects()).find((item) => item.id === details[1]);
+          if (!project) {
+            return json(res, { error: 'Project not found.' }, 404);
+          }
+          const action = details[2].toLowerCase();
+          try {
+            if (action === 'search') {
+              const query = (url.searchParams.get('q') || '').slice(0, 200);
+              return json(res, { paths: searchAssetMeta(project.folder, query) });
+            }
+            backfillAssetMeta(project.folder, project.id, project.assets);
+            if (action === 'details-index') {
+              return json(res, { assets: readMetaIndex(project.folder) });
+            }
+            const rel = url.searchParams.get('path');
+            if (!project.assets.some((item) => item.id === rel)) {
+              return json(res, { error: 'Asset not found.' }, 404);
+            }
+            const metadata = readAssetMeta(project.folder, rel);
+            // A GLB's size and triangle count are read from the file, so older files have them too.
+            const output = /\.glb$/i.test(rel)
+              ? readGlbStats(path.join(project.folder, ...rel.split('/')))
+              : null;
+            return json(res, { metadata: metadata && output ? { ...metadata, output } : metadata });
+          } catch (error) {
+            console.error('Asset details error:', error.message);
+            return json(
+              res,
+              action === 'search'
+                ? { paths: [], unavailable: true }
+                : action === 'details-index'
+                  ? { assets: {}, unavailable: true }
+                  : { metadata: null, unavailable: true },
+            );
+          }
+        }
         const assetAction =
           /^\/([a-f0-9-]{36})\/assets\/(metadata|rename|trash|restore|clear-trash|convert)$/i.exec(
             url.pathname,
@@ -346,9 +400,8 @@ export function projectsService() {
             return json(res, { error: error.message || 'Could not save thumbnail.' }, 400);
           }
         }
-        const referenceMatch = /^\/([a-f0-9-]{36})\/(references|poses)(?:\/(from-asset))?$/i.exec(
-          url.pathname,
-        );
+        const referenceMatch =
+          /^\/([a-f0-9-]{36})\/(references|poses|clips)(?:\/(from-asset))?$/i.exec(url.pathname);
         if (referenceMatch && req.method === 'POST') {
           const host = req.headers.host;
           if (
@@ -361,6 +414,10 @@ export function projectsService() {
           const project = (await listProjects()).find((item) => item.id === referenceMatch[1]);
           if (!project) {
             return json(res, { error: 'Project not found.' }, 404);
+          }
+          // Reference videos and audio are chosen from the project's own assets, never uploaded.
+          if (referenceMatch[2].toLowerCase() === 'clips' && !referenceMatch[3]) {
+            return json(res, { error: 'Choose a clip from the project assets.' }, 400);
           }
           const limit = referenceMatch[3] ? 10000 : MAX_REFERENCE_BYTES;
           if (Number(req.headers['content-length']) > limit) {
@@ -378,13 +435,22 @@ export function projectsService() {
           try {
             const bytes = Buffer.concat(chunks),
               pose = referenceMatch[2].toLowerCase() === 'poses',
-              reference = referenceMatch[3]
-                ? pose
-                  ? await stageProjectPose(project.folder, JSON.parse(bytes.toString('utf8')).path)
-                  : await stageProjectAsset(project.folder, JSON.parse(bytes.toString('utf8')).path)
-                : pose
-                  ? await stagePose(project.folder, bytes)
-                  : await stageReference(project.folder, bytes);
+              clip = referenceMatch[2].toLowerCase() === 'clips',
+              reference = clip
+                ? await stageProjectClip(project.folder, JSON.parse(bytes.toString('utf8')).path)
+                : referenceMatch[3]
+                  ? pose
+                    ? await stageProjectPose(
+                        project.folder,
+                        JSON.parse(bytes.toString('utf8')).path,
+                      )
+                    : await stageProjectAsset(
+                        project.folder,
+                        JSON.parse(bytes.toString('utf8')).path,
+                      )
+                  : pose
+                    ? await stagePose(project.folder, bytes)
+                    : await stageReference(project.folder, bytes);
             return json(res, { reference }, 201);
           } catch (error) {
             return json(res, { error: `Could not stage reference: ${error.message}` }, 400);

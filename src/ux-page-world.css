@@ -26,3 +26,49 @@
   min-height: var(--ux-target-min);
   justify-content: center;
 }
+
+/* Checkbox rows and the advanced summary reach the touch target size on phones. */
+@media (max-width: 850px) {
+  .world-page .world-check,
+  .world-page .world-advanced > summary {
+    min-height: var(--ux-target-touch);
+  }
+
+  .world-page .world-advanced > summary {
+    flex-wrap: wrap;
+  }
+
+  .world-page .world-advanced-hint {
+    margin-left: 0;
+    text-align: left;
+  }
+}
+
+/* The advanced section and its controls show the same focus ring as the rest of the page. */
+.world-page .world-advanced > summary:focus-visible,
+.world-page .world-check:has(input:focus-visible) {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+
+/* Generator cards and the advanced summary react to hover and press like the other pickers. */
+.world-page .world-model {
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.world-page .world-model:not(.selected):hover,
+.world-page .world-advanced > summary:hover {
+  background: var(--forge-selection-surface);
+  border-color: var(--forge-queue-action);
+}
+
+.world-page .world-model:active,
+.world-page .world-advanced > summary:active {
+  background: var(--forge-selection-hover);
+}
+
+.world-page .world-model.selected {
+  background: var(--forge-selection-surface);
+}
