@@ -2,6 +2,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createLogger } from './app-log.js';
+
+const log = createLogger('model');
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const defaultModelsRoot = path.join(appRoot, 'models');
 // The catalog is deliberately fixed: callers cannot supply filesystem paths.
@@ -86,6 +89,7 @@ export async function inspectModelInventory({
   root = defaultModelsRoot,
   models = managedModels,
 } = {}) {
+  const startedMs = performance.now();
   const actual = await fs.realpath(root);
   const rootStat = await fs.lstat(root);
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || actual !== path.resolve(root)) {
@@ -101,6 +105,11 @@ export async function inspectModelInventory({
           error: null,
         };
       } catch (error) {
+        log.warn('models.inventory.model.failed', {
+          modelId: model.id,
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
         return {
           ...model,
           path: path.join(actual, model.folder),
@@ -113,6 +122,13 @@ export async function inspectModelInventory({
       }
     }),
   );
+  log.debug('models.inventory.scan.completed', {
+    modelCount: entries.length,
+    installedCount: entries.filter((entry) => entry.installed === true).length,
+    failedCount: entries.filter((entry) => entry.error !== null).length,
+    totalBytes: entries.reduce((sum, entry) => sum + (entry.bytes ?? 0), 0),
+    durationMs: Math.round(performance.now() - startedMs),
+  });
   return {
     root: actual,
     entries,
@@ -157,6 +173,11 @@ export class ModelInventory {
             if (generation !== this.generation) {
               return;
             }
+            log.warn('models.inventory.scan.failed', {
+              reason: 'scan_rejected',
+              errorClass: error?.name,
+              errorCode: error?.code,
+            });
             this.error = String(error.message).slice(0, 300);
             this.updated = Date.now();
           },

@@ -9,8 +9,10 @@ import {
   reusePlan,
   secondaryLabel,
 } from './generation-details';
+import { createLog } from './app-log.js';
 import './ux-metadata.css';
 
+const log = createLog('ui');
 const PROMPT_PREVIEW = 280;
 const when = (value) =>
   value
@@ -42,6 +44,7 @@ export function useGenerationDetails(projectId, assetId) {
         if (!response.ok) {
           throw Error(body.error || 'Could not load generation details.');
         }
+        log.debug('ui.generation.loaded', { isUnavailable: body.unavailable === true });
         setState({
           key,
           status: body.unavailable ? 'error' : 'ready',
@@ -50,7 +53,10 @@ export function useGenerationDetails(projectId, assetId) {
       })
       .catch((error) => {
         if (error.name !== 'AbortError') {
+          log.warn('ui.generation.failed', { errorClass: error?.name });
           setState({ key, status: 'error', metadata: null });
+        } else {
+          log.debug('ui.generation.cancelled');
         }
       });
     return () => controller.abort();
@@ -115,7 +121,8 @@ export default function GenerationDetails({ project, asset, onReuse, compact = f
     try {
       await navigator.clipboard.writeText(meta.prompt.text);
       setCopied('Prompt copied.');
-    } catch {
+    } catch (error) {
+      log.warn('ui.clipboard.failed', { errorClass: error?.name });
       setCopied('Clipboard unavailable. Select the prompt and copy it manually.');
     }
   }

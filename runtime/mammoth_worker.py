@@ -17,7 +17,10 @@ from pathlib import Path
 
 # Embedded Python can omit the script directory from sys.path.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from app_log import get_logger, install_excepthook  # noqa: E402
 from engine_identity import identity
+
+log = get_logger("chat")
 
 
 def load_mammoth(directory):
@@ -105,8 +108,11 @@ class GuardedMammoth:
                 self.preflight()
                 self.engine.load_model()
 
+            stop = log.time("chat.model.load.completed")
             await asyncio.to_thread(load_checked)
+            stop()
         except Exception as error:
+            log.error("chat.model.load.failed", {"errorClass": type(error).__name__})
             self.engine.status.update(state="error", message=f"{type(error).__name__}: {error}")
         finally:
             with self.lock:
@@ -121,12 +127,24 @@ class GuardedMammoth:
             headers = dict(scope.get("headers", []))
             supplied = headers.get(b"x-forge-engine-token", b"").decode("ascii", "ignore")
             if not hmac.compare_digest(self.token, supplied):
+                log.warn(
+                    "chat.request.rejected",
+                    {"route": "/api/forge/:action", "reason": "forbidden"},
+                )
                 return await self.respond(scope, receive, send, 403, {"error": "Forbidden."})
             with self.lock:
                 if method == "GET" and path == "/api/forge/identity":
                     try:
                         response = (200, identity(self.token, supplied, "game"))
-                    except LookupError:
+                    except LookupError as error:
+                        log.warn(
+                            "chat.request.rejected",
+                            {
+                                "route": "/api/forge/identity",
+                                "reason": "identity_unavailable",
+                                "errorClass": type(error).__name__,
+                            },
+                        )
                         response = (404, {"error": "Recovery identity is unavailable."})
                 elif method == "GET" and path == "/api/forge/status":
                     response = (
@@ -152,9 +170,14 @@ class GuardedMammoth:
                     response = (200, {"resumed": True})
                 elif method == "POST" and path == "/api/forge/stop":
                     if self.active or self.threads or self.loading:
+                        log.warn(
+                            "chat.request.rejected",
+                            {"route": "/api/forge/stop", "reason": "busy"},
+                        )
                         response = (409, {"error": "Mammoth has active or queued work."})
                     else:
                         self.closing = True
+                        log.info("chat.process.stop.requested")
                         if self.stop_handle is None:
                             self.stop_handle = asyncio.get_running_loop().call_later(
                                 1, self.request_exit
@@ -162,6 +185,10 @@ class GuardedMammoth:
                         response = (200, {"stopping": True})
                 elif method == "POST" and path == "/api/forge/load":
                     if self.closing:
+                        log.warn(
+                            "chat.request.rejected",
+                            {"route": "/api/forge/load", "reason": "closing"},
+                        )
                         response = (409, {"error": "Mammoth service is stopping."})
                     elif self.loading or self.engine.engine is not None:
                         response = (
@@ -173,6 +200,10 @@ class GuardedMammoth:
                             },
                         )
                     elif not self.engine.download_status().get("complete"):
+                        log.warn(
+                            "chat.request.rejected",
+                            {"route": "/api/forge/load", "reason": "model_files_missing"},
+                        )
                         response = (409, {"error": "Verified Mammoth model files are missing."})
                     else:
                         self.loading = True
@@ -186,6 +217,10 @@ class GuardedMammoth:
             return await self.respond(scope, receive, send, *response)
         # The standalone load endpoint bypasses Forge's admission control.
         if path == "/api/load":
+            log.warn(
+                "chat.request.rejected",
+                {"route": "/api/load", "reason": "standalone_endpoint"},
+            )
             return await self.respond(
                 scope, receive, send, 403, {"error": "Use the Forge model load endpoint."}
             )
@@ -198,6 +233,10 @@ class GuardedMammoth:
                 if tracked:
                     self.active += 1
         if rejected:
+            log.warn(
+                "chat.request.rejected",
+                {"route": "/v1/systemone", "reason": "closing"},
+            )
             return await self.respond(
                 scope, receive, send, 503, {"error": "Mammoth service is stopping."}
             )
@@ -210,10 +249,12 @@ class GuardedMammoth:
 
 
 def main():
+    install_excepthook("chat")
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--engine-dir", required=True)
     args = parser.parse_args()
+    log.info("chat.process.started", {"port": args.port})
     engine = load_mammoth(args.engine_dir)
     import uvicorn
 
@@ -225,6 +266,7 @@ def main():
         lambda: setattr(server, "should_exit", True),
     )
     server.run()
+    log.info("chat.process.stopped", {"reason": "server_exited"})
 
 
 if __name__ == "__main__":

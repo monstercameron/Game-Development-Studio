@@ -2,16 +2,36 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { deleteAssetMeta, moveAssetMeta, recordSavedText } from './runtime/asset-metadata.js';
+import { atomicWriteFile, copyFileExclusive } from './runtime/durable-file.js';
+import { createLogger } from './runtime/app-log.js';
 
+const log = createLogger('projects');
 const locks = new Map();
 const filename = '.forge-assets.json';
 const safeErrorCode = (error) =>
   typeof error?.code === 'string' && /^[A-Z0-9_]{1,32}$/i.test(error.code) ? error.code : 'UNKNOWN';
+// Log fields name the folder an asset sits in, never the file name the user chose.
+const assetFolderKinds = new Set([
+  'images',
+  'video',
+  'music',
+  'sfx',
+  'voices',
+  'masks',
+  '3d',
+  'motion',
+  'text',
+]);
+function assetKind(rel) {
+  const folder = typeof rel === 'string' ? rel.split('/')[0] : '';
+  return assetFolderKinds.has(folder) ? folder : 'other';
+}
 function warn(logger, operation, stage, error) {
   try {
     logger(`WARN operation=${operation} stage=${stage} error_code=${safeErrorCode(error)}`);
-  } catch {
+  } catch (error) {
     // Logging must not change the outcome of a committed file operation.
+    log.debug('projects.asset.warn.failed', { errorClass: error?.name });
   }
 }
 function inside(root, target) {
@@ -47,14 +67,11 @@ export async function readAssetMetadata(folder) {
   }
 }
 async function save(folder, assets) {
-  const temp = path.join(folder, `.forge-assets-${randomUUID()}.tmp`);
-  await fs.writeFile(temp, JSON.stringify({ version: 1, assets }, null, 2), { flag: 'wx' });
-  try {
-    await fs.rename(temp, path.join(folder, filename));
-  } catch (error) {
-    await fs.unlink(temp).catch(() => {});
-    throw error;
-  }
+  // Staged, flushed and renamed: a crash leaves the previous complete index or the new one.
+  await atomicWriteFile(
+    path.join(folder, filename),
+    JSON.stringify({ version: 1, assets }, null, 2),
+  );
 }
 // Serialize mutations within this HTTP process so ratings, renames, and trash
 // updates do not overwrite each other. This map is not a cross-process lock.
@@ -73,6 +90,10 @@ function locked(folder, work) {
 }
 async function assetFile(project, rel) {
   if (typeof rel !== 'string' || !project.assets.some((asset) => asset.id === rel)) {
+    log.warn('projects.asset.rejected', {
+      projectId: project.id,
+      reason: 'not_found',
+    });
     throw Error('Asset not found.');
   }
   const root = await fs.realpath(project.folder);
@@ -80,6 +101,10 @@ async function assetFile(project, rel) {
   await regular(full);
   const real = await fs.realpath(full);
   if (!inside(root, real)) {
+    log.warn('projects.asset.rejected', {
+      projectId: project.id,
+      reason: 'traversal',
+    });
     throw Error('Asset is outside the project.');
   }
   return full;
@@ -93,6 +118,10 @@ async function trashDirectory(project) {
     stat.isSymbolicLink() ||
     !inside(await fs.realpath(project.folder), await fs.realpath(folder))
   ) {
+    log.warn('projects.asset.rejected', {
+      projectId: project.id,
+      reason: 'unsafe_folder',
+    });
     throw Error('Invalid project trash folder.');
   }
   return folder;
@@ -113,6 +142,9 @@ function originalPath(rel) {
           /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(p),
       ))
   ) {
+    log.warn('projects.asset.rejected', {
+      reason: 'invalid_path',
+    });
     throw Error('Invalid original asset path.');
   }
   return rel;
@@ -146,6 +178,10 @@ async function trashItems(project, strict = false) {
       if (strict && error.code !== 'ENOENT') {
         throw error;
       }
+      log.warn('projects.trash.item.incomplete', {
+        errorClass: error?.name,
+        errorCode: error?.code,
+      });
       warnings.push(`Trash item ${id} is incomplete or unreadable and has been preserved.`);
     }
   }
@@ -160,6 +196,10 @@ export function listTrash(project) {
 export function clearTrash(project, confirmation) {
   return locked(project.folder, async () => {
     if (confirmation !== 'permanently-delete-trash') {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'confirmation_required',
+      });
       throw Error('Confirm permanent trash deletion.');
     }
     const { items } = await trashItems(project, true),
@@ -171,20 +211,37 @@ export function clearTrash(project, confirmation) {
       await regular(path.join(folder, `${item.trashId}.json`));
       await fs.unlink(path.join(folder, `${item.trashId}.asset`));
       await fs.unlink(path.join(folder, `${item.trashId}.json`));
+      log.info('projects.asset.deleted', {
+        projectId: project.id,
+        trashId: item.trashId,
+        kind: assetKind(item.path),
+        extension: path.extname(item.path).toLowerCase(),
+        bytes: item.size,
+      });
       deleted++;
     }
+    log.info('projects.trash.cleared', { projectId: project.id, count: deleted });
     // Generation details go with the file unless a new file now uses that path.
     const gone = [];
     for (const item of items) {
       try {
         await fs.lstat(path.join(project.folder, ...item.path.split('/')));
-      } catch {
+      } catch (error) {
+        log.debug('projects.asset.missing', {
+          projectId: project.id,
+          errorCode: error?.code,
+        });
         gone.push(item.path);
       }
     }
     try {
       deleteAssetMeta(project.folder, gone);
     } catch (error) {
+      log.warn('projects.asset.metadata.failed', {
+        projectId: project.id,
+        errorClass: error?.name,
+        errorCode: error?.code,
+      });
       warn(console.warn, 'asset_meta_delete', 'trash_clear', error);
     }
     return { deleted };
@@ -194,15 +251,27 @@ export function clearTrash(project, confirmation) {
 export async function saveGeneratedText(project, { kind, content, provenance } = {}) {
   const extensions = { transcript: 'txt', chat: 'txt', decision: 'json' };
   if (!Object.hasOwn(extensions, kind)) {
+    log.warn('projects.asset.rejected', {
+      projectId: project.id,
+      reason: 'wrong_type',
+    });
     throw Error('Unsupported text asset type.');
   }
   if (typeof content !== 'string' || !content.trim() || content.length > 100000) {
+    log.warn('projects.asset.rejected', {
+      projectId: project.id,
+      reason: 'invalid_length',
+    });
     throw Error('Text must contain between 1 and 100,000 characters.');
   }
   if (kind === 'decision') {
     try {
       JSON.parse(content);
     } catch {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'invalid_json',
+      });
       throw Error('Decision output must be valid JSON.');
     }
   }
@@ -217,11 +286,21 @@ export async function saveGeneratedText(project, { kind, content, provenance } =
     !inside(root, real) ||
     (process.platform === 'win32' ? real.toLowerCase() !== dir.toLowerCase() : real !== dir)
   ) {
+    log.warn('projects.asset.rejected', {
+      projectId: project.id,
+      reason: 'unsafe_folder',
+    });
     throw Error('Invalid project text folder.');
   }
   const name = `${kind}-${randomUUID()}.${extensions[kind]}`;
-  await fs.writeFile(path.join(real, name), content, { encoding: 'utf8', flag: 'wx' });
+  await atomicWriteFile(path.join(real, name), content);
   recordSavedText(root, `text/${name}`, kind, provenance);
+  log.info('projects.asset.saved', {
+    projectId: project.id,
+    kind,
+    bytes: Buffer.byteLength(content, 'utf8'),
+    extension: extensions[kind],
+  });
   return { path: `text/${name}` };
 }
 export function updateAsset(project, rel, changes) {
@@ -232,9 +311,17 @@ export function updateAsset(project, rel, changes) {
       typeof changes !== 'object' ||
       (!Object.hasOwn(changes, 'kept') && !Object.hasOwn(changes, 'rating'))
     ) {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'missing_value',
+      });
       throw Error('Choose a rating or kept status.');
     }
     if (Object.hasOwn(changes, 'kept') && typeof changes.kept !== 'boolean') {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'wrong_type',
+      });
       throw Error('Invalid kept status.');
     }
     if (
@@ -242,6 +329,10 @@ export function updateAsset(project, rel, changes) {
       changes.rating !== null &&
       (!Number.isInteger(changes.rating) || changes.rating < 1 || changes.rating > 5)
     ) {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'out_of_range',
+      });
       throw Error('Rating must be between 1 and 5.');
     }
     const assets = await readAssetMetadata(project.folder);
@@ -275,15 +366,27 @@ export function renameAsset(
       name.startsWith('.') ||
       /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name)
     ) {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'invalid_name',
+      });
       throw Error('Enter a valid file name without slashes or reserved characters.');
     }
     if (path.extname(name).toLowerCase() !== path.extname(oldName).toLowerCase()) {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'extension_changed',
+      });
       throw Error('Keep the original file extension.');
     }
     if (name === oldName) {
       return { path: rel };
     }
     if (name.toLowerCase() === oldName.toLowerCase()) {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'case_only',
+      });
       throw Error('Choose a name that differs by more than letter case.');
     }
     const parts = rel.split('/');
@@ -292,6 +395,10 @@ export function renameAsset(
       target = path.join(path.dirname(source), name),
       assets = await readAssetMetadata(project.folder);
     if (Object.keys(assets).some((key) => key.toLowerCase() === next.toLowerCase())) {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'reserved_name',
+      });
       throw Error('That name is reserved by an existing asset or trash record.');
     }
     // Hard links reserve the destination without overwriting and avoid copying
@@ -300,15 +407,23 @@ export function renameAsset(
       await fs.link(source, target);
     } catch (error) {
       if (error.code === 'EEXIST') {
+        log.warn('projects.asset.rejected', {
+          projectId: project.id,
+          reason: 'already_exists',
+        });
         throw Error('A file with that name already exists.', { cause: error });
       }
       if (!['EPERM', 'EOPNOTSUPP', 'ENOTSUP', 'EXDEV', 'ENOSYS'].includes(error.code)) {
         throw error;
       }
       try {
-        await fs.copyFile(source, target, fs.constants.COPYFILE_EXCL);
+        await copyFileExclusive(source, target);
       } catch (copyError) {
         if (copyError.code === 'EEXIST') {
+          log.warn('projects.asset.rejected', {
+            projectId: project.id,
+            reason: 'already_exists',
+          });
           throw Error('A file with that name already exists.', { cause: copyError });
         }
         throw copyError;
@@ -320,7 +435,12 @@ export function renameAsset(
     try {
       await save(project.folder, assets);
     } catch (error) {
-      await fs.unlink(target).catch(() => {});
+      await fs.unlink(target).catch((cleanupError) => {
+        log.debug('projects.asset.cleanup.failed', {
+          projectId: project.id,
+          errorCode: cleanupError?.code,
+        });
+      });
       throw error;
     }
     try {
@@ -330,6 +450,11 @@ export function renameAsset(
         await save(project.folder, before);
         await unlink(target);
       } catch (rollbackError) {
+        log.warn('projects.asset.rollback.failed', {
+          projectId: project.id,
+          errorClass: rollbackError?.name,
+          errorCode: rollbackError?.code,
+        });
         warn(logger, 'asset_rename', 'rollback', rollbackError);
         throw Error(
           'Rename could not finish. The original and a copy may both remain; check the project folder.',
@@ -341,8 +466,18 @@ export function renameAsset(
     try {
       moveAssetMeta(project.folder, rel, next);
     } catch (error) {
+      log.warn('projects.asset.metadata.failed', {
+        projectId: project.id,
+        errorClass: error?.name,
+        errorCode: error?.code,
+      });
       warn(logger, 'asset_rename', 'metadata', error);
     }
+    log.info('projects.asset.renamed', {
+      projectId: project.id,
+      kind: assetKind(next),
+      extension: path.extname(next).toLowerCase(),
+    });
     return { path: next };
   });
 }
@@ -352,23 +487,39 @@ export function trashAsset(project, rel) {
     const folder = await trashDirectory(project);
     const id = randomUUID();
     const manifest = path.join(folder, `${id}.json`);
-    await fs.writeFile(
+    // The manifest is flushed before the asset moves, so a crash cannot leave an asset in the
+    // trash whose manifest is empty or cut short.
+    await atomicWriteFile(
       manifest,
       JSON.stringify({ path: rel, deletedAt: new Date().toISOString() }),
-      { flag: 'wx' },
     );
     try {
       await fs.rename(source, path.join(folder, `${id}.asset`));
     } catch (error) {
-      await fs.unlink(manifest).catch(() => {});
+      await fs.unlink(manifest).catch((cleanupError) => {
+        log.debug('projects.asset.cleanup.failed', {
+          projectId: project.id,
+          errorCode: cleanupError?.code,
+        });
+      });
       throw error;
     }
+    log.info('projects.asset.trashed', {
+      projectId: project.id,
+      trashId: id,
+      kind: assetKind(rel),
+      extension: path.extname(rel).toLowerCase(),
+    });
     return { trashId: id };
   });
 }
 export function restoreAsset(project, id, { logger = console.warn, unlink = fs.unlink } = {}) {
   return locked(project.folder, async () => {
     if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id)) {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'invalid_id',
+      });
       throw Error('Invalid trash item.');
     }
     const folder = await trashDirectory(project),
@@ -382,9 +533,13 @@ export function restoreAsset(project, id, { logger = console.warn, unlink = fs.u
       root = await fs.realpath(project.folder),
       parent = await fs.realpath(path.dirname(target));
     if (!inside(root, target) || !(parent === root || inside(root, parent))) {
+      log.warn('projects.asset.rejected', {
+        projectId: project.id,
+        reason: 'traversal',
+      });
       throw Error('Original folder is outside the project.');
     }
-    await fs.copyFile(source, target, fs.constants.COPYFILE_EXCL);
+    await copyFileExclusive(source, target);
     // The destination is committed at this point. Cleanup failures must not make
     // callers retry the restore as if it had failed: the exclusive copy has
     // already created the user's asset and cannot safely be rolled back.
@@ -394,6 +549,12 @@ export function restoreAsset(project, id, { logger = console.warn, unlink = fs.u
     } catch (error) {
       // Keep both trash files when the backup cannot be removed.
       cleanupPending = true;
+      log.warn('projects.asset.cleanup.failed', {
+        projectId: project.id,
+        trashId: id,
+        errorClass: error?.name,
+        errorCode: error?.code,
+      });
       warn(logger, 'asset_restore', 'backup_cleanup', error);
     }
     if (!cleanupPending) {
@@ -402,9 +563,22 @@ export function restoreAsset(project, id, { logger = console.warn, unlink = fs.u
       } catch (error) {
         // The restored asset is safe; listTrash will report the incomplete pair.
         cleanupPending = true;
+        log.warn('projects.asset.cleanup.failed', {
+          projectId: project.id,
+          trashId: id,
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
         warn(logger, 'asset_restore', 'backup_cleanup', error);
       }
     }
+    log.info('projects.asset.restored', {
+      projectId: project.id,
+      trashId: id,
+      kind: assetKind(rel),
+      extension: path.extname(rel).toLowerCase(),
+      isCleanupPending: cleanupPending,
+    });
     return cleanupPending ? { path: rel, cleanupPending: true } : { path: rel };
   });
 }

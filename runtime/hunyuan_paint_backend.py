@@ -18,7 +18,10 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from app_log import get_logger
 from PIL import Image
+
+log = get_logger("three-d")
 
 TEXTURE_SIZES = (1024, 2048)
 # Upstream's default: six selected views of 512x512 images, UniPC, 15 steps. Its own web demo
@@ -70,7 +73,8 @@ def native_modules_ready(source_dir):
             return False
         if not (Path(source_dir).parent / "trellis2-opencv-install" / "python" / "cv2").is_dir():
             return False
-    except (ImportError, ValueError):
+    except (ImportError, ValueError) as error:
+        log.debug("three-d.native.probe.failed", {"errorClass": type(error).__name__})
         return False
     folder = Path(source_dir) / "hy3dpaint" / "DifferentiableRenderer"
     return any(folder.glob("mesh_inpaint_processor*.pyd"))
@@ -258,7 +262,15 @@ class PaintModels:
 
 
 def load_texture_models(source_dir, model_dir, *, device="cuda"):
-    return PaintModels(source_dir, model_dir, device=device)
+    log.info("three-d.texture.model.load.started", {"device": device})
+    stop = log.time("three-d.texture.model.load.completed", {"device": device})
+    try:
+        models = PaintModels(source_dir, model_dir, device=device)
+    except Exception as error:
+        log.error("three-d.texture.model.load.failed", {"errorClass": type(error).__name__})
+        raise
+    stop()
+    return models
 
 
 # ---------------------------------------------------------------- generation
@@ -344,6 +356,11 @@ def generate_texture(
         raise ValueError("Unsupported number of painted views or view size.")
     import cv2
 
+    stop = log.time("three-d.texture.generation.completed", {"textureSize": texture_size})
+    log.info(
+        "three-d.texture.generation.started",
+        {"textureSize": texture_size, "viewCount": view_count},
+    )
     say = progress or (lambda _message: None)
     from DifferentiableRenderer.MeshRender import MeshRender
 
@@ -429,7 +446,7 @@ def generate_texture(
             albedo = cv2.resize(albedo, half, interpolation=cv2.INTER_AREA)
             metallic = cv2.resize(metallic[:, :, 0], half, interpolation=cv2.INTER_AREA)
             roughness = cv2.resize(roughness[:, :, 0], half, interpolation=cv2.INTER_AREA)
-            return _glb_from_arrays(
+            textured_mesh = _glb_from_arrays(
                 baked_vertices.astype(np.float32),
                 normals,
                 faces,
@@ -438,6 +455,11 @@ def generate_texture(
                 _to_uint8(metallic),
                 _to_uint8(roughness),
             )
+            stop()
+            return textured_mesh
+        except Exception as error:
+            log.error("three-d.texture.generation.failed", {"errorClass": type(error).__name__})
+            raise
         finally:
             del render, views
             gc.collect()

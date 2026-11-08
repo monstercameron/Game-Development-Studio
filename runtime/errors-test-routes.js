@@ -8,6 +8,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { createLogger } from './app-log.js';
+
+const log = createLogger('errors');
+
 export const TEST_ERROR_MARKER = '[Forge test error]';
 export const TEST_EMIT_CONFIRMATION = 'emit-test-error';
 export const TEST_DELETE_CONFIRMATION = 'delete-test-errors';
@@ -92,6 +96,7 @@ function runHelper({ python, helper, variant, run, logFile, timeoutMs, spawnImpl
       // Append like an engine's stderr; the scanner reads the file from its saved offset.
       descriptor = fs.openSync(logFile, 'a');
     } catch (error) {
+      log.warn('errors.test.log.open.failed', { errorCode: error.code || 'error' });
       resolve({ failed: true, reason: `Could not open the test log (${error.code || 'error'}).` });
       return;
     }
@@ -115,6 +120,7 @@ function runHelper({ python, helper, variant, run, logFile, timeoutMs, spawnImpl
         env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
       });
     } catch (error) {
+      log.warn('errors.test.spawn.failed', { errorCode: error.code || 'error' });
       finish({ failed: true, reason: `Python could not start (${error.code || 'error'}).` });
       return;
     }
@@ -122,15 +128,16 @@ function runHelper({ python, helper, variant, run, logFile, timeoutMs, spawnImpl
       child.kill();
       finish({ failed: true, reason: 'The Python test helper did not finish in time.' });
     }, timeoutMs);
-    child.on('error', (error) =>
+    child.on('error', (error) => {
+      log.warn('errors.test.spawn.failed', { errorCode: error.code || 'error' });
       finish({
         failed: true,
         reason:
           error.code === 'ENOENT'
             ? 'Python was not found. Set FORGE_ERROR_TEST_PYTHON to a python.exe.'
             : `Python could not start (${error.code || 'error'}).`,
-      }),
-    );
+      });
+    });
     child.on('close', (exitCode) => finish({ failed: false, exitCode }));
   });
 }
@@ -163,9 +170,11 @@ export function createErrorTestRoutes({
 
   function checkRequest(input, confirmation, request) {
     if (!isLoopbackAddress(request?.remoteAddress)) {
+      log.warn('errors.test.rejected', { reason: 'not_loopback' });
       return reply(403, { error: 'Test errors can be created from this computer only.' });
     }
     if (input.confirm !== confirmation) {
+      log.warn('errors.test.rejected', { reason: 'not_confirmed' });
       return reply(400, { error: 'Confirm the request to run this test.', code: 'confirm' });
     }
     return null;
@@ -253,9 +262,13 @@ export function createErrorTestRoutes({
     if (!['/test/server', '/test/python', '/test/api-failure'].includes(pathname)) {
       return reply(404, { error: 'Not found.' });
     }
+    // The path suffix is the kind: server, python or api-failure.
+    const kind = pathname.slice('/test/'.length);
     if (!allow()) {
+      log.warn('errors.test.rejected', { reason: 'rate_limited', kind });
       return reply(429, { error: 'Too many test errors. Wait a minute and try again.' });
     }
+    log.info('errors.test.accepted', { kind });
     if (pathname === '/test/server') {
       return emitServer();
     }

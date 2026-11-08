@@ -16,6 +16,12 @@ import os
 import sys
 import traceback
 
+# The host runs this file with -I, which keeps the script folder off sys.path, so add it here.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from app_log import get_logger  # noqa: E402
+
+log = get_logger("errors")
+
 MARKER = "[Forge test error]"
 # Deliberately fake values, present so redaction can be checked end to end.
 FAKE_KEY = "sk-test-FAKE0123456789abcdef0123456789"
@@ -67,7 +73,11 @@ def main(argv=None):
         return 0
     try:
         start_test_worker(args.run)
-    except RuntimeError:
+    except RuntimeError as error:
+        # Expected for this variant: the traceback is written to stderr below instead of raised.
+        log.debug(
+            "errors.test.python.raised", {"kind": "python", "errorClass": type(error).__name__}
+        )
         sys.stderr.write("ERROR:    Exception in ASGI application\n")
         sys.stderr.write(traceback.format_exc())
         sys.stderr.flush()

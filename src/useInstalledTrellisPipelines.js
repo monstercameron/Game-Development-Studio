@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { createLog } from './app-log.js';
+
+const log = createLog('three-d');
 
 // TRELLIS.2 pipelines whose checkpoints are on disk, as reported by the runtime (it reads the
 // files, so this works while the worker is stopped). null means "not known yet".
@@ -11,6 +14,7 @@ export function useInstalledTrellisPipelines() {
       try {
         const response = await fetch('/api/runtime/services', { signal: request.signal });
         if (!response.ok) {
+          log.warn('three-d.pipelines.unavailable', { reason: 'http_error' });
           return;
         }
         const data = await response.json();
@@ -18,8 +22,16 @@ export function useInstalledTrellisPipelines() {
         if (active && Array.isArray(entry?.pipelines)) {
           setPipelines(entry.pipelines.filter((item) => typeof item === 'string'));
         }
-      } catch {
+      } catch (reason) {
         // Leave the list unknown; the worker still rejects a pipeline that is not installed.
+        if (request.signal.aborted) {
+          log.debug('three-d.pipelines.cancelled');
+        } else {
+          log.warn('three-d.pipelines.unavailable', {
+            reason: 'request_failed',
+            errorClass: reason?.name,
+          });
+        }
       }
     })();
     return () => {

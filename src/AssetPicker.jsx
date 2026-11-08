@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AudioLines, Check, File, FolderOpen, LoaderCircle, Search, X } from 'lucide-react';
 import { compatibleAssets, readLibraryFiles } from './asset-picker.js';
 import useDialogFocus from './useDialogFocus';
+import { createLog } from './app-log.js';
 import './asset-picker.css';
 
+const log = createLog('assets');
 const sizeLabel = (bytes) => `${(bytes / 1024 / 1024).toFixed(bytes >= 1024 * 1024 ? 1 : 2)} MiB`;
 export default function AssetPicker({
   projects,
@@ -35,6 +37,17 @@ export default function AssetPicker({
     busyRef = useRef(false);
   closeRef.current = onClose;
   busyRef.current = busy;
+  const thumbnailFailuresRef = useRef(0);
+  useEffect(
+    () => () => {
+      if (thumbnailFailuresRef.current > 0) {
+        log.debug('assets.picker.thumbnails.failed', {
+          failedCount: thumbnailFailuresRef.current,
+        });
+      }
+    },
+    [],
+  );
   const source = projects.find((item) => item.id === projectId) || null;
   const matches = useMemo(
     () => compatibleAssets(source?.assets, extensions, query),
@@ -65,12 +78,14 @@ export default function AssetPicker({
       return;
     }
     if (selected.length >= maxFiles) {
+      log.debug('assets.picker.limit.reached', { reason: 'file_count' });
       setError(
         `You can select up to ${maxFiles} files in total. Remove a selection to choose another.`,
       );
       return;
     }
     if (selectedBytes + asset.size > totalBytes) {
+      log.debug('assets.picker.limit.reached', { reason: 'total_bytes' });
       setError(
         'The selected files exceed the combined size limit. Remove a file or choose a smaller one.',
       );
@@ -94,9 +109,11 @@ export default function AssetPicker({
       });
       if (!controller.signal.aborted) {
         onSelect(files);
+        log.info('assets.picker.selected', { fileCount: chosen.length, selectedBytes });
       }
     } catch (reason) {
       if (!controller.signal.aborted) {
+        log.warn('assets.picker.read.failed', { errorClass: reason?.name });
         setError(reason.message || 'Could not read the selected files.');
       }
     } finally {
@@ -224,7 +241,14 @@ export default function AssetPicker({
                   >
                     <span className="asset-picker-thumb">
                       {visual ? (
-                        <img src={asset.url} alt="" loading="lazy" />
+                        <img
+                          src={asset.url}
+                          alt=""
+                          loading="lazy"
+                          onError={() => {
+                            thumbnailFailuresRef.current += 1;
+                          }}
+                        />
                       ) : asset.category === 'Audio' ? (
                         <AudioLines size={29} />
                       ) : (

@@ -2,9 +2,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createLogger } from './app-log.js';
 import { readReferences } from './references.js';
 import { stagedClipPath } from './clips.js';
 import { VIDEO_ASPECTS, TURBO_ADAPTER, videoDimensions, videoMaxVramGiB } from './video-options.js';
+
+const log = createLogger('video');
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // Prepared reference clips and frames are handed to H3 through this folder only. The H3 engine
@@ -33,6 +36,12 @@ export function runPython(tasks, { timeout = 300000 } = {}) {
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    const startedAt = performance.now();
+    log.info('video.process.spawned', {
+      kind: 'media_runtime',
+      pid: child.pid,
+      taskCount: tasks.length,
+    });
     let stdout = '',
       stderr = '',
       settled = false;
@@ -44,31 +53,59 @@ export function runPython(tasks, { timeout = 300000 } = {}) {
       }
     };
     const timer = setTimeout(() => {
+      log.warn('video.process.timed_out', {
+        pid: child.pid,
+        timeoutMs: timeout,
+        outcome: 'killed',
+      });
       child.kill();
       finish(Error('Preparing the reference media took too long.'));
     }, timeout);
-    child.on('error', (error) =>
+    child.on('error', (error) => {
+      log.warn('video.process.failed', {
+        pid: child.pid,
+        errorClass: error?.name,
+        errorCode: error?.code,
+      });
       finish(
         Error(
-          error.code === 'ENOENT'
+          error?.code === 'ENOENT'
             ? 'The media runtime is missing. Check the conversion setup in the README.'
-            : error.message,
+            : error?.message,
         ),
-      ),
-    );
+      );
+    });
     child.stdout.on('data', (chunk) => {
       stdout = (stdout + chunk).slice(-200000);
     });
     child.stderr.on('data', (chunk) => {
       stderr = (stderr + chunk).slice(-8000);
     });
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
+      const durationMs = Math.round(performance.now() - startedAt);
       if (code !== 0) {
+        log.warn('video.process.exited', {
+          pid: child.pid,
+          exitCode: code,
+          signal: signal ?? 'none',
+          durationMs,
+          outcome: 'failed',
+        });
         return finish(Error(stderr.trim().split(/\r?\n/).pop() || 'Preparing media failed.'));
       }
+      log.info('video.process.exited', {
+        pid: child.pid,
+        exitCode: code,
+        durationMs,
+        outcome: 'completed',
+      });
       try {
         finish(null, JSON.parse(stdout).results);
-      } catch {
+      } catch (error) {
+        log.warn('video.result.rejected', {
+          errorClass: error?.name,
+          reason: 'invalid_output',
+        });
         finish(Error('The media runtime returned an invalid result.'));
       }
     });
@@ -78,20 +115,34 @@ export function runPython(tasks, { timeout = 300000 } = {}) {
 }
 
 async function pruneOldInputs() {
+  let prunedCount = 0;
   try {
     for (const entry of await fs.readdir(H3_INPUT_ROOT, { withFileTypes: true })) {
       const folder = path.join(H3_INPUT_ROOT, entry.name);
       if (entry.isDirectory() && Date.now() - (await fs.stat(folder)).mtimeMs > STALE_MS) {
         await fs.rm(folder, { recursive: true, force: true });
+        prunedCount += 1;
       }
     }
-  } catch {
+    log.debug('video.inputs.pruned', { prunedCount });
+  } catch (error) {
     // Nothing to prune yet, or another job is cleaning up; neither blocks a render.
+    log.debug('video.inputs.prune.failed', {
+      errorClass: error?.name,
+      errorCode: error?.code,
+    });
   }
 }
 export const jobInputFolder = (jobId) => path.join(H3_INPUT_ROOT, jobId);
 export const removeJobInputs = (jobId) =>
-  fs.rm(jobInputFolder(jobId), { recursive: true, force: true }).catch(() => {});
+  fs.rm(jobInputFolder(jobId), { recursive: true, force: true }).catch((error) => {
+    log.warn('video.inputs.remove.failed', {
+      jobId,
+      kind: 'job_inputs',
+      errorClass: error?.name,
+      errorCode: error?.code,
+    });
+  });
 
 // True when the request uses anything H3 Studio's own form cannot express.
 export function needsExtensions(request) {
@@ -150,7 +201,9 @@ export async function buildSubmission(projectFolder, jobId, request) {
       // Staged images are validated again here, then fitted to the exact render size.
       const staged = path.join(folder, `staged-${index}`);
       const [image] = await readReferences(projectFolder, [id], { max: 1 });
-      await fs.writeFile(staged, Buffer.from(image.split(',')[1], 'base64'));
+      const imageBytes = Buffer.from(image.split(',')[1], 'base64');
+      await fs.writeFile(staged, imageBytes);
+      log.debug('video.frame.staged', { index, bytes: imageBytes.length });
       tasks.push({
         op: 'frame',
         source: staged,
@@ -216,17 +269,32 @@ export async function buildSubmission(projectFolder, jobId, request) {
     if (request.use_clip_audio) {
       const sound = results[cursor++];
       if (!sound?.has_audio) {
+        log.warn('video.reference.rejected', {
+          kind: 'video',
+          index: index + 1,
+          reason: 'no_audio_track',
+        });
         throw Error(`Reference video ${index + 1} has no sound track to use.`);
       }
       videoAudioNames.push(relative(`video-audio-${index + 1}.wav`));
     }
     if (!found?.frames) {
+      log.warn('video.reference.rejected', {
+        kind: 'video',
+        index: index + 1,
+        reason: 'unreadable_media',
+      });
       throw Error(`Reference video ${index + 1} could not be read.`);
     }
   }
   const audioNames = [];
   for (const [index] of audios.entries()) {
     if (!results[cursor++]?.has_audio) {
+      log.warn('video.reference.rejected', {
+        kind: 'audio',
+        index: index + 1,
+        reason: 'no_audio_track',
+      });
       throw Error(`Reference audio ${index + 1} has no audio to use.`);
     }
     audioNames.push(relative(`audio-${index + 1}.wav`));
@@ -261,7 +329,12 @@ export async function buildSubmission(projectFolder, jobId, request) {
   }
   body.forge = forge;
   // H3 limits the whole request to 60 MB; staged images are already capped at 40 MB.
-  if (JSON.stringify(body).length > 58 * 1024 * 1024) {
+  const requestLength = JSON.stringify(body).length;
+  if (requestLength > 58 * 1024 * 1024) {
+    log.warn('video.request.rejected', {
+      reason: 'request_too_large',
+      requestLength,
+    });
     throw Error('The images for this video are too large together.');
   }
   return { body, extended: true };
@@ -271,13 +344,21 @@ export async function buildSubmission(projectFolder, jobId, request) {
 // this version of Forge does not, and would silently ignore the extra options.
 export async function h3SupportsExtensions(baseUrl, fetchImpl = fetch) {
   try {
+    const stopProbe = log.time('video.request.completed', { route: '/api/forge-capabilities' });
     const response = await fetchImpl(`${baseUrl}/api/forge-capabilities`, {
       signal: AbortSignal.timeout(10000),
       redirect: 'error',
     });
+    stopProbe({ status: response.status });
     const data = await response.json();
     return response.ok && Number(data?.forgeExtensions) >= 1;
-  } catch {
+  } catch (error) {
+    // Expected when no H3 service is running or an older one answers; the caller falls back.
+    log.debug('video.request.failed', {
+      route: '/api/forge-capabilities',
+      errorClass: error?.name,
+      errorCode: error?.code,
+    });
     return false;
   }
 }

@@ -4,6 +4,10 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { randomUUID } from 'node:crypto';
+import { fsyncDirectory, fsyncFile } from './durable-file.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('assets');
 
 export async function saveAsset(projectFolder, folder, jobId, extension, url) {
   const realProject = await fs.realpath(projectFolder);
@@ -56,6 +60,7 @@ export async function saveAsset(projectFolder, folder, jobId, extension, url) {
           throw reason;
         }
       });
+      log.info('assets.conflict.cleared', { reason: 'output_missing' });
       return;
     }
     throw Error('A conflicting output file was preserved. Move or rename it before retrying.');
@@ -80,21 +85,33 @@ export async function saveAsset(projectFolder, folder, jobId, extension, url) {
     await checkConflict();
   }
   if (!complete) {
+    const stopDownload = log.time('assets.download.completed', { extension });
     const response = await fetch(url, { signal: AbortSignal.timeout(120000), redirect: 'error' });
     if (!response.ok || !response.body) {
+      log.warn('assets.download.failed', { extension, httpStatus: response.status });
       throw Error(`Could not download the asset (HTTP ${response.status}).`);
     }
     try {
       await pipeline(Readable.fromWeb(response.body), createWriteStream(temp, { flags: 'wx' }));
-      if (!(await fs.stat(temp)).size) {
+      stopDownload({ httpStatus: response.status });
+      const { size: outputBytes } = await fs.stat(temp);
+      if (!outputBytes) {
         throw Error('The engine returned an empty asset.');
       }
+      // The bytes must be on disk before the final name exists: after a power loss a name that
+      // was linked first can come back as an empty or partial file that looks like a finished
+      // asset, and the retry logic below would accept it.
+      await fsyncFile(temp);
       // A hard link commits the completed file atomically without replacing an
       // asset created after the initial check. Both names are on the same volume.
       try {
         await fs.link(temp, output);
       } catch (error) {
         if (error.code === 'EEXIST') {
+          log.warn('assets.output.conflicted', {
+            reason: 'output_appeared',
+            errorCode: error.code,
+          });
           try {
             await fs.writeFile(
               conflict,
@@ -122,8 +139,12 @@ export async function saveAsset(projectFolder, folder, jobId, extension, url) {
         }
         throw error;
       }
+      await fsyncDirectory(destination);
+      log.info('assets.output.saved', { jobId, extension, kind: 'output', bytes: outputBytes });
     } finally {
-      await fs.rm(temp, { force: true }).catch(() => {});
+      await fs.rm(temp, { force: true }).catch((error) => {
+        log.debug('assets.temp.cleanup.failed', { errorCode: error.code });
+      });
     }
   }
   return `${folder}/${name}`;

@@ -7,9 +7,12 @@ import {
   getMegascans,
   isScanActive,
   postMegascans,
+  requestFailureFields,
 } from './megascans-api';
+import { createLog } from './app-log.js';
 
 const SCAN_POLL_MS = 1500;
+const log = createLog('megascans');
 
 /**
  * The state of the Fab cache and the slow, capped requests that fill it. The page reads
@@ -41,6 +44,9 @@ export function useFabCache({ onChanged }) {
       }
       return data.fab;
     } catch (failure) {
+      if (failure?.name !== 'AbortError') {
+        log.debug('megascans.status.load.failed', requestFailureFields(failure));
+      }
       if (failure?.name !== 'AbortError' && alive.current) {
         setError(failure.message);
       }
@@ -60,6 +66,7 @@ export function useFabCache({ onChanged }) {
     if (!scanActive) {
       return undefined;
     }
+    // log-coverage: ignore -- poll failures are logged in load(); the scan end is logged below
     const timer = setInterval(async () => {
       const next = await load();
       if (next && next.cache.listings !== lastSeen.current) {
@@ -74,6 +81,7 @@ export function useFabCache({ onChanged }) {
   const wasActive = useRef(false);
   useEffect(() => {
     if (wasActive.current && !scanActive) {
+      log.info('megascans.scan.stopped');
       changed.current();
     }
     wasActive.current = scanActive;
@@ -87,6 +95,7 @@ export function useFabCache({ onChanged }) {
       try {
         await work();
       } catch (failure) {
+        log.warn('megascans.fab.action.failed', { action: name, ...requestFailureFields(failure) });
         if (alive.current) {
           setError(failure.message);
         }
@@ -105,6 +114,7 @@ export function useFabCache({ onChanged }) {
       run('refresh', async () => {
         const result = await postMegascans('/refresh', {});
         setFab(result.fab);
+        log.info('megascans.cache.refreshed', { addedCount: result.added });
         setNotice(
           result.added
             ? `Added ${result.added} new ${result.added === 1 ? 'listing' : 'listings'}.`
@@ -135,6 +145,7 @@ export function useFabCache({ onChanged }) {
       }
       return result.added > 0 || result.updated > 0;
     } catch (failure) {
+      log.warn('megascans.more.load.failed', requestFailureFields(failure));
       if (alive.current) {
         setError(failure.message);
       }
@@ -147,6 +158,7 @@ export function useFabCache({ onChanged }) {
     () =>
       run('confirm', async () => {
         const result = await postMegascans('/downloads/confirm', { accepted: true });
+        log.info('megascans.downloads.confirmed');
         setFab((current) => (current ? { ...current, downloads: result.downloads } : current));
       }),
     [run],
@@ -156,6 +168,7 @@ export function useFabCache({ onChanged }) {
     () =>
       run('confirm', async () => {
         const result = await postMegascans('/downloads/revoke', {});
+        log.info('megascans.downloads.withdrawn');
         setFab((current) => (current ? { ...current, downloads: result.downloads } : current));
       }),
     [run],
@@ -170,6 +183,10 @@ export function useFabCache({ onChanged }) {
     autoTried.current = true;
     if (fab.cache.stale && !fab.block && !isScanActive(fab.scan)) {
       refresh();
+    } else if (fab.cache.stale) {
+      log.info('megascans.refresh.skipped', {
+        reason: fab.block ? 'fab_blocked' : 'scan_active',
+      });
     }
   }, [fab, refresh]);
 

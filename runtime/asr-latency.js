@@ -5,7 +5,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createLogger } from './app-log.js';
+import { atomicWriteFileSync } from './durable-file.js';
 
+const log = createLogger('asr');
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_ASR_LATENCY_MS = 160;
 export const ASR_LATENCY_MODES = Object.freeze({ 80: 0, 160: 1, 560: 6, 1120: 13 });
@@ -20,6 +23,7 @@ export function asrLatencyFile(directory) {
 
 export function validateAsrLatency(value) {
   if (!ASR_LATENCIES_MS.includes(value)) {
+    log.warn('asr.latency.rejected', { reason: 'unsupported_value', target: 'latencyMs' });
     throw Error(`Latency must be one of ${ASR_LATENCIES_MS.join(', ')} ms.`);
   }
   return value;
@@ -27,20 +31,41 @@ export function validateAsrLatency(value) {
 
 // An unreadable or invalid file means the default, never an error that blocks the engine.
 export function readAsrLatency(file = asrLatencyFile()) {
+  let value;
   try {
-    const value = JSON.parse(fs.readFileSync(file, 'utf8')).latencyMs;
-    return ASR_LATENCIES_MS.includes(value) ? value : DEFAULT_ASR_LATENCY_MS;
-  } catch {
+    value = JSON.parse(fs.readFileSync(file, 'utf8')).latencyMs;
+  } catch (error) {
+    // A missing file is the normal first-run state, so this is debug rather than warn.
+    log.debug('asr.latency.read.failed', {
+      errorClass: error?.name,
+      errorCode: error?.code,
+      reason: 'using_default',
+    });
     return DEFAULT_ASR_LATENCY_MS;
   }
+  if (ASR_LATENCIES_MS.includes(value)) {
+    return value;
+  }
+  log.warn('asr.latency.rejected', { reason: 'invalid_stored_value', target: 'latencyMs' });
+  return DEFAULT_ASR_LATENCY_MS;
 }
 
 export function writeAsrLatency(value, file = asrLatencyFile()) {
   validateAsrLatency(value);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const temporary = `${file}.${process.pid}.part`;
-  fs.writeFileSync(temporary, JSON.stringify({ latencyMs: value }));
-  fs.renameSync(temporary, file);
+  const text = JSON.stringify({ latencyMs: value });
+  try {
+    // Staged, flushed and renamed: a crash leaves the old value or the new one.
+    atomicWriteFileSync(file, text);
+  } catch (error) {
+    log.error('asr.latency.write.failed', {
+      errorClass: error?.name,
+      errorCode: error?.code,
+      reason: 'not_saved',
+    });
+    throw error;
+  }
+  log.debug('asr.latency.saved', { latencyMs: value, bytes: Buffer.byteLength(text) });
   return value;
 }
 
@@ -81,6 +106,11 @@ export async function applyAsrLatency(latencyMs, { write, probe, managed, stop, 
   try {
     await stop();
   } catch (error) {
+    log.warn('asr.engine.stop.failed', {
+      errorClass: error?.name,
+      errorCode: error?.code,
+      reason: 'left_running',
+    });
     return {
       latencyMs,
       applied: false,

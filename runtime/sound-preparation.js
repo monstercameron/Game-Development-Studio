@@ -1,4 +1,8 @@
 import { planModelLoad } from './model-load.js';
+import { resolveAutoStart } from './service-preparation.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('sfx');
 
 // The cached fp16 model is approximately 10 GiB. This working-memory budget
 // is conservative and uncalibrated; generation duration can change usage.
@@ -13,6 +17,7 @@ export function createSoundLoader({
   let inFlight = null;
   return function loadSound(token = '') {
     if (typeof token !== 'string' || token.length > 1000 || /[\r\n]/.test(token)) {
+      log.warn('sfx.request.rejected', { reason: 'invalid_token', target: 'token' });
       throw Error('Invalid model access token.');
     }
     if (inFlight) {
@@ -33,7 +38,8 @@ export function createSoundLoader({
         ) {
           throw Error('Unexpected response');
         }
-      } catch {
+      } catch (error) {
+        log.debug('sfx.status.failed', { error, reason: 'engine_unavailable' });
         return {
           status: 503,
           body: {
@@ -66,8 +72,13 @@ export function createSoundLoader({
         };
       }
       if (plan.code !== 'ready') {
+        log.info('sfx.load.rejected', { reason: plan.code });
         return { status: 409, body: plan };
       }
+      log.info('sfx.memory.checked', {
+        requiredMiB: plan.requiredMiB,
+        freeMiB: plan.device.freeMiB,
+      });
       let session;
       try {
         const response = await fetcher(`${baseUrl}/api/session`, {
@@ -79,7 +90,8 @@ export function createSoundLoader({
           throw Error('Invalid session');
         }
         session = data.session;
-      } catch {
+      } catch (error) {
+        log.warn('sfx.session.failed', { error });
         return {
           status: 503,
           body: { code: 'engine_unavailable', message: 'Could not obtain a Stable Audio session.' },
@@ -88,7 +100,8 @@ export function createSoundLoader({
       let credential;
       try {
         credential = token || (await getToken());
-      } catch {
+      } catch (error) {
+        log.warn('sfx.credential.failed', { error });
         return {
           status: 503,
           body: { code: 'engine_unavailable', message: 'Could not check model access.' },
@@ -103,6 +116,7 @@ export function createSoundLoader({
           redirect: 'error',
         });
         if (!response.ok) {
+          log.warn('sfx.load.failed', { httpStatus: response.status });
           return response.status >= 500
             ? {
                 status: 503,
@@ -120,6 +134,7 @@ export function createSoundLoader({
                 },
               };
         }
+        log.info('sfx.load.requested', { httpStatus: response.status });
         return {
           status: 202,
           body: {
@@ -128,7 +143,8 @@ export function createSoundLoader({
             memory: plan,
           },
         };
-      } catch {
+      } catch (error) {
+        log.warn('sfx.load.unknown', { error, reason: 'load_unknown' });
         return {
           status: 503,
           body: {
@@ -148,14 +164,17 @@ export function createSoundLoader({
 export function createSoundPreparation({ startEngine, loadModel, autoStart = true }) {
   return async function prepareSound({ health, reachable, claimLoad, retryModel = false }) {
     if (!reachable) {
-      if (!autoStart) {
+      if (!resolveAutoStart(autoStart)) {
+        log.info('sfx.engine.waited', { reason: 'autostart_disabled' });
         return {
           status: 'waiting_engine',
           stage: 'Waiting for the configured Stable Audio worker.',
         };
       }
+      log.info('sfx.engine.start.requested');
       const result = await startEngine('sfx');
       if (['missing', 'failed', 'port_in_use'].includes(result.status)) {
+        log.warn('sfx.engine.start.failed', { status: result.status });
         return {
           status: 'needs_attention',
           stage: 'Stable Audio could not start.',
@@ -165,6 +184,7 @@ export function createSoundPreparation({ startEngine, loadModel, autoStart = tru
       return { status: 'waiting_engine', stage: 'Starting the Stable Audio worker.' };
     }
     if (health.phase === 'generating') {
+      log.info('sfx.engine.waited', { reason: 'generating' });
       return {
         status: 'waiting_engine',
         stage: 'Waiting for Stable Audio to finish its current render.',
@@ -174,6 +194,7 @@ export function createSoundPreparation({ startEngine, loadModel, autoStart = tru
       if (!claimLoad()) {
         return null;
       }
+      log.info('sfx.load.waited', { reason: 'loading' });
       return { status: 'waiting_engine', stage: 'Loading Stable Audio model.', loadBarrier: true };
     }
     if (health.phase === 'error' && !retryModel) {
@@ -196,9 +217,15 @@ export function createSoundPreparation({ startEngine, loadModel, autoStart = tru
       };
     }
     if (result.body?.code === 'insufficient_gpu_memory') {
+      log.info('sfx.memory.waited', {
+        reason: 'waiting_memory',
+        requiredMiB: result.body.requiredMiB,
+        freeMiB: result.body.device.freeMiB,
+      });
       return { status: 'waiting_memory', stage: 'Waiting for GPU memory.', details: result.body };
     }
     if (result.body?.code === 'gpu_memory_unavailable') {
+      log.warn('sfx.memory.unavailable', { reason: 'gpu_memory_unavailable' });
       return {
         status: 'needs_attention',
         stage: 'GPU memory is unavailable.',
@@ -206,6 +233,7 @@ export function createSoundPreparation({ startEngine, loadModel, autoStart = tru
       };
     }
     if (result.status >= 400 && result.body?.code !== 'engine_unavailable') {
+      log.warn('sfx.load.rejected', { httpStatus: result.status });
       return {
         status: 'needs_attention',
         stage: 'Stable Audio model load failed.',

@@ -144,6 +144,7 @@ async function loadGalleryParts(temporaryDirectory) {
   const prelude = `
     import React, { useEffect, useState } from 'react';
     const Image = () => null;
+    const log = { debug() {}, info() {}, warn() {}, error() {} };
   `;
   const transformed = await transformWithEsbuild(
     `${prelude}\n${source.slice(start, end)}\nexport { NativeImageThumb };`,
@@ -336,6 +337,7 @@ test('the library preview heading uses the friendly name and lists the real file
         const useDialogFocus = () => useRef(null);
         const isVisualAsset = () => false;
         const canConvert = () => false;
+        const log = { debug() {}, info() {}, warn() {}, error() {} };
         ${stubs}
         ${icons}
       `;

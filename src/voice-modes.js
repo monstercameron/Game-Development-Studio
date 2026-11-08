@@ -1,4 +1,8 @@
+import { createLog } from './app-log.js';
+
 // Client-side mirror of runtime/voice-modes.js. The server validates every limit again.
+const log = createLog('voices');
+
 export const VOICE_MODE_LIST = ['preset', 'clone', 'design'];
 // Checkpoints that must be staged before a mode can run, keyed by managed model ID.
 export const VOICE_MODE_CHECKPOINTS = { clone: 'tts-base', design: 'tts-voicedesign' };
@@ -101,8 +105,12 @@ export function readClipDurationSeconds(file, { timeoutMs = CLIP_DURATION_TIMEOU
       audio.onerror = () => finish(null);
       timer = setTimeout(() => finish(null), timeoutMs);
       audio.src = objectUrl;
-    } catch {
+    } catch (error) {
       // Some browsers refuse object URLs or audio elements; the worker still checks the clip.
+      log.debug('voices.clip.length.unknown', {
+        reason: 'browser_refused',
+        errorClass: error?.name,
+      });
       finish(null);
     }
   });

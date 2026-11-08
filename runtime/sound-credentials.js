@@ -1,7 +1,10 @@
-import { credentialStore } from './credentials.js';
+import { createLogger } from './app-log.js';
+import { credentialErrorFields, credentialStore } from './credentials.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+
+const log = createLogger('credentials');
 
 // Read the user's existing local key notes without returning their contents to
 // the UI, database, MCP, or logs. Only the Hugging Face token is passed on.
@@ -11,7 +14,12 @@ export async function findSharedHuggingFaceToken(
   let names;
   try {
     names = await fs.readdir(root, { withFileTypes: true });
-  } catch {
+  } catch (error) {
+    // The folder is optional; its path and the error message are not logged.
+    log.debug('credentials.shared_token.scan.failed', {
+      reason: 'folder_unreadable',
+      ...credentialErrorFields(error),
+    });
     return '';
   }
   names = names
@@ -35,10 +43,15 @@ export async function findSharedHuggingFaceToken(
       }
       const match = (await fs.readFile(file, 'utf8')).match(/\bhf_[A-Za-z0-9]+\b/);
       if (match) {
+        log.debug('credentials.key.read', { provider: 'huggingface', source: 'shared_notes' });
         return match[0];
       }
-    } catch {
+    } catch (error) {
       // An unreadable candidate is skipped without exposing its contents.
+      log.debug('credentials.shared_token.file.skipped', {
+        reason: 'unreadable',
+        ...credentialErrorFields(error),
+      });
       continue;
     }
   }

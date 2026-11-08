@@ -5,6 +5,9 @@ import { parseChatSampling } from './runtime/chat-sampling.js';
 import { buildImageMessages } from './runtime/chat-images.js';
 import { MAX_CHAT_IMAGE_REQUEST_CHARS } from './runtime/chat-image-limits.js';
 import { chatProjectorExists, readServerVision } from './runtime/chat-vision.js';
+import { createLogger } from './runtime/app-log.js';
+
+const log = createLogger('chat');
 
 // A text-only request stays small; a request that carries pictures may be much larger.
 const MAX_CHAT_TEXT_REQUEST_CHARS = 1000000;
@@ -125,6 +128,10 @@ export function chatService({
         req.headers['x-forge-request'] !== 'chat' ||
         req.method !== 'POST'
       ) {
+        log.warn('chat.request.rejected', {
+          route: '/api/chat/:action',
+          reason: 'forbidden_request',
+        });
         return json(res, 403, { error: 'Local studio requests only.' });
       }
       let input;
@@ -135,6 +142,10 @@ export function chatService({
         for await (const chunk of req) {
           received += chunk.length;
           if (received > MAX_CHAT_IMAGE_REQUEST_CHARS) {
+            log.warn('chat.request.rejected', {
+              route: '/api/chat/:action',
+              reason: 'too_large',
+            });
             return json(res, 413, { error: 'Chat request is too large.' });
           }
           chunks.push(chunk);
@@ -142,9 +153,18 @@ export function chatService({
         const raw = Buffer.concat(chunks).toString('utf8');
         input = JSON.parse(raw);
         if (raw.length > MAX_CHAT_TEXT_REQUEST_CHARS && !hasImages(input)) {
+          log.warn('chat.request.rejected', {
+            route: '/api/chat/:action',
+            reason: 'too_large',
+          });
           return json(res, 413, { error: 'Chat request is too large.' });
         }
-      } catch {
+      } catch (error) {
+        log.warn('chat.request.rejected', {
+          route: '/api/chat/:action',
+          reason: 'invalid_json',
+          errorClass: error?.name,
+        });
         return json(res, 400, { error: 'Invalid request.' });
       }
       const route = new URL(req.url, 'http://127.0.0.1').pathname;
@@ -158,6 +178,11 @@ export function chatService({
       try {
         target = destination(input);
       } catch (e) {
+        log.warn('chat.request.rejected', {
+          route: '/api/chat/:action',
+          reason: 'invalid_connection',
+          errorClass: e?.name,
+        });
         return json(res, 400, { error: e.message });
       }
       if (route === '/vision') {
@@ -169,7 +194,12 @@ export function chatService({
         if (!key) {
           try {
             key = await store.get('openai');
-          } catch {
+          } catch (error) {
+            log.warn('chat.credential.read.failed', {
+              provider: input.provider,
+              errorClass: error?.name,
+              errorCode: error?.code,
+            });
             return json(res, 500, {
               error: 'Could not unlock the saved OpenAI key. Check the studio Windows account.',
             });
@@ -177,6 +207,11 @@ export function chatService({
         }
         key = key || process.env.OPENAI_API_KEY || '';
         if (!key) {
+          log.warn('chat.request.rejected', {
+            route: '/api/chat/:action',
+            reason: 'missing_key',
+            provider: input.provider,
+          });
           return json(res, 400, {
             error:
               'Save an OpenAI API key in studio settings, enter one here, or set OPENAI_API_KEY.',
@@ -187,6 +222,8 @@ export function chatService({
         'Content-Type': 'application/json',
         ...(key ? { Authorization: `Bearer ${key}` } : {}),
       };
+      const startedAt = Date.now();
+      let requestFields = {};
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), route === '/models' ? 15000 : 600000);
       res.on('close', () => {
@@ -195,13 +232,28 @@ export function chatService({
       });
       try {
         if (route === '/models') {
+          const stopModelsUpstream = log.time('chat.models.request.completed', {
+            provider: input.provider,
+          });
           const upstream = await fetchImpl(new URL('models', target), {
             headers,
             redirect: 'error',
             signal: abort.signal,
           });
-          const data = await upstream.json().catch(() => ({}));
+          stopModelsUpstream({ status: upstream.status });
+          const data = await upstream.json().catch((error) => {
+            log.debug('chat.upstream.body.unreadable', { errorClass: error?.name });
+            return {};
+          });
           if (!upstream.ok) {
+            log.warn('chat.request.failed', {
+              route: '/api/chat/:action',
+              reason: 'upstream_status',
+              status: upstream.status,
+              provider: input.provider,
+              ...requestFields,
+              durationMs: Date.now() - startedAt,
+            });
             return json(res, upstream.status, {
               error: sanitize(data?.error?.message || `Server returned ${upstream.status}.`, key),
             });
@@ -225,6 +277,10 @@ export function chatService({
           !input.messages.length ||
           input.messages.length > 150
         ) {
+          log.warn('chat.request.rejected', {
+            route: '/api/chat/:action',
+            reason: 'invalid_model',
+          });
           return json(res, 400, { error: 'Choose a model and provide a conversation.' });
         }
         if (
@@ -238,17 +294,36 @@ export function chatService({
               m.content.length <= 100000,
           )
         ) {
+          log.warn('chat.request.rejected', {
+            route: '/api/chat/:action',
+            reason: 'invalid_conversation',
+          });
           return json(res, 400, { error: 'Invalid conversation.' });
         }
         let built;
         try {
           built = buildImageMessages(input.messages);
         } catch (error) {
+          log.warn('chat.request.rejected', {
+            route: '/api/chat/:action',
+            reason: 'invalid_image',
+          });
           return json(res, 400, { error: error.message, code: 'invalid_image' });
         }
         const messages = built.messages;
+        requestFields = {
+          modelId: input.model,
+          provider: input.provider,
+          messageCount: input.messages.length,
+          imageCount: built.imageCount,
+        };
+        log.debug('chat.request.started', requestFields);
         if (built.imageCount) {
           if (!isStudioEngine(input, target)) {
+            log.warn('chat.request.rejected', {
+              route: '/api/chat/:action',
+              reason: 'vision_unsupported',
+            });
             return json(res, 400, {
               error: 'Image input is available only with the local Qwen engine.',
               code: 'vision_unsupported_provider',
@@ -262,6 +337,10 @@ export function chatService({
             });
           }
           if (!vision.available) {
+            log.warn('chat.request.rejected', {
+              route: '/api/chat/:action',
+              reason: 'vision_unavailable',
+            });
             return json(res, 409, { error: vision.message, code: 'vision_unavailable' });
           }
         }
@@ -273,12 +352,20 @@ export function chatService({
           temperature < 0 ||
           temperature > 2
         ) {
+          log.warn('chat.request.rejected', {
+            route: '/api/chat/:action',
+            reason: 'invalid_temperature',
+          });
           return json(res, 400, { error: 'Temperature must be a number from 0 to 2.' });
         }
         let sampling;
         try {
           sampling = parseChatSampling(input, { provider: input.provider });
         } catch (error) {
+          log.warn('chat.request.rejected', {
+            route: '/api/chat/:action',
+            reason: 'invalid_sampling',
+          });
           return json(res, 400, { error: error.message });
         }
         const payload = {
@@ -300,6 +387,10 @@ export function chatService({
         }
         const maxTokens = input.maxTokens === undefined ? 1024 : Number(input.maxTokens);
         if (!Number.isSafeInteger(maxTokens) || maxTokens < 1 || maxTokens > 262144) {
+          log.warn('chat.request.rejected', {
+            route: '/api/chat/:action',
+            reason: 'invalid_max_tokens',
+          });
           return json(res, 400, {
             error: 'Maximum output tokens must be a whole number from 1 to 262,144.',
           });
@@ -311,6 +402,10 @@ export function chatService({
         }
         if (input.effort !== undefined && input.effort !== 'auto') {
           if (!['none', 'low', 'medium', 'high'].includes(input.effort)) {
+            log.warn('chat.request.rejected', {
+              route: '/api/chat/:action',
+              reason: 'invalid_effort',
+            });
             return json(res, 400, { error: 'Choose a valid thinking effort.' });
           }
           payload.reasoning_effort = input.effort;
@@ -335,6 +430,10 @@ export function chatService({
         }
         if (input.format === 'schema') {
           if (!input.schema || typeof input.schema !== 'object' || Array.isArray(input.schema)) {
+            log.warn('chat.request.rejected', {
+              route: '/api/chat/:action',
+              reason: 'invalid_schema',
+            });
             return json(res, 400, { error: 'Enter a valid JSON schema object.' });
           }
           payload.response_format = {
@@ -342,6 +441,9 @@ export function chatService({
             json_schema: { name: 'studio_output', strict: true, schema: input.schema },
           };
         }
+        const stopCompletionUpstream = log.time('chat.completion.request.completed', {
+          provider: input.provider,
+        });
         const upstream = await fetchImpl(new URL('chat/completions', target), {
           method: 'POST',
           headers,
@@ -349,8 +451,20 @@ export function chatService({
           redirect: 'error',
           signal: abort.signal,
         });
+        stopCompletionUpstream({ status: upstream.status });
         if (!upstream.ok) {
-          const data = await upstream.json().catch(() => ({}));
+          const data = await upstream.json().catch((error) => {
+            log.debug('chat.upstream.body.unreadable', { errorClass: error?.name });
+            return {};
+          });
+          log.warn('chat.request.failed', {
+            route: '/api/chat/:action',
+            reason: 'upstream_status',
+            status: upstream.status,
+            provider: input.provider,
+            ...requestFields,
+            durationMs: Date.now() - startedAt,
+          });
           return json(res, upstream.status, {
             error: sanitize(data?.error?.message || `Server returned ${upstream.status}.`, key),
           });
@@ -364,9 +478,48 @@ export function chatService({
           'X-Accel-Buffering': 'no',
         });
         Readable.fromWeb(upstream.body)
-          .on('error', () => res.destroy())
+          .on('end', () => {
+            log.info('chat.request.completed', {
+              ...requestFields,
+              durationMs: Date.now() - startedAt,
+            });
+          })
+          .on('error', (error) => {
+            if (abort.signal.aborted) {
+              log.info('chat.request.cancelled', {
+                ...requestFields,
+                durationMs: Date.now() - startedAt,
+                reason: 'aborted',
+              });
+            } else {
+              log.warn('chat.request.failed', {
+                ...requestFields,
+                durationMs: Date.now() - startedAt,
+                reason: 'stream_error',
+                errorClass: error?.name,
+                errorCode: error?.code,
+              });
+            }
+            res.destroy();
+          })
           .pipe(res);
       } catch (error) {
+        if (abort.signal.aborted && error?.name === 'AbortError') {
+          log.info('chat.request.cancelled', {
+            ...requestFields,
+            durationMs: Date.now() - startedAt,
+            reason: 'aborted',
+          });
+        } else {
+          log.warn('chat.request.failed', {
+            route: '/api/chat/:action',
+            ...requestFields,
+            durationMs: Date.now() - startedAt,
+            reason: 'request_error',
+            errorClass: error?.name,
+            errorCode: error?.cause?.code || error?.code,
+          });
+        }
         if (!res.headersSent && !res.destroyed) {
           json(res, 502, {
             error: sanitize(

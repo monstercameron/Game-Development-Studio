@@ -1,4 +1,7 @@
 import React from 'react';
+import { createLog } from './app-log.js';
+
+const log = createLog('errors');
 
 /** Keep a failed workspace from taking the navigation and the rest of Forge down. */
 export default class PageErrorBoundary extends React.Component {
@@ -9,14 +12,16 @@ export default class PageErrorBoundary extends React.Component {
     this.headingRef.current?.focus();
     // The Errors review listens for this event (src/error-capture.js). An event keeps this
     // boundary free of imports, so it still works if error capture fails to load.
+    log.error('errors.boundary.caught', { errorClass: error?.name });
     try {
       window.dispatchEvent(
         new window.CustomEvent('forge:caught-error', {
           detail: { error, componentStack: info?.componentStack || '', name: this.props.name },
         }),
       );
-    } catch {
+    } catch (dispatchError) {
       // Reporting is optional; the fallback below is what keeps the studio usable.
+      log.warn('errors.boundary.dispatch.failed', { errorClass: dispatchError?.name });
     }
   }
 
@@ -37,6 +42,7 @@ export default class PageErrorBoundary extends React.Component {
       if (error !== null && error !== undefined) {
         detail = String(error);
       }
+      // log-coverage: ignore -- static render-phase method; logging during rendering is not allowed
     } catch {
       // A thrown object's custom string conversion can itself fail.
     }
@@ -46,6 +52,7 @@ export default class PageErrorBoundary extends React.Component {
   getErrorDetails() {
     try {
       return this.state.error?.stack || this.state.error?.message || 'Unknown page error.';
+      // log-coverage: ignore -- called from render(); logging during rendering is not allowed
     } catch {
       return 'Error details could not be read.';
     }
@@ -58,8 +65,10 @@ export default class PageErrorBoundary extends React.Component {
         throw new Error('Clipboard access is unavailable.');
       }
       await navigator.clipboard.writeText(detail);
+      log.info('errors.copy.succeeded', { kind: 'boundary' });
       this.setState({ copyStatus: 'Error details copied.' });
-    } catch {
+    } catch (error) {
+      log.warn('errors.copy.failed', { kind: 'boundary', errorClass: error?.name });
       this.setState({ copyStatus: 'Copy is unavailable. Select the details below.' });
     }
   }

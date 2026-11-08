@@ -4,7 +4,7 @@ import { configuredServices, inspectService } from './catalog.js';
 import { JobQueue, engineUrl } from './jobs.js';
 import { QueueMoveError, describeMove } from './queue-order.js';
 import { decide } from './game.js';
-import { createModelLoader } from './model-load.js';
+import { createModelLoader, setHostMemoryPolicySource } from './model-load.js';
 import { DEFAULT_CHAT_CONTEXT, validateChatContext } from './chat-memory.js';
 import { planChatLoad } from './chat-load-plan.js';
 import { CHAT_PROJECTOR_MIB, chatProjectorExists } from './chat-vision.js';
@@ -13,8 +13,13 @@ import { EngineManager } from './engines.js';
 import { EngineClient } from './engine-client.js';
 import { stopExternalModel } from './external-model-stop.js';
 import { createMusicPreparation } from './music-preparation.js';
-import { createServicePreparation, autoStartsService } from './service-preparation.js';
+import {
+  createServicePreparation,
+  autoStartsService,
+  gatePreparation,
+} from './service-preparation.js';
 import { createRecoverService } from './recover-service.js';
+import { getSetting } from './core-settings.js';
 import { createVideoPreparation } from './video-preparation.js';
 import { createImagePreparation } from './image-preparation.js';
 import { createSoundLoader, createSoundPreparation } from './sound-preparation.js';
@@ -60,7 +65,11 @@ import { resolveAssetOutputs } from './asset-output.js';
 import { statfs } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { watchForSuspend } from './session-state.js';
+import { createLogger } from './app-log.js';
 
+const log = createLogger('queue');
+const gpuLog = createLogger('gpu');
 const startedAt = new Date().toISOString();
 const engines = process.env.FORGE_ENGINE_BROKER === '1' ? new EngineClient() : new EngineManager();
 let gpuThread;
@@ -72,6 +81,7 @@ let gpuInFlight = null;
 function startGpuThread() {
   const worker = new Worker(new URL('./gpu-worker.js', import.meta.url));
   gpuThread = worker;
+  gpuLog.info('gpu.monitor.spawned', { kind: 'thread' });
   worker.on('message', ({ id, result }) => {
     const pending = gpuPending.get(id);
     if (pending) {
@@ -80,8 +90,12 @@ function startGpuThread() {
       pending.resolve(result);
     }
   });
-  worker.on('error', (error) => console.error('GPU monitor failed:', error.message));
-  worker.on('exit', () => {
+  worker.on('error', (error) => {
+    console.error('GPU monitor failed:', error.message);
+    gpuLog.warn('gpu.monitor.failed', { error });
+  });
+  worker.on('exit', (exitCode) => {
+    gpuLog.info('gpu.monitor.exited', { kind: 'thread', exitCode, pendingCount: gpuPending.size });
     for (const pending of gpuPending.values()) {
       clearTimeout(pending.timer);
       pending.resolve({ available: false, devices: [], error: 'GPU monitor restarted.' });
@@ -105,13 +119,15 @@ function hardware(force = false) {
   gpuInFlight = new Promise((resolve) => {
     const id = ++gpuRequest;
     const timer = setTimeout(() => {
+      gpuLog.warn('gpu.monitor.timed_out', { timeoutMs: 6500 });
       gpuPending.delete(id);
       resolve({ available: false, devices: [], error: 'GPU monitor timed out.' });
     }, 6500);
     gpuPending.set(id, { resolve, timer });
     try {
       gpuThread.postMessage({ id });
-    } catch {
+    } catch (error) {
+      gpuLog.warn('gpu.monitor.post.failed', { error });
       clearTimeout(timer);
       gpuPending.delete(id);
       resolve({ available: false, devices: [], error: 'GPU monitor unavailable.' });
@@ -177,7 +193,11 @@ async function memoryServiceStates() {
       redirect: 'error',
     })
       .then((r) => r.ok)
-      .catch(() => false),
+      .catch((error) => {
+        // An unreachable chat server is the normal case when Qwen is not running.
+        log.debug('queue.chat.probe.failed', { engineId: 'chat', error });
+        return false;
+      }),
   ]);
   if (reachable) {
     states.push({
@@ -259,31 +279,38 @@ const loadGame = createGameLoader({
   activity: () => engines.gameActivity(),
   requestLoad: () => engines.requestGameLoad(),
 });
-const prepareMusic =
-  process.env.FORGE_AUTO_PREPARE_MUSIC === '0'
-    ? null
-    : createMusicPreparation({
-        startEngine: (id) => engines.start(id),
-        loadModel: loadMusic,
-        autoStart: !process.env.FORGE_MUSIC_URL || process.env.FORGE_AUTO_START_MUSIC === '1',
-      });
-const prepareSound =
-  process.env.FORGE_AUTO_PREPARE_SOUND === '0'
-    ? null
-    : createSoundPreparation({
-        startEngine: (id) => engines.start(id),
-        loadModel: loadSound,
-        autoStart: !process.env.FORGE_SFX_URL || process.env.FORGE_AUTO_START_SOUND === '1',
-      });
+// Automatic starts and model loads follow the live settings (see runtime/core-settings.js): an
+// environment variable still wins, then a saved override, then the default. A change made in
+// Settings or through MCP applies to the next job without restarting the worker.
+setHostMemoryPolicySource(() => getSetting('memory.hostPolicy'));
+const autoStartSetting = (engine) => () => {
+  const isEnabled = getSetting(`engines.autoStart.${engine}`);
+  log.debug('engine.autostart.decided', {
+    engineId: engine,
+    decision: isEnabled ? 'enabled' : 'disabled',
+    source: 'setting',
+  });
+  return isEnabled;
+};
+const musicPreparation = createMusicPreparation({
+  startEngine: (id) => engines.start(id),
+  loadModel: loadMusic,
+  autoStart: autoStartSetting('music'),
+});
+const soundPreparation = createSoundPreparation({
+  startEngine: (id) => engines.start(id),
+  loadModel: loadSound,
+  autoStart: autoStartSetting('sound'),
+});
 const prepareTts = createTtsPreparation({
   startEngine: (id) => engines.start(id),
   loadModel: loadTts,
-  autoStart: !process.env.FORGE_TTS_URL || process.env.FORGE_AUTO_START_TTS === '1',
+  autoStart: autoStartSetting('tts'),
 });
 const prepareHunyuan = createHunyuanPreparation({
   startEngine: (id) => engines.start(id),
   loadModel: loadHunyuan,
-  autoStart: !process.env.FORGE_HUNYUAN_URL || process.env.FORGE_AUTO_START_HUNYUAN === '1',
+  autoStart: autoStartSetting('hunyuan'),
 });
 const prepareHunyuanRender = createHunyuanRenderPreparation({
   hardware: () => hardware(true),
@@ -293,7 +320,7 @@ const prepareTrellis = createTrellisPreparation({
   startEngine: (id) => engines.start(id),
   loadModel: loadTrellis,
   services: memoryServiceStates,
-  autoStart: !process.env.FORGE_TRELLIS_URL || process.env.FORGE_AUTO_START_TRELLIS === '1',
+  autoStart: autoStartSetting('trellis'),
 });
 const prepareTrellisRender = createTrellisRenderPreparation({
   hardware: () => hardware(true),
@@ -302,7 +329,7 @@ const prepareTrellisRender = createTrellisRenderPreparation({
 const prepareSam31 = createSam31Preparation({
   startEngine: (id) => engines.start(id),
   loadModel: loadSam31,
-  autoStart: !process.env.FORGE_SAM31_URL || process.env.FORGE_AUTO_START_SAM31 === '1',
+  autoStart: autoStartSetting('sam31'),
 });
 const prepareSam31Render = createSam31RenderPreparation({
   hardware: () => hardware(true),
@@ -311,7 +338,7 @@ const prepareSam31Render = createSam31RenderPreparation({
 const prepareHyMotion = createHyMotionPreparation({
   startEngine: (id) => engines.start(id),
   loadModel: loadHyMotion,
-  autoStart: !process.env.FORGE_HYMOTION_URL || process.env.FORGE_AUTO_START_HYMOTION === '1',
+  autoStart: autoStartSetting('hymotion'),
 });
 const prepareHyMotionRender = createHyMotionRenderPreparation({
   hardware: () => hardware(true),
@@ -320,8 +347,7 @@ const prepareHyMotionRender = createHyMotionRenderPreparation({
 const prepareMotionBricks = createMotionBricksPreparation({
   startEngine: (id) => engines.start(id),
   loadModel: loadMotionBricks,
-  autoStart:
-    !process.env.FORGE_MOTIONBRICKS_URL || process.env.FORGE_AUTO_START_MOTIONBRICKS === '1',
+  autoStart: autoStartSetting('motionbricks'),
 });
 const prepareMotionBricksRender = createMotionBricksRenderPreparation({
   hardware: () => hardware(true),
@@ -329,8 +355,43 @@ const prepareMotionBricksRender = createMotionBricksRenderPreparation({
 });
 const prepareService = createServicePreparation({
   startEngine: (id) => engines.start(id),
-  autoStart: (type) => autoStartsService(type, process.env),
+  autoStart: (type) => {
+    const isEnabled = autoStartsService(type, process.env, getSetting);
+    log.debug('engine.autostart.decided', {
+      engineId: type,
+      decision: isEnabled ? 'enabled' : 'disabled',
+      source: 'service',
+    });
+    return isEnabled;
+  },
 });
+// With automatic loading off, music and sound renders wait for the engine like any other worker.
+const prepareMusic = gatePreparation(
+  musicPreparation,
+  () => {
+    const isEnabled = getSetting('engines.autoPrepare.music');
+    log.debug('engine.autoprepare.decided', {
+      engineId: 'music',
+      decision: isEnabled ? 'enabled' : 'disabled',
+      source: 'setting',
+    });
+    return isEnabled;
+  },
+  ({ reachable, health }) => prepareService({ type: 'music', reachable, health }),
+);
+const prepareSound = gatePreparation(
+  soundPreparation,
+  () => {
+    const isEnabled = getSetting('engines.autoPrepare.sound');
+    log.debug('engine.autoprepare.decided', {
+      engineId: 'sound',
+      decision: isEnabled ? 'enabled' : 'disabled',
+      source: 'setting',
+    });
+    return isEnabled;
+  },
+  ({ reachable, health }) => prepareService({ type: 'sfx', reachable, health }),
+);
 const prepareVideo = createVideoPreparation({
   hardware: () => hardware(true),
   services: memoryServiceStates,
@@ -368,7 +429,10 @@ async function describeModels() {
       redirect: 'error',
     })
       .then((response) => response.ok)
-      .catch(() => false),
+      .catch((error) => {
+        log.debug('queue.chat.probe.failed', { engineId: 'chat', error });
+        return false;
+      }),
     engines.status().catch(() => null),
   ]);
   const chatService = {
@@ -387,7 +451,10 @@ async function describeModels() {
     managedIds: managedModels.map((model) => model.id),
   });
 }
-const recoverService = createRecoverService({ startEngine: (id) => engines.start(id) });
+const recoverService = createRecoverService({
+  startEngine: (id) => engines.start(id),
+  readSetting: getSetting,
+});
 const autoMemory = createAutoMemoryManager({
   services: serviceStates,
   offload: (id) => engines.offload(id),
@@ -411,11 +478,20 @@ const queue = new JobQueue({
   prepareImage,
   recoverService,
   autoMemory,
+  chainUnload: () => {
+    const isEnabled = getSetting('queue.chainUnload');
+    log.debug('queue.chainunload.decided', {
+      decision: isEnabled ? 'enabled' : 'disabled',
+      source: 'setting',
+    });
+    return isEnabled;
+  },
   refreshHardware: () => hardware(true),
   onQueueLog: (record) => console.log(JSON.stringify({ source: 'queue', ...record })),
   onModelLoadBarrier: (engine) => ensureModelLoadMonitor(engine),
 });
 async function monitorModelLoad(engine) {
+  let hasLoggedProbeFailure = false;
   while (!queue.stopped && queue.modelLoadInProgress && queue.modelLoadEngine === engine) {
     if (engine === 'chat') {
       try {
@@ -426,8 +502,12 @@ async function monitorModelLoad(engine) {
         if (r.ok && queue.resumeAfterModelLoad('chat')) {
           return;
         }
-      } catch {
+      } catch (error) {
         // A failed health probe is inconclusive; verify ownership before clearing.
+        if (!hasLoggedProbeFailure) {
+          hasLoggedProbeFailure = true;
+          log.debug('queue.loadmonitor.probe.failed', { engineId: engine, error });
+        }
       }
       // Clear a failed launch only when this worker saw the owned process start,
       // the supervisor confirms it exited, and the listener is closed.
@@ -492,8 +572,12 @@ async function monitorModelLoad(engine) {
       if (response.ok && finished && queue.resumeAfterModelLoad(engine)) {
         return;
       }
-    } catch {
+    } catch (error) {
       // Keep the barrier and retry until the worker reports a verified state.
+      if (!hasLoggedProbeFailure) {
+        hasLoggedProbeFailure = true;
+        log.debug('queue.loadmonitor.probe.failed', { engineId: engine, error });
+      }
     }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
@@ -519,9 +603,18 @@ function ensureModelLoadMonitor(engine) {
     return;
   }
   monitoringLoads.add(engine);
+  log.info('queue.loadmonitor.started', { engineId: engine });
+  const stopMonitorTimer = log.time('queue.loadmonitor.finished', { engineId: engine });
   monitorModelLoad(engine)
-    .catch((error) => console.error('Model load monitor:', error.message))
-    .finally(() => monitoringLoads.delete(engine));
+    .catch((error) => {
+      console.error('Model load monitor:', error.message);
+      log.warn('queue.loadmonitor.failed', { engineId: engine, error });
+    })
+    .finally(() => {
+      monitoringLoads.delete(engine);
+      // The barrier is still set when the loop ended because the queue stopped.
+      stopMonitorTimer({ isQueueStopped: queue.stopped === true });
+    });
 }
 async function manualChatLoad({ speculative = true, contextSize = DEFAULT_CHAT_CONTEXT }) {
   if (typeof speculative !== 'boolean') {
@@ -819,6 +912,10 @@ async function clearMusicLoadBarrier({ confirmNotLoading }) {
       signal: AbortSignal.timeout(2500),
       redirect: 'error',
     });
+    log.debug('queue.loadbarrier.status.checked', {
+      engineId: 'music',
+      httpStatus: response.status,
+    });
     if (!response.ok) {
       throw Error('YuE2 status request failed.');
     }
@@ -862,6 +959,10 @@ async function clearSoundLoadBarrier({ confirmNotLoading }) {
       signal: AbortSignal.timeout(2500),
       redirect: 'error',
     });
+    log.debug('queue.loadbarrier.status.checked', {
+      engineId: 'sfx',
+      httpStatus: response.status,
+    });
     if (!response.ok) {
       throw Error('Stable Audio status request failed.');
     }
@@ -902,6 +1003,10 @@ async function clearTtsLoadBarrier({ confirmNotLoading }) {
     const response = await fetch(`${engineUrl('tts')}/api/status`, {
       signal: AbortSignal.timeout(2500),
       redirect: 'error',
+    });
+    log.debug('queue.loadbarrier.status.checked', {
+      engineId: 'tts',
+      httpStatus: response.status,
     });
     if (!response.ok) {
       throw Error('Qwen3-TTS status request failed.');
@@ -965,6 +1070,10 @@ async function clearHunyuanLoadBarrier({ confirmNotLoading }) {
       signal: AbortSignal.timeout(2500),
       redirect: 'error',
     });
+    log.debug('queue.loadbarrier.status.checked', {
+      engineId: '3d-hunyuan',
+      httpStatus: response.status,
+    });
     if (!response.ok) {
       throw Error('Hunyuan3D status request failed.');
     }
@@ -1007,11 +1116,16 @@ async function clearTrellisLoadBarrier({ confirmNotLoading }) {
       signal: AbortSignal.timeout(2500),
       redirect: 'error',
     });
+    log.debug('queue.loadbarrier.status.checked', {
+      engineId: '3d-trellis',
+      httpStatus: response.status,
+    });
     if (response.ok) {
       health = await response.json();
     }
-  } catch {
+  } catch (error) {
     // An unavailable status is treated as unknown and cannot clear the barrier.
+    log.warn('queue.loadbarrier.status.failed', { engineId: '3d-trellis', error });
   }
   if (
     !health ||
@@ -1039,6 +1153,10 @@ async function clearSam31LoadBarrier({ confirmNotLoading }) {
     const response = await fetch(`${engineUrl('segmentation')}/api/status`, {
       signal: AbortSignal.timeout(2500),
       redirect: 'error',
+    });
+    log.debug('queue.loadbarrier.status.checked', {
+      engineId: 'segmentation',
+      httpStatus: response.status,
     });
     if (!response.ok) {
       throw Error('SAM 3.1 status request failed.');
@@ -1081,6 +1199,10 @@ async function clearHyMotionLoadBarrier({ confirmNotLoading }) {
       signal: AbortSignal.timeout(2500),
       redirect: 'error',
     });
+    log.debug('queue.loadbarrier.status.checked', {
+      engineId: 'motion-hy',
+      httpStatus: response.status,
+    });
     if (!response.ok) {
       throw Error('HY-Motion status request failed.');
     }
@@ -1121,6 +1243,10 @@ async function clearMotionBricksLoadBarrier({ confirmNotLoading }) {
     const response = await fetch(`${engineUrl('motion-bricks')}/api/status`, {
       signal: AbortSignal.timeout(2500),
       redirect: 'error',
+    });
+    log.debug('queue.loadbarrier.status.checked', {
+      engineId: 'motion-bricks',
+      httpStatus: response.status,
     });
     if (!response.ok) {
       throw Error('MotionBricks status request failed.');
@@ -1183,7 +1309,8 @@ const handlers = {
         ...gpu,
         disk: { freeBytes: disk.bavail * disk.bsize, totalBytes: disk.blocks * disk.bsize },
       };
-    } catch {
+    } catch (error) {
+      log.debug('queue.disk.stat.failed', { error });
       return { ...gpu, disk: null };
     }
   },
@@ -1355,24 +1482,74 @@ const handlers = {
     }
   },
 };
+// Polled by the studio every few seconds; logged at debug so the log shows only real actions.
+const POLLED_METHODS = new Set([
+  'health',
+  'services',
+  'modelCatalog',
+  'modelStorage',
+  'hardware',
+  'jobs',
+  'job',
+  'estimate',
+  'asrLatency',
+]);
 process.on('message', async (message) => {
-  if (!message || typeof message.id !== 'number' || !Object.hasOwn(handlers, message.method)) {
+  // Replies to this worker's own engine requests share the channel; engine-client.js and
+  // engine-broker.js handle them, so they are not rejected requests.
+  if (message?.type === 'engine_reply') {
     return;
   }
+  if (!message || typeof message.id !== 'number' || !Object.hasOwn(handlers, message.method)) {
+    log.warn('queue.worker.request.rejected', { reason: 'unknown_method_or_invalid_message' });
+    return;
+  }
+  const startedMs = Date.now();
   try {
     const result = await handlers[message.method](message.params || {});
+    const completedFields = { method: message.method, durationMs: Date.now() - startedMs };
+    if (typeof result?.cleared === 'boolean') {
+      completedFields.isCleared = result.cleared;
+    }
+    if (POLLED_METHODS.has(message.method)) {
+      log.debug('queue.worker.request.completed', completedFields);
+    } else {
+      log.info('queue.worker.request.completed', completedFields);
+    }
     if (process.connected) {
       process.send({ id: message.id, result });
     }
   } catch (error) {
+    log.warn('queue.worker.request.failed', {
+      method: message.method,
+      durationMs: Date.now() - startedMs,
+      error,
+    });
     if (process.connected) {
       process.send({ id: message.id, error: error.message });
     }
   }
 });
+// A wall-clock jump means the computer slept. Engines usually survive that, but a submission
+// that was in flight is now of unknown outcome (see JobQueue.handleResume).
+const stopWatchingForSuspend = watchForSuspend(({ gapMs }) => {
+  log.warn('queue.worker.resume.detected', { gapMs });
+  return queue.handleResume(gapMs);
+});
 process.on('disconnect', () => {
+  log.info('queue.process.stopped', {
+    pid: process.pid,
+    reason: 'parent_disconnected',
+    durationMs: Math.round(process.uptime() * 1000),
+  });
+  stopWatchingForSuspend();
   queue.stop();
   gpuThread?.terminate();
   process.exit(0);
+});
+log.info('queue.process.started', {
+  pid: process.pid,
+  isBrokered: process.env.FORGE_ENGINE_BROKER === '1',
+  hasParent: typeof process.send === 'function',
 });
 process.send?.({ type: 'ready', pid: process.pid });

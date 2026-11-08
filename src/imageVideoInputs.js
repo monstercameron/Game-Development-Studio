@@ -67,6 +67,7 @@ export function sigmaScheduleError(text) {
   try {
     parseSigmaText(text);
     return '';
+    // log-coverage: ignore -- called during render by ImageVideoSettings to show the message
   } catch (error) {
     return error.message;
   }

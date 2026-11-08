@@ -72,3 +72,5 @@ secrets.json
 /test/.jsx-*/
 /test/.video-ui-*/
 /test/.world-studio-ui-*/
+/test/.generation-ui-*/
+/test/.voice-pair-*/

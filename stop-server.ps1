@@ -19,6 +19,20 @@ if ($state -and [int]$state.pid -eq $serverPid -and $state.startTimeUtcTicks) {
     $actualTicks = (Get-Process -Id $serverPid -ErrorAction Stop).StartTime.ToUniversalTime().Ticks
     if ($actualTicks -ne [long]$state.startTimeUtcTicks) { throw "PID $serverPid has been reused; nothing was stopped." }
 }
-Stop-Process -Id $serverPid -ErrorAction Stop
+# Ask the studio to stop in an orderly way first: it closes SQLite, checkpoints the queue and writes
+# the clean-shutdown marker. Terminate the process only if it is still running after the deadline
+# (for example a studio started before this stop request existed).
+try {
+    $requestPath = Join-Path $projectRoot ".forge-runtime\stop-request-$Port.json"
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $requestPath) | Out-Null
+    $request = @{ pid = $serverPid; requestedAt = [datetime]::UtcNow.ToString('o'); reason = 'stop-server' } | ConvertTo-Json -Compress
+    [System.IO.File]::WriteAllText($requestPath, $request)
+    $deadline = [datetime]::UtcNow.AddSeconds(8)
+    while ([datetime]::UtcNow -lt $deadline -and (Get-Process -Id $serverPid -ErrorAction SilentlyContinue)) { Start-Sleep -Milliseconds 200 }
+} catch { Write-Host "Could not request an orderly stop: $($_.Exception.Message)" }
+if (Get-Process -Id $serverPid -ErrorAction SilentlyContinue) {
+    Write-Host 'The studio did not stop in time; terminating it.'
+    Stop-Process -Id $serverPid -ErrorAction Stop
+}
 if ($state -and [int]$state.pid -eq $serverPid) { Remove-Item -LiteralPath $statePath -Force }
 Write-Host "Stopped studio server on port $Port (PID $serverPid)."

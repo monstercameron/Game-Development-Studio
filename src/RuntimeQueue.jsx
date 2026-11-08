@@ -35,6 +35,9 @@ import {
   QueueReorderNotes,
   reorderRowClass,
 } from './QueueReorderControls.jsx';
+import { createLog } from './app-log.js';
+
+const log = createLog('queue');
 
 export async function post(path, body = {}) {
   const response = await fetch(path, {
@@ -448,7 +451,9 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
           ? 'Interrupted render marked cancelled.'
           : `Render ${kind === 'retry' ? 'retried' : 'cancelled'}.`,
       );
+      log.info('queue.render.action.completed', { jobId: job.id, action: kind });
     } catch (e) {
+      log.warn('queue.render.action.failed', { jobId: job.id, action: kind, error: e });
       setError(e.message);
     } finally {
       setBusy('');
@@ -461,7 +466,8 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
       );
       setCopied(job.id);
       setTimeout(() => setCopied(''), 2500);
-    } catch {
+    } catch (error) {
+      log.warn('queue.error.copy.failed', { jobId: job.id, error });
       setError('Could not copy the error. Select its text and copy it instead.');
     }
   }
@@ -705,10 +711,12 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
       setNotice(
         `${result.cancelled} waiting ${result.cancelled === 1 ? 'render' : 'renders'} cancelled.`,
       );
+      log.info('queue.waiting.cleared', { count: result.cancelled });
       setConfirmClear(false);
       setConfirmation('');
       await refresh();
     } catch (e) {
+      log.warn('queue.waiting.clear.failed', { error: e });
       setError(e.message);
     } finally {
       setBusy('');

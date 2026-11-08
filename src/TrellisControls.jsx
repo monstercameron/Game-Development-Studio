@@ -19,6 +19,7 @@ function fieldError(overrides) {
       [validationReference],
     );
     return '';
+    // log-coverage: ignore -- render-time validator (inline message), not logged per render
   } catch (reason) {
     return reason.message;
   }

@@ -11,7 +11,8 @@ const projectId = '11111111-1111-4111-8111-111111111111';
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Rendering a creation page posts price estimates; only real queue submissions matter here.
-const notEstimate = (url) => !url.endsWith('/estimate');
+// Estimates and browser log batches are not queue submissions.
+const notEstimate = (url) => !url.endsWith('/estimate') && !url.endsWith('/api/logs/ingest');
 const draftFor = (extra = {}) => ({ prompt: '', second: '', refs: [], ...extra });
 
 test('required fields are reported in form order with the field that owns each message', () => {

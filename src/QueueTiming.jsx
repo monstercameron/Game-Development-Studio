@@ -16,14 +16,18 @@ import {
 } from './queue-timing.js';
 import './queue-timing.css';
 import { applyWaitingOrder } from './queue-reorder.js';
+import { pollDelayMs } from './reconnect.js';
+import { createLog } from './app-log.js';
 
 const TimingContext = createContext(null);
 const MAX_ESTIMATED_JOBS = 50;
 const HIDDEN_QUEUE_KEY = 'forge-hidden-queue-ids-v1';
+const log = createLog('queue');
 function loadHidden() {
   try {
     const ids = JSON.parse(localStorage.getItem(HIDDEN_QUEUE_KEY));
     return Array.isArray(ids) ? ids.filter((id) => typeof id === 'string').slice(-500) : [];
+    // log-coverage: ignore -- render-time initializer; a bad saved value becomes none
   } catch {
     return [];
   }
@@ -39,7 +43,8 @@ export function QueueTimingProvider({ children }) {
   useEffect(() => {
     try {
       localStorage.setItem(HIDDEN_QUEUE_KEY, JSON.stringify(hiddenIds));
-    } catch {
+    } catch (error) {
+      log.debug('queue.hidden.save.failed', { errorClass: error?.name });
       // Browser storage may be unavailable; queue state remains in memory.
     }
   }, [hiddenIds]);
@@ -63,6 +68,8 @@ export function QueueTimingProvider({ children }) {
   const cache = useRef(new Map()),
     history = useRef(''),
     generation = useRef(0),
+    // Consecutive failed polls; drives the retry backoff and the reconnecting message.
+    failures = useRef(0),
     mounted = useRef(true);
   const refresh = useCallback(async () => {
     const sequence = ++generation.current;
@@ -78,6 +85,10 @@ export function QueueTimingProvider({ children }) {
       const next = data.jobs;
       setJobs(next);
       setError('');
+      if (failures.current > 0) {
+        log.info('queue.refresh.recovered', { failureCount: failures.current });
+      }
+      failures.current = 0;
       setLoading(false);
       setClock(Date.now());
       const signature = next
@@ -115,7 +126,8 @@ export function QueueTimingProvider({ children }) {
             if (history.current === signature) {
               cache.current.set(key, estimate);
             }
-          } catch {
+          } catch (error) {
+            log.debug('queue.estimate.failed', { jobId: job.id, errorClass: error?.name });
             estimate = estimateFromNearbyHistory(job.type, job.request, next);
           }
         }
@@ -135,6 +147,19 @@ export function QueueTimingProvider({ children }) {
       }
     } catch (reason) {
       if (mounted.current && sequence === generation.current) {
+        failures.current += 1;
+        const isFirstFailure = failures.current === 1;
+        if (isFirstFailure) {
+          log.warn('queue.refresh.failed', {
+            failureCount: failures.current,
+            errorClass: reason?.name,
+          });
+        } else {
+          log.debug('queue.refresh.failed', {
+            failureCount: failures.current,
+            errorClass: reason?.name,
+          });
+        }
         setError(reason.message || 'Queue unavailable.');
         setLoading(false);
       }
@@ -162,11 +187,21 @@ export function QueueTimingProvider({ children }) {
   }, []);
   useEffect(() => {
     mounted.current = true;
-    refresh();
-    const poll = setInterval(refresh, 5000);
+    let timer = null;
+    // Poll every 5 s while the studio answers; after a failure retry after 1 s, backing off to
+    // 15 s. Jobs and every other piece of state stay as they were while it is unreachable.
+    const poll = async () => {
+      // The race keeps a slow estimate request from delaying the next poll, while a refused
+      // connection (a restarting studio) has already counted as a failure by then.
+      await Promise.race([refresh(), new Promise((resolve) => setTimeout(resolve, 3000))]);
+      if (mounted.current) {
+        timer = setTimeout(poll, pollDelayMs(failures.current));
+      }
+    };
+    poll();
     return () => {
       mounted.current = false;
-      clearInterval(poll);
+      clearTimeout(timer);
     };
   }, [refresh]);
   const forecast = useMemo(

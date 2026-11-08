@@ -1,3 +1,4 @@
+import { createLogger } from './app-log.js';
 import { saveAsset } from './job-io.js';
 import { readReferences } from './references.js';
 import {
@@ -6,14 +7,24 @@ import {
   usesSegmentationOptions,
 } from './sam31-options.js';
 
+const log = createLogger('segmentation');
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function send(jobId, type, values = {}) {
+  // Progress repeats every poll, so only the state changes are recorded.
+  if (type !== 'progress') {
+    log.info('segmentation.job.state.changed', { jobId, to: type });
+  }
   if (process.connected) {
     process.send({ jobId, type, ...values });
   }
 }
-process.on('disconnect', () => process.exit(0));
+process.on('disconnect', () => {
+  log.info('segmentation.process.disconnected', { exitCode: 0 });
+  process.exit(0);
+});
 process.once('message', async ({ job, projectFolder, baseUrl }) => {
+  log.info('segmentation.job.started', { jobId: job.id, hasRemoteId: Boolean(job.remoteId) });
   let remoteId = job.remoteId;
   try {
     if (!remoteId) {
@@ -21,6 +32,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       try {
         [image] = await readReferences(projectFolder, job.request.references, { max: 1 });
       } catch (error) {
+        log.warn('segmentation.reference.read.failed', { jobId: job.id, error });
         send(job.id, 'failed', { error: `Could not read the reference image: ${error.message}` });
         return;
       }
@@ -34,7 +46,16 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
             redirect: 'error',
           });
           features = (await status.json()).features;
+          log.debug('segmentation.request.completed', {
+            route: '/api/status',
+            httpStatus: status.status,
+          });
         } catch (error) {
+          log.warn('segmentation.status.check.failed', {
+            jobId: job.id,
+            route: '/api/status',
+            error,
+          });
           send(job.id, 'failed', {
             error: `Could not check the SAM worker version: ${String(error.message).slice(0, 300)}`,
           });
@@ -50,6 +71,10 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       }
       let response, body;
       try {
+        const stopSubmit = log.time('segmentation.request.completed', {
+          jobId: job.id,
+          route: '/api/generate',
+        });
         response = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -64,8 +89,14 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           signal: AbortSignal.timeout(30000),
           redirect: 'error',
         });
+        stopSubmit({ httpStatus: response.status });
         body = await response.json();
-      } catch {
+      } catch (error) {
+        log.warn('segmentation.submit.failed', {
+          jobId: job.id,
+          route: '/api/generate',
+          error,
+        });
         send(job.id, 'interrupted', {
           error: 'Submission result is unknown. Check the SAM worker before resolving this job.',
         });
@@ -94,6 +125,10 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           signal: AbortSignal.timeout(10000),
           redirect: 'error',
         });
+        log.trace('segmentation.request.completed', {
+          route: '/api/jobs/:id',
+          httpStatus: response.status,
+        });
         if (response.status === 404) {
           send(job.id, 'interrupted', {
             error:
@@ -105,7 +140,12 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           throw Error(`HTTP ${response.status}`);
         }
         state = await response.json();
-      } catch {
+      } catch (error) {
+        log.debug('segmentation.poll.failed', {
+          jobId: job.id,
+          route: '/api/jobs/:id',
+          error,
+        });
         send(job.id, 'progress', { stage: 'Waiting to reconnect to the SAM worker.' });
         await sleep(5000);
         continue;
@@ -137,6 +177,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
     );
     send(job.id, 'complete', { output, result: reportFromWorkerMetadata(metadata) });
   } catch (error) {
+    log.error('segmentation.job.failed', { jobId: job.id, error });
     send(job.id, 'failed', { error: String(error.message).slice(0, 2000) });
   } finally {
     if (process.connected) {

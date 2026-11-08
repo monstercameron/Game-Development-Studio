@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
 import { announceCompletion } from './notifications';
+import { createLog } from './app-log.js';
+
+const log = createLog('ui');
 
 const active = new Set([
   'queued',
@@ -16,13 +19,16 @@ export function useRuntimeNotifications() {
   useEffect(() => {
     let previous = null,
       polling = false,
-      stopped = false;
+      stopped = false,
+      isPollFailing = false,
+      isTrayFailing = false;
     async function poll() {
       if (polling || stopped) {
         return;
       }
       polling = true;
       try {
+        // log-coverage: ignore -- same-origin /api request; the browser capture logs failures.
         const response = await fetch('/api/runtime/jobs');
         if (!response.ok) {
           return;
@@ -33,14 +39,20 @@ export function useRuntimeNotifications() {
         }
         let tray = { active: false };
         try {
+          // log-coverage: ignore -- same-origin /api request; the browser capture logs failures.
           const trayResponse = await fetch('/api/tray/status', {
             signal: AbortSignal.timeout(2000),
           });
           if (trayResponse.ok) {
             tray = await trayResponse.json();
           }
-        } catch {
+          isTrayFailing = false;
+        } catch (error) {
           // Browser notifications remain available when the tray is unreachable.
+          if (!isTrayFailing) {
+            isTrayFailing = true;
+            log.debug('ui.tray.status.failed', { errorClass: error?.name || 'Error' });
+          }
         }
         if (stopped) {
           return;
@@ -54,8 +66,10 @@ export function useRuntimeNotifications() {
           );
           for (const job of completed) {
             if (tray.active && tray.render) {
+              log.debug('ui.completion.skipped', { jobId: job.id, reason: 'tray_shows_render' });
               continue;
             }
+            log.info('ui.completion.announced', { jobId: job.id, type: 'render' });
             announceCompletion({
               type: 'render',
               id: job.id,
@@ -70,17 +84,24 @@ export function useRuntimeNotifications() {
             !jobs.some((job) => active.has(job.status)) &&
             !(tray.active && tray.queue)
           ) {
+            log.info('ui.completion.announced', { type: 'queue' });
             announceCompletion({ type: 'queue', id: completed.at(-1).id });
           }
         }
         previous = new Map(jobs.map((job) => [job.id, job.status]));
-      } catch {
+        isPollFailing = false;
+      } catch (error) {
         // Retain the last known state and retry on the next poll.
+        if (!isPollFailing) {
+          isPollFailing = true;
+          log.debug('ui.runtime.poll.failed', { errorClass: error?.name || 'Error' });
+        }
       } finally {
         polling = false;
       }
     }
     poll();
+    // log-coverage: ignore -- polling loop; failures are logged once per streak inside poll().
     const timer = setInterval(poll, 4000);
     return () => {
       stopped = true;

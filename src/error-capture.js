@@ -2,6 +2,9 @@
 // error-boundary catches, failed studio API calls (HTTP >= 500 or network failure) and error
 // toasts are reported to /api/errors/report. Reports carry no request bodies or prompts.
 import { redactText } from '../runtime/error-redaction.js';
+import { createLog } from './app-log.js';
+
+const log = createLog('errors');
 
 const REPORT_PATH = '/api/errors/report';
 const DEDUPE_MS = 30000;
@@ -17,12 +20,14 @@ const sentTimes = [];
 function currentPage() {
   try {
     return window.location.pathname;
+    // log-coverage: ignore -- reading the location cannot fail on a page; a log would run per report
   } catch {
     return '';
   }
 }
 
-function shouldSend(key) {
+// Returns 'sent', or why the report is skipped: 'duplicate' or 'rate-limited'.
+function reportDecision(key) {
   const now = Date.now();
   for (const [entry, time] of recent) {
     if (now - time > DEDUPE_MS) {
@@ -32,17 +37,21 @@ function shouldSend(key) {
   while (sentTimes.length && now - sentTimes[0] > 60000) {
     sentTimes.shift();
   }
-  if (recent.has(key) || sentTimes.length >= MAX_REPORTS_PER_MINUTE) {
-    return false;
+  if (recent.has(key)) {
+    return 'duplicate';
+  }
+  if (sentTimes.length >= MAX_REPORTS_PER_MINUTE) {
+    return 'rate-limited';
   }
   recent.set(key, now);
   sentTimes.push(now);
-  return true;
+  return 'sent';
 }
 
 function textOf(value, limit) {
   try {
     return redactText(String(value ?? ''), {}).slice(0, limit);
+    // log-coverage: ignore -- pure text helper run for every report; a log adds no signal
   } catch {
     return '';
   }
@@ -58,6 +67,7 @@ function textOf(value, limit) {
 export function reportClientError(report) {
   const message = textOf(report.message, 4000).trim();
   if (!message) {
+    log.debug('errors.capture.skipped', { kind: report.kind, reason: 'empty' });
     return false;
   }
   const body = {
@@ -68,11 +78,16 @@ export function reportClientError(report) {
     ...(report.componentStack ? { componentStack: textOf(report.componentStack, 16000) } : {}),
     ...(report.context ? { context: report.context } : {}),
   };
-  if (!shouldSend(`${body.kind}\n${body.message}\n${(body.stack || '').slice(0, 300)}`)) {
+  const decision = reportDecision(
+    `${body.kind}\n${body.message}\n${(body.stack || '').slice(0, 300)}`,
+  );
+  if (decision !== 'sent') {
+    log.debug('errors.capture.skipped', { kind: report.kind, reason: decision });
     return false;
   }
   const send = sendFetch || globalThis.fetch?.bind(globalThis);
   if (!send) {
+    log.debug('errors.capture.skipped', { kind: report.kind, reason: 'no-transport' });
     return false;
   }
   Promise.resolve()
@@ -85,11 +100,15 @@ export function reportClientError(report) {
     )
     .then((response) => {
       if (response?.ok) {
+        log.debug('errors.capture.sent', { kind: report.kind });
         window.dispatchEvent(new Event(ERRORS_CHANGED_EVENT));
+      } else {
+        log.warn('errors.capture.rejected', { kind: report.kind, status: response?.status });
       }
     })
-    .catch(() => {
-      // Deliberately dropped; see the function comment.
+    .catch((error) => {
+      // Deliberately dropped; see the function comment. Only the error class is logged.
+      log.debug('errors.capture.failed', { kind: report.kind, errorClass: error?.name });
     });
   return true;
 }
@@ -115,6 +134,7 @@ function errorDetails(value) {
   }
   try {
     return { message: String(value), stack: '' };
+    // log-coverage: ignore -- runs inside window error handlers; a log here risks a feedback loop
   } catch {
     return { message: 'A non-Error value was thrown.', stack: '' };
   }
@@ -125,11 +145,14 @@ function isStudioApi(url, origin) {
   // returns HTTP 500 (Diagnostics, Test the error pipeline) is the one exception.
   const isErrorsApi =
     url.pathname.startsWith('/api/errors') && !url.pathname.startsWith('/api/errors/test/');
+  // Log routes are excluded too: a failed log send must not become an error report, or a log
+  // call would report its own failure (docs/LOGGING.md).
   return (
     url.origin === origin &&
     url.pathname.startsWith('/api/') &&
     !isErrorsApi &&
-    !url.pathname.startsWith('/api/client-logs')
+    !url.pathname.startsWith('/api/client-logs') &&
+    !url.pathname.startsWith('/api/logs/')
   );
 }
 
@@ -137,6 +160,7 @@ function requestTarget(input, base) {
   try {
     const href = typeof input === 'string' || input instanceof URL ? String(input) : input?.url;
     return new URL(href, base);
+    // log-coverage: ignore -- an unparsable request URL is an ordinary input here, not a failed decision
   } catch {
     return null;
   }
@@ -158,7 +182,11 @@ export function wrapFetch(originalFetch, win) {
             const data = await response.clone().json();
             detail = typeof data?.error === 'string' ? `: ${data.error.slice(0, 500)}` : '';
           }
-        } catch {
+        } catch (error) {
+          log.debug('errors.detail.unreadable', {
+            status: response.status,
+            errorClass: error?.name,
+          });
           detail = '';
         }
         reportClientError({
@@ -187,6 +215,7 @@ export function installErrorCapture(win = window) {
     return;
   }
   win[INSTALLED] = true;
+  log.info('errors.capture.installed');
   const originalFetch = win.fetch?.bind(win);
   if (originalFetch) {
     sendFetch = originalFetch;

@@ -1,3 +1,7 @@
+import { createLog } from './app-log.js';
+
+const log = createLog('megascans');
+
 // Client helpers for the Megascans page. The server owns every rule; these only shape requests,
 // read errors, and format numbers. Nothing here contacts Fab.
 
@@ -107,8 +111,28 @@ export class MegascansRequestError extends Error {
   }
 }
 
+/**
+ * Log fields for a failed studio request. The message is left out because it can quote server
+ * text; the status is kept so a 404 and a network failure read differently.
+ * @param {unknown} error
+ * @returns {{ errorClass: string, httpStatus?: number }}
+ */
+export function requestFailureFields(error) {
+  const fields = { errorClass: typeof error?.name === 'string' ? error.name : 'Error' };
+  if (Number.isInteger(error?.status)) {
+    fields.httpStatus = error.status;
+  }
+  return fields;
+}
+
 async function readResponse(response) {
-  const data = await response.json().catch(() => null);
+  const data = await response.json().catch((error) => {
+    log.debug('megascans.response.unparsed', {
+      httpStatus: response.status,
+      errorClass: error?.name || 'Error',
+    });
+    return null;
+  });
   if (!response.ok) {
     throw new MegascansRequestError(
       data?.error || `The studio returned an error (${response.status}).`,
@@ -122,6 +146,7 @@ async function readResponse(response) {
 export async function getMegascans(path, { signal } = {}) {
   let response;
   try {
+    // log-coverage: ignore -- the fetch wrapper in src/app-log.js logs failed /api requests
     response = await fetch(`/api/megascans${path}`, { signal, cache: 'no-store' });
   } catch (error) {
     if (error?.name === 'AbortError') {
@@ -135,6 +160,7 @@ export async function getMegascans(path, { signal } = {}) {
 export async function postMegascans(path, body = {}) {
   let response;
   try {
+    // log-coverage: ignore -- the fetch wrapper in src/app-log.js logs failed /api requests
     response = await fetch(`/api/megascans${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'megascans' },
@@ -172,7 +198,11 @@ export function uploadImportFile({ file, projectId, listingId, onProgress }) {
       let data;
       try {
         data = JSON.parse(request.responseText);
-      } catch {
+      } catch (error) {
+        log.debug('megascans.upload.response.unparsed', {
+          httpStatus: request.status,
+          errorClass: error?.name || 'Error',
+        });
         data = null;
       }
       if (request.status >= 200 && request.status < 300 && data?.import) {

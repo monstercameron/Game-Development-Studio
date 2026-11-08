@@ -11,6 +11,9 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('engine');
 
 export const consoleLauncher = fileURLToPath(new URL('./console_launch.py', import.meta.url));
 
@@ -47,7 +50,12 @@ export function venvBaseInterpreter(
       return null;
     }
     return base;
-  } catch {
+  } catch (error) {
+    // An unreadable or missing pyvenv.cfg keeps the launcher as given; not a launch failure.
+    log.debug('engine.interpreter.resolve.failed', {
+      errorClass: error?.name,
+      errorCode: error?.code,
+    });
     return null;
   }
 }

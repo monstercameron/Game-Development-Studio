@@ -5,9 +5,11 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createLogger } from './app-log.js';
 import { PLURAL_CATEGORIES } from '../src/i18n/message-format.js';
 import { NAMESPACES, isValidKey, namespaceOf } from '../src/i18n/namespaces.js';
 
+const log = createLogger('i18n');
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_CATALOG_DIRECTORY = path.join(repositoryRoot, 'src', 'i18n', 'locales', 'en');
 const MAX_CATALOG_BYTES = 2 * 1024 * 1024;
@@ -57,14 +59,20 @@ export function createEnglishCatalog({ directory = DEFAULT_CATALOG_DIRECTORY } =
     let names;
     try {
       names = fs.readdirSync(directory);
-    } catch {
+    } catch (failure) {
+      log.warn('i18n.catalog.list.failed', {
+        errorClass: failure?.name,
+        errorCode: failure?.code,
+      });
       return [];
     }
-    return names
+    const pages = names
       .filter((name) => name.endsWith('.json'))
       .map((name) => name.slice(0, -5))
       .filter((name) => NAMESPACES.includes(name))
       .sort();
+    log.debug('i18n.catalog.listed', { pageCount: pages.length });
+    return pages;
   }
 
   /** Map of key -> { value, hash } for one namespace; empty when it has no catalog. */
@@ -76,7 +84,8 @@ export function createEnglishCatalog({ directory = DEFAULT_CATALOG_DIRECTORY } =
     let info;
     try {
       info = fs.statSync(file);
-    } catch {
+    } catch (failure) {
+      log.debug('i18n.catalog.file.missing', { page: namespace, errorCode: failure?.code });
       return new Map();
     }
     const cached = cache.get(namespace);
@@ -84,16 +93,28 @@ export function createEnglishCatalog({ directory = DEFAULT_CATALOG_DIRECTORY } =
       return cached.entries;
     }
     if (info.size > MAX_CATALOG_BYTES) {
+      log.warn('i18n.catalog.load.rejected', {
+        page: namespace,
+        reason: 'too_large',
+        sizeBytes: info.size,
+      });
       throw Error(`The English catalog for ${namespace} is too large.`);
     }
     const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
     const entries = new Map();
+    let skippedCount = 0;
     for (const [key, value] of Object.entries(raw)) {
       // Only well-formed keys of this namespace are served; anything else is ignored.
       if (isValidKey(key) && namespaceOf(key) === namespace && isValidValue(value)) {
         entries.set(key, { value, hash: sourceHash(value) });
+      } else {
+        skippedCount += 1;
       }
     }
+    if (skippedCount) {
+      log.warn('i18n.catalog.entries.skipped', { page: namespace, skippedCount });
+    }
+    log.debug('i18n.catalog.loaded', { page: namespace, entryCount: entries.size });
     cache.set(namespace, { mtimeMs: info.mtimeMs, size: info.size, entries });
     return entries;
   }

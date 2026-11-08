@@ -547,3 +547,33 @@ test('retrying the chained render allows another attempt to free the model', asy
   await context.queue.tick();
   assert.deepEqual(context.events, ['offload:images', 'offload:images']);
 });
+
+test('the live queue.chainUnload setting switches the unload without recreating the queue', async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'forge-chain-setting-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true, maxRetries: 5 }));
+  const { createSettings } = await import('../runtime/core-settings.js');
+  const settings = createSettings({ directory, env: {}, cacheMs: 0 });
+  const chainUnload = () => settings.get('queue.chainUnload');
+
+  const enabled = await finishedParent(t, { queueOptions: { chainUnload } });
+  await enabled.queue.tick();
+  assert.deepEqual(enabled.events, ['offload:images']);
+
+  await settings.set([{ key: 'queue.chainUnload', value: false }]);
+  const disabled = await finishedParent(t, { queueOptions: { chainUnload } });
+  await disabled.queue.tick();
+  assert.deepEqual(disabled.events, [], 'the same accessor now reports off');
+  assert.equal(
+    disabled.queue.get(disabled.child.id).request.referenceFrom.output,
+    'images/made.png',
+  );
+
+  // An environment switch is still stronger than anything saved.
+  const locked = createSettings({ directory, env: { [CHAIN_UNLOAD_ENV]: '1' }, cacheMs: 0 });
+  assert.equal(locked.get('queue.chainUnload'), true);
+  const forced = await finishedParent(t, {
+    queueOptions: { chainUnload: () => locked.get('queue.chainUnload') },
+  });
+  await forced.queue.tick();
+  assert.deepEqual(forced.events, ['offload:images']);
+});

@@ -6,9 +6,13 @@ import {
   ViewerError,
   assetFormat,
   describeViewerError,
+  fileExtension,
   loadPrefs,
   savePrefs,
 } from './viewer-core';
+import { createLog } from './app-log.js';
+
+const log = createLog('three-d');
 
 export function useViewerPrefs() {
   const [prefs, setPrefs] = useState(() => loadPrefs());
@@ -135,6 +139,7 @@ export default function ThreeViewer({
           },
           onView: setActiveView,
           onContextLost: () => {
+            log.warn('viewer.webgl.context_lost');
             setState({
               status: 'error',
               error: describeViewerError(new ViewerError('NO_WEBGL', 'Graphics context lost.'), {
@@ -180,6 +185,11 @@ export default function ThreeViewer({
           return;
         }
         console.error('3D viewer failed:', error);
+        log.warn('viewer.load.failed', {
+          format: fileExtension(name) || undefined,
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
         engine?.dispose();
         engine = null;
         engineRef.current = null;

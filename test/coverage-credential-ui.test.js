@@ -72,8 +72,12 @@ test('credential save remains actionable when the follow-up status refresh fails
 
     const sourcePath = path.join(repositoryRoot, 'src', 'CredentialSettings.jsx');
     const source = await readFile(sourcePath, 'utf8');
+    // The copy lives in a temporary folder, so the logger import points at the real file.
+    const appLogUrl = pathToFileURL(path.join(repositoryRoot, 'src', 'app-log.js')).href;
     const transformed = await transformWithEsbuild(
-      source.replace("import './credential-settings.css';", ''),
+      source
+        .replace("import './credential-settings.css';", '')
+        .replace("from './app-log.js';", `from '${appLogUrl}';`),
       path.join(temporaryDirectory, 'CredentialSettings.jsx'),
       { loader: 'jsx', jsx: 'automatic' },
     );

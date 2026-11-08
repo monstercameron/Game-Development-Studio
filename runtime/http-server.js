@@ -17,8 +17,11 @@ import { attachAsrStreamProxy } from './asr-stream-proxy.js';
 import { trayStatusService } from './tray-status.js';
 import { megascansService } from './megascans-service.js';
 import { errorsService } from './errors-service.js';
+import { logsService } from './logs-service.js';
 import { i18nService } from './i18n-service.js';
+import { settingsService } from './settings-service.js';
 import { vegetationService } from './vegetation-service.js';
+import { recoveryService } from './recovery-service.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -49,7 +52,10 @@ app.use((req, res, next) => {
 });
 const host = { middlewares: app, httpServer, config: { logger } };
 const engineBroker = process.env.FORGE_ENGINE_BROKER === '1' ? new EngineBroker() : null;
+const recovery = recoveryService();
 for (const service of [
+  // First, so its request logging and trace ids cover every later /api route.
+  logsService(),
   powerService(),
   trayStatusService(),
   diagnosticsService(),
@@ -59,7 +65,9 @@ for (const service of [
   megascansService(),
   errorsService(),
   i18nService(),
+  settingsService(),
   vegetationService(),
+  recovery,
   runtimeService({ engineBroker }),
 ]) {
   service.configureServer(host);
@@ -120,6 +128,7 @@ function shutdown() {
     return;
   }
   closing = true;
+  recovery.dispose();
   mcpHandler.close().catch(() => {});
   httpServer.close(() => process.exit(0));
   httpServer.closeAllConnections?.();

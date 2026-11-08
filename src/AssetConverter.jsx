@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ArrowDownToLine, FileOutput, X } from 'lucide-react';
+import { createLog } from './app-log.js';
 import './asset-converter.css';
+
+const log = createLog('assets');
 
 const imageFormats = [
   ['png', 'PNG · lossless'],
@@ -84,6 +87,7 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
     setError('');
     setResult(null);
     try {
+      // log-coverage: ignore -- the app-log fetch wrapper records failed /api calls
       const response = await fetch(`/api/projects/${project.id}/assets/convert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'project' },
@@ -108,8 +112,19 @@ export default function AssetConverter({ asset, project, onSaved, onClose }) {
         throw Error('The conversion service returned an incomplete result.');
       }
       setResult(data);
+      log.info('assets.asset.converted', {
+        kind: asset.category,
+        format,
+        backend: data.backend,
+        outcome: 'converted',
+      });
       await onSaved?.();
     } catch (e) {
+      log.warn('assets.asset.convert.failed', {
+        kind: asset.category,
+        format,
+        errorClass: e?.name,
+      });
       setError(e instanceof Error ? e.message : 'Could not convert this asset.');
     } finally {
       setBusy(false);

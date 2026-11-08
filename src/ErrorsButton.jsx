@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Bug } from 'lucide-react';
+import { createLog } from './app-log.js';
 import { ERRORS_CHANGED_EVENT } from './error-capture.js';
 import { getErrors } from './errors-api.js';
 import { useT } from './i18n/index.js';
 import './errors-dialog.css';
 
+const log = createLog('errors');
 const POLL_MS = 15000;
 
 /** Top-bar entry to the Errors review, with the number of new errors since it was last opened. */
@@ -29,10 +31,12 @@ export default function ErrorsButton({ onOpen, isOpen = false }) {
         }
       } catch (error) {
         if (alive && error.name !== 'AbortError') {
+          log.debug('errors.summary.unavailable', { errorClass: error.name });
           setIsUnavailable(true);
         }
       }
     };
+    log.debug('errors.poll.started');
     refresh();
     const timer = setInterval(refresh, POLL_MS);
     window.addEventListener(ERRORS_CHANGED_EVENT, refresh);
@@ -40,6 +44,7 @@ export default function ErrorsButton({ onOpen, isOpen = false }) {
       alive = false;
       controller?.abort();
       clearInterval(timer);
+      log.debug('errors.poll.stopped');
       window.removeEventListener(ERRORS_CHANGED_EVENT, refresh);
     };
   }, [isOpen]);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import AssetPicker from './AssetPicker';
+import { createLog } from './app-log.js';
 import { useRouteToggle } from './useNav';
 import {
   CLONE_REFERENCE_EXTENSIONS,
@@ -12,6 +13,8 @@ import {
   readClipDurationSeconds,
   voiceModeFieldErrors,
 } from './voice-modes.js';
+
+const log = createLog('voices');
 
 const modes = [
   ['preset', 'Preset voice', 'One of nine built-in speakers, with optional voice direction.'],
@@ -104,10 +107,16 @@ export default function VoiceModeControls({
           const entry = entries.find((item) => item.id === id);
           next[id] = typeof entry?.installed === 'boolean' ? entry.installed : null;
         }
+        log.debug('voices.checkpoints.scanned', {
+          isInventoryReadable: Array.isArray(inventory?.entries),
+          installedCount: Object.values(next).filter((isInstalled) => isInstalled === true).length,
+          total: Object.keys(next).length,
+        });
         setInstalled(next);
       })
       .catch((reason) => {
         if (reason.name !== 'AbortError') {
+          log.warn('voices.checkpoints.unavailable', { errorClass: reason?.name });
           setInstalled({});
         }
       });
@@ -156,7 +165,9 @@ export default function VoiceModeControls({
         voiceReferenceTextKey: clipKey,
         ...(clearsTranscript ? { voiceReferenceText: '' } : {}),
       });
+      log.info('voices.reference.staged', { isTranscriptCleared: clearsTranscript });
     } catch (reason) {
+      log.warn('voices.reference.failed', { errorClass: reason?.name });
       setError(reason.message);
     } finally {
       setBusy(false);
@@ -184,7 +195,10 @@ export default function VoiceModeControls({
                   checked={mode === id}
                   disabled={missing}
                   aria-describedby={`voice-mode-${id}-help`}
-                  onChange={() => update({ voiceMode: id })}
+                  onChange={() => {
+                    log.info('voices.mode.selected', { mode: id });
+                    update({ voiceMode: id });
+                  }}
                 />
                 <span>
                   <strong>{label}</strong> <small id={`voice-mode-${id}-help`}>{reason}</small>
@@ -386,7 +400,10 @@ export default function VoiceModeControls({
                 aria-required="true"
                 aria-invalid={consentError ? 'true' : undefined}
                 aria-describedby={consentError ? 'voiceConsent-error' : undefined}
-                onChange={(e) => update({ voiceConsent: e.target.checked })}
+                onChange={(e) => {
+                  log.info('voices.consent.changed', { isConsented: e.target.checked });
+                  update({ voiceConsent: e.target.checked });
+                }}
               />
               <span>
                 <strong>Only clone voices you have the right to use.</strong>{' '}

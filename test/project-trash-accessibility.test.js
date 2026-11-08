@@ -59,6 +59,7 @@ test('trash confirmation names the action, manages focus, and announces request 
     const prelude = `
       import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
       const Trash2 = () => null;
+      const createLog = () => ({ debug() {}, info() {}, warn() {}, error() {} });
       const useSearchParams = () => [new URLSearchParams(), () => {}];
       const updateSearch = () => {};
       const useRouteToggle = (key) => {

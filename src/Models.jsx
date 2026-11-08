@@ -6,6 +6,7 @@ import ForceStopDialog from './ForceStopDialog';
 import { useCallback, useEffect, useState } from 'react';
 import ModelRemovalDialog from './ModelRemovalDialog';
 import MemoryDialog from './MemoryDialog';
+import { createLog } from './app-log.js';
 import './model-catalog.css';
 import {
   ArrowUpRight,
@@ -30,6 +31,8 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+
+const log = createLog('model');
 
 const icons = {
   image: FileImage,
@@ -177,6 +180,21 @@ function fileSize(value) {
     : value >= 1024 ** 2
       ? `${(value / 1024 ** 2).toFixed(1)} MiB`
       : `${value} B`;
+}
+// Only the error class is logged: messages thrown by this view can carry server text.
+function failureFields(error) {
+  return { errorClass: typeof error?.name === 'string' ? error.name : 'Error' };
+}
+// Numbers from a memory conflict only; the estimate sentence and candidate names stay out.
+function memoryConflictFields(modelId, conflict) {
+  return {
+    modelId,
+    reason: conflict.code,
+    requiredMiB: conflict.requiredMiB ?? undefined,
+    freeMiB: conflict.device?.freeMiB ?? undefined,
+    shortfallMiB: conflict.shortfallMiB ?? undefined,
+    candidateCount: conflict.candidates?.length,
+  };
 }
 function SoundAccessDialog({ token, setToken, onClose, onLoad, working, error }) {
   const dialog = useDialogFocus({
@@ -340,12 +358,14 @@ export default function Models({ onNavigate = () => {} }) {
       if (serviceData) {
         setServiceStates(serviceData.services);
       }
-    } catch {
+    } catch (error) {
       // Model storage is refreshed again by the polling effect.
+      log.debug('model.storage.refresh.failed', failureFields(error));
     }
   }, []);
   useEffect(() => {
     let active = true;
+    let isRuntimeUnavailable = false;
     async function refresh() {
       try {
         const [gpu, engines, health, storage] = await Promise.all([
@@ -369,24 +389,44 @@ export default function Models({ onNavigate = () => {} }) {
           setRuntimeHealth(healthData);
           setModelStorage(storageData);
           setRuntimeError('');
+          if (isRuntimeUnavailable) {
+            isRuntimeUnavailable = false;
+            log.info('model.runtime.poll.recovered');
+          }
         }
-      } catch {
+      } catch (error) {
         if (active) {
           setRuntimeError('Runtime is starting or unavailable. Retrying…');
+          // Logged once per outage, not on every retry.
+          if (!isRuntimeUnavailable) {
+            isRuntimeUnavailable = true;
+            log.warn('model.runtime.poll.failed', failureFields(error));
+          }
         }
       }
     }
+    log.debug('model.runtime.poll.started', { intervalMs: 10000 });
     refresh();
     const timer = setInterval(refresh, 10000);
     return () => {
       active = false;
       clearInterval(timer);
+      log.debug('model.runtime.poll.stopped');
     };
   }, []);
   useEffect(() => {
     let alive = true;
+    let lastChatStatus;
+    // The probe runs every 15 s, so only a change of status is logged.
+    function noteChatStatus(status, fields) {
+      if (status !== lastChatStatus) {
+        log.info('model.chat.status.changed', { from: lastChatStatus, to: status, ...fields });
+        lastChatStatus = status;
+      }
+    }
     async function checkChat() {
       try {
+        // log-coverage: ignore -- the http logger records failed calls; status changes are logged below
         const response = await fetch('/api/chat/models', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'chat' },
@@ -399,8 +439,13 @@ export default function Models({ onNavigate = () => {} }) {
             modelLoaded: null,
             url: 'http://127.0.0.1:8098',
           });
+          noteChatStatus(response.ok ? 'reachable' : 'unavailable', {
+            httpStatus: response.status,
+          });
         }
-      } catch {
+      } catch (error) {
+        // Expected whenever the chat service is not running, so debug.
+        log.debug('model.chat.probe.failed', failureFields(error));
         if (alive) {
           setChatService({
             id: 'chat',
@@ -408,14 +453,17 @@ export default function Models({ onNavigate = () => {} }) {
             modelLoaded: null,
             url: 'http://127.0.0.1:8098',
           });
+          noteChatStatus('unavailable', failureFields(error));
         }
       }
     }
+    log.debug('model.chat.poll.started', { intervalMs: 15000 });
     checkChat();
     const timer = setInterval(checkChat, 15000);
     return () => {
       alive = false;
       clearInterval(timer);
+      log.debug('model.chat.poll.stopped');
     };
   }, []);
   useEffect(() => {
@@ -429,8 +477,9 @@ export default function Models({ onNavigate = () => {} }) {
         if (response.ok && active) {
           setModelStorage(await response.json());
         }
-      } catch {
+      } catch (error) {
         // Storage refresh is best-effort while the scan is in progress.
+        log.debug('model.storage.scan.poll.failed', failureFields(error));
       }
     }, 1000);
     return () => {
@@ -444,7 +493,24 @@ export default function Models({ onNavigate = () => {} }) {
       return () => clearTimeout(timer);
     }
   }, [notice]);
+  const modelLoadBarrierState = runtimeHealth?.modelLoadBarrier;
+  const modelLoadBarrierEngine = runtimeHealth?.modelLoadEngine;
+  useEffect(() => {
+    if (modelLoadBarrierState && modelLoadBarrierState !== 'idle') {
+      log.info('model.barrier.displayed', {
+        modelId: modelLoadBarrierEngine ?? undefined,
+        state: modelLoadBarrierState,
+      });
+    }
+  }, [modelLoadBarrierState, modelLoadBarrierEngine]);
+  const isGpuReportUnavailable = hardware ? hardware.available === false : false;
+  useEffect(() => {
+    if (isGpuReportUnavailable) {
+      log.warn('model.gpu.report.unavailable');
+    }
+  }, [isGpuReportUnavailable]);
   async function loadMusic() {
+    let httpStatus;
     setLoadingMusic(true);
     setMemoryError('');
     try {
@@ -453,10 +519,17 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: '{}',
       });
+      httpStatus = response.status;
       const result = await response.json();
       if (result.code === 'insufficient_gpu_memory') {
+        log.warn('model.load.blocked', memoryConflictFields('music', result));
         setMemoryConflict(result);
         return;
+      }
+      if (response.ok) {
+        log.info('model.load.requested', { modelId: 'music', httpStatus });
+      } else {
+        log.warn('model.load.rejected', { modelId: 'music', httpStatus, reason: result.code });
       }
       if (!response.ok && memoryConflict) {
         setMemoryError(result.message || result.error || 'Could not check memory.');
@@ -464,7 +537,8 @@ export default function Models({ onNavigate = () => {} }) {
       }
       setMemoryConflict(null);
       setNotice(result.message || result.error || 'Request completed.');
-    } catch {
+    } catch (error) {
+      log.warn('model.load.failed', { modelId: 'music', httpStatus, ...failureFields(error) });
       if (memoryConflict) {
         setMemoryError('Could not reach the model service.');
       } else {
@@ -475,6 +549,7 @@ export default function Models({ onNavigate = () => {} }) {
     }
   }
   async function stopService(id, name) {
+    let httpStatus;
     setStoppingService(id);
     try {
       const response = await fetch(`/api/runtime/models/${id}/offload`, {
@@ -482,13 +557,21 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: '{}',
       });
+      httpStatus = response.status;
       const result = await response.json();
       if (!response.ok) {
         throw Error(result.error || result.message || 'Could not stop the service.');
       }
+      log.info('model.unload.completed', { modelId: id, trigger: 'stop_button', httpStatus });
       setNotice(`${name} stopped. Memory may take a moment to become available.`);
       await refreshStorage();
     } catch (error) {
+      log.warn('model.unload.failed', {
+        modelId: id,
+        trigger: 'stop_button',
+        httpStatus,
+        ...failureFields(error),
+      });
       setNotice(error.message);
     } finally {
       setStoppingService(null);
@@ -496,6 +579,7 @@ export default function Models({ onNavigate = () => {} }) {
   }
   // Starts the service process only. The model loads later, when a render needs it.
   async function startService(id, name) {
+    let httpStatus;
     setStartingService(id);
     try {
       const response = await fetch(`/api/runtime/engines/${id}/start`, {
@@ -503,13 +587,16 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: '{}',
       });
+      httpStatus = response.status;
       const result = await response.json();
       if (!response.ok) {
         throw Error(result.error || `Could not start ${name}.`);
       }
+      log.info('engine.start.requested', { engineId: id, outcome: result.status, httpStatus });
       setNotice(startNotice(result, name));
       await refreshStorage();
     } catch (error) {
+      log.warn('engine.start.failed', { engineId: id, httpStatus, ...failureFields(error) });
       setNotice(error.message);
     } finally {
       setStartingService(null);
@@ -519,6 +606,8 @@ export default function Models({ onNavigate = () => {} }) {
     if (!forceTarget) {
       return;
     }
+    log.info('engine.force_stop.confirmed', { engineId: forceTarget.id });
+    let httpStatus;
     setForceBusy(true);
     setForceError('');
     try {
@@ -527,13 +616,20 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: JSON.stringify({ confirmation: 'force-stop-engine' }),
       });
+      httpStatus = response.status;
       const data = await response.json();
       if (!response.ok) {
         throw Error(data.error || 'Could not verify that the service stopped.');
       }
+      log.info('engine.force_stop.completed', { engineId: forceTarget.id, httpStatus });
       setForceResult(data);
       await refreshStorage();
     } catch (error) {
+      log.warn('engine.force_stop.failed', {
+        engineId: forceTarget.id,
+        httpStatus,
+        ...failureFields(error),
+      });
       setForceError(error.message);
     } finally {
       setForceBusy(false);
@@ -543,11 +639,16 @@ export default function Models({ onNavigate = () => {} }) {
     if (forceBusy) {
       return;
     }
+    log.info('engine.force_stop.dialog.closed', {
+      engineId: forceTarget?.id,
+      outcome: forceResult ? 'after_result' : 'cancelled',
+    });
     setForceTarget(null);
     setForceResult(null);
     setForceError('');
   }
   async function startAll() {
+    let httpStatus;
     setStartingEngines(true);
     try {
       const response = await fetch('/api/runtime/engines/start-all', {
@@ -555,13 +656,19 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: '{}',
       });
+      httpStatus = response.status;
       const result = await response.json();
       if (!response.ok) {
         throw Error(result.error || 'Could not start engines.');
       }
+      log.info('engine.start_all.completed', {
+        serviceCount: Array.isArray(result.services) ? result.services.length : undefined,
+        httpStatus,
+      });
       setEngineStartResults(result.services);
       setNotice('Engine start requests processed.');
     } catch (error) {
+      log.warn('engine.start_all.failed', { httpStatus, ...failureFields(error) });
       setNotice(error.message);
     } finally {
       setStartingEngines(false);
@@ -606,8 +713,11 @@ export default function Models({ onNavigate = () => {} }) {
         `Only continue after verifying ${name} is neither loading nor waiting to load. Clear the queue barrier?`,
       )
     ) {
+      log.info('model.barrier.clear.cancelled', { modelId: engine });
       return;
     }
+    log.info('model.barrier.clear.confirmed', { modelId: engine });
+    let httpStatus;
     setLoadingMusic(true);
     try {
       const response = await fetch(`/api/runtime/models/${engine}/clear-load-barrier`, {
@@ -615,19 +725,27 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: JSON.stringify({ confirmNotLoading: true }),
       });
+      httpStatus = response.status;
       const result = await response.json();
       if (!response.ok) {
         throw Error(result.error || 'Could not clear the barrier.');
       }
+      log.info('model.barrier.clear.completed', { modelId: engine, httpStatus });
       setRuntimeHealth((value) => ({ ...value, modelLoadBarrier: 'idle', modelLoadEngine: null }));
       setNotice(result.message);
     } catch (error) {
+      log.warn('model.barrier.clear.failed', {
+        modelId: engine,
+        httpStatus,
+        ...failureFields(error),
+      });
       setNotice(error.message);
     } finally {
       setLoadingMusic(false);
     }
   }
   async function loadAsr() {
+    let httpStatus;
     setLoadingAsr(true);
     setAsrError('');
     try {
@@ -636,17 +754,21 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: '{}',
       });
+      httpStatus = response.status;
       const result = await response.json();
       if (result.code === 'insufficient_gpu_memory') {
+        log.warn('model.load.blocked', memoryConflictFields('asr', result));
         setAsrConflict(result);
         return;
       }
       if (!response.ok) {
         throw Error(result.message || result.error || 'Could not start speech recognition.');
       }
+      log.info('model.load.requested', { modelId: 'asr', httpStatus });
       setAsrConflict(null);
       setNotice(result.message);
     } catch (error) {
+      log.warn('model.load.failed', { modelId: 'asr', httpStatus, ...failureFields(error) });
       if (asrConflict) {
         setAsrError(error.message);
       } else {
@@ -657,6 +779,7 @@ export default function Models({ onNavigate = () => {} }) {
     }
   }
   async function offloadForAsr(id) {
+    let httpStatus;
     setLoadingAsr(true);
     setAsrError('');
     try {
@@ -665,12 +788,20 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: '{}',
       });
+      httpStatus = response.status;
       const result = await response.json();
       if (!response.ok) {
         throw Error(result.error || 'Could not stop service.');
       }
+      log.info('model.unload.completed', { modelId: id, trigger: 'memory_dialog', httpStatus });
       await loadAsr();
     } catch (error) {
+      log.warn('model.unload.failed', {
+        modelId: id,
+        trigger: 'memory_dialog',
+        httpStatus,
+        ...failureFields(error),
+      });
       setAsrError(error.message);
     } finally {
       setLoadingAsr(false);
@@ -683,6 +814,7 @@ export default function Models({ onNavigate = () => {} }) {
     setSoundError('');
   }
   async function loadSound() {
+    let httpStatus;
     setLoadingSound(true);
     setSoundError('');
     try {
@@ -691,24 +823,30 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: JSON.stringify({ token: soundToken }),
       });
+      httpStatus = response.status;
       const result = await response.json();
       if (result.code === 'insufficient_gpu_memory') {
+        log.warn('model.load.blocked', memoryConflictFields('sfx', result));
         setSoundConflict(result);
         return;
       }
       if (!response.ok) {
+        log.warn('model.load.rejected', { modelId: 'sfx', httpStatus, reason: result.code });
         setSoundError(result.message || result.error || 'Could not load Stable Audio.');
         return;
       }
+      log.info('model.load.requested', { modelId: 'sfx', httpStatus });
       closeSound();
       setNotice(result.message || 'Stable Audio load requested.');
-    } catch {
+    } catch (error) {
+      log.warn('model.load.failed', { modelId: 'sfx', httpStatus, ...failureFields(error) });
       setSoundError('Could not reach the model service.');
     } finally {
       setLoadingSound(false);
     }
   }
   async function offloadForSound(id) {
+    let httpStatus;
     setLoadingSound(true);
     setSoundError('');
     try {
@@ -717,18 +855,27 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: '{}',
       });
+      httpStatus = response.status;
       const result = await response.json();
       if (!response.ok) {
         throw Error(result.error || 'Could not stop service.');
       }
+      log.info('model.unload.completed', { modelId: id, trigger: 'memory_dialog', httpStatus });
       await loadSound();
     } catch (error) {
+      log.warn('model.unload.failed', {
+        modelId: id,
+        trigger: 'memory_dialog',
+        httpStatus,
+        ...failureFields(error),
+      });
       setSoundError(error.message);
     } finally {
       setLoadingSound(false);
     }
   }
   async function offload(id) {
+    let httpStatus;
     setLoadingMusic(true);
     setMemoryError('');
     try {
@@ -737,12 +884,20 @@ export default function Models({ onNavigate = () => {} }) {
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
         body: '{}',
       });
+      httpStatus = response.status;
       const result = await response.json();
       if (!response.ok) {
         throw Error(result.error || 'Could not stop service.');
       }
+      log.info('model.unload.completed', { modelId: id, trigger: 'memory_dialog', httpStatus });
       await loadMusic();
     } catch (error) {
+      log.warn('model.unload.failed', {
+        modelId: id,
+        trigger: 'memory_dialog',
+        httpStatus,
+        ...failureFields(error),
+      });
       setMemoryError(error.message);
     } finally {
       setLoadingMusic(false);
@@ -814,7 +969,9 @@ export default function Models({ onNavigate = () => {} }) {
       await navigator.clipboard.writeText(value);
       setCopiedPath(name);
       setTimeout(() => setCopiedPath(''), 2200);
-    } catch {
+    } catch (error) {
+      // Clipboard access can be denied by the browser; the toast tells the person.
+      log.debug('model.path.copy.failed', failureFields(error));
       setNotice('Could not copy the folder path.');
     }
   }
@@ -1149,6 +1306,7 @@ export default function Models({ onNavigate = () => {} }) {
                       <button
                         className="catalog-action"
                         onClick={() => {
+                          log.info('model.access.dialog.opened', { modelId: 'sfx' });
                           setSoundError('');
                           setSoundOpen(true);
                         }}
@@ -1200,6 +1358,7 @@ export default function Models({ onNavigate = () => {} }) {
                       aria-label={`Force stop ${model.name}`}
                       disabled={!!stoppingService}
                       onClick={() => {
+                        log.info('engine.force_stop.dialog.opened', { engineId: status.id });
                         setForceError('');
                         setForceResult(null);
                         setForceTarget({ id: status.id, name: model.name });

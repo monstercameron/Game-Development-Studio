@@ -47,7 +47,7 @@ test('rename rolls back its staged destination when metadata cannot be saved', a
   const restoreRename = failOnce(
     'rename',
     (source, destination) =>
-      path.basename(source).startsWith('.forge-assets-') &&
+      path.basename(source).startsWith('.forge-assets.json.') &&
       path.basename(destination) === '.forge-assets.json',
   );
   try {
@@ -89,9 +89,8 @@ test('trash removes its recovery manifest when moving the asset fails', async (t
 test('restore preserves both trash files when copying the asset fails', async (t) => {
   const project = await makeProject(t);
   const { trashId } = await trashAsset(project, 'images/asset.png');
-  const restoreCopy = failOnce(
-    'copyFile',
-    (_source, destination) => path.basename(destination) === 'asset.png',
+  const restoreCopy = failOnce('copyFile', (_source, destination) =>
+    path.basename(destination).startsWith('.asset.png.'),
   );
   try {
     await assert.rejects(restoreAsset(project, trashId), { code: 'EIO' });

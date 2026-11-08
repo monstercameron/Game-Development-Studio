@@ -37,10 +37,17 @@ import {
   setMinimized,
   subscribe,
 } from './mini-player';
+import { createLog } from './app-log.js';
 import './ux-miniplayer.css';
 
 const STEP = 16;
 const BIG_STEP = 64;
+const log = createLog('ui');
+
+// A refused or failed play() ends in the failed state; only the error class is recorded.
+function logPlayFailure(error) {
+  log.warn('ui.mini-player.play.failed', { errorClass: error?.name });
+}
 
 function viewportSize() {
   const root = document.documentElement;
@@ -76,11 +83,12 @@ export function ShrinkButton({
       const start = () => {
         try {
           media.currentTime = pending.time;
-        } catch {
+        } catch (error) {
+          log.debug('ui.mini-player.seek.skipped', { errorClass: error?.name });
           // Some streams cannot seek before they are ready; playback just starts from the top.
         }
         if (pending.playing) {
-          media.play().catch(() => {});
+          media.play().catch(logPlayFailure);
         }
       };
       if (media.readyState >= 1) {
@@ -185,7 +193,7 @@ export function RepeatButton({
       if (decision.replay) {
         ignoreSeek = true;
         media.currentTime = 0;
-        media.play().catch(() => {});
+        media.play().catch(logPlayFailure);
       }
     };
     const onSeeked = (event) => {
@@ -266,6 +274,11 @@ function Dock({ item, minimized }) {
   const isVideo = item.kind === 'video';
   const KindIcon = isVideo ? Clapperboard : AudioLines;
 
+  // A refused or failed play() ends in the failed state.
+  function reportPlayFailure(error) {
+    logPlayFailure(error);
+    setFailed(true);
+  }
   // Keep the position stored as offsets from the bottom-right corner inside the viewport.
   function place(next, remember = true) {
     const rect = dockRef.current?.getBoundingClientRect();
@@ -366,7 +379,7 @@ function Dock({ item, minimized }) {
         session.metadata = new MediaMetadata({ title: item.name, artist: 'Forge Studio' });
       }
       const handlers = {
-        play: () => mediaRef.current?.play().catch(() => {}),
+        play: () => mediaRef.current?.play().catch(logPlayFailure),
         pause: () => mediaRef.current?.pause(),
         stop: () => close(),
         seekbackward: () => seekBy(-10),
@@ -375,7 +388,8 @@ function Dock({ item, minimized }) {
       for (const [action, handler] of Object.entries(handlers)) {
         session.setActionHandler(action, handler);
       }
-    } catch {
+    } catch (error) {
+      log.debug('ui.mini-player.session.unsupported', { errorClass: error?.name });
       // Some actions are unsupported in some browsers.
     }
     return () => {
@@ -384,7 +398,8 @@ function Dock({ item, minimized }) {
         for (const action of ['play', 'pause', 'stop', 'seekbackward', 'seekforward']) {
           session.setActionHandler(action, null);
         }
-      } catch {
+      } catch (error) {
+        log.debug('ui.mini-player.session.cleanup.failed', { errorClass: error?.name });
         // Nothing to clean up.
       }
     };
@@ -419,7 +434,7 @@ function Dock({ item, minimized }) {
       return;
     }
     if (media.paused) {
-      media.play().catch(() => setFailed(true));
+      media.play().catch(reportPlayFailure);
     } else {
       media.pause();
     }
@@ -477,12 +492,13 @@ function Dock({ item, minimized }) {
         if (item.time > 0) {
           try {
             media.currentTime = Math.min(item.time, media.duration || item.time);
-          } catch {
+          } catch (error) {
+            log.debug('ui.mini-player.seek.skipped', { errorClass: error?.name });
             // Playback simply starts from the beginning.
           }
         }
         if (item.playing) {
-          media.play().catch(() => setFailed(true));
+          media.play().catch(reportPlayFailure);
         }
       }
     },
@@ -503,7 +519,7 @@ function Dock({ item, minimized }) {
       if (decision.replay) {
         ignoreSeek.current = true;
         media.currentTime = 0;
-        media.play().catch(() => setFailed(true));
+        media.play().catch(reportPlayFailure);
       } else {
         setPlaying(false);
       }
@@ -516,7 +532,10 @@ function Dock({ item, minimized }) {
       }
     },
     onVolumeChange: (event) => setMuted(event.currentTarget.muted),
-    onError: () => setFailed(true),
+    onError: (event) => {
+      log.error('ui.mini-player.media.failed', { errorCode: event.currentTarget.error?.code });
+      setFailed(true);
+    },
   };
 
   const style = position ? { right: position.right, bottom: position.bottom } : undefined;

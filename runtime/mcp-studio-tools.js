@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { CHAT_CONTEXT_SIZES, estimateChatMemory } from './chat-memory.js';
 import { MAX_CHAT_IMAGE_BYTES, MAX_CHAT_IMAGES } from './chat-image-limits.js';
 import { ACTIVE_QUEUE_STATES, estimateFromNearbyHistory, forecastQueue } from './queue-timing.js';
+import { createLogger } from './app-log.js';
 
+const log = createLogger('mcp');
 const change = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 const destructive = { readOnlyHint: false, destructiveHint: true, openWorldHint: false };
 const projectId = z.string().uuid();
@@ -30,10 +32,13 @@ const connection = {
 };
 
 async function readAssetContent(base, id, path, thumbnail = false) {
+  const route = thumbnail ? '/api/projects/:id/thumbnail' : '/api/projects/:id/asset';
   try {
     const url = new URL(`/api/projects/${id}/${thumbnail ? 'thumbnail' : 'asset'}`, base);
     url.searchParams.set('path', path);
+    const stop = log.time('mcp.asset.request.completed', { route });
     const response = await fetch(url, { signal: AbortSignal.timeout(10000), redirect: 'error' });
+    stop({ status: response.status });
     if (!response.ok) {
       throw Error(`Asset request returned ${response.status}.`);
     }
@@ -78,6 +83,11 @@ async function readAssetContent(base, id, path, thumbnail = false) {
       ],
     };
   } catch (error) {
+    log.warn('mcp.asset.read.failed', {
+      route,
+      errorClass: error.name,
+      errorCode: error.code,
+    });
     return {
       isError: true,
       content: [{ type: 'text', text: `Cannot read asset: ${error.message}` }],
@@ -90,7 +100,9 @@ async function readAssetContent(base, id, path, thumbnail = false) {
 async function readChatImage(base, projectId, assetPath) {
   const url = new URL(`/api/projects/${projectId}/asset`, base);
   url.searchParams.set('path', assetPath);
+  const stop = log.time('mcp.image.request.completed', { route: '/api/projects/:id/asset' });
   const response = await fetch(url, { signal: AbortSignal.timeout(15000), redirect: 'error' });
+  stop({ status: response.status });
   if (!response.ok) {
     await response.body?.cancel();
     throw Error(`Image ${assetPath} could not be read (${response.status}).`);
@@ -138,6 +150,7 @@ async function completeChat(base, input) {
   const started = performance.now();
   try {
     const request = await attachChatImages(base, input);
+    const stop = log.time('mcp.chat.request.completed', { route: '/api/chat/completions' });
     const response = await fetch(new URL('/api/chat/completions', base), {
       method: 'POST',
       headers: {
@@ -149,6 +162,7 @@ async function completeChat(base, input) {
       signal: AbortSignal.timeout(600000),
       redirect: 'error',
     });
+    stop({ status: response.status });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       return {
@@ -244,6 +258,7 @@ async function completeChat(base, input) {
       ],
     };
   } catch (error) {
+    log.warn('mcp.chat.request.failed', { errorClass: error.name, errorCode: error.code });
     return { isError: true, content: [{ type: 'text', text: `Chat failed: ${error.message}` }] };
   }
 }
@@ -268,7 +283,8 @@ export function registerExtendedTools(server, { base, read, write, readonly }) {
         if (!Array.isArray(jobs)) {
           throw Error('Invalid queue response.');
         }
-      } catch {
+      } catch (error) {
+        log.debug('mcp.queue.response.invalid', { errorClass: error.name });
         return {
           isError: true,
           content: [{ type: 'text', text: 'Cannot estimate queue: invalid queue response.' }],
@@ -289,7 +305,8 @@ export function registerExtendedTools(server, { base, read, write, readonly }) {
               if (!response.isError) {
                 estimate = JSON.parse(response.content[0].text);
               }
-            } catch {
+            } catch (error) {
+              log.debug('mcp.estimate.parse.failed', { errorClass: error.name });
               /* Fall back to nearby completed jobs. */
             }
             if (!estimate?.available) {

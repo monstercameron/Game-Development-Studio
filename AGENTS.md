@@ -4,6 +4,13 @@ These rules apply to the whole repository. Explicit user and higher-priority ins
 
 Forge is a local React asset studio with a durable render queue and separately supervised model processes. Start with [agent setup](docs/AGENT_SETUP.md), the [runtime map](runtime/README.md), and the [test guide](test/README.md). Model origins, downloads, and platform patches are in [model sources](docs/MODEL_SOURCES.md), [installation](docs/INSTALLATION.md), and [Windows ARM64 notes](docs/WINDOWS_ARM64.md).
 
+## Where to find things
+
+- Writing code: the [code style guide](docs/CODE_STYLE.md) (formatting, line endings, naming, patterns, lessons learned) and [linting and formatting](docs/CODE_QUALITY.md) for the commands.
+- Adding a model or engine: [Adding a model](docs/ADDING_A_MODEL.md). Adding a page, service or queue behavior: [Adding a feature](docs/ADDING_A_FEATURE.md).
+- Planned integrations: the [roadmap](docs/ROADMAP.md). Pinned model sources: [model sources](docs/MODEL_SOURCES.md). Everything else: the [documentation index](docs/README.md).
+- Each of `runtime/`, `src/`, `test/`, `docs/`, `tools/` and `site/` has its own `AGENTS.md` with the invariants, commands and common mistakes for that directory. It applies inside that directory in addition to this file.
+
 ## Working behavior
 
 - Inspect `git status` first. Preserve existing user changes, generated assets, model files, credentials, and unrelated running applications. Do not reset, clean, overwrite, or stop them as a convenience.

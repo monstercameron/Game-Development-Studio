@@ -55,6 +55,7 @@ export function readSeedThreeVersion(directory) {
     return String(
       JSON.parse(fs.readFileSync(path.join(directory, 'package.json'), 'utf8')).version,
     );
+    // log-coverage: ignore -- only the isolated child calls this; the host logs the schema result
   } catch {
     return 'unknown';
   }

@@ -23,7 +23,11 @@ import urllib.request
 from pathlib import Path
 
 import hidden_console  # noqa: F401  (hidden console for everything the guard starts)
+from app_log import get_logger, install_excepthook
 from asr_guard import WindowsJob
+from engine_identity import identity
+
+log = get_logger("video")
 
 MAX_HEADER = 32768
 TOKEN_VARIABLE = "FORGE_ENGINE_CONTROL_TOKEN"
@@ -60,7 +64,19 @@ class VideoProxy:
             "",
         )
         if not self.token or not hmac.compare_digest(self.token, supplied):
+            log.warn("video.control.rejected", {"reason": "bad_token"})
             return await self.reply(writer, "403 Forbidden", {"error": "Forbidden."})
+        if method == "GET" and path == "/api/forge/identity":
+            # Lets a restarted studio prove, with the control token and the per-start nonce, that
+            # this guard is the one it launched, so it can adopt it (and the render it holds)
+            # instead of treating the running video engine as foreign.
+            try:
+                return await self.reply(writer, "200 OK", identity(self.token, supplied, "video"))
+            except LookupError as error:
+                log.warn("video.identity.unavailable", {"errorClass": type(error).__name__})
+                return await self.reply(
+                    writer, "404 Not Found", {"error": "Recovery identity is unavailable."}
+                )
         if method == "GET" and path == "/api/forge/status":
             return await self.reply(
                 writer,
@@ -79,6 +95,7 @@ class VideoProxy:
                 self.stop_handle = None
             self.closing = False
             self.stop_requested = False
+            log.info("video.resume.accepted")
             return await self.reply(writer, "200 OK", {"resumed": True})
         if path != "/api/forge/stop":
             return await self.reply(writer, "404 Not Found", {"error": "Not found."})
@@ -86,26 +103,37 @@ class VideoProxy:
         self.closing = True
         if self.active:
             self.closing = False
+            log.warn(
+                "video.stop.rejected",
+                {"reason": "requests_in_flight", "activeCount": len(self.active)},
+            )
             return await self.reply(
                 writer, "409 Conflict", {"error": "The video service has requests in progress."}
             )
         try:
             running = await asyncio.to_thread(self.job_is_running)
-        except Exception:
+        except Exception as error:
             self.closing = False
+            log.warn(
+                "video.stop.rejected",
+                {"reason": "status_unknown", "errorClass": type(error).__name__},
+            )
             return await self.reply(
                 writer,
                 "409 Conflict",
                 {"error": "H3 did not report whether a video is rendering, so it was not stopped."},
             )
+        log.debug("video.status.checked", {"isRendering": running})
         if running or self.active:
             self.closing = False
+            log.warn("video.stop.rejected", {"reason": "rendering"})
             return await self.reply(
                 writer, "409 Conflict", {"error": "A video is rendering; it was not stopped."}
             )
         if self.stop_handle is None:
             self.stop_requested = True
             self.stop_handle = asyncio.get_running_loop().call_later(1, self.stop_event.set)
+            log.info("video.stop.accepted")
         return await self.reply(writer, "200 OK", {"stopping": True})
 
     async def reply(self, writer, status, body):
@@ -135,6 +163,7 @@ class VideoProxy:
                 return await self.control(writer, request[0], request[1], headers)
             idle_read = request[0] == "GET" and request[1].split("?")[0] in IDLE_READS
             if self.closing and not idle_read:
+                log.warn("video.request.rejected", {"reason": "stopping"})
                 return await self.reply(
                     writer, "503 Service Unavailable", {"error": "Video service is stopping."}
                 )
@@ -158,13 +187,15 @@ class VideoProxy:
                     while data := await source.read(65536):
                         destination.write(data)
                         await destination.drain()
-                except (ConnectionError, OSError):
-                    pass
+                except (ConnectionError, OSError) as error:
+                    log.debug("video.request.pipe.failed", {"errorClass": type(error).__name__})
                 finally:
                     try:
                         destination.close()
-                    except OSError:
-                        pass
+                    except OSError as error:
+                        log.debug(
+                            "video.request.close.failed", {"errorClass": type(error).__name__}
+                        )
 
             tasks = [
                 asyncio.create_task(pipe(reader, target)),
@@ -182,14 +213,21 @@ class VideoProxy:
             ValueError,
             UnicodeError,
             OSError,
-        ):
+        ) as error:
+            log.warn(
+                "video.request.failed",
+                {"reason": "unavailable", "errorClass": type(error).__name__},
+            )
             if not writer.is_closing():
                 try:
                     await self.reply(
                         writer, "503 Service Unavailable", {"error": "Video service unavailable."}
                     )
-                except (ConnectionError, OSError):
-                    pass
+                except (ConnectionError, OSError) as reply_error:
+                    log.debug(
+                        "video.request.reply.failed",
+                        {"errorClass": type(reply_error).__name__},
+                    )
         finally:
             if tracked:
                 self.active.discard(writer)
@@ -217,9 +255,14 @@ async def run(args):
             env=env,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
+        log.info("video.process.spawned", {"kind": "h3-server", "pid": process.pid})
         try:
             job.add(process)
-        except Exception:
+        except Exception as error:
+            log.error(
+                "video.job.attach.failed",
+                {"errorClass": type(error).__name__},
+            )
             process.terminate()
             process.wait(timeout=10)
             raise
@@ -232,11 +275,14 @@ async def run(args):
             f"H3 guard PID {os.getpid()} owns server PID {process.pid} on an internal port.",
             flush=True,
         )
+        log.info("video.guard.started", {"pid": os.getpid(), "port": args.port})
         while process.poll() is None and not stop_event.is_set():
             await asyncio.sleep(0.25)
         if proxy.stop_requested:
             print("H3 guard stopping at Forge's request.", flush=True)
+            log.info("video.guard.stopping", {"reason": "stop_requested"})
             return
+        log.error("video.guard.failed", {"reason": "server_exited", "exitCode": process.returncode})
         raise RuntimeError(f"H3 server exited with code {process.returncode}.")
     finally:
         if server:
@@ -247,8 +293,12 @@ async def run(args):
             try:
                 process.wait(timeout=10)
             except subprocess.TimeoutExpired:
+                log.warn("video.process.killed", {"kind": "h3-server", "pid": process.pid})
                 process.kill()
                 process.wait(timeout=10)
+        if process:
+            log.info("video.process.exited", {"kind": "h3-server", "exitCode": process.poll()})
+        log.info("video.guard.stopped")
 
 
 if __name__ == "__main__":
@@ -257,8 +307,10 @@ if __name__ == "__main__":
     parser.add_argument("--node", type=Path, required=True)
     parser.add_argument("--bootstrap", type=Path, required=True)
     parser.add_argument("--engine-dir", type=Path, required=True)
+    install_excepthook("video")
     try:
         asyncio.run(run(parser.parse_args()))
     except Exception as error:
+        log.error("video.guard.failed", {"errorClass": type(error).__name__})
         print(f"H3 guard failed: {error}", file=sys.stderr, flush=True)
         sys.exit(1)

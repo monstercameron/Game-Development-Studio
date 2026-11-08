@@ -6,6 +6,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { inspectService } from './catalog.js';
+import { engineEnvironment } from './core-settings.js';
 import { defaultModelsRoot, managedModels } from './model-inventory.js';
 import { ModelRemoval } from './model-removal.js';
 import { EngineRecovery } from './engine-recovery.js';
@@ -15,6 +16,31 @@ import { DEFAULT_CHAT_CONTEXT, validateChatContext } from './chat-memory.js';
 import { CHAT_PROJECTOR_PATH, chatProjectorExists } from './chat-vision.js';
 import { resolveEngineLaunch } from './engine-launch.js';
 import { asrLatencyArgs } from './asr-latency.js';
+import { recordRecoveryEvent } from './recovery-events.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('engine');
+
+// The last outcome logged per polled check, so repeated identical results are logged once.
+const lastObservedOutcomes = new Map();
+
+function hasOutcomeChanged(key, outcome) {
+  if (lastObservedOutcomes.get(key) === outcome) {
+    return false;
+  }
+  lastObservedOutcomes.set(key, outcome);
+  return true;
+}
+
+// Error class and code only: the message can name paths or arguments, so it is never logged.
+function describeFailure(error) {
+  const name = typeof error?.name === 'string' ? error.name : '';
+  const code = error?.code;
+  return {
+    errorClass: /^[A-Za-z0-9_.]{1,60}$/.test(name) ? name : 'Error',
+    errorCode: typeof code === 'string' && /^[A-Za-z0-9_.-]{1,40}$/.test(code) ? code : undefined,
+  };
+}
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const desktop = path.join(os.homedir(), 'Desktop');
@@ -386,6 +412,7 @@ const recoverableGuards = Object.freeze({
   'motion-hy': 'hymotion-v1',
   'motion-bricks': 'motionbricks-v1',
   asr: 'asr-guard-v1',
+  video: 'h3-guard-v1',
 });
 for (const definition of engineDefinitions) {
   if (
@@ -470,16 +497,23 @@ export class EngineManager {
       for (let attempt = 0; attempt < 5; attempt++) {
         try {
           this.recoveryLock = await this.recovery.journal.acquireLock();
+          log.info('engine.ownership.lock.acquired', { attempt: attempt + 1 });
           break;
         } catch (error) {
           if (attempt === 4) {
             throw error;
           }
+          log.debug('engine.ownership.lock.retrying', {
+            attempt: attempt + 1,
+            ...describeFailure(error),
+          });
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
+      // log-coverage: ignore -- lost only resolves (finishLost in engine-ownership.js)
       this.recoveryLock.lost.then((result) => {
         if (result.state === 'lost') {
+          log.error('engine.ownership.lock.lost', { reason: 'lock_lost' });
           for (const id of this.recoveryDefinitions.keys()) {
             this.recoveryStates.set(id, 'unresolved');
             const entry = this.children.get(id);
@@ -496,6 +530,11 @@ export class EngineManager {
             await this.reconcileRecovery(definition);
           } catch (error) {
             this.recoveryStates.set(definition.id, 'unresolved');
+            log.warn('engine.ownership.reconcile.failed', {
+              engineId: definition.id,
+              phase: 'startup',
+              ...describeFailure(error),
+            });
             this.log(`Engine ${definition.id} ownership recovery failed: ${error.message}`);
           }
         }),
@@ -504,6 +543,10 @@ export class EngineManager {
       for (const id of this.recoveryDefinitions.keys()) {
         this.recoveryStates.set(id, 'unresolved');
       }
+      log.warn('engine.ownership.recovery.unavailable', {
+        engineCount: this.recoveryDefinitions.size,
+        ...describeFailure(error),
+      });
       this.log(`Engine ownership recovery unavailable: ${error.message}`);
     }
   }
@@ -535,6 +578,16 @@ export class EngineManager {
         entry.forceIdentityPromise = this.captureForceIdentity(entry, definition);
         this.monitorRecovered(entry, definition);
       }
+    }
+    if (result.state === 'recovered') {
+      log.info('engine.adoption.adopted', { engineId: definition.id, pid: result.process?.pid });
+    } else if (result.state === 'unresolved') {
+      log.warn('engine.adoption.refused', {
+        engineId: definition.id,
+        reason: 'ownership_unverified',
+      });
+    } else {
+      log.debug('engine.adoption.skipped', { engineId: definition.id, reason: 'nothing_to_adopt' });
     }
     this.recoveryStates.set(definition.id, result.state);
     return result;
@@ -583,13 +636,31 @@ export class EngineManager {
           }
           this.recoveryStates.set(definition.id, 'none');
           this.log(`Recovered engine ${definition.id} exited.`);
+          log.info('engine.process.exited', {
+            engineId: definition.id,
+            kind: 'recovered',
+            pid: entry.child.pid,
+          });
           if (!definition.noRestart) {
-            this.start(definition.id).catch((error) =>
-              this.log(`Engine ${definition.id} restart failed: ${error.message}`),
-            );
+            log.info('engine.restart.requested', {
+              engineId: definition.id,
+              reason: 'recovered_exit',
+            });
+            this.start(definition.id).catch((error) => {
+              log.warn('engine.restart.failed', {
+                engineId: definition.id,
+                ...describeFailure(error),
+              });
+              this.log(`Engine ${definition.id} restart failed: ${error.message}`);
+            });
           }
         } catch (error) {
           this.recoveryStates.set(definition.id, 'unresolved');
+          log.warn('engine.ownership.cleanup.failed', {
+            engineId: definition.id,
+            reason: 'recovered_exit',
+            ...describeFailure(error),
+          });
           this.log(`Engine ownership cleanup failed: ${error.message}`);
         }
       } else {
@@ -613,6 +684,7 @@ export class EngineManager {
           this.children.delete(definition.id);
         }
         this.recoveryStates.set(definition.id, 'none');
+        log.info('engine.stop.reconciled', { engineId: definition.id, outcome: 'exited' });
         return;
       }
       if (state !== 'alive') {
@@ -626,6 +698,7 @@ export class EngineManager {
       ) {
         return;
       }
+      const requestStartedAt = Date.now();
       const response = await fetch(`http://127.0.0.1:${definition.port}/api/forge/resume`, {
         method: 'POST',
         headers: { 'X-Forge-Engine-Token': entry.controlToken },
@@ -633,6 +706,12 @@ export class EngineManager {
         redirect: 'error',
       });
       const body = await response.json();
+      log.info('engine.control.request.completed', {
+        engineId: definition.id,
+        route: '/api/forge/resume',
+        status: response.status,
+        durationMs: Date.now() - requestStartedAt,
+      });
       if (
         response.ok &&
         body?.resumed === true &&
@@ -642,8 +721,13 @@ export class EngineManager {
         entry.stopUnknown = false;
         entry.stopping = false;
         this.recoveryStates.set(definition.id, 'recovered');
+        log.info('engine.stop.reconciled', { engineId: definition.id, outcome: 'resumed' });
       }
     } catch (error) {
+      log.warn('engine.stop.reconcile.failed', {
+        engineId: definition.id,
+        ...describeFailure(error),
+      });
       this.log(`Engine stop reconciliation failed: ${error.message}`);
     }
   }
@@ -661,15 +745,29 @@ export class EngineManager {
         if (result.state === 'recovered') {
           entry.record = result.record;
           this.recoveryStates.set(definition.id, 'recovered');
+          log.info('engine.ownership.binding.completed', {
+            engineId: definition.id,
+            pid: entry.child.pid,
+            attempt: attempt + 1,
+          });
           return true;
         }
       } catch (error) {
+        log.warn('engine.ownership.binding.failed', {
+          engineId: definition.id,
+          attempt: attempt + 1,
+          ...describeFailure(error),
+        });
         this.log(`Engine ownership binding failed: ${error.message}`);
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
     this.recoveryStates.set(definition.id, 'unresolved');
+    log.warn('engine.ownership.binding.unresolved', {
+      engineId: definition.id,
+      reason: 'binding_not_confirmed',
+    });
     return false;
   }
   owns(id) {
@@ -736,6 +834,11 @@ export class EngineManager {
         this.children.get(definition.id) !== entry ||
         entry.child.exitCode !== null
       ) {
+        log.debug('engine.identity.rejected', {
+          engineId: definition.id,
+          pid: entry.child.pid,
+          reason: 'identity_mismatch',
+        });
         return false;
       }
       entry.forceIdentity = {
@@ -743,8 +846,14 @@ export class EngineManager {
         creationTicks: info.creationTicks,
         executable: info.executable,
       };
+      log.debug('engine.identity.captured', { engineId: definition.id, pid: info.pid });
       return true;
-    } catch {
+    } catch (error) {
+      log.debug('engine.identity.failed', {
+        engineId: definition.id,
+        pid: entry.child.pid,
+        ...describeFailure(error),
+      });
       return false;
     }
   }
@@ -752,20 +861,25 @@ export class EngineManager {
     const entry = this.children.get(id),
       definition = this.definitions.find((item) => item.id === id);
     if (!entry || !definition) {
+      log.warn('engine.stop.force.refused', { engineId: id, reason: 'not_owned' });
       throw Error('Forge does not own a running process for this service.');
     }
     if (this.offloading.has(id)) {
+      log.warn('engine.stop.force.refused', { engineId: id, reason: 'stop_in_progress' });
       throw Error('A stop operation is already in progress.');
     }
     if (this.recoveryDefinitions.has(id) && !this.recoveryLock?.held) {
+      log.warn('engine.stop.force.refused', { engineId: id, reason: 'ownership_lock_unavailable' });
       throw Error('Engine ownership cannot be verified. Check Diagnostics.');
     }
     this.offloading.add(id);
+    log.info('engine.stop.force.requested', { engineId: id, pid: entry.child.pid });
     try {
       if (entry.forceIdentityPromise) {
         await entry.forceIdentityPromise;
       }
       if (!entry.forceIdentity || this.children.get(id) !== entry) {
+        log.warn('engine.stop.force.refused', { engineId: id, reason: 'identity_unavailable' });
         throw Error('The engine process identity is unavailable. Check Diagnostics.');
       }
       entry.stopping = true;
@@ -784,6 +898,11 @@ export class EngineManager {
         if (this.children.get(id) === entry) {
           this.children.delete(id);
         }
+        log.info('engine.stop.force.completed', {
+          engineId: id,
+          pid: entry.child.pid,
+          processCount: result.processes,
+        });
         this.log(`Force-stopped Forge-owned engine ${id} (${result.processes} process(es)).`);
         return {
           id,
@@ -792,6 +911,11 @@ export class EngineManager {
           message: 'Process tree stopped. Memory may take a moment to become available.',
         };
       } catch (error) {
+        log.warn('engine.stop.force.failed', {
+          engineId: id,
+          pid: entry.child.pid,
+          ...describeFailure(error),
+        });
         entry.forceUncertain = true;
         if (entry.record) {
           this.markUnknownStop(entry, definition);
@@ -808,6 +932,7 @@ export class EngineManager {
     if (!entry || !this.canOffload('asr') || !entry.controlToken) {
       return null;
     }
+    const requestStartedAt = Date.now();
     try {
       const response = await fetch(`http://127.0.0.1:${definition.port}/api/forge/status`, {
         headers: { 'X-Forge-Engine-Token': entry.controlToken },
@@ -815,6 +940,14 @@ export class EngineManager {
         redirect: 'error',
       });
       const body = await response.json();
+      if (hasOutcomeChanged('activity:asr', response.ok ? 'reachable' : 'rejected')) {
+        log.debug('engine.health.changed', {
+          engineId: 'asr',
+          outcome: response.ok ? 'reachable' : 'rejected',
+          status: response.status,
+          durationMs: Date.now() - requestStartedAt,
+        });
+      }
       return response.ok &&
         body.engine === 'forge-asr-guard-v1' &&
         Number.isSafeInteger(body.active) &&
@@ -822,7 +955,14 @@ export class EngineManager {
         typeof body.closing === 'boolean'
         ? { active: body.active, closing: body.closing }
         : null;
-    } catch {
+    } catch (error) {
+      if (hasOutcomeChanged('activity:asr', 'unavailable')) {
+        log.debug('engine.health.changed', {
+          engineId: 'asr',
+          outcome: 'unavailable',
+          ...describeFailure(error),
+        });
+      }
       return null;
     }
   }
@@ -832,6 +972,7 @@ export class EngineManager {
     if (!entry || !this.canOffload('game') || !entry.controlToken) {
       return null;
     }
+    const requestStartedAt = Date.now();
     try {
       const response = await fetch(`http://127.0.0.1:${definition.port}/api/forge/status`, {
         headers: { 'X-Forge-Engine-Token': entry.controlToken },
@@ -839,6 +980,14 @@ export class EngineManager {
         redirect: 'error',
       });
       const body = await response.json();
+      if (hasOutcomeChanged('activity:game', response.ok ? 'reachable' : 'rejected')) {
+        log.debug('engine.health.changed', {
+          engineId: 'game',
+          outcome: response.ok ? 'reachable' : 'rejected',
+          status: response.status,
+          durationMs: Date.now() - requestStartedAt,
+        });
+      }
       return response.ok &&
         body.engine === 'forge-mammoth-v1' &&
         Number.isSafeInteger(body.active) &&
@@ -850,7 +999,14 @@ export class EngineManager {
         )
         ? body
         : null;
-    } catch {
+    } catch (error) {
+      if (hasOutcomeChanged('activity:game', 'unavailable')) {
+        log.debug('engine.health.changed', {
+          engineId: 'game',
+          outcome: 'unavailable',
+          ...describeFailure(error),
+        });
+      }
       return null;
     }
   }
@@ -860,6 +1016,7 @@ export class EngineManager {
     if (!entry || !this.canOffload('game') || !entry.controlToken) {
       throw Error('Forge does not own the Mammoth service.');
     }
+    const requestStartedAt = Date.now();
     const response = await fetch(`http://127.0.0.1:${definition.port}/api/forge/load`, {
       method: 'POST',
       headers: { 'X-Forge-Engine-Token': entry.controlToken },
@@ -867,6 +1024,12 @@ export class EngineManager {
       redirect: 'error',
     });
     const body = await response.json();
+    log.info('engine.control.request.completed', {
+      engineId: 'game',
+      route: '/api/forge/load',
+      status: response.status,
+      durationMs: Date.now() - requestStartedAt,
+    });
     return { status: response.status, body };
   }
   async start(id, options = {}) {
@@ -880,10 +1043,12 @@ export class EngineManager {
     if (id === 'chat') {
       validateChatContext(options.contextSize ?? DEFAULT_CHAT_CONTEXT);
     }
-    await this.removals.ready.catch((error) =>
-      this.log(`Model removal recovery unavailable: ${error.message}`),
-    );
+    await this.removals.ready.catch((error) => {
+      log.warn('engine.removal.recovery.unavailable', { engineId: id, ...describeFailure(error) });
+      this.log(`Model removal recovery unavailable: ${error.message}`);
+    });
     if (this.offloading.has(id)) {
+      log.info('engine.start.refused', { engineId: id, reason: 'stopping' });
       return { id, status: 'stopping', message: 'The engine is stopping.' };
     }
     if (this.recoveryDefinitions.has(id)) {
@@ -898,11 +1063,21 @@ export class EngineManager {
       ) {
         try {
           await this.reconcileRecovery(this.recoveryDefinitions.get(id));
-        } catch {
+        } catch (error) {
+          log.warn('engine.ownership.reconcile.failed', {
+            engineId: id,
+            phase: 'start',
+            ...describeFailure(error),
+          });
           /* The recovery state below remains fenced. */
         }
       }
       if (this.recoveryStates.get(id) === 'unresolved' || !this.recoveryLock?.held) {
+        log.warn('engine.start.refused', {
+          engineId: id,
+          reason: 'recovery_unresolved',
+          isLockHeld: !!this.recoveryLock?.held,
+        });
         return {
           id,
           status: 'recovery_unresolved',
@@ -911,12 +1086,15 @@ export class EngineManager {
       }
     }
     if (this.offloading.has(id)) {
+      log.info('engine.start.refused', { engineId: id, reason: 'stopping' });
       return { id, status: 'stopping', message: 'The engine is stopping.' };
     }
     if (this.removals.isActive(id)) {
+      log.info('engine.start.refused', { engineId: id, reason: 'model_removal_active' });
       return { id, status: 'deleting', message: 'Model files are being removed.' };
     }
     if (this.starting.has(id)) {
+      log.debug('engine.start.joined', { engineId: id });
       return this.starting.get(id);
     }
     const task = this.startOnce(id, options).finally(() => this.starting.delete(id));
@@ -931,14 +1109,18 @@ export class EngineManager {
     if (!definition) {
       throw Error('Unknown engine.');
     }
+    log.info('engine.start.requested', { engineId: id });
     if (this.owns(id)) {
+      log.debug('engine.start.skipped', { engineId: id, reason: 'already_managed' });
       return { id, status: 'already_managed', pid: this.children.get(id).child.pid };
     }
     const observed = await inspectService(definition);
     if (observed.status === 'reachable') {
+      log.info('engine.adoption.refused', { engineId: id, reason: 'running_but_not_owned' });
       return { id, status: 'already_running', managed: false };
     }
     if (await portOpen(definition.port)) {
+      log.warn('engine.start.refused', { engineId: id, reason: 'port_in_use' });
       return {
         id,
         status: 'port_in_use',
@@ -946,6 +1128,7 @@ export class EngineManager {
       };
     }
     if (!existsSync(definition.command) || !existsSync(definition.cwd)) {
+      log.warn('engine.start.refused', { engineId: id, reason: 'runtime_missing' });
       return { id, status: 'missing', message: 'Engine runtime or directory not found.' };
     }
     mkdirSync(this.logDir, { recursive: true });
@@ -983,6 +1166,9 @@ export class EngineManager {
           ...process.env,
           ...definition.env,
           ...launch.env,
+          // Saved settings that engines read from their environment (memory.hostPolicy and
+          // world.fullPrecision); a variable already set for Forge itself is left as it is.
+          ...engineEnvironment(),
           ...(controlToken
             ? {
                 [id === 'images' ? 'FORGE_IMAGE_CONTROL_TOKEN' : 'FORGE_ENGINE_CONTROL_TOKEN']:
@@ -996,6 +1182,12 @@ export class EngineManager {
         detached: true,
       });
     } catch (error) {
+      log.error('engine.start.failed', {
+        engineId: id,
+        reason: 'spawn_threw',
+        isPrepared: prepared,
+        ...describeFailure(error),
+      });
       if (recoverable) {
         this.recoveryStates.set(id, 'unresolved');
         // A synchronous spawn failure created no process; only that case may
@@ -1004,7 +1196,12 @@ export class EngineManager {
           try {
             await this.recovery.journal.clear(id, nonce);
             this.recoveryStates.set(id, 'none');
-          } catch {
+          } catch (clearError) {
+            log.warn('engine.ownership.journal.failed', {
+              engineId: id,
+              reason: 'clear_after_spawn_threw',
+              ...describeFailure(clearError),
+            });
             /* Preserve unresolved state when journal cleanup fails. */
           }
         }
@@ -1031,8 +1228,27 @@ export class EngineManager {
     this.children.set(id, entry);
     child.unref();
     entry.forceIdentityPromise = this.captureForceIdentity(entry, definition);
-    child.on('error', (error) => this.log(`Engine ${id} failed: ${error.message}`));
+    child.on('error', (error) => {
+      log.error('engine.process.error', {
+        engineId: id,
+        pid: child.pid,
+        ...describeFailure(error),
+      });
+      this.log(`Engine ${id} failed: ${error.message}`);
+    });
     child.once('exit', (code, signal) => {
+      const exitFields = {
+        engineId: id,
+        pid: child.pid,
+        exitCode: code,
+        signal,
+        durationMs: Date.now() - entry.startedAt,
+      };
+      if (entry.stopping || this.closed) {
+        log.info('engine.process.exited', { ...exitFields, reason: 'stop_requested' });
+      } else {
+        log.warn('engine.process.exited', { ...exitFields, reason: 'unexpected' });
+      }
       if (this.children.get(id) === entry) {
         this.children.delete(id);
       }
@@ -1046,6 +1262,11 @@ export class EngineManager {
               },
               (error) => {
                 this.recoveryStates.set(id, 'unresolved');
+                log.warn('engine.ownership.cleanup.failed', {
+                  engineId: id,
+                  reason: 'unexpected_exit',
+                  ...describeFailure(error),
+                });
                 this.log(`Engine ownership cleanup failed: ${error.message}`);
               },
             )
@@ -1061,22 +1282,52 @@ export class EngineManager {
         return;
       }
       this.log(`Engine ${id} exited (${code ?? signal}).`);
+      recordRecoveryEvent(
+        {
+          code: 'engine.exited',
+          severity: 'warn',
+          kind: 'engine',
+          id,
+          detail: `The engine process exited unexpectedly (${code ?? signal}).`,
+        },
+        { directory: this.logDir },
+      );
       if (definition.noRestart) {
         return;
       }
       const failures = (Date.now() - entry.startedAt > 30000 ? 0 : this.failures.get(id) || 0) + 1;
       this.failures.set(id, failures);
       if (failures <= 3) {
+        const restartDelayMs = Math.min(1000 * 2 ** (failures - 1), 5000);
+        log.info('engine.restart.scheduled', {
+          engineId: id,
+          failureCount: failures,
+          delayMs: restartDelayMs,
+        });
         const timer = setTimeout(
           () =>
-            this.start(id).catch((error) =>
-              this.log(`Engine ${id} restart failed: ${error.message}`),
-            ),
-          Math.min(1000 * 2 ** (failures - 1), 5000),
+            this.start(id).catch((error) => {
+              log.warn('engine.restart.failed', { engineId: id, ...describeFailure(error) });
+              this.log(`Engine ${id} restart failed: ${error.message}`);
+            }),
+          restartDelayMs,
         );
         timer.unref();
       } else {
+        log.error('engine.restart.cap.reached', { engineId: id, failureCount: failures });
         this.log(`Engine ${id} restart limit reached.`);
+        // Stop restarting a crashing engine; the Recovery report says it needs attention.
+        recordRecoveryEvent(
+          {
+            code: 'supervisor.engine_crash_loop',
+            severity: 'error',
+            kind: 'engine',
+            id,
+            count: failures,
+            detail: 'Automatic restarts stopped after repeated early crashes.',
+          },
+          { directory: this.logDir },
+        );
       }
     });
     try {
@@ -1086,19 +1337,36 @@ export class EngineManager {
       });
     } catch (error) {
       this.children.delete(id);
+      log.error('engine.start.failed', {
+        engineId: id,
+        reason: 'spawn_event_error',
+        durationMs: Date.now() - entry.startedAt,
+        ...describeFailure(error),
+      });
       if (recoverable) {
         this.recoveryStates.set(id, 'unresolved');
         if (this.recoveryLock?.held) {
           try {
             await this.recovery.journal.clear(id, nonce);
             this.recoveryStates.set(id, 'none');
-          } catch {
+          } catch (clearError) {
+            log.warn('engine.ownership.journal.failed', {
+              engineId: id,
+              reason: 'clear_after_spawn_error',
+              ...describeFailure(clearError),
+            });
             /* Preserve unresolved state when journal cleanup fails. */
           }
         }
       }
       return { id, status: 'failed', message: error.message };
     }
+    log.info('engine.process.spawned', {
+      engineId: id,
+      kind: 'engine',
+      pid: child.pid,
+      durationMs: Date.now() - entry.startedAt,
+    });
     if (recoverable) {
       entry.binding = this.bindRecovery(entry, definition);
     }
@@ -1112,6 +1380,7 @@ export class EngineManager {
       throw Error('Unknown engine.');
     }
     if (definition.onDemand) {
+      log.debug('engine.start.refused', { engineId: definition.id, reason: 'on_demand' });
       return {
         id: definition.id,
         status: 'on_demand',
@@ -1121,10 +1390,16 @@ export class EngineManager {
     try {
       return await this.start(definition.id);
     } catch (error) {
+      log.warn('engine.start.failed', {
+        engineId: definition.id,
+        reason: 'start_threw',
+        ...describeFailure(error),
+      });
       return { id: definition.id, status: 'failed', message: error.message };
     }
   }
   async startAll() {
+    log.info('engine.start.all.requested', { engineCount: this.definitions.length });
     return {
       services: await Promise.all(
         this.definitions.map((definition) => this.startOne(definition.id)),
@@ -1132,15 +1407,22 @@ export class EngineManager {
     };
   }
   async stopGuardedEngine(entry, definition, id) {
+    log.info('engine.stop.requested', {
+      engineId: id,
+      pid: entry.child.pid,
+      kind: entry.recovered ? 'recovered' : 'guarded',
+    });
     if (entry.recovered) {
       return this.stopRecoveredEngine(entry, definition, id);
     }
     if (entry.binding && !entry.record) {
       if (!(await entry.binding)) {
+        log.warn('engine.stop.refused', { engineId: id, reason: 'ownership_not_verified' });
         throw Error('Engine ownership is not yet verified. Check Diagnostics before stopping it.');
       }
     }
     if (this.recoveryDefinitions.has(id) && !this.recoveryLock?.held) {
+      log.warn('engine.stop.refused', { engineId: id, reason: 'ownership_lock_unavailable' });
       throw Error('Engine ownership lock is unavailable. Check Diagnostics.');
     }
     entry.stopping = true;
@@ -1163,19 +1445,32 @@ export class EngineManager {
     };
     const resume = async () => {
       try {
+        const requestStartedAt = Date.now();
         const response = await fetch(`http://127.0.0.1:${definition.port}/api/forge/resume`, {
           method: 'POST',
           headers: { 'X-Forge-Engine-Token': entry.controlToken },
           signal: AbortSignal.timeout(2000),
           redirect: 'error',
         });
+        log.info('engine.control.request.completed', {
+          engineId: id,
+          route: '/api/forge/resume',
+          status: response.status,
+          durationMs: Date.now() - requestStartedAt,
+        });
         return response.ok;
-      } catch {
+      } catch (error) {
+        log.warn('engine.control.request.failed', {
+          engineId: id,
+          route: '/api/forge/resume',
+          ...describeFailure(error),
+        });
         return false;
       }
     };
     let accepted = false,
       busy = false;
+    const stopRequestedAt = Date.now();
     try {
       const response = await fetch(`http://127.0.0.1:${definition.port}/api/forge/stop`, {
         method: 'POST',
@@ -1186,7 +1481,19 @@ export class EngineManager {
       const body = await response.json();
       accepted = response.ok && body.stopping === true;
       busy = response.status === 409;
-    } catch {
+      log.info('engine.control.request.completed', {
+        engineId: id,
+        route: '/api/forge/stop',
+        status: response.status,
+        durationMs: Date.now() - stopRequestedAt,
+      });
+    } catch (error) {
+      log.warn('engine.control.request.failed', {
+        engineId: id,
+        route: '/api/forge/stop',
+        durationMs: Date.now() - stopRequestedAt,
+        ...describeFailure(error),
+      });
       /* The stop outcome remains unverified and is handled below. */
     }
     if (!accepted) {
@@ -1202,6 +1509,10 @@ export class EngineManager {
       } else {
         this.markUnknownStop(entry, definition);
       }
+      log.warn('engine.stop.refused', {
+        engineId: id,
+        reason: busy ? 'busy' : 'stop_unverified',
+      });
       throw Error(
         busy
           ? 'The engine has active or queued work.'
@@ -1209,6 +1520,11 @@ export class EngineManager {
       );
     }
     if (!(await exited)) {
+      log.warn('engine.stop.timeout', {
+        engineId: id,
+        reason: 'exit_timeout',
+        durationMs: Date.now() - stopRequestedAt,
+      });
       this.markUnknownStop(entry, definition);
       throw Error('The engine did not exit within 10 seconds. Check its status.');
     }
@@ -1216,6 +1532,11 @@ export class EngineManager {
   }
   markUnknownStop(entry, definition) {
     if (entry.record) {
+      log.warn('engine.stop.unknown', {
+        engineId: definition.id,
+        pid: entry.child.pid,
+        reason: 'outcome_unverified',
+      });
       // The launcher may already have exited while the listener is still being
       // checked. Keep a fenced entry so reconciliation can finish safely.
       if (!this.children.has(definition.id)) {
@@ -1237,22 +1558,37 @@ export class EngineManager {
         }
         this.recoveryStates.set(id, 'none');
       } catch (error) {
+        log.warn('engine.ownership.cleanup.failed', {
+          engineId: id,
+          reason: 'exit_unverified',
+          ...describeFailure(error),
+        });
         this.markUnknownStop(entry, definition);
         throw error;
       }
     }
+    log.info('engine.stop.completed', { engineId: id, kind: 'guarded' });
     return { id, stopped: true, message: 'Owned engine stopped. Model files were not removed.' };
   }
   async stopRecoveredEngine(entry, definition, id) {
+    const stopStartedAt = Date.now();
     if (!this.recoveryLock?.held) {
+      log.warn('engine.stop.refused', { engineId: id, reason: 'ownership_lock_unavailable' });
       throw Error('Engine ownership cannot be verified. Check Diagnostics.');
     }
     const verified = await this.recovery.check(definition, entry.record);
     if (!verified.verified || !this.recoveryLock?.held) {
+      log.warn('engine.stop.refused', { engineId: id, reason: 'ownership_not_verified' });
       throw Error('Engine ownership could not be verified. Check Diagnostics.');
     }
     entry.stopping = true;
     const uncertain = (message) => {
+      log.warn('engine.stop.unknown', {
+        engineId: id,
+        pid: entry.child.pid,
+        reason: 'outcome_unverified',
+        durationMs: Date.now() - stopStartedAt,
+      });
       entry.stopUnknown = true;
       this.recoveryStates.set(id, 'unresolved');
       this.monitorRecovered(entry, definition);
@@ -1266,10 +1602,23 @@ export class EngineManager {
         signal: AbortSignal.timeout(3000),
         redirect: 'error',
       });
-    } catch {
+      log.info('engine.control.request.completed', {
+        engineId: id,
+        route: '/api/forge/stop',
+        status: response.status,
+        durationMs: Date.now() - stopStartedAt,
+      });
+    } catch (error) {
+      log.warn('engine.control.request.failed', {
+        engineId: id,
+        route: '/api/forge/stop',
+        durationMs: Date.now() - stopStartedAt,
+        ...describeFailure(error),
+      });
       return uncertain('The stop result is unknown. Forge will check the engine before retrying.');
     }
     if (response.status === 409) {
+      log.warn('engine.stop.refused', { engineId: id, reason: 'busy' });
       entry.stopping = false;
       this.monitorRecovered(entry, definition);
       throw Error('The engine has active or queued work.');
@@ -1277,7 +1626,12 @@ export class EngineManager {
     let body;
     try {
       body = await response.json();
-    } catch {
+    } catch (error) {
+      log.debug('engine.control.response.invalid', {
+        engineId: id,
+        route: '/api/forge/stop',
+        ...describeFailure(error),
+      });
       /* Invalid response data remains an unknown stop outcome. */
     }
     if (!response.ok || body?.stopping !== true) {
@@ -1292,7 +1646,12 @@ export class EngineManager {
       if (state === 'exited_or_reused') {
         try {
           await this.recovery.journal.clear(id, entry.record.nonce);
-        } catch {
+        } catch (error) {
+          log.warn('engine.ownership.journal.failed', {
+            engineId: id,
+            reason: 'clear_after_stop',
+            ...describeFailure(error),
+          });
           return uncertain('The engine stopped, but ownership cleanup needs review.');
         }
         clearTimeout(entry.monitorTimer);
@@ -1301,6 +1660,11 @@ export class EngineManager {
           this.children.delete(id);
         }
         this.recoveryStates.set(id, 'none');
+        log.info('engine.stop.completed', {
+          engineId: id,
+          kind: 'recovered',
+          durationMs: Date.now() - stopStartedAt,
+        });
         return {
           id,
           stopped: true,
@@ -1315,15 +1679,18 @@ export class EngineManager {
     const entry = this.children.get(id),
       definition = this.definitions.find((item) => item.id === id);
     if (!definition || !this.canOffload(id)) {
+      log.warn('engine.offload.refused', { engineId: id, reason: 'not_stoppable' });
       throw Error(
         'Forge cannot safely stop this engine process; manage it in its own application.',
       );
     }
     this.offloading ??= new Set();
     if (this.offloading.has(id)) {
+      log.warn('engine.offload.refused', { engineId: id, reason: 'already_stopping' });
       throw Error('The engine is already stopping.');
     }
     this.offloading.add(id);
+    log.info('engine.offload.requested', { engineId: id, pid: entry.child.pid });
     try {
       return await this.offloadOnce(entry, definition, id);
     } finally {
@@ -1350,11 +1717,18 @@ export class EngineManager {
     let safe = false;
     try {
       if (id === 'music') {
+        const requestStartedAt = Date.now();
         const response = await fetch(`http://127.0.0.1:${definition.port}/api/status`, {
           signal: AbortSignal.timeout(2000),
           redirect: 'error',
         });
         const status = await response.json();
+        log.debug('engine.idle.check.completed', {
+          engineId: id,
+          route: '/api/status',
+          status: response.status,
+          durationMs: Date.now() - requestStartedAt,
+        });
         safe =
           response.ok &&
           status.model &&
@@ -1366,10 +1740,12 @@ export class EngineManager {
         const status = await inspectService(definition);
         safe = status.status === 'reachable' && status.busy === false;
       }
-    } catch {
+    } catch (error) {
+      log.debug('engine.idle.check.failed', { engineId: id, ...describeFailure(error) });
       /* The idle state could not be verified. */
     }
     if (!safe) {
+      log.info('engine.offload.refused', { engineId: id, reason: 'busy_or_unverified' });
       throw Error('The engine is busy or its idle state cannot be verified.');
     }
     entry.stopping = true;
@@ -1382,11 +1758,14 @@ export class EngineManager {
     });
     if (!entry.child.kill()) {
       entry.stopping = false;
+      log.warn('engine.stop.failed', { engineId: id, reason: 'kill_rejected' });
       throw Error('Could not stop the owned engine process.');
     }
     if (!(await exited)) {
+      log.warn('engine.stop.timeout', { engineId: id, reason: 'exit_timeout' });
       throw Error('The engine did not exit within 10 seconds. Check its status.');
     }
+    log.info('engine.stop.completed', { engineId: id, kind: 'process' });
     return { id, stopped: true, message: 'Owned engine stopped. Model files were not removed.' };
   }
 }

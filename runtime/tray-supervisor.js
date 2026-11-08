@@ -1,6 +1,10 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createLogger } from './app-log.js';
+
+// Named appLog because startWindowsTray takes a `log` callback option.
+const appLog = createLogger('tray');
 
 // A tray crash must not affect the web host or model workers. Restart the
 // lightweight helper with bounded backoff while the studio supervisor is alive.
@@ -42,6 +46,7 @@ export function startWindowsTray({
     failures++;
     const delay = Math.min(5000 * 2 ** Math.min(failures - 1, 4), 60000);
     log(`Supervisor event=tray_restart_scheduled delay_ms=${delay}`);
+    appLog.warn('tray.restart.scheduled', { attempt: failures, delayMs: delay });
     timer = scheduleTimer(() => {
       timer = null;
       start();
@@ -55,12 +60,14 @@ export function startWindowsTray({
     let processHandle;
     try {
       processHandle = launch(executable, args, { windowsHide: true, stdio: 'ignore', env });
-    } catch {
+    } catch (error) {
+      appLog.warn('tray.process.start_failed', { errorClass: error?.name, errorCode: error?.code });
       log('Supervisor event=tray_start_failed');
       schedule();
       return;
     }
     child = processHandle;
+    appLog.info('tray.process.started', { pid: processHandle.pid });
     let settled = false;
     const started = Date.now();
     function ended() {
@@ -74,6 +81,11 @@ export function startWindowsTray({
       if (Date.now() - started > 30000) {
         failures = 0;
       }
+      appLog.info('tray.process.exited', {
+        pid: processHandle.pid,
+        durationMs: Date.now() - started,
+        isStopping: stopped,
+      });
       if (!stopped) {
         log('Supervisor event=tray_stopped');
         schedule();
@@ -87,6 +99,7 @@ export function startWindowsTray({
   return {
     stop() {
       stopped = true;
+      appLog.info('tray.stop.requested', { hasProcess: child !== null });
       cancelTimer(timer);
       timer = null;
     },

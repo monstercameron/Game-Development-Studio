@@ -1,5 +1,6 @@
 import json
 import struct
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,7 +8,11 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from runtime import hunyuan_paint_backend as paint
+ROOT = Path(__file__).resolve().parents[1]
+# The backend imports app_log from runtime/, as the worker does when run as a script.
+sys.path.insert(0, str(ROOT / "runtime"))
+
+from runtime import hunyuan_paint_backend as paint  # noqa: E402
 
 
 def glb_json(data):

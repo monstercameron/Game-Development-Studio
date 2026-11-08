@@ -2,9 +2,12 @@
 // .forge-runtime/i18n.sqlite. A translation is stored per (language, key, source_hash), so a
 // change to the English source makes it stale instead of silently wrong. The database is
 // created on the first write only.
-import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createLogger } from './app-log.js';
+import { openDatabase } from './durable-db.js';
+
+const log = createLogger('i18n');
 
 const SCHEMA = [
   'PRAGMA busy_timeout=5000',
@@ -23,7 +26,8 @@ const SCHEMA = [
 function parseValue(text) {
   try {
     return JSON.parse(text);
-  } catch {
+  } catch (failure) {
+    log.warn('i18n.row.invalid', { reason: 'invalid_json', errorClass: failure?.name });
     return null;
   }
 }
@@ -41,10 +45,12 @@ export function createTranslationStore({ directory, now = () => new Date() }) {
       return null;
     }
     fs.mkdirSync(directory, { recursive: true });
-    const connection = new DatabaseSync(file, { timeout: 5000 });
+    // Translations cost API calls and overrides are the user's own text: FULL synchronous.
+    const connection = openDatabase(file, { name: 'i18n', journal: null, directory });
     try {
       connection.exec(SCHEMA);
     } catch (error) {
+      log.error('i18n.store.open.failed', { errorClass: error?.name, errorCode: error?.code });
       connection.close();
       throw error;
     }
@@ -124,7 +130,14 @@ export function createTranslationStore({ directory, now = () => new Date() }) {
           );
         }
         connection.exec('COMMIT');
+        log.debug('i18n.translations.saved', { locale: lang, rowCount: rows.length });
       } catch (error) {
+        log.error('i18n.translations.save.failed', {
+          locale: lang,
+          rowCount: rows.length,
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
         connection.exec('ROLLBACK');
         throw error;
       }
@@ -133,6 +146,7 @@ export function createTranslationStore({ directory, now = () => new Date() }) {
       const connection = open(true);
       if (value === null) {
         connection.prepare('DELETE FROM overrides WHERE lang=? AND key=?').run(lang, key);
+        log.debug('i18n.override.deleted', { locale: lang });
         return;
       }
       connection
@@ -140,6 +154,7 @@ export function createTranslationStore({ directory, now = () => new Date() }) {
           'INSERT INTO overrides(lang,key,namespace,source_hash,value,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(lang,key) DO UPDATE SET namespace=excluded.namespace, source_hash=excluded.source_hash, value=excluded.value, updated_at=excluded.updated_at',
         )
         .run(lang, key, namespace, sourceHash, JSON.stringify(value), now().toISOString());
+      log.debug('i18n.override.saved', { locale: lang });
     },
     /**
      * Removes translations for a language (all namespaces when `namespaces` is empty) and,
@@ -164,6 +179,12 @@ export function createTranslationStore({ directory, now = () => new Date() }) {
           );
         }
       }
+      log.info('i18n.translations.reset', {
+        locale: lang,
+        removedCount: removed,
+        namespaceCount: namespaces.length,
+        isOverridesIncluded: includeOverrides,
+      });
       return removed;
     },
     /** Languages with stored rows: [{ lang, namespace, translations, overrides }]. */
@@ -190,12 +211,17 @@ export function createTranslationStore({ directory, now = () => new Date() }) {
     getPreference() {
       return open(false)?.prepare('SELECT locale FROM preference WHERE id=1').get()?.locale || null;
     },
+    /** Removes the studio-wide language preference, so browsers decide for themselves. */
+    clearPreference() {
+      open(false)?.prepare('DELETE FROM preference WHERE id=1').run();
+    },
     setPreference(locale) {
       open(true)
         .prepare(
           'INSERT INTO preference(id,locale,updated_at) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET locale=excluded.locale, updated_at=excluded.updated_at',
         )
         .run(locale, now().toISOString());
+      log.info('i18n.preference.saved', { locale });
     },
     close() {
       db?.close();

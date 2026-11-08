@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
 import { ViewerError } from './viewer-core';
+import { createLog } from './app-log.js';
+
+const log = createLog('three-d');
 
 const POINT_MODE_SCALE = 3;
 
@@ -93,7 +96,10 @@ export async function loadSplatSource(engine, { url, signal, onStage, onProgress
   // A HEAD request is a cheap way to learn the file size for the inspector.
   const sizeRequest = fetch(url, { method: 'HEAD', signal, redirect: 'error' })
     .then((response) => Number(response.headers.get('content-length')) || null)
-    .catch(() => null);
+    .catch((error) => {
+      log.debug('viewer.splat.size.unavailable', { errorClass: error?.name });
+      return null;
+    });
 
   const loading = viewer.addSplatScene(url, {
     format: GaussianSplats3D.SceneFormat.Ply,
@@ -116,6 +122,7 @@ export async function loadSplatSource(engine, { url, signal, onStage, onProgress
     if (signal.aborted) {
       throw new DOMException('Aborted', 'AbortError');
     }
+    log.warn('viewer.splat.parse.failed', { format: 'ply', errorClass: error?.name });
     throw new ViewerError(
       'PARSE',
       error?.message && !/abort/i.test(error.message) ? error.message : 'Could not read splats.',
@@ -133,7 +140,8 @@ export async function loadSplatSource(engine, { url, signal, onStage, onProgress
   let bounds = null;
   try {
     bounds = robustBounds(mesh, splats);
-  } catch {
+  } catch (error) {
+    log.debug('viewer.splat.bounds.fallback', { errorClass: error?.name });
     // Fall back to the library's own scene extent below.
   }
   engine.setAdapterContent({

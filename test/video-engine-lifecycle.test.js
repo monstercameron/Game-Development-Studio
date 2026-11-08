@@ -234,7 +234,11 @@ test('the video engine is a guarded, stoppable engine in the real definitions', 
   assert.equal(video.quiesce, 'h3-guard-v1');
   assert.equal(video.onDemand, undefined);
   const manager = new EngineManager({
-    definitions: engineDefinitions.filter((item) => ['video', 'chat'].includes(item.id)),
+    // The video guard is adoptable after a studio restart, which starts the ownership lock helper
+    // process; this test only reads status and must not start it.
+    definitions: engineDefinitions
+      .filter((item) => ['video', 'chat'].includes(item.id))
+      .map((item) => ({ ...item, recoverable: false })),
     logDir: os.tmpdir(),
     logger: () => {},
   });

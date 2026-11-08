@@ -21,9 +21,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / ".forge-runtime" / "motionbricks-packages"))
 # These imports must follow sys.path setup for the isolated embedded Python runtime.
+from app_log import flush as flush_log  # noqa: E402
+from app_log import get_logger, install_excepthook  # noqa: E402
 from engine_identity import install_identity_endpoint  # noqa: E402
 from host_memory import host_bytes_needed  # noqa: E402
 from worker_outputs import recovered_job  # noqa: E402
+
+log = get_logger("motion")
 
 MODEL = Path(os.environ.get("FORGE_MOTIONBRICKS_MODEL", ROOT / "models" / "MotionBricks"))
 SOURCE = Path(
@@ -61,7 +65,8 @@ def files_ready():
             )
             and (SOURCE / "tools/onnx/assets/soma_model_rig.npz").stat().st_size == 1184
         )
-    except OSError:
+    except OSError as error:
+        log.debug("motion.files.check.failed", {"error": error})
         return False
 
 
@@ -109,6 +114,7 @@ def require_gpu_memory(gib):
 
 def load_worker(rig, threads):
     global session, current_rig
+    stop = log.time("motion.model.load.completed", {"modelId": rig})
     try:
         require_memory(7)
         from motionbricks_backend import load_model
@@ -118,7 +124,9 @@ def load_worker(rig, threads):
             session = loaded
             current_rig = rig
             state.update(phase="ready", error=None)
+        stop()
     except Exception as error:
+        log.error("motion.model.load.failed", {"modelId": rig, "error": error})
         traceback.print_exc()
         traceback.clear_frames(error.__traceback__)
         gc.collect()
@@ -126,15 +134,17 @@ def load_worker(rig, threads):
         try:
             if torch is not None and torch.cuda.is_initialized():
                 torch.cuda.empty_cache()
-        except Exception:
-            pass
+        except Exception as cleanup_error:
+            log.debug("motion.cuda.cache.clear_failed", {"error": cleanup_error})
         with lock:
             state.update(phase="error", error=str(error)[:1500])
 
 
 def render_worker(job_id, rig, tensors):
     temp = OUTPUTS / f".{job_id}.part"
+    stop = log.time("motion.generate.completed", {"jobId": job_id, "format": "json"})
     try:
+        log.info("motion.job.state.changed", {"jobId": job_id, "from": "queued", "to": "running"})
         with lock:
             jobs[job_id].update(status="running", message="Generating pose transition.")
         require_memory(4)
@@ -149,19 +159,25 @@ def render_worker(job_id, rig, tensors):
             "boundaryFrames": 3,
             "tensors": {key: value.tolist() for key, value in output.items()},
         }
-        temp.write_text(
-            json.dumps(result, allow_nan=False, separators=(",", ":")), encoding="utf-8"
-        )
+        # json.dumps escapes non-ASCII by default, so len() is the byte count.
+        payload = json.dumps(result, allow_nan=False, separators=(",", ":"))
+        temp.write_text(payload, encoding="utf-8")
         os.replace(temp, OUTPUTS / f"{job_id}.json")
+        log.debug(
+            "motion.file.written",
+            {"kind": "output", "extension": "json", "outputBytes": len(payload)},
+        )
         with lock:
             jobs[job_id].update(status="completed", message="Raw pose transition ready.")
             state.update(phase="ready", error=None)
+        stop({"outputBytes": len(payload)})
     except Exception as error:
+        log.error("motion.generate.failed", {"jobId": job_id, "format": "json", "error": error})
         traceback.print_exc()
         try:
             temp.unlink(missing_ok=True)
-        except OSError:
-            pass
+        except OSError as cleanup_error:
+            log.debug("motion.file.cleanup.failed", {"error": cleanup_error})
         with lock:
             jobs[job_id].update(status="failed", message=str(error)[:1500])
             state.update(phase="ready" if session is not None else "error", error=None)
@@ -169,7 +185,9 @@ def render_worker(job_id, rig, tensors):
 
 def render_bvh_worker(job_id, clip, tensors, alignment):
     temp = OUTPUTS / f".{job_id}.part"
+    stop = log.time("motion.generate.completed", {"jobId": job_id, "format": "bvh"})
     try:
+        log.info("motion.job.state.changed", {"jobId": job_id, "from": "queued", "to": "running"})
         with lock:
             jobs[job_id].update(status="running", message="Generating SOMA pose transition.")
         require_memory(4)
@@ -181,15 +199,21 @@ def render_bvh_worker(job_id, clip, tensors, alignment):
         bvh = decode_bvh(clip, output, alignment)
         temp.write_text(bvh, encoding="utf-8")
         os.replace(temp, OUTPUTS / f"{job_id}.bvh")
+        bvh_bytes = len(bvh.encode("utf-8"))
+        log.debug(
+            "motion.file.written", {"kind": "output", "extension": "bvh", "outputBytes": bvh_bytes}
+        )
         with lock:
             jobs[job_id].update(status="completed", message="SOMA transition ready.", format="bvh")
             state.update(phase="ready", error=None)
+        stop({"outputBytes": bvh_bytes})
     except Exception as error:
+        log.error("motion.generate.failed", {"jobId": job_id, "format": "bvh", "error": error})
         traceback.print_exc()
         try:
             temp.unlink(missing_ok=True)
-        except OSError:
-            pass
+        except OSError as cleanup_error:
+            log.debug("motion.file.cleanup.failed", {"error": cleanup_error})
         with lock:
             jobs[job_id].update(status="failed", message=str(error)[:1500])
             state.update(phase="ready" if session is not None else "error", error=None)
@@ -214,6 +238,7 @@ class BvhRequest(BaseModel):
     num_target_poses: int = Field(default=4, ge=1, le=4, strict=True)
 
 
+# log-coverage: ignore -- read-only status poll, frequent and changes no state
 @app.get("/api/status")
 def status():
     with lock:
@@ -231,23 +256,33 @@ def status():
 
 @app.post("/api/model/load", status_code=202)
 def load(request: LoadRequest):
+    route = "/api/model/load"
     if request.rig != "soma":
+        log.warn("motion.request.rejected", {"route": route, "reason": "unsupported_rig"})
         raise HTTPException(400, "Only SOMA is connected for CUDA inference.")
     with lock:
         if state["closing"] or state["phase"] in ("loading", "generating"):
+            log.warn("motion.request.rejected", {"route": route, "reason": "worker_busy"})
             raise HTTPException(409, "Worker is busy.")
         if session is not None:
             if current_rig != request.rig:
+                log.warn(
+                    "motion.request.rejected",
+                    {"route": route, "reason": "switch_requires_stop"},
+                )
                 raise HTTPException(409, "Stop the worker before switching models.")
             return {"message": "Already loaded."}
         if not files_ready():
+            log.warn("motion.request.rejected", {"route": route, "reason": "model_files_missing"})
             raise HTTPException(409, "MotionBricks SOMA model files are missing or incomplete.")
+        log.info("motion.model.load.started", {"modelId": request.rig})
         state.update(phase="loading", error=None)
         try:
             threading.Thread(
                 target=load_worker, args=(request.rig, request.threads), daemon=True
             ).start()
         except RuntimeError as error:
+            log.error("motion.model.load.failed", {"modelId": request.rig, "error": error})
             state.update(phase="error", error=str(error)[:1500])
             raise HTTPException(503, "Could not start model loader.") from error
     return {"message": "Loading started."}
@@ -255,27 +290,37 @@ def load(request: LoadRequest):
 
 @app.post("/api/generate", status_code=202)
 def generate(request: GenerateRequest):
+    route = "/api/generate"
     if request.rig not in ("soma", "g1"):
+        log.warn("motion.request.rejected", {"route": route, "reason": "unsupported_rig"})
         raise HTTPException(400, "Choose soma or g1.")
     from motionbricks_backend import prepare_inputs
 
     try:
         tensors = prepare_inputs(request.rig, request.tensors)
     except (TypeError, ValueError) as error:
+        log.warn(
+            "motion.request.rejected",
+            {"route": route, "reason": "invalid_input", "errorClass": type(error).__name__},
+        )
         raise HTTPException(400, str(error)) from error
     with lock:
         if state["closing"] or state["phase"] in ("loading", "generating"):
+            log.warn("motion.request.rejected", {"route": route, "reason": "worker_busy"})
             raise HTTPException(409, "Worker is busy.")
         if session is None or current_rig != request.rig:
+            log.warn("motion.request.rejected", {"route": route, "reason": "model_not_loaded"})
             raise HTTPException(409, "Load the matching model first.")
         job_id = uuid.uuid4().hex
         jobs[job_id] = {"id": job_id, "status": "queued", "message": "Waiting for pose generation."}
+        log.info("motion.job.state.changed", {"jobId": job_id, "to": "queued"})
         state.update(phase="generating", error=None)
         try:
             threading.Thread(
                 target=render_worker, args=(job_id, request.rig, tensors), daemon=True
             ).start()
         except RuntimeError as error:
+            log.error("motion.generate.failed", {"jobId": job_id, "format": "json", "error": error})
             del jobs[job_id]
             state.update(phase="ready", error=None)
             raise HTTPException(503, "Could not start generation.") from error
@@ -284,6 +329,7 @@ def generate(request: GenerateRequest):
 
 @app.post("/api/generate-bvh", status_code=202)
 def generate_bvh(request: BvhRequest):
+    route = "/api/generate-bvh"
     from motionbricks_bvh import encode_pose_windows, parse_bvh
 
     try:
@@ -297,11 +343,17 @@ def generate_bvh(request: BvhRequest):
             num_target_poses=request.num_target_poses,
         )
     except (TypeError, ValueError) as error:
+        log.warn(
+            "motion.request.rejected",
+            {"route": route, "reason": "invalid_input", "errorClass": type(error).__name__},
+        )
         raise HTTPException(400, str(error)) from error
     with lock:
         if state["closing"] or state["phase"] in ("loading", "generating"):
+            log.warn("motion.request.rejected", {"route": route, "reason": "worker_busy"})
             raise HTTPException(409, "Worker is busy.")
         if session is None or current_rig != "soma":
+            log.warn("motion.request.rejected", {"route": route, "reason": "model_not_loaded"})
             raise HTTPException(409, "Load the SOMA model first.")
         job_id = uuid.uuid4().hex
         jobs[job_id] = {
@@ -310,12 +362,14 @@ def generate_bvh(request: BvhRequest):
             "message": "Waiting for pose generation.",
             "format": "bvh",
         }
+        log.info("motion.job.state.changed", {"jobId": job_id, "to": "queued"})
         state.update(phase="generating", error=None)
         try:
             threading.Thread(
                 target=render_bvh_worker, args=(job_id, clip, tensors, alignment), daemon=True
             ).start()
         except RuntimeError as error:
+            log.error("motion.generate.failed", {"jobId": job_id, "format": "bvh", "error": error})
             del jobs[job_id]
             state.update(phase="ready", error=None)
             raise HTTPException(503, "Could not start generation.") from error
@@ -332,6 +386,7 @@ def find_job(job_id):
     return recovered_job(OUTPUTS, job_id, "json", "Recovered completed raw pose transition.")
 
 
+# log-coverage: ignore -- unknown or unfinished job is a normal polling answer, not a fault
 @app.get("/api/jobs/{job_id}")
 def job_status(job_id: str):
     with lock:
@@ -341,6 +396,7 @@ def job_status(job_id: str):
         return dict(job)
 
 
+# log-coverage: ignore -- output not ready yet is a normal polling answer, not a fault
 @app.get("/api/jobs/{job_id}/output")
 def output(job_id: str):
     with lock:
@@ -357,13 +413,18 @@ def output(job_id: str):
 def finish_stop():
     with lock:
         if state["closing"]:
+            log.info("motion.process.stopped")
+            # os._exit skips atexit, so flush the spool before exiting.
+            flush_log()
             os._exit(0)
 
 
 @app.post("/api/forge/{action}")
 def control(action: str, x_forge_engine_token: str = Header(default="")):
     global stop_timer
+    route = "/api/forge/:action"
     if not TOKEN or not hmac.compare_digest(TOKEN, x_forge_engine_token):
+        log.warn("motion.request.rejected", {"route": route, "reason": "forbidden"})
         raise HTTPException(403, "Forbidden.")
     with lock:
         if action == "resume":
@@ -371,12 +432,16 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
                 stop_timer.cancel()
                 stop_timer = None
             state["closing"] = False
+            log.info("motion.stop.cancelled")
             return {"resumed": True}
         if action != "stop":
+            log.warn("motion.request.rejected", {"route": route, "reason": "unknown_action"})
             raise HTTPException(404, "Not found.")
         if state["phase"] in ("loading", "generating"):
+            log.warn("motion.request.rejected", {"route": route, "reason": "worker_busy"})
             raise HTTPException(409, "Worker has active work.")
         state["closing"] = True
+        log.info("motion.process.stop.requested")
         if stop_timer is None:
             stop_timer = threading.Timer(1, finish_stop)
             stop_timer.daemon = True
@@ -385,6 +450,9 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
 
 
 if __name__ == "__main__":
+    install_excepthook("motion")
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
-    uvicorn.run(app, host="127.0.0.1", port=parser.parse_args().port, access_log=False)
+    port = parser.parse_args().port
+    log.info("motion.process.started", {"pid": os.getpid(), "port": port})
+    uvicorn.run(app, host="127.0.0.1", port=port, access_log=False)

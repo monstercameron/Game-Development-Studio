@@ -1,5 +1,9 @@
 import os from 'node:os';
+import { createLogger } from './app-log.js';
 import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
+import { resolveAutoStart } from './service-preparation.js';
+
+const log = createLogger('three-d');
 
 // Measured one 128-resolution run at roughly 10 GiB GPU and 5 GiB host memory.
 // Higher resolutions have not been calibrated; these remain admission estimates.
@@ -41,7 +45,8 @@ export function createHunyuanLoader({
         ) {
           throw Error('Unexpected response');
         }
-      } catch {
+      } catch (error) {
+        log.debug('three-d.hunyuan.status.failed', { error });
         return {
           status: 503,
           body: { code: 'engine_unavailable', message: 'Start the Hunyuan shape worker first.' },
@@ -67,6 +72,7 @@ export function createHunyuanLoader({
       }
       const free = freeMemory();
       if (hostMemoryShort(free, HUNYUAN_HOST_REQUIRED_BYTES)) {
+        log.warn('three-d.hunyuan.memory.rejected', { reason: 'insufficient_host_memory' });
         return {
           status: 409,
           body: hostMemoryConflict(free, HUNYUAN_HOST_REQUIRED_BYTES, await services(), [
@@ -82,6 +88,11 @@ export function createHunyuanLoader({
           estimate: 'Conservative, uncalibrated Hunyuan shape GPU budget plus system reserve.',
         };
       }
+      log.info('three-d.hunyuan.memory.checked', {
+        freeMiB: plan.device?.freeMiB,
+        requiredMiB: plan.requiredMiB,
+        budgetMiB: HUNYUAN_GPU_BUDGET_MIB,
+      });
       if (plan.code !== 'ready') {
         return { status: 409, body: plan };
       }
@@ -92,6 +103,7 @@ export function createHunyuanLoader({
           redirect: 'error',
         });
         if (!response.ok) {
+          log.warn('three-d.hunyuan.load.rejected', { httpStatus: response.status });
           return response.status >= 500
             ? {
                 status: 503,
@@ -109,6 +121,7 @@ export function createHunyuanLoader({
                 },
               };
         }
+        log.info('three-d.hunyuan.load.requested');
         return {
           status: 202,
           body: {
@@ -117,7 +130,8 @@ export function createHunyuanLoader({
             memory: plan,
           },
         };
-      } catch {
+      } catch (error) {
+        log.warn('three-d.hunyuan.load.unknown', { error, reason: 'load_unknown' });
         return {
           status: 503,
           body: {
@@ -137,11 +151,14 @@ export function createHunyuanLoader({
 export function createHunyuanPreparation({ startEngine, loadModel, autoStart = true }) {
   return async ({ health, reachable, claimLoad, retryModel = false }) => {
     if (!reachable) {
-      if (!autoStart) {
+      if (!resolveAutoStart(autoStart)) {
+        log.info('three-d.hunyuan.start.skipped', { reason: 'autostart_disabled' });
         return { status: 'waiting_engine', stage: 'Waiting for the configured shape worker.' };
       }
+      log.info('three-d.hunyuan.start.started');
       const result = await startEngine('3d-hunyuan');
       if (result.status === 'recovery_unresolved') {
+        log.warn('three-d.hunyuan.start.unresolved', { reason: 'recovery_unresolved' });
         if (!claimLoad()) {
           return null;
         }
@@ -153,12 +170,17 @@ export function createHunyuanPreparation({ startEngine, loadModel, autoStart = t
         };
       }
       if (['missing', 'failed', 'port_in_use'].includes(result.status)) {
+        log.warn('three-d.hunyuan.start.rejected', {
+          reason: 'start_failed',
+          status: result.status,
+        });
         return {
           status: 'needs_attention',
           stage: 'Shape worker could not start.',
           error: result.message || `Worker status: ${result.status}.`,
         };
       }
+      log.info('three-d.hunyuan.start.completed', { status: result.status });
       return { status: 'waiting_engine', stage: 'Starting the shape worker.' };
     }
     if (health.phase === 'generating') {
@@ -187,6 +209,7 @@ export function createHunyuanPreparation({ startEngine, loadModel, autoStart = t
     if (!claimLoad()) {
       return null;
     }
+    log.info('three-d.hunyuan.barrier.persisted');
     const result = await loadModel();
     if (result.body?.code === 'load_unknown') {
       return {

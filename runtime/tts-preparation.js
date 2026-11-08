@@ -1,5 +1,9 @@
 import { planModelLoad } from './model-load.js';
+import { resolveAutoStart } from './service-preparation.js';
 import { TTS_CHECKPOINTS, loadedCheckpoint } from './voice-modes.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('voices');
 
 export const TTS_BUDGET_MIB = TTS_CHECKPOINTS.custom_voice.budgetMiB;
 
@@ -35,7 +39,12 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
         ) {
           throw Error('Unexpected response');
         }
-      } catch {
+      } catch (error) {
+        // Not running is the normal state before a start request, so this stays at debug.
+        log.debug('voices.status.failed', {
+          errorClass: error?.name,
+          reason: 'engine_unavailable',
+        });
         return {
           status: 503,
           body: {
@@ -89,7 +98,13 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
           estimate: `Conservative uncalibrated estimate for ${checkpoint.label} and working memory.`,
         };
       }
+      log.info('voices.memory.checked', {
+        requiredMiB: plan.requiredMiB,
+        freeMiB: plan.device?.freeMiB,
+        budgetMiB: checkpoint.budgetMiB,
+      });
       if (plan.code !== 'ready') {
+        log.warn('voices.start.rejected', { reason: plan.code });
         return { status: 409, body: plan };
       }
       try {
@@ -101,6 +116,7 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
           redirect: 'error',
         });
         if (!response.ok) {
+          log.warn('voices.load.rejected', { httpStatus: response.status });
           return response.status >= 500
             ? {
                 status: 503,
@@ -118,6 +134,7 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
                 },
               };
         }
+        log.info('voices.load.requested', { httpStatus: response.status });
         return {
           status: 202,
           body: {
@@ -127,7 +144,11 @@ export function createTtsLoader({ hardware, services, baseUrl, fetcher = fetch }
             memory: plan,
           },
         };
-      } catch {
+      } catch (error) {
+        log.warn('voices.load.unknown', {
+          errorClass: error?.name,
+          reason: 'load_unknown',
+        });
         return {
           status: 503,
           body: {
@@ -153,11 +174,14 @@ export function createTtsPreparation({ startEngine, loadModel, autoStart = true 
     variant = 'custom_voice',
   }) {
     if (!reachable) {
-      if (!autoStart) {
+      if (!resolveAutoStart(autoStart)) {
+        log.info('voices.start.skipped', { reason: 'autostart_disabled' });
         return { status: 'waiting_engine', stage: 'Waiting for the configured speech worker.' };
       }
+      log.info('voices.start.started');
       const result = await startEngine('tts');
       if (result.status === 'recovery_unresolved') {
+        log.warn('voices.start.unresolved', { reason: 'recovery_unresolved' });
         if (!claimLoad()) {
           return null;
         }
@@ -169,12 +193,14 @@ export function createTtsPreparation({ startEngine, loadModel, autoStart = true 
         };
       }
       if (['missing', 'failed', 'port_in_use'].includes(result.status)) {
+        log.warn('voices.start.rejected', { reason: 'start_failed', status: result.status });
         return {
           status: 'needs_attention',
           stage: 'Speech worker could not start.',
           error: result.message || `Worker status: ${result.status}.`,
         };
       }
+      log.info('voices.start.completed');
       return { status: 'waiting_engine', stage: 'Starting the speech worker.' };
     }
     if (health.phase === 'generating') {
@@ -207,6 +233,7 @@ export function createTtsPreparation({ startEngine, loadModel, autoStart = true 
     if (!claimLoad()) {
       return null;
     }
+    log.info('voices.barrier.persisted');
     const result = await loadModel(variant);
     if (result.body?.code === 'load_unknown') {
       return {

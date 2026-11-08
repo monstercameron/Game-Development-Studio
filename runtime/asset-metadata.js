@@ -9,9 +9,13 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createLogger } from './app-log.js';
+import { openDatabase, projectBackupDirectory, projectDatabaseKey } from './durable-db.js';
 import { modelCatalog } from './model-catalog.js';
 import { vegetationSettings, vegetationTitle } from './vegetation-request.js';
 import { videoGpuBudget } from './video-options.js';
+
+const log = createLogger('assets');
 
 export const SCHEMA_VERSION = 1;
 export const DB_NAME = '.forge-meta.sqlite';
@@ -39,7 +43,8 @@ function studioVersion() {
       toolVersion = String(
         JSON.parse(fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8')).version || '',
       ).slice(0, 40);
-    } catch {
+    } catch (error) {
+      log.debug('assets.version.read.failed', { error });
       toolVersion = '';
     }
   }
@@ -50,7 +55,8 @@ const safeErrorCode = (error) =>
 function warn(logger, operation, error) {
   try {
     (logger || console.warn)(`WARN operation=${operation} error_code=${safeErrorCode(error)}`);
-  } catch {
+  } catch (writeError) {
+    log.debug('assets.log.write.failed', { error: writeError });
     // Logging must never change the outcome of the caller.
   }
 }
@@ -317,7 +323,8 @@ function derivedParent(type, request) {
   }
   try {
     return validateAssetPath(request.source);
-  } catch {
+  } catch (error) {
+    log.debug('assets.parent.path.rejected', { error, reason: 'invalid_path' });
     return null;
   }
 }
@@ -487,9 +494,11 @@ const migrations = [
     try {
       db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS asset_meta_fts USING fts5(
         path UNINDEXED, prompt, negative, secondary, title, model_name)`);
-    } catch {
+    } catch (error) {
       // This SQLite build has no FTS5; search falls back to LIKE.
+      log.debug('assets.search.fts.unavailable', { error });
     }
+    log.info('assets.migration.completed', { schemaVersion: 1 });
   },
 ];
 const isCorrupt = (error) =>
@@ -512,8 +521,9 @@ function initialise(db) {
     } catch (error) {
       try {
         db.exec('ROLLBACK');
-      } catch {
+      } catch (rollbackError) {
         // The original error is the useful one.
+        log.warn('assets.migration.rollback.failed', { error: rollbackError });
       }
       throw error;
     }
@@ -521,18 +531,23 @@ function initialise(db) {
   // Touch the table so a damaged file fails here rather than mid-operation.
   db.prepare('SELECT COUNT(*) FROM asset_meta').get();
 }
-function quarantine(file, logger) {
+function legacyQuarantinePath(file) {
   const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
-  const target = path.join(path.dirname(file), `.forge-meta.corrupt-${stamp}.sqlite`);
+  return path.join(path.dirname(file), `.forge-meta.corrupt-${stamp}.sqlite`);
+}
+function quarantine(file, logger) {
+  const target = legacyQuarantinePath(file);
   fs.renameSync(file, target);
   for (const suffix of ['-wal', '-shm', '-journal']) {
     try {
       fs.renameSync(file + suffix, target + suffix);
-    } catch {
+    } catch (error) {
       // Companion files are optional.
+      log.debug('assets.quarantine.companion.skipped', { error });
     }
   }
   warn(logger, 'asset_meta_quarantine', { code: 'CORRUPT' });
+  log.warn('assets.database.quarantined', { reason: 'corrupt' });
 }
 // Opens (and migrates) the project's database. Returns null when it does not
 // exist and create is false. A corrupt file is renamed aside and replaced.
@@ -556,14 +571,24 @@ function openDb(folder, { create = true, logger } = {}) {
   for (let attempt = 0; attempt < 2; attempt++) {
     let db;
     try {
-      db = new DatabaseSync(file);
+      // Rollback journal with FULL synchronous (the defaults): a committed record survives a
+      // power loss. A file that fails its integrity check is set aside and the newest backup
+      // (runtime/backup-manager.js) is restored before the migrations run.
+      db = openDatabase(file, {
+        name: `project-${projectDatabaseKey(folder)}`,
+        journal: null,
+        backupDirectory: projectBackupDirectory(folder),
+        corruptPath: (damaged) => legacyQuarantinePath(damaged),
+        onRecover: () => warn(logger, 'asset_meta_quarantine', { code: 'CORRUPT' }),
+      });
       initialise(db);
       return db;
     } catch (error) {
       try {
         db?.close();
-      } catch {
+      } catch (closeError) {
         // Already closed.
+        log.debug('assets.database.close.failed', { error: closeError });
       }
       if (attempt === 0 && existing && isCorrupt(error)) {
         quarantine(file, logger);
@@ -585,8 +610,9 @@ function withDb(folder, options, work) {
   } finally {
     try {
       db.close();
-    } catch {
+    } catch (closeError) {
       // Nothing useful to do.
+      log.debug('assets.database.close.failed', { error: closeError });
     }
   }
 }
@@ -601,8 +627,9 @@ function transaction(db, work) {
   } catch (error) {
     try {
       db.exec('ROLLBACK');
-    } catch {
+    } catch (rollbackError) {
       // The original error is the useful one.
+      log.warn('assets.migration.rollback.failed', { error: rollbackError });
     }
     throw error;
   }
@@ -653,6 +680,7 @@ function writeRow(db, meta, { overwrite }) {
   if (!result.changes) {
     return false;
   }
+  log.debug('assets.record.written', { kind: meta.kind, source: meta.source });
   if (hasFts(db)) {
     db.prepare('DELETE FROM asset_meta_fts WHERE path=?').run(meta.path);
     db.prepare(
@@ -680,7 +708,8 @@ function parseJson(value, fallback) {
   try {
     const parsed = JSON.parse(value);
     return parsed && typeof parsed === 'object' ? parsed : fallback;
-  } catch {
+  } catch (error) {
+    log.debug('assets.json.parse.failed', { error });
     return fallback;
   }
 }
@@ -778,6 +807,7 @@ export function searchAssetMeta(folder, query, { limit = 500, logger } = {}) {
           .map((row) => row.path);
       } catch (error) {
         warn(logger, 'asset_meta_search', error);
+        log.warn('assets.search.fts.failed', { error, reason: 'like_fallback' });
       }
     }
     const escaped = tokens.join(' ').replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -804,6 +834,7 @@ export function moveAssetMeta(folder, from, to, { logger } = {}) {
         db.prepare('DELETE FROM asset_meta_fts WHERE path=?').run(to);
         db.prepare('UPDATE asset_meta_fts SET path=? WHERE path=?').run(to, from);
       }
+      log.info('assets.record.moved', { movedCount: moved });
       return moved > 0;
     }),
   );
@@ -824,6 +855,7 @@ export function deleteAssetMeta(folder, paths, { logger } = {}) {
           db.prepare('DELETE FROM asset_meta_fts WHERE path=?').run(rel);
         }
       }
+      log.info('assets.record.deleted', { deletedCount: deleted, requestedCount: list.length });
       return deleted;
     }),
   );
@@ -876,8 +908,9 @@ function referenceSizes(folder, job) {
       if (info.isFile()) {
         sizes[entry.id] = info.size;
       }
-    } catch {
+    } catch (error) {
       // The staged copy may already be gone; size is optional.
+      log.debug('assets.reference.size.unavailable', { error });
     }
   }
   return sizes;
@@ -892,6 +925,7 @@ export function recordJobOutput(job, folder, { logger } = {}) {
     return upsertAssetMeta(folder, meta, { logger });
   } catch (error) {
     warn(logger, 'asset_meta_record', error);
+    log.warn('assets.record.failed', { jobId: job?.id, error, reason: 'metadata_skipped' });
     return false;
   }
 }
@@ -917,6 +951,7 @@ export function recordConversion(folder, parentPath, outputPath, conversion, { l
     return upsertAssetMeta(folder, meta, { logger });
   } catch (error) {
     warn(logger, 'asset_meta_conversion', error);
+    log.warn('assets.conversion.record.failed', { error, reason: 'metadata_skipped' });
     return false;
   }
 }
@@ -948,6 +983,7 @@ export function recordSavedText(folder, outputPath, kind, provenance, { logger }
     return upsertAssetMeta(folder, meta, { logger });
   } catch (error) {
     warn(logger, 'asset_meta_text', error);
+    log.warn('assets.text.record.failed', { error, reason: 'metadata_skipped' });
     return false;
   }
 }
@@ -1024,6 +1060,7 @@ export function backfillAssetMeta(
         );
       } catch (error) {
         warn(logger, 'asset_meta_backfill_build', error);
+        log.warn('assets.backfill.build.failed', { jobId, error, reason: 'skipped' });
       }
     }
     if (rows.length) {
@@ -1037,9 +1074,13 @@ export function backfillAssetMeta(
         }),
       );
     }
+    if (created > 0) {
+      log.info('assets.backfill.completed', { createdCount: created });
+    }
     return created;
   } catch (error) {
     warn(logger, 'asset_meta_backfill', error);
+    log.warn('assets.backfill.failed', { projectId, error, reason: 'skipped' });
     return 0;
   }
 }

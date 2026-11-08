@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import PageErrorBoundary from './PageErrorBoundary';
+import { createLog } from './app-log.js';
 import { ERRORS_CHANGED_EVENT } from './error-capture.js';
 import { postErrors } from './errors-api.js';
 import './error-pipeline-test.css';
+
+const log = createLog('errors');
 
 // Every generated error starts with this text, so nobody mistakes it for a real fault. The
 // Delete test errors action removes only rows that contain it.
@@ -93,11 +96,19 @@ export default function ErrorPipelineTest({ onOpenErrors }) {
 
   async function start(id, action) {
     const run = ++runCounter.current;
+    log.info('errors.test.triggered', { kind: id });
     setTriggerState(id, 'Sending…', 'sending');
     try {
       const isSaved = await action(run);
+      log.info('errors.test.completed', { kind: id, isSaved });
       setTriggerState(id, isSaved ? SAVED_TEXT : UNCONFIRMED_TEXT, 'sent');
     } catch (reason) {
+      log.warn('errors.test.failed', {
+        kind: id,
+        errorClass: reason?.name,
+        errorCode: reason?.code,
+        status: reason?.status,
+      });
       setTriggerState(id, `Failed: ${describeFailure(reason)}`, 'failed');
     }
   }
@@ -189,10 +200,16 @@ export default function ErrorPipelineTest({ onOpenErrors }) {
     try {
       const result = await postErrors('/test/delete', DELETE_BODY);
       window.dispatchEvent(new Event(ERRORS_CHANGED_EVENT));
+      log.info('errors.test.deleted', { removedCount: result.removed });
       setDeleteStatus(
         `Deleted ${result.removed} test error${result.removed === 1 ? '' : 's'}. Real errors were kept.`,
       );
     } catch (reason) {
+      log.warn('errors.test.delete.failed', {
+        errorClass: reason?.name,
+        errorCode: reason?.code,
+        status: reason?.status,
+      });
       setDeleteStatus(`Failed: ${describeFailure(reason)}`);
     }
     setIsConfirmingDelete(false);

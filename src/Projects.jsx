@@ -3,6 +3,7 @@ import './project-gallery-refinement.css';
 import './projects-ux.css';
 import { useState } from 'react';
 import useDialogFocus from './useDialogFocus';
+import { createLog } from './app-log.js';
 import {
   ArrowRight,
   AudioLines,
@@ -15,6 +16,8 @@ import {
   Plus,
   X,
 } from 'lucide-react';
+
+const log = createLog('projects');
 
 function projectAssetIcon(category, size = 13) {
   const Icon =
@@ -148,6 +151,7 @@ export function NewProjectDialog({ onClose, onCreate }) {
     try {
       await onCreate(name.trim());
     } catch (e) {
+      log.warn('projects.create.failed', { errorClass: e?.name });
       setError(e.message);
     } finally {
       setBusy(false);

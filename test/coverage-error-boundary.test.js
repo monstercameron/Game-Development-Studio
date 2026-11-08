@@ -54,7 +54,13 @@ test('page error boundary contains thrown values and lets a failed page retry', 
     );
     assert.ok(loadedConfig, 'Vite should load the project configuration');
 
-    const source = await readFile(sourcePath, 'utf8');
+    // The boundary imports the shared app logger. This transpiled copy lives in a temp folder,
+    // so point that import at the source file.
+    const appLogUrl = pathToFileURL(path.join(repositoryRoot, 'src', 'app-log.js')).href;
+    const source = (await readFile(sourcePath, 'utf8')).replace(
+      "from './app-log.js'",
+      `from '${appLogUrl}'`,
+    );
     const transformed = await transformWithEsbuild(source, sourcePath, loadedConfig.config.esbuild);
     await writeFile(outputPath, transformed.code, 'utf8');
     const { default: PageErrorBoundary } = await import(pathToFileURL(outputPath).href);

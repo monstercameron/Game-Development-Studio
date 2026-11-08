@@ -1,5 +1,9 @@
 import os from 'node:os';
 import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('game');
+const BYTES_PER_MIB = 1024 ** 2;
 
 // A conservative initial estimate for Q4_K_M plus its CUDA working buffers.
 // This is not a reservation; concurrent applications may still consume memory.
@@ -24,6 +28,11 @@ export function createGameLoader({
     const admitLoad = async () => {
       const free = freeMemory();
       if (hostMemoryShort(free, GAME_HOST_REQUIRED_BYTES)) {
+        log.warn('game.load.rejected', {
+          reason: 'host_memory_short',
+          freeMiB: Math.floor(free / BYTES_PER_MIB),
+          requiredMiB: GAME_HOST_REQUIRED_BYTES / BYTES_PER_MIB,
+        });
         return {
           refusal: {
             status: 409,
@@ -39,7 +48,12 @@ export function createGameLoader({
           estimate: 'Conservative, uncalibrated Mammoth GPU budget plus system reserve.',
         };
       }
+      log.info('game.memory.checked', {
+        requiredMiB: plan.requiredMiB,
+        freeMiB: plan.device?.freeMiB,
+      });
       if (plan.code !== 'ready') {
+        log.warn('game.load.rejected', { reason: plan.code });
         return { refusal: { status: 409, body: plan } };
       }
       return { plan };
@@ -52,6 +66,7 @@ export function createGameLoader({
       }
       if (initial?.ownershipRecovery === 'unresolved') {
         if (!markRequested()) {
+          log.error('game.load.barrier.failed', { reason: 'reserve_failed' });
           throw Error('Could not reserve the model-load barrier.');
         }
         return {
@@ -90,6 +105,7 @@ export function createGameLoader({
       const started = await startEngine('game');
       if (started.status === 'recovery_unresolved') {
         if (!markRequested()) {
+          log.error('game.load.barrier.failed', { reason: 'reserve_failed' });
           throw Error('Could not reserve the model-load barrier.');
         }
         return {
@@ -112,6 +128,7 @@ export function createGameLoader({
           },
         };
       }
+      const stopWorkerWait = log.time('game.worker.wait.completed');
       let state = null;
       for (let i = 0; i < 30; i++) {
         state = await activity();
@@ -120,7 +137,9 @@ export function createGameLoader({
         }
         await wait(250);
       }
+      stopWorkerWait({ outcome: state ? 'ready' : 'timeout' });
       if (!state) {
+        log.warn('game.worker.timeout', { reason: 'worker_not_ready' });
         return {
           status: 503,
           body: {
@@ -136,7 +155,9 @@ export function createGameLoader({
         };
       }
       if (state.loading) {
+        log.info('game.load.barrier.waiting', { reason: 'model_loading' });
         if (!markRequested()) {
+          log.error('game.load.barrier.failed', { reason: 'reserve_failed' });
           throw Error('Could not reserve the model-load barrier.');
         }
         return {
@@ -165,11 +186,15 @@ export function createGameLoader({
         };
       }
       if (!markRequested()) {
+        log.error('game.load.barrier.failed', { reason: 'reserve_failed' });
         throw Error('Could not reserve the model-load barrier.');
       }
+      const stopLoadRequest = log.time('game.load.request.completed');
       try {
         const response = await requestLoad();
+        stopLoadRequest({ httpStatus: response.status });
         if (response.status >= 400 && response.status < 500) {
+          log.warn('game.load.rejected', { reason: 'load_rejected', httpStatus: response.status });
           return {
             status: 409,
             body: {
@@ -195,7 +220,12 @@ export function createGameLoader({
             },
           };
         }
-      } catch {
+      } catch (error) {
+        log.warn('game.load.request.failed', {
+          reason: 'load_outcome_unknown',
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
         // A lost reply cannot prove whether loading started; keep the barrier.
       }
       return {

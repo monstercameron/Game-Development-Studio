@@ -81,6 +81,10 @@ async function renderWorldStudio(search = '', { handoff, project } = {}) {
       .replace("import { routeDetails, updateSearch, useRouteToggle } from './useNav';", '')
       .replace("import './world-studio.css';", '')
       .replace(
+        "import { createLog } from './app-log.js';",
+        'const createLog = () => ({ debug() {}, info() {}, warn() {}, error() {}, time: () => () => 0 });',
+      )
+      .replace(
         "import { useCallback, useEffect, useRef, useState } from 'react';",
         "import { useCallback, useEffect, useRef, useState } from 'react';\n" +
           'const Clock3 = () => null; const Globe2 = () => null; const ImagePlus = () => null;\n' +

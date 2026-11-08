@@ -23,7 +23,10 @@ import { isDerivedMusic, rerunRequest } from './rerun-request';
 import GenerationDetails from './GenerationDetails';
 import { useAssetMetaIndex } from './asset-meta-index';
 import { friendlyAssetLabel } from './asset-labels.js';
+import { createLog } from './app-log.js';
 import './preview-area.css';
+
+const log = createLog('ui');
 
 const folders = {
   images: ['images/'],
@@ -38,6 +41,7 @@ const folders = {
   motion: ['motion/', 'animations/'],
 };
 async function post(url, body, kind = 'project') {
+  // log-coverage: ignore -- /api requests are logged by the browser capture (http.request.failed).
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Forge-Request': kind },
@@ -80,7 +84,10 @@ function PreviewImage({ src, alt }) {
         src={src}
         alt={alt}
         onLoad={() => setState('loaded')}
-        onError={() => setState('failed')}
+        onError={() => {
+          log.warn('ui.preview.image.failed', { kind: 'image' });
+          setState('failed');
+        }}
       />
     </>
   );
@@ -192,6 +199,7 @@ export default function PreviewArea({
     async function fetchJobs() {
       const request = ++latestRequest;
       try {
+        // log-coverage: ignore -- /api requests are logged by the browser capture (http.request.failed).
         const response = await fetch('/api/runtime/jobs');
         if (!response.ok) {
           throw Error();
@@ -200,12 +208,14 @@ export default function PreviewArea({
         if (active && request === latestRequest) {
           setJobs(data.jobs || []);
         }
-      } catch {
+      } catch (error) {
+        log.debug('ui.jobs.load.failed', { error });
         if (active && request === latestRequest) {
           setJobs([]);
         }
       }
     }
+    log.debug('ui.jobs.poll.started');
     fetchJobs();
     const timer = setInterval(fetchJobs, 5000);
     return () => {
@@ -219,9 +229,12 @@ export default function PreviewArea({
     setMessage('');
     try {
       const result = await post(endpoint(action), body);
-      await onRefresh().catch(() => {});
+      await onRefresh().catch((error) => {
+        log.debug('ui.refresh.failed', { error });
+      });
       return result;
     } catch (error) {
+      log.warn('ui.asset.action.failed', { action, error });
       setMessage(error.message);
       return null;
     } finally {
@@ -282,6 +295,7 @@ export default function PreviewArea({
       setMessage('Added to the render queue.');
       onQueued?.();
     } catch (error) {
+      log.warn('ui.rerun.failed', { jobType: job?.type, error });
       setMessage(`Could not queue render: ${error.message}`);
     } finally {
       setBusy(false);

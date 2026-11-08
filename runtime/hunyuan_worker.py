@@ -15,6 +15,7 @@ import uuid
 from pathlib import Path
 
 import uvicorn
+from app_log import flush, get_logger, install_excepthook
 from engine_identity import install_identity_endpoint
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
@@ -22,9 +23,12 @@ from PIL import Image, ImageOps
 from pydantic import BaseModel, Field
 from worker_outputs import recovered_job
 
+log = get_logger("three-d")
+
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = Path(os.environ.get("FORGE_HUNYUAN_SOURCE", ROOT / ".forge-runtime" / "hunyuan3d-src"))
 MODEL = Path(os.environ.get("FORGE_HUNYUAN_MODEL", ROOT / "models" / "Hunyuan3D-2.1"))
+MODEL_ID = "Hunyuan3D-2.1"
 OUTPUTS = Path(os.environ.get("FORGE_RUNTIME_DIR", ROOT / ".forge-runtime")) / "hunyuan-outputs"
 OUTPUTS.mkdir(parents=True, exist_ok=True)
 TOKEN = os.environ.get("FORGE_ENGINE_CONTROL_TOKEN", "")
@@ -36,6 +40,10 @@ model = None
 stop_timer = None
 app = FastAPI(title="Forge Hunyuan3D shape worker")
 install_identity_endpoint(app, TOKEN, "3d-hunyuan")
+
+
+def log_request_rejected(route, reason):
+    log.warn("three-d.request.rejected", {"route": route, "reason": reason})
 
 
 def files_ready():
@@ -50,11 +58,14 @@ def load_worker():
     try:
         from hunyuan_backend import load_shape
 
+        stop = log.time("three-d.model.load.completed", {"modelId": MODEL_ID})
         loaded = load_shape(SOURCE, MODEL)
         with lock:
             model = loaded
             state.update(phase="ready", error=None)
+        stop()
     except Exception as error:
+        log.error("three-d.model.load.failed", {"modelId": MODEL_ID, "error": error})
         traceback.print_exc()
         gc.collect()
         try:
@@ -62,8 +73,8 @@ def load_worker():
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-        except Exception:
-            pass
+        except Exception as cache_error:
+            log.debug("three-d.gpu.cache.release.failed", {"error": cache_error})
         with lock:
             state.update(phase="error", error=str(error)[:1500])
 
@@ -75,8 +86,8 @@ def release_gpu_cache():
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-    except Exception:
-        pass
+    except Exception as error:
+        log.debug("three-d.gpu.cache.release.failed", {"error": error})
 
 
 def texture_ready():
@@ -84,7 +95,8 @@ def texture_ready():
         from hunyuan_paint_backend import native_modules_ready, texture_files_ready
 
         return texture_files_ready(MODEL) and native_modules_ready(SOURCE)
-    except Exception:
+    except Exception as error:
+        log.debug("three-d.texture.check.failed", {"error": error})
         return False
 
 
@@ -122,6 +134,7 @@ def render_worker(job_id, image, request):
     try:
         from hunyuan_backend import generate_shape, reduce_faces
 
+        stop = log.time("three-d.job.completed", {"jobId": job_id})
         with lock:
             jobs[job_id].update(status="running", message="Generating 3D shape.")
         mesh = generate_shape(
@@ -142,10 +155,13 @@ def render_worker(job_id, image, request):
         temp = OUTPUTS / f".{job_id}.part"
         mesh.export(str(temp), file_type="glb")
         os.replace(temp, OUTPUTS / f"{job_id}.glb")
+        log.debug("three-d.file.written", {"kind": "output"})
         with lock:
             jobs[job_id].update(status="completed", message=done)
             state.update(phase="ready", error=None)
+        stop({"outcome": "completed"})
     except Exception as error:
+        log.error("three-d.job.failed", {"jobId": job_id, "error": error})
         traceback.print_exc()
         release_gpu_cache()
         with lock:
@@ -188,6 +204,7 @@ def status():
 def load():
     with lock:
         if state["closing"]:
+            log_request_rejected("/api/model/load", "stopping")
             raise HTTPException(409, "Shape worker is stopping.")
         if model is not None:
             return {"message": "Already loaded."}
@@ -196,7 +213,9 @@ def load():
         if state["phase"] == "generating":
             raise HTTPException(409, "Shape worker is busy.")
         if not files_ready():
+            log_request_rejected("/api/model/load", "files_missing")
             raise HTTPException(409, "Shape model files are missing.")
+        log.info("three-d.model.load.started", {"modelId": MODEL_ID})
         state.update(phase="loading", error=None)
         threading.Thread(target=load_worker, daemon=True).start()
     return {"message": "Loading started."}
@@ -205,12 +224,16 @@ def load():
 @app.post("/api/generate", status_code=202)
 def generate(request: ShapeRequest):
     if request.resolution not in (128, 256, 384):
+        log_request_rejected("/api/generate", "unsupported_resolution")
         raise HTTPException(400, "Unsupported mesh resolution.")
     if request.texture_size not in (1024, 2048):
+        log_request_rejected("/api/generate", "unsupported_texture_size")
         raise HTTPException(400, "Unsupported texture size.")
     if request.texture_views not in (6, 7, 8, 9) or request.texture_view_size not in (512, 768):
+        log_request_rejected("/api/generate", "unsupported_views")
         raise HTTPException(400, "Unsupported number of painted views or view size.")
     if request.texture and not texture_ready():
+        log_request_rejected("/api/generate", "texture_missing")
         raise HTTPException(
             409, "Texture models or native helpers are missing; install them or turn texture off."
         )
@@ -230,11 +253,17 @@ def generate(request: ShapeRequest):
                 raise ValueError("Image dimensions are too large.")
             image = ImageOps.exif_transpose(source).convert("RGBA")
     except (ValueError, binascii.Error, OSError) as error:
+        log.warn(
+            "three-d.request.rejected",
+            {"route": "/api/generate", "reason": "invalid_image", "error": error},
+        )
         raise HTTPException(400, f"Invalid reference image: {error}") from error
     with lock:
         if state["closing"] or state["phase"] in ("loading", "generating"):
+            log_request_rejected("/api/generate", "busy")
             raise HTTPException(409, "Shape worker is busy.")
         if model is None:
+            log_request_rejected("/api/generate", "model_not_loaded")
             raise HTTPException(409, "Load the shape model first.")
         job_id = uuid.uuid4().hex
         jobs[job_id] = {
@@ -242,6 +271,10 @@ def generate(request: ShapeRequest):
             "status": "queued",
             "message": "Waiting for shape generation.",
         }
+        log.info(
+            "three-d.job.queued",
+            {"jobId": job_id, "steps": request.steps, "isTextured": request.texture},
+        )
         state.update(phase="generating", error=None)
         threading.Thread(target=render_worker, args=(job_id, image, request), daemon=True).start()
     return {"id": job_id}
@@ -272,6 +305,8 @@ def mesh(job_id: str):
 def finish_stop():
     with lock:
         if state["closing"]:
+            log.info("three-d.process.stopped", {"reason": "stop_requested"})
+            flush()
             os._exit(0)
 
 
@@ -279,6 +314,7 @@ def finish_stop():
 def control(action: str, x_forge_engine_token: str = Header(default="")):
     global stop_timer
     if not TOKEN or not hmac.compare_digest(TOKEN, x_forge_engine_token):
+        log_request_rejected("/api/forge/:action", "forbidden")
         raise HTTPException(403, "Forbidden.")
     with lock:
         if action == "resume":
@@ -292,6 +328,7 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
         if state["phase"] in ("loading", "generating"):
             raise HTTPException(409, "Shape worker has active work.")
         state["closing"] = True
+        log.info("three-d.process.stop.requested")
         if stop_timer is None:
             stop_timer = threading.Timer(1, finish_stop)
             stop_timer.daemon = True
@@ -300,7 +337,9 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
 
 
 if __name__ == "__main__":
+    install_excepthook("three-d")
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
     args = parser.parse_args()
+    log.info("three-d.process.started", {"port": args.port})
     uvicorn.run(app, host="127.0.0.1", port=args.port, access_log=False)

@@ -270,6 +270,20 @@ Each creation panel shows matching recent assets from the selected project. Keep
 
 Engine workers run as separate processes. The main Forge supervisor retains their process handles when the HTTP host or runtime restarts, so it can keep managing its own workers after those failures. The HTTP and runtime supervisors retry failed process starts with backoff, including operating-system spawn failures that do not emit an exit event. A fatal HTTP configuration error stops retries so the startup issue can be fixed. If the main supervisor itself stops or restarts, surviving engines are treated as externally managed until restarted through Forge; it will not claim ownership or stop them automatically. Stopping the studio does not stop those engine processes.
 
+### Refreshing the capacity figures
+
+The project site (`site/index.html`) has a **Model weight capacity** section that counts the models and sums their size on disk. The figures are measured, not typed. After models are added, removed or updated, run this on the reference machine, with the studio running so the GPU size and the studio's own storage scan can be read (two read-only GET requests to `/api/runtime/hardware` and `/api/runtime/model-storage`):
+
+```powershell
+npm run site:capacity
+```
+
+This runs `node tools/model-capacity.mjs`. The tool walks `models/` without following links, adds up the size of every regular file, and maps each folder to one row (a model card, or a supporting checkpoint or cache) with the table at the top of the script. It writes `site/model-capacity.json` and rebuilds the no-JavaScript table in `site/index.html` between the `capacity:static` markers, so commit both files together. The page draws its tiles and table from the JSON in the browser. Nothing is published until the change is pushed. `--no-studio` skips the studio (the saved GPU size is reused) and `--render-only` only rebuilds the table from the existing JSON.
+
+The tool fails when a folder over 100 MiB is not in its table, so a new model cannot be left out: add it to `ROW_DEFINITIONS` with the id of its site card. Run `node --test test/site-capacity.test.js` afterwards; it checks the JSON, that the static table matches it, and the sorting in jsdom.
+
+Sizes are file sizes in bytes (GiB = 1,024³ bytes, GB = 1,000³ bytes), not parameter counts or loaded GPU memory. **Why the total differs from the Models page:** NTFS hard links give one file several names, and the studio's storage scan (which feeds the Models page) adds every name, while `du` and this tool count each file once. On 2026-11-08 the studio scan reported 381.48 GiB for 22 folders and the tool reports 363.70 GiB (390.52 GB): the 18.08 GiB difference is hard-linked names counted twice (in `hf-cache`, `MiniMax-H3` and `MotionBricks`, plus one file shared by `ComfyUI` and `MiniMax-H3`), less 0.30 GiB in `Qwen-Image-2.1-LoRA`, a folder the studio scan does not cover. The tool records this reconciliation in the JSON.
+
 ## Notifications and keep-awake
 
 On Windows, the Studio starts a notification-area icon with controls to open,
@@ -303,6 +317,8 @@ The **Diagnostics** panel is the quickest place to gather information for an age
 Port reachability only means that something is listening on that port; it does not prove the expected engine is healthy or that a model is ready. Some existing engine logs are available when their files exist. A dedicated Qwen log source has not yet been configured.
 
 Use the panel to filter or pause the stream and copy relevant output. The server captures studio logs and browser errors as well as selected local engine logs. Runtime worker output and worker restart events are appended to `.forge-runtime/runtime-worker.log`, which is available in Diagnostics, `GET /api/logs?source=runtime-worker`, and the `forge_logs` MCP tool. The log writer limits its in-memory buffer and records when output is dropped because storage is slow; it falls back to the process console if the log file cannot be opened. The raw file is not redacted. Known secret patterns are redacted on a best-effort basis in the API and UI, but logs can still contain prompts and other private information; review them before sharing.
+
+**Studio log.** Below the file logs, **Studio log** shows the structured log that every Forge process, Python engine and the browser write to `.forge-runtime/logs.sqlite`: job and queue transitions, engine and model actions, failed requests and handled errors, as event ids with ids, states, counts and durations. It never stores prompts, typed text, file contents, absolute paths or keys. Filter by level, component, time, event, words or job; open a record for its fields; use **Show everything for this trace** to follow one request or render across processes; turn on **Live tail**; copy or export the (redacted) records. The panel also shows the database size, the retention limits (14 days and 256 MiB by default, changeable under Settings > Studio app) and how many records were dropped or collapsed. Agents can use `forge_logs_query` and `forge_logs_summary`. See [Studio log](LOGGING.md).
 
 For local inspection, the server exposes:
 
@@ -390,6 +406,10 @@ Open **Studio settings → API keys** to save, replace, or remove OpenAI and Hug
 OpenAI chat uses a temporary key entered in its connection panel first, then the saved key, then `OPENAI_API_KEY`. Forge-managed Stable Audio uses a temporarily supplied Hugging Face token first, then the saved token, then the existing Desktop shared Markdown credential lookup. External sound services keep their own credentials. Saving a key is explicit; existing Markdown files and environment variables are not imported or removed. Removing a saved key removes it from the database; a configured environment variable or shared Markdown token may still be used as a fallback. Store backups with the associated Windows profile and protect them appropriately.
 
 The saved OpenAI key is also used by optional AI assist features such as **Suggest a fix with GPT** in the error review, only after you confirm a preview. That feature uses the saved key only (not `OPENAI_API_KEY`).
+
+### Studio behaviour settings
+
+**Studio settings → Studio behaviour** lists the switches that change how the queue behaves: whether it starts each engine's worker by itself, whether it loads the music and sound models on demand, the host-memory check (`soft` or `strict`), unloading the first model of a chained render, the Vegetation time limit, the speech chunk size, the AI assist provider and model ids, the default interface language, the Windows tray icon, keep awake and the studio log. Each row shows a badge for when a change applies (**Applies now**, **Next render** or **Restart needed**), where the value comes from and its default, and **Reset to default** asks you to confirm. A setting that an environment variable controls (for example `FORGE_CHAIN_UNLOAD`, or `FORGE_TRELLIS_URL` for TRELLIS.2 auto-start) is disabled and shows the variable's name; the environment always wins, so change it there and restart the studio. Changing a setting never stops or starts an engine and never loads a model. Agents read and change the same list with `forge_settings_list`, `forge_settings_set` and `forge_settings_reset`, and every change is recorded in an append-only audit table and shown under **Recent changes**. API keys, consent and licence confirmations, security checks, network binding and folders are deliberately not here. Interface preferences that live in your browser (the compact navigation, hidden pages, the selected language, drafts) are per browser and are not part of this list. Every key, default and rule is in [Settings](SETTINGS.md).
 
 ### Navigation and shareable URLs
 
@@ -584,6 +604,20 @@ Use **Full screen** on a 3D or motion preview in the library or a recent-creatio
 Drafts, queue drafts, selected project, notification preferences, and preview ratings are stored in browser local storage. Clearing browser data or switching to a different browser or port can make those settings unavailable. Project files live on disk separately.
 
 `projects/`, `.forge-runtime/`, `node_modules/`, and `dist/` are ignored by Git. Back up `projects/` separately if your assets matter to you; committing the source code will not include them.
+
+## Recovery after a crash or power loss
+
+Forge is built to survive the studio, a worker, an engine or the whole computer stopping suddenly. The queue is a SQLite database written with full synchronous flushes; every file a render saves is written under a hidden name, flushed, and only then given its real name, so a power cut cannot leave a half-written asset behind. Engines keep running when the studio stops, and Forge reconnects to them when it can prove it started them.
+
+When the studio starts after a stop that was not an orderly shutdown (crash, `Stop-Process`, power loss, a Windows shutdown that did not finish in time), or after a database was repaired, a **Recovery** panel appears under the top bar. It says when the studio was last running and lists what needs a decision:
+
+- **Renders whose outcome is unknown.** A render that may have reached an engine before the interruption is never run again automatically. Check the engine (Models & services); if a saved output is listed it is already in the project. After you tick *I checked that the engine is not rendering this job*, **Mark as cancelled** closes it. **Queue again** is shown only for a render that provably never reached an engine.
+- **Files left by an interrupted operation.** Stale temporary files older than 24 hours are removed at start. Anything else is listed by project and project-relative path, and **Move to quarantine** puts it in `.forge-runtime/quarantine/` (nothing is deleted).
+- **Databases.** A database that failed its integrity check is set aside as `<name>.corrupt-<time>`, the newest backup is restored, and the panel says how old that backup was. Backups are made every 15 minutes in `.forge-runtime/backups/`.
+- **Engines** that are not responding, told apart as *not running* and *not answering*, and whether Forge re-adopted the ones that survived.
+- **A process that kept crashing.** After five crashes in ten minutes the studio host or runtime worker is not restarted again, and the studio address shows a *Recovery needed* page until you fix the cause and start the studio again.
+
+**Dismiss** hides the report until something new needs attention. The same report is available at `/api/recovery` and through the `forge_recovery_report` MCP tool. Closing the browser window does not stop the studio; **Stop Studio...** in the tray (or `stop-server.ps1`) asks the studio to stop in an orderly way first and terminates it only if it has not exited after eight seconds. The details, the guarantees and non-guarantees, and the manual crash drills are in [Resilience](RESILIENCE.md).
 
 ## Troubleshooting
 

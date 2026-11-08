@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import AssetPicker from './AssetPicker';
+import { createLog } from './app-log.js';
 import { useRouteToggle } from './useNav';
 import {
   SOUND_SOURCE_EXTENSIONS,
@@ -7,6 +8,8 @@ import {
   changeAmountProblem,
   regionProblems,
 } from './sound-source.js';
+
+const log = createLog('sfx');
 
 const modes = [
   ['variation', 'Variation', 'Re-render the source with your description (audio-to-audio).'],
@@ -69,7 +72,9 @@ export default function SoundSource({ project, projects = [], draft, update }) {
         soundSourceName: source.path,
         soundEditMode: mode,
       });
+      log.info('sfx.source.staged', { mode });
     } catch (reason) {
+      log.warn('sfx.source.failed', { errorClass: reason?.name });
       setError(reason.message);
     } finally {
       setBusy(false);
@@ -136,7 +141,10 @@ export default function SoundSource({ project, projects = [], draft, update }) {
                     name="sound-edit-mode"
                     value={id}
                     checked={mode === id}
-                    onChange={() => update({ soundEditMode: id })}
+                    onChange={() => {
+                      log.info('sfx.mode.selected', { mode: id });
+                      update({ soundEditMode: id });
+                    }}
                   />
                   <span>
                     <strong>{label}</strong> <small>{help}</small>

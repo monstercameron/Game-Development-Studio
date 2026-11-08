@@ -16,6 +16,7 @@ function validation(read, value) {
   try {
     read(value);
     return '';
+    // log-coverage: ignore -- render-time validator (inline message), not logged per render
   } catch (error) {
     return error.message;
   }

@@ -1,15 +1,22 @@
+import { createLogger } from './app-log.js';
 import { saveAsset } from './job-io.js';
 import { readReferences } from './references.js';
 
+const log = createLogger('three-d');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function send(jobId, type, values = {}) {
   if (process.connected) {
     process.send({ jobId, type, ...values });
   }
 }
-process.on('disconnect', () => process.exit(0));
+process.on('disconnect', () => {
+  log.info('three-d.process.disconnected');
+  process.exit(0);
+});
 process.once('message', async ({ job, projectFolder, baseUrl }) => {
+  const jobLog = log.child({ jobId: job.id });
   let remoteId = job.remoteId;
+  jobLog.info('three-d.job.started', { engine: job.type, hasRemoteId: Boolean(remoteId) });
   const name = job.type === 'trellis' ? 'TRELLIS.2' : 'Hunyuan';
   try {
     if (!remoteId) {
@@ -17,6 +24,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       try {
         [image] = await readReferences(projectFolder, job.request.references, { max: 1 });
       } catch (error) {
+        jobLog.warn('three-d.reference.read.failed', { error });
         send(job.id, 'failed', { error: `Could not read the reference image: ${error.message}` });
         return;
       }
@@ -45,6 +53,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
                   }
                 : {}),
             };
+      const stopSubmit = jobLog.time('three-d.submit.finished', { route: '/api/generate' });
       try {
         response = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
@@ -59,13 +68,16 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           redirect: 'error',
         });
         body = await response.json();
-      } catch {
+        stopSubmit({ outcome: 'received', status: response.status });
+      } catch (error) {
+        jobLog.warn('three-d.submit.unknown', { route: '/api/generate', error });
         send(job.id, 'interrupted', {
           error: `Submission result is unknown. Check the ${name} worker before resolving this job.`,
         });
         return;
       }
       if (!response.ok) {
+        jobLog.warn('three-d.submit.rejected', { status: response.status });
         send(job.id, response.status >= 500 ? 'interrupted' : 'failed', {
           // FastAPI puts a readable validation message in "detail"; keep it unwrapped.
           error: `${name} returned ${response.status}: ${
@@ -77,14 +89,17 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
         return;
       }
       if (typeof body.id !== 'string' || !/^[a-f0-9]{32}$/.test(body.id)) {
+        jobLog.warn('three-d.submit.rejected', { reason: 'invalid_job_id' });
         send(job.id, 'interrupted', {
           error: `${name} accepted the request without a usable job ID. Check its output.`,
         });
         return;
       }
       remoteId = body.id;
+      jobLog.info('three-d.job.accepted', { remoteId });
       send(job.id, 'accepted', { remoteId });
     }
+    let isReconnecting = false;
     while (true) {
       let state;
       try {
@@ -93,6 +108,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           redirect: 'error',
         });
         if (response.status === 404) {
+          jobLog.warn('three-d.job.missing', { status: 404 });
           send(job.id, 'interrupted', {
             error: `The ${name} worker no longer recognizes this job. Check its output before resolving.`,
           });
@@ -102,15 +118,25 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           throw Error(`HTTP ${response.status}`);
         }
         state = await response.json();
-      } catch {
+        if (isReconnecting) {
+          isReconnecting = false;
+          jobLog.info('three-d.poll.recovered');
+        }
+      } catch (error) {
+        if (!isReconnecting) {
+          isReconnecting = true;
+          jobLog.warn('three-d.poll.failed', { route: '/api/jobs/:id', error });
+        }
         send(job.id, 'progress', { stage: `Waiting to reconnect to the ${name} worker.` });
         await sleep(5000);
         continue;
       }
       if (state.status === 'completed') {
+        jobLog.info('three-d.generate.completed');
         break;
       }
       if (state.status === 'failed') {
+        jobLog.error('three-d.generate.failed', { reason: 'worker_reported' });
         send(job.id, 'failed', {
           error: String(state.message || '3D generation failed.').slice(0, 2000),
         });
@@ -122,6 +148,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       await sleep(2000);
     }
     send(job.id, 'finalizing');
+    const stopSave = jobLog.time('three-d.output.saved', { extension: 'glb' });
     const output = await saveAsset(
       projectFolder,
       '3d',
@@ -129,8 +156,10 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       'glb',
       `${baseUrl}/api/jobs/${remoteId}/mesh`,
     );
+    stopSave({ outcome: 'completed' });
     send(job.id, 'complete', { output });
   } catch (error) {
+    jobLog.error('three-d.job.failed', { error });
     send(job.id, 'failed', { error: String(error.message).slice(0, 2000) });
   } finally {
     if (process.connected) {

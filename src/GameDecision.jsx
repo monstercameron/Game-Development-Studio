@@ -1,4 +1,5 @@
 import { saveProjectText } from './save-project-text';
+import { createLog } from './app-log.js';
 import { useEffect, useId, useRef, useState } from 'react';
 import { Copy, Gamepad2, LoaderCircle, Save } from 'lucide-react';
 import {
@@ -13,7 +14,19 @@ import MemoryDialog from './MemoryDialog.jsx';
 import { formatDuration } from './queue-timing.js';
 import './game-decision.css';
 
+const log = createLog('game');
+
 const historyKey = 'forge-decision-timing-v1';
+
+// Error class and code only: messages from the server or the browser can carry prompts or paths.
+function errorFields(error) {
+  const fields = { errorClass: typeof error?.name === 'string' ? error.name : 'Error' };
+  if (typeof error?.code === 'string' || typeof error?.code === 'number') {
+    fields.errorCode = error.code;
+  }
+  return fields;
+}
+
 function readTimings() {
   try {
     const value = JSON.parse(localStorage.getItem(historyKey) || '[]');
@@ -25,7 +38,9 @@ function readTimings() {
           )
           .slice(-30)
       : [];
-  } catch {
+  } catch (error) {
+    // Runs once as the state initializer, not on every render.
+    log.debug('game.decision.timing.read.failed', errorFields(error));
     return [];
   }
 }
@@ -68,6 +83,9 @@ export default function GameDecision({ draft, project, onSaved }) {
   useEffect(() => {
     let active = true;
     let request;
+    // Log availability once per change, never per poll.
+    let lastStateKey = null;
+    let isStatusFailing = false;
     const refresh = async () => {
       request?.abort();
       request = new AbortController();
@@ -81,9 +99,31 @@ export default function GameDecision({ draft, project, onSaved }) {
         if (active) {
           setService(gameService);
           setStatusError(gameService ? '' : 'Mammoth is not listed in the runtime status.');
+          if (isStatusFailing) {
+            isStatusFailing = false;
+            log.info('game.service.status.recovered');
+          }
+          const stateKey = [
+            gameService?.status ?? 'unlisted',
+            gameService?.state ?? 'unknown',
+            gameService?.modelLoaded,
+          ].join('|');
+          if (stateKey !== lastStateKey) {
+            lastStateKey = stateKey;
+            log.info('game.service.state.changed', {
+              state: gameService?.state ?? 'unknown',
+              isListed: Boolean(gameService),
+              isReachable: gameService?.status === 'reachable',
+              isModelLoaded: gameService?.modelLoaded === true,
+            });
+          }
         }
       } catch (reason) {
         if (active && reason.name !== 'AbortError') {
+          if (!isStatusFailing) {
+            isStatusFailing = true;
+            log.warn('game.service.status.failed', errorFields(reason));
+          }
           setService(null);
           setStatusError(reason.message || 'Could not check Mammoth status.');
         }
@@ -98,6 +138,8 @@ export default function GameDecision({ draft, project, onSaved }) {
     };
   }, []);
   async function load() {
+    const startedAt = performance.now();
+    log.info('game.model.load.requested');
     setLoading(true);
     setMemoryError('');
     setNotice('');
@@ -110,15 +152,24 @@ export default function GameDecision({ draft, project, onSaved }) {
       });
       const data = await response.json();
       if (['insufficient_gpu_memory', 'insufficient_host_memory'].includes(data.code)) {
+        log.warn('game.model.load.blocked', {
+          reason: data.code,
+          durationMs: performance.now() - startedAt,
+        });
         setConflict(data);
         return;
       }
       if (!response.ok) {
         throw Error(data.message || data.error || 'Could not load Mammoth.');
       }
+      log.info('game.model.load.completed', { durationMs: performance.now() - startedAt });
       setConflict(null);
       setNotice(data.message);
     } catch (e) {
+      log.warn('game.model.load.failed', {
+        ...errorFields(e),
+        durationMs: performance.now() - startedAt,
+      });
       if (conflict) {
         setMemoryError(e.message);
       } else {
@@ -129,6 +180,7 @@ export default function GameDecision({ draft, project, onSaved }) {
     }
   }
   async function offload(id) {
+    log.info('game.model.offload.requested', { modelId: id });
     setLoading(true);
     setMemoryError('');
     try {
@@ -143,12 +195,15 @@ export default function GameDecision({ draft, project, onSaved }) {
       }
       await load();
     } catch (e) {
+      log.warn('game.model.offload.failed', { modelId: id, ...errorFields(e) });
       setMemoryError(e.message);
     } finally {
       setLoading(false);
     }
   }
   async function stop() {
+    const startedAt = performance.now();
+    log.info('game.model.stop.requested');
     setLoading(true);
     setError('');
     setNotice('');
@@ -162,12 +217,17 @@ export default function GameDecision({ draft, project, onSaved }) {
       if (!response.ok) {
         throw Error(data.error || 'Could not stop Mammoth.');
       }
+      log.info('game.model.stop.completed', { durationMs: performance.now() - startedAt });
       setNotice(data.message);
       // Keep the last known service and mark the model unloaded until the next status poll.
       setService((previous) =>
         previous ? { ...previous, modelLoaded: false, state: 'stopped' } : previous,
       );
     } catch (e) {
+      log.warn('game.model.stop.failed', {
+        ...errorFields(e),
+        durationMs: performance.now() - startedAt,
+      });
       setError(e.message);
     } finally {
       setLoading(false);
@@ -178,9 +238,17 @@ export default function GameDecision({ draft, project, onSaved }) {
     try {
       request = gameDecisionRequest(draft, extraQuestions);
     } catch (error) {
+      log.info('game.decision.rejected', {
+        reason: 'invalid_request',
+        questionCount: extraQuestions.length + 1,
+        ...errorFields(error),
+      });
       setError(error.message);
       return;
     }
+    const startedAt = performance.now();
+    const questionCount = extraQuestions.length + 1;
+    log.info('game.decision.requested', { questionCount });
     setBusy(true);
     setError('');
     setResult(null);
@@ -199,6 +267,11 @@ export default function GameDecision({ draft, project, onSaved }) {
       }
       setSummaries(decisionSummaries(data, request));
       const elapsed = data?.metrics?.server_ms;
+      log.info('game.decision.completed', {
+        questionCount,
+        durationMs: performance.now() - startedAt,
+        ...(Number.isFinite(elapsed) ? { serverMs: elapsed } : {}),
+      });
       if (typeof elapsed === 'number' && Number.isFinite(elapsed) && elapsed >= 0) {
         setTimings((previous) => {
           const next = [
@@ -207,14 +280,20 @@ export default function GameDecision({ draft, project, onSaved }) {
           ].slice(-30);
           try {
             localStorage.setItem(historyKey, JSON.stringify(next));
-          } catch {
+          } catch (storageError) {
             // Timing history is optional and must not block the decision result.
+            log.debug('game.decision.timing.save.failed', errorFields(storageError));
           }
           return next;
         });
       }
       setResult(data);
     } catch (e) {
+      log.warn('game.decision.failed', {
+        questionCount,
+        ...errorFields(e),
+        durationMs: performance.now() - startedAt,
+      });
       setError(e.message);
     } finally {
       setBusy(false);
@@ -226,10 +305,12 @@ export default function GameDecision({ draft, project, onSaved }) {
       gameQuestion(item.mode, item.text);
       return '';
     } catch (reason) {
+      // log-coverage: ignore -- runs in the render body; the message is shown inline, not logged
       return reason.message;
     }
   });
   function addExtraQuestion() {
+    log.debug('game.question.added', { questionCount: extraQuestions.length + 2 });
     setExtraQuestions((previous) =>
       previous.length + 1 >= MAX_GAME_QUESTIONS
         ? previous
@@ -242,6 +323,7 @@ export default function GameDecision({ draft, project, onSaved }) {
     );
   }
   function removeExtraQuestion(id) {
+    log.debug('game.question.removed', { questionCount: extraQuestions.length });
     setExtraQuestions((previous) => previous.filter((item) => item.id !== id));
   }
   const decisionType =
@@ -294,6 +376,8 @@ export default function GameDecision({ draft, project, onSaved }) {
         ? 'This Mammoth service was started outside Forge, so Forge will not stop it.'
         : 'Nothing for Forge to stop.';
   async function saveDecision() {
+    const startedAt = performance.now();
+    log.info('game.decision.save.requested');
     setSaving(true);
     setError('');
     try {
@@ -306,9 +390,14 @@ export default function GameDecision({ draft, project, onSaved }) {
           settings: { question_type: draft.options?.[0], result_view: draft.options?.[1] },
         },
       );
+      log.info('game.decision.save.completed', { durationMs: performance.now() - startedAt });
       setSavedPath(output.path);
       onSaved?.();
     } catch (reason) {
+      log.warn('game.decision.save.failed', {
+        ...errorFields(reason),
+        durationMs: performance.now() - startedAt,
+      });
       setError(reason.message);
     } finally {
       setSaving(false);
@@ -318,7 +407,9 @@ export default function GameDecision({ draft, project, onSaved }) {
     try {
       await navigator.clipboard.writeText(JSON.stringify(shown, null, 2));
       setCopied(true);
-    } catch {
+    } catch (clipboardError) {
+      // Denied clipboard permission is expected in some browsers.
+      log.debug('game.result.copy.failed', errorFields(clipboardError));
       setError('Could not copy the result.');
     }
   }
@@ -363,7 +454,12 @@ export default function GameDecision({ draft, project, onSaved }) {
                 Question {index + 2} type
                 <select
                   value={item.mode}
-                  onChange={(event) => updateExtraQuestion(item.id, { mode: event.target.value })}
+                  onChange={(event) => {
+                    log.debug('game.question.mode.changed', {
+                      mode: event.target.value.toLowerCase().replace(/W+/g, '_'),
+                    });
+                    updateExtraQuestion(item.id, { mode: event.target.value });
+                  }}
                 >
                   <option value="Choice">Choice</option>
                   <option value="Score">Score</option>

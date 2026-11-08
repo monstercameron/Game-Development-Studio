@@ -4,6 +4,9 @@ import path from 'node:path';
 import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 
+import { createLogger } from './runtime/app-log.js';
+
+const log = createLogger('diagnostics');
 const root = path.dirname(fileURLToPath(import.meta.url));
 const runtimeDir = process.env.FORGE_RUNTIME_DIR || path.join(root, '.forge-runtime');
 const desktop = path.join(os.homedir(), 'Desktop');
@@ -145,6 +148,44 @@ const services = [
 const startedAt = new Date().toISOString();
 const studioLog = [`${startedAt} INFO Forge diagnostics started`];
 const MAX_BYTES = 32768;
+// Last reported failure code per probe or log, so a missing file or a stopped service is logged
+// once when it changes instead of on every poll.
+const lastFailureCodeByKey = new Map();
+const lastReachabilityById = new Map();
+
+// Returns true when this failure code differs from the last one reported for the same key.
+function isFailureChange(event, sourceId, errorCode) {
+  const key = `${event}|${sourceId}`;
+  if (lastFailureCodeByKey.get(key) === errorCode) {
+    return false;
+  }
+  lastFailureCodeByKey.set(key, errorCode);
+  return true;
+}
+
+function forgetFailure(event, sourceId) {
+  lastFailureCodeByKey.delete(`${event}|${sourceId}`);
+}
+
+function logReachabilityChange(service) {
+  if (lastReachabilityById.get(service.id) === service.reachable) {
+    return;
+  }
+  lastReachabilityById.set(service.id, service.reachable);
+  log.debug('diagnostics.service.reachability.changed', {
+    serviceId: service.id,
+    isReachable: service.reachable,
+  });
+}
+
+// A rejected browser log entry is logged with a reason code only; its text is never logged.
+function clientRejectionReason(error) {
+  if (error?.message === 'Request too large.') {
+    return 'too_large';
+  }
+  return error?.message === 'A message is required.' ? 'missing_message' : 'invalid_body';
+}
+
 const clean = (text) =>
   String(text)
     .replace(/\b(?:hf_[A-Za-z0-9]{12,}|sk-[A-Za-z0-9_-]{12,})\b/g, '[REDACTED]')
@@ -179,6 +220,7 @@ async function readTail(source) {
     if (info.size > size) {
       text = text.slice(text.indexOf('\n') + 1);
     }
+    forgetFailure('diagnostics.log.read.failed', source.id);
     return {
       ...source,
       available: true,
@@ -187,6 +229,10 @@ async function readTail(source) {
       lines: clean(text).split(/\r?\n/).filter(Boolean).slice(-150),
     };
   } catch (error) {
+    const errorCode = error.code || 'error';
+    if (isFailureChange('diagnostics.log.read.failed', source.id, errorCode)) {
+      log.debug('diagnostics.log.read.failed', { sourceId: source.id, errorCode });
+    }
     return {
       ...source,
       available: false,
@@ -250,6 +296,11 @@ export function diagnosticsService({ streamIntervalMs = 2000 } = {}) {
         req.headers.origin !== `http://${host}` ||
         req.headers['x-forge-request'] !== 'client-log'
       ) {
+        log.warn('diagnostics.request.rejected', {
+          route: '/api/client-logs',
+          status: 403,
+          reason: 'forbidden',
+        });
         return json(res, { error: 'Local studio requests only.' }, 403);
       }
       try {
@@ -267,6 +318,11 @@ export function diagnosticsService({ streamIntervalMs = 2000 } = {}) {
         appendStudio('CLIENT ERROR', entry.message);
         json(res, { ok: true });
       } catch (error) {
+        log.warn('diagnostics.request.rejected', {
+          route: '/api/client-logs',
+          status: 400,
+          reason: clientRejectionReason(error),
+        });
         json(res, { error: error.message }, 400);
       }
     });
@@ -283,6 +339,7 @@ export function diagnosticsService({ streamIntervalMs = 2000 } = {}) {
           reachable: await reachable(service.port),
         })),
       );
+      statuses.forEach(logReachabilityChange);
       json(res, {
         application: 'Forge Game Development Studio',
         mode: 'early integration',
@@ -317,6 +374,11 @@ export function diagnosticsService({ streamIntervalMs = 2000 } = {}) {
       const selected = url.searchParams.get('source') || 'all';
       const list = selected === 'all' ? sources : sources.filter((s) => s.id === selected);
       if (!list.length) {
+        log.warn('diagnostics.request.rejected', {
+          route: '/api/logs',
+          status: 400,
+          reason: 'unknown_source',
+        });
         return json(res, { error: 'Unknown log source' }, 400);
       }
       if (url.pathname === '/stream') {
@@ -345,7 +407,11 @@ export function diagnosticsService({ streamIntervalMs = 2000 } = {}) {
             } else if (!closed) {
               res.write(': keepalive\n\n');
             }
-          } catch {
+          } catch (error) {
+            const errorCode = error?.code || 'error';
+            if (isFailureChange('diagnostics.stream.failed', 'logs', errorCode)) {
+              log.debug('diagnostics.stream.failed', { sourceId: 'logs', errorCode });
+            }
             if (!closed) {
               res.write('event: error\ndata: {"error":"Unable to read logs."}\n\n');
             }
@@ -359,11 +425,13 @@ export function diagnosticsService({ streamIntervalMs = 2000 } = {}) {
         res.on?.('close', () => {
           closed = true;
           clearInterval(timer);
+          log.debug('diagnostics.stream.stopped');
         });
         await send();
         if (!closed) {
           timer = setInterval(send, streamIntervalMs);
           timer.unref?.();
+          log.debug('diagnostics.stream.started');
         }
         return;
       }

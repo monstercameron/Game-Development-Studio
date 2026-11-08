@@ -4,6 +4,7 @@
 // ('en'), no catalog is loaded and every call returns exactly that English text, so the studio
 // works and existing tests pass without a provider. Other locales load one namespace catalog at a
 // time on first use; a missing or stale string falls back to the English default.
+import { createLog } from '../app-log.js';
 import { isValidKey, namespaceOf } from './namespaces.js';
 import { interpolate, pseudoLocalize, PLURAL_CATEGORIES } from './message-format.js';
 
@@ -14,6 +15,8 @@ export const PSEUDO_LOCALE = 'en-XA';
 // runtimes without it.
 const RTL_LANGUAGES = new Set(['ar', 'he', 'iw', 'fa', 'ur', 'ps', 'sd', 'ug', 'yi', 'dv', 'ckb']);
 const REVERSE_LIMIT = 4000;
+// t() and tp() run on every render, so they never log; only catalog and locale outcomes do.
+const log = createLog('i18n');
 
 /** Canonical BCP-47 tag, or null when the input is not a valid language tag. */
 export function normalizeLocale(input) {
@@ -23,6 +26,7 @@ export function normalizeLocale(input) {
   try {
     const [canonical] = Intl.getCanonicalLocales(input.trim());
     return canonical || null;
+    // log-coverage: ignore -- malformed tags are expected input; isRtlLocale runs on every render.
   } catch {
     return null;
   }
@@ -41,6 +45,7 @@ export function isRtlLocale(locale) {
     const info = new Intl.Locale(canonical);
     const textInfo = typeof info.getTextInfo === 'function' ? info.getTextInfo() : info.textInfo;
     return textInfo?.direction === 'rtl';
+    // log-coverage: ignore -- runs on every render through directionFor(); unsupported runtimes read LTR.
   } catch {
     return false;
   }
@@ -58,6 +63,7 @@ export function describeLocale(locale) {
   const read = (displayLocale) => {
     try {
       return new Intl.DisplayNames([displayLocale], { type: 'language' }).of(locale);
+      // log-coverage: ignore -- describeLocale runs on every render of the language menu; the tag is the fallback.
     } catch {
       return '';
     }
@@ -86,6 +92,7 @@ function pluralCategory(locale, count) {
     let rules;
     try {
       rules = new Intl.PluralRules(tag);
+      // log-coverage: ignore -- tp() runs on every render; an unsupported tag uses the default rules.
     } catch {
       rules = new Intl.PluralRules(DEFAULT_LOCALE);
     }
@@ -101,6 +108,7 @@ export function pluralCategoriesFor(locale) {
     return new Intl.PluralRules(locale)
       .resolvedOptions()
       .pluralCategories.sort((a, b) => PLURAL_CATEGORIES.indexOf(a) - PLURAL_CATEGORIES.indexOf(b));
+    // log-coverage: ignore -- an unknown locale tag is expected; the English plural rules apply.
   } catch {
     return ['one', 'other'];
   }
@@ -180,11 +188,25 @@ export function createI18nStore({ locale = DEFAULT_LOCALE } = {}) {
             merged.set(key, entry);
           }
         }
-      } catch {
+      } catch (error) {
         failures += 1;
+        log.debug('i18n.loader.failed', { locale: localeTag, errorClass: error?.name });
       }
     }
     const status = failures && failures === loaders.length ? 'failed' : 'ready';
+    if (status === 'failed') {
+      log.warn('i18n.catalog.failed', {
+        locale: localeTag,
+        loaderCount: loaders.length,
+        failureCount: failures,
+      });
+    } else {
+      log.debug('i18n.catalog.loaded', {
+        locale: localeTag,
+        entryCount: merged.size,
+        hasMachine: Boolean(machine),
+      });
+    }
     if (!catalogs.has(localeTag)) {
       catalogs.set(localeTag, new Map());
     }
@@ -195,11 +217,15 @@ export function createI18nStore({ locale = DEFAULT_LOCALE } = {}) {
     flushScheduled = false;
     const work = [...pending];
     pending.clear();
-    Promise.all(work.map((item) => item.promise)).then(() => {
-      if (work.some((item) => item.locale === activeLocale)) {
-        emit();
-      }
-    });
+    Promise.all(work.map((item) => item.promise))
+      .then(() => {
+        if (work.some((item) => item.locale === activeLocale)) {
+          emit();
+        }
+      })
+      .catch((error) => {
+        log.warn('i18n.catalog.flush.failed', { errorClass: error?.name });
+      });
   }
 
   /** Starts loading a namespace for a locale once; resolves when it is ready or failed. */
@@ -372,6 +398,7 @@ export function createI18nStore({ locale = DEFAULT_LOCALE } = {}) {
       return activeLocale;
     }
     activeLocale = value;
+    log.info('i18n.locale.changed', { locale: activeLocale });
     reverse.clear();
     emit();
     return activeLocale;

@@ -4,19 +4,35 @@
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createLogger } from './app-log.js';
 import { extractLogErrors } from './error-log-parser.js';
 
 const FIRST_READ_BYTES = 64 * 1024;
 const MAX_READ_BYTES = 256 * 1024;
 const STALE_LOG_MS = 60000;
 const QUEUE_ERROR_STATES = ['failed', 'interrupted', 'needs_attention'];
+const log = createLogger('errors');
+
+/**
+ * Error class and a short machine code for log fields. Never the message or stack: they can carry
+ * prompts, file paths or other user text.
+ */
+function errorFields(error, fallbackReason) {
+  const name = error && typeof error.name === 'string' ? error.name : '';
+  const code = error && typeof error.code === 'string' ? error.code : '';
+  return {
+    errorClass: /^[A-Za-z0-9_.$]{1,60}$/.test(name) ? name : 'Error',
+    reason: /^[A-Za-z0-9_]{1,60}$/.test(code) ? code : fallbackReason,
+  };
+}
 
 /** Lists the Forge runtime log files and the error source each one reports as. */
 export async function runtimeLogFiles(runtimeDir) {
   let names;
   try {
     names = await fs.readdir(runtimeDir);
-  } catch {
+  } catch (error) {
+    log.debug('errors.logs.dir.unreadable', errorFields(error, 'readdir_failed'));
     return [];
   }
   const files = [];
@@ -51,6 +67,8 @@ async function readRange(file, start, length) {
 export async function scanLogs(store, { runtimeDir, now = () => Date.now() } = {}) {
   let recorded = 0;
   const problems = [];
+  const scanStartedAt = Date.now();
+  log.debug('errors.logs.scan.started');
   for (const { name, source } of await runtimeLogFiles(runtimeDir)) {
     const file = path.join(runtimeDir, name);
     try {
@@ -101,12 +119,21 @@ export async function scanLogs(store, { runtimeDir, now = () => Date.now() } = {
         });
         recorded++;
       }
+      if (entries.length > 0) {
+        log.debug('errors.log.captured', { source, count: entries.length });
+      }
       const consumed = Buffer.byteLength(text.slice(0, safeLength), 'utf8');
       store.setCursor(key, start + skipped + consumed);
     } catch (error) {
+      log.warn('errors.log.unreadable', { source, ...errorFields(error, 'read_failed') });
       problems.push(`${name}: ${error.code || 'read failed'}`);
     }
   }
+  log.debug('errors.logs.scan.completed', {
+    recordedCount: recorded,
+    problemCount: problems.length,
+    durationMs: Date.now() - scanStartedAt,
+  });
   return { recorded, problems };
 }
 
@@ -124,17 +151,21 @@ function safeDetails(details) {
       }
     }
     return picked;
-  } catch {
+  } catch (error) {
+    log.debug('errors.job.details.unparsed', errorFields(error, 'parse_failed'));
     return {};
   }
 }
 
 /** Records failed, interrupted and needs-attention jobs that have an error message. */
 export function scanJobs(store, { jobsFile, retentionDays = 30, now = () => Date.now() } = {}) {
+  const scanStartedAt = Date.now();
+  log.debug('errors.jobs.scan.started');
   let db;
   try {
     db = new DatabaseSync(jobsFile, { readOnly: true, timeout: 2000 });
   } catch (error) {
+    log.debug('errors.jobs.unavailable', errorFields(error, 'unavailable'));
     return { recorded: 0, problems: [`jobs: ${error.code || 'unavailable'}`] };
   }
   let recorded = 0;
@@ -172,8 +203,14 @@ export function scanJobs(store, { jobsFile, retentionDays = 30, now = () => Date
       recorded++;
     }
     store.setCursor('jobs', latest);
+    log.debug('errors.jobs.scan.completed', {
+      recordedCount: recorded,
+      rowCount: rows.length,
+      durationMs: Date.now() - scanStartedAt,
+    });
     return { recorded, problems: [] };
   } catch (error) {
+    log.warn('errors.jobs.query.failed', errorFields(error, 'query_failed'));
     return { recorded, problems: [`jobs: ${error.code || 'query failed'}`] };
   } finally {
     db.close();

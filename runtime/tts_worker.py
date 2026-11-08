@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # These imports must follow sys.path setup for the isolated embedded Python runtime.
+from app_log import flush, get_logger, install_excepthook  # noqa: E402
 from engine_identity import install_identity_endpoint  # noqa: E402
 from worker_outputs import recovered_job  # noqa: E402
 
@@ -67,6 +68,12 @@ stop_timer = None
 app = FastAPI(title="Forge Qwen3-TTS worker")
 install_identity_endpoint(app, TOKEN, "tts")
 logger = logging.getLogger(__name__)
+log = get_logger("voices")
+
+
+def elapsed_ms(started_at):
+    """Milliseconds since a time.perf_counter() reading, for durationMs fields."""
+    return round((time.perf_counter() - started_at) * 1000)
 
 
 def log_lifecycle(event, *, started_at, job_id=None, error=None):
@@ -112,6 +119,7 @@ def load_worker(variant):
     global model, loaded_variant
     started_at = time.perf_counter()
     log_lifecycle("model_load_started", started_at=started_at)
+    log.info("voices.model.load.started", {"model": variant})
     try:
         import torch
         from qwen_tts import Qwen3TTSModel
@@ -138,10 +146,22 @@ def load_worker(variant):
             model = loaded
             loaded_variant = variant
             state.update(phase="ready", error=None)
+        log.info(
+            "voices.model.load.completed",
+            {"model": variant, "durationMs": elapsed_ms(started_at)},
+        )
         log_lifecycle("model_load_completed", started_at=started_at)
     except Exception as error:
         with lock:
             state.update(phase="error", error=str(error)[:1500])
+        log.error(
+            "voices.model.load.failed",
+            {
+                "model": variant,
+                "durationMs": elapsed_ms(started_at),
+                "errorClass": type(error).__name__,
+            },
+        )
         log_lifecycle("model_load_failed", started_at=started_at, error=error)
 
 
@@ -182,6 +202,7 @@ def render_worker(job_id, request, reference):
     temp = None
     started_at = time.perf_counter()
     log_lifecycle("generation_started", started_at=started_at, job_id=job_id)
+    log.info("voices.render.started", {"jobId": job_id})
     try:
         import soundfile as sf
 
@@ -215,11 +236,16 @@ def render_worker(job_id, request, reference):
         temp = OUTPUTS / f".{job_id}.part"
         sf.write(str(temp), wavs[0], sample_rate, format="WAV")
         os.replace(temp, OUTPUTS / f"{job_id}.wav")
+        log.debug("voices.file.written", {"jobId": job_id, "kind": "output", "extension": "wav"})
         # The codec runs at 12.5 tokens per second; audio that fills the token limit was cut off.
         truncated = len(wavs[0]) / sample_rate >= (request.max_new_tokens - 2) / 12.5
         with lock:
             jobs[job_id].update(status="completed", message="Speech ready.", truncated=truncated)
             state.update(phase="ready", error=None)
+        log.info(
+            "voices.render.completed",
+            {"jobId": job_id, "durationMs": elapsed_ms(started_at)},
+        )
         log_lifecycle("generation_completed", started_at=started_at, job_id=job_id)
     except Exception as error:
         message = str(error)
@@ -228,9 +254,25 @@ def render_worker(job_id, request, reference):
                 temp.unlink(missing_ok=True)
             except OSError as cleanup_error:
                 message = f"{message} (could not remove partial audio: {cleanup_error})"
+                log.warn(
+                    "voices.file.cleanup.failed",
+                    {
+                        "jobId": job_id,
+                        "kind": "partial_audio",
+                        "errorClass": type(cleanup_error).__name__,
+                    },
+                )
         with lock:
             jobs[job_id].update(status="failed", message=message[:1500])
             state.update(phase="ready" if model is not None else "error", error=None)
+        log.error(
+            "voices.render.failed",
+            {
+                "jobId": job_id,
+                "durationMs": elapsed_ms(started_at),
+                "errorClass": type(error).__name__,
+            },
+        )
         log_lifecycle("generation_failed", started_at=started_at, job_id=job_id, error=error)
 
 
@@ -270,15 +312,27 @@ def decode_reference(encoded):
     try:
         raw = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError):
+        log.warn(
+            "voices.request.rejected",
+            {"route": "/api/generate", "reason": "invalid_base64"},
+        )
         raise HTTPException(400, "Reference audio is not valid base64.")
     try:
         audio, sample_rate = sf.read(io.BytesIO(raw), dtype="float32", always_2d=False)
     except Exception:
+        log.warn(
+            "voices.request.rejected",
+            {"route": "/api/generate", "reason": "unsupported_audio"},
+        )
         raise HTTPException(400, "Reference audio must be a WAV, FLAC, or MP3 file.")
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
     seconds = len(audio) / sample_rate
     if not REFERENCE_MIN_SECONDS <= seconds <= REFERENCE_MAX_SECONDS:
+        log.warn(
+            "voices.request.rejected",
+            {"route": "/api/generate", "reason": "reference_duration"},
+        )
         raise HTTPException(
             400,
             f"Reference audio must be {REFERENCE_MIN_SECONDS} to {REFERENCE_MAX_SECONDS} seconds long.",
@@ -304,23 +358,43 @@ def status():
 def load(request: LoadRequest | None = None):
     variant = request.variant if request is not None else "custom_voice"
     if variant not in CHECKPOINTS:
+        log.warn(
+            "voices.request.rejected",
+            {"route": "/api/model/load", "reason": "unknown_variant"},
+        )
         raise HTTPException(400, "Unknown speech checkpoint.")
     with lock:
         if state["closing"]:
+            log.warn(
+                "voices.request.rejected",
+                {"route": "/api/model/load", "reason": "closing"},
+            )
             raise HTTPException(409, "Speech worker is stopping.")
         if model is not None and loaded_variant == variant:
             return {"message": "Already loaded."}
         if state["phase"] == "loading":
             return {"message": "Already loading."}
         if state["phase"] == "generating":
+            log.warn(
+                "voices.request.rejected",
+                {"route": "/api/model/load", "reason": "busy"},
+            )
             raise HTTPException(409, "Speech worker is busy.")
         if not checkpoint_ready(variant):
+            log.warn(
+                "voices.request.rejected",
+                {"route": "/api/model/load", "reason": "model_files_missing"},
+            )
             raise HTTPException(409, "Speech model files are missing.")
         state.update(phase="loading", error=None)
         try:
             threading.Thread(target=load_worker, args=(variant,), daemon=True).start()
         except Exception as error:
             state.update(phase="error", error=str(error)[:1500])
+            log.error(
+                "voices.model.load.start_failed",
+                {"model": variant, "errorClass": type(error).__name__},
+            )
             log_lifecycle("model_load_start_failed", started_at=time.perf_counter(), error=error)
             raise HTTPException(500, "Could not start speech model loading.") from error
     return {"message": "Loading started."}
@@ -333,24 +407,48 @@ def generate(request: SpeechRequest):
         or request.speaker not in SPEAKERS
         or request.language not in LANGUAGES
     ):
+        log.warn(
+            "voices.request.rejected",
+            {"route": "/api/generate", "reason": "invalid_input"},
+        )
         raise HTTPException(400, "Invalid text, speaker, or language.")
     if request.mode not in MODE_CHECKPOINTS:
+        log.warn(
+            "voices.request.rejected",
+            {"route": "/api/generate", "reason": "unknown_mode"},
+        )
         raise HTTPException(400, "Unknown voice mode.")
     reference = None
     if request.mode == "clone":
         transcript_missing = not request.clone_voice_only and not request.reference_text.strip()
         if transcript_missing or request.reference_audio_base64 is None:
+            log.warn(
+                "voices.request.rejected",
+                {"route": "/api/generate", "reason": "missing_reference"},
+            )
             raise HTTPException(
                 400, "Cloning needs reference audio and, unless voice-only, its transcript."
             )
         reference = decode_reference(request.reference_audio_base64)
     if request.mode == "design" and not request.voice_description.strip():
+        log.warn(
+            "voices.request.rejected",
+            {"route": "/api/generate", "reason": "missing_voice_description"},
+        )
         raise HTTPException(400, "Designing a voice needs a voice description.")
     needed_variant = MODE_CHECKPOINTS[request.mode]
     with lock:
         if state["closing"] or state["phase"] in ("loading", "generating"):
+            log.warn(
+                "voices.request.rejected",
+                {"route": "/api/generate", "reason": "busy"},
+            )
             raise HTTPException(409, "Speech worker is busy.")
         if model is None or loaded_variant != needed_variant:
+            log.warn(
+                "voices.request.rejected",
+                {"route": "/api/generate", "reason": "model_not_loaded"},
+            )
             raise HTTPException(409, f"Load the {needed_variant} speech checkpoint first.")
         job_id = uuid.uuid4().hex
         jobs[job_id] = {
@@ -368,6 +466,10 @@ def generate(request: SpeechRequest):
         except Exception as error:
             jobs[job_id].update(status="failed", message=str(error)[:1500])
             state.update(phase="ready", error=None)
+            log.error(
+                "voices.render.start_failed",
+                {"jobId": job_id, "errorClass": type(error).__name__},
+            )
             log_lifecycle(
                 "generation_start_failed",
                 started_at=time.perf_counter(),
@@ -403,6 +505,9 @@ def audio(job_id: str):
 def finish_stop():
     with lock:
         if state["closing"]:
+            log.info("voices.process.stopped", {"reason": "stop_requested"})
+            # os._exit skips atexit, so buffered log records are written first.
+            flush()
             os._exit(0)
 
 
@@ -410,6 +515,10 @@ def finish_stop():
 def control(action: str, x_forge_engine_token: str = Header(default="")):
     global stop_timer
     if not TOKEN or not hmac.compare_digest(TOKEN, x_forge_engine_token):
+        log.warn(
+            "voices.request.rejected",
+            {"route": "/api/forge/:action", "reason": "forbidden"},
+        )
         raise HTTPException(403, "Forbidden.")
     with lock:
         if action == "resume":
@@ -419,10 +528,19 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
             state["closing"] = False
             return {"resumed": True}
         if action != "stop":
+            log.warn(
+                "voices.request.rejected",
+                {"route": "/api/forge/:action", "reason": "unknown_action"},
+            )
             raise HTTPException(404, "Not found.")
         if state["phase"] in ("loading", "generating"):
+            log.warn(
+                "voices.request.rejected",
+                {"route": "/api/forge/:action", "reason": "active_work"},
+            )
             raise HTTPException(409, "Speech worker has active work.")
         state["closing"] = True
+        log.info("voices.stop.requested", {"route": "/api/forge/:action"})
         if stop_timer is None:
             stop_timer = threading.Timer(1, finish_stop)
             stop_timer.daemon = True
@@ -431,7 +549,10 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
 
 
 if __name__ == "__main__":
+    install_excepthook("voices")
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
     args = parser.parse_args()
+    log.info("voices.process.started", {"port": args.port, "pid": os.getpid()})
     uvicorn.run(app, host="127.0.0.1", port=args.port, access_log=False)
+    log.info("voices.process.stopped", {"reason": "server_exited"})

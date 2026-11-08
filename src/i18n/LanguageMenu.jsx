@@ -2,12 +2,15 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { Languages } from 'lucide-react';
 import { updateSearch } from '../useNav';
-import { i18nRequest } from './i18n-api.js';
+import { createLog } from '../app-log.js';
+import { errorLogFields, i18nRequest } from './i18n-api.js';
 import { DEFAULT_LOCALE, PSEUDO_LOCALE, describeLocale, i18n } from './i18n-core.js';
 import { useLocale, useT } from './i18n-react.js';
 import { namespacesForSection } from './namespaces.js';
 import TranslatePageDialog from './TranslatePageDialog';
 import './language-menu.css';
+
+const log = createLog('i18n');
 
 function optionLabel(code, locale) {
   if (code === PSEUDO_LOCALE) {
@@ -47,6 +50,7 @@ export default function LanguageMenu({ section, allowPseudo = false }) {
       .then((data) => setLanguages(data.languages || []))
       .catch((reason) => {
         if (reason.name !== 'AbortError') {
+          log.warn('i18n.languages.failed', errorLogFields(reason));
           setLanguages([]);
           setError(reason.message);
         }
@@ -82,6 +86,7 @@ export default function LanguageMenu({ section, allowPseudo = false }) {
     try {
       await setLocale(code);
     } catch (reason) {
+      log.warn('i18n.locale.failed', { locale: code, ...errorLogFields(reason) });
       setError(reason.message);
     }
   }
@@ -96,6 +101,7 @@ export default function LanguageMenu({ section, allowPseudo = false }) {
 
   function openTranslateDialog() {
     setIsOpen(false);
+    log.info('i18n.translate.opened', { namespaceCount: namespaces.length });
     updateSearch(setParams, { dialog: 'translate' });
   }
 

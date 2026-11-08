@@ -9,9 +9,31 @@ import MemoryDialog from './MemoryDialog';
 import { openAsrStream } from './asr-stream.js';
 import { formatDuration } from './queue-timing.js';
 import { formatWordTimes } from './asr-options.js';
+import { createLog } from './app-log.js';
 import './speech-transcriber.css';
 
+const log = createLog('asr');
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Only the error class and a string code are logged: browser messages can name devices.
+function errorFields(error) {
+  if (!error) {
+    return {};
+  }
+  const code = error.cause?.code ?? error.code;
+  return {
+    errorClass: String(error.name || 'Error'),
+    ...(typeof code === 'string' && code ? { errorCode: code } : {}),
+  };
+}
+function getSessionMode(isWholeFile, hasFile) {
+  if (isWholeFile) {
+    return 'file_whole';
+  }
+  return hasFile ? 'file_stream' : 'live';
+}
+function getSessionDurationMs(run) {
+  return Math.round(performance.now() - run.startedAt);
+}
 const timingKey = 'forge-asr-file-timing-v1';
 const phaseLabels = {
   recording: 'Recording. Speak, then choose Stop & finish.',
@@ -25,7 +47,8 @@ function readFileRates() {
     return Array.isArray(value)
       ? value.filter((rate) => Number.isFinite(rate) && rate > 0).slice(-20)
       : [];
-  } catch {
+  } catch (error) {
+    log.debug('asr.timing.read.failed', errorFields(error));
     return [];
   }
 }
@@ -87,10 +110,15 @@ export default function SpeechTranscriber({
           return;
         }
         status = result;
-        status.onchange = sync;
+        status.onchange = () => {
+          log.info('asr.microphone.permission.changed', { state: status.state });
+          sync();
+        };
         sync();
+        log.debug('asr.microphone.permission.checked', { state: status.state });
       })
-      .catch(() => {
+      .catch((error) => {
+        log.debug('asr.microphone.permission.unsupported', errorFields(error));
         // Some browsers do not expose microphone permission state; the start error still explains denial.
       });
     return () => {
@@ -104,27 +132,35 @@ export default function SpeechTranscriber({
     if (!run) {
       return;
     }
+    const wasOpen = !run.cancelled;
     run.cancelled = true;
     run.abort?.abort();
+    if (wasOpen) {
+      log.info('asr.session.closed', { mode: run.mode, durationMs: getSessionDurationMs(run) });
+    }
     clearTimeout(run.flushTimer);
     try {
       run.source?.disconnect();
-    } catch {
+    } catch (error) {
+      log.debug('asr.audio.disconnect.failed', { target: 'source', ...errorFields(error) });
       // Cleanup and local status updates continue if browser APIs are unavailable.
     }
     try {
       run.node?.disconnect();
-    } catch {
+    } catch (error) {
+      log.debug('asr.audio.disconnect.failed', { target: 'worklet', ...errorFields(error) });
       // Cleanup and local status updates continue if browser APIs are unavailable.
     }
     try {
       run.gain?.disconnect();
-    } catch {
+    } catch (error) {
+      log.debug('asr.audio.disconnect.failed', { target: 'gain', ...errorFields(error) });
       // Cleanup and local status updates continue if browser APIs are unavailable.
     }
     run.media?.getTracks().forEach((track) => track.stop());
     run.stream?.cancel();
-    run.context?.close().catch(() => {
+    run.context?.close().catch((error) => {
+      log.debug('asr.audio.context.close.failed', errorFields(error));
       // The stream error handler already reports failures through fail().
     });
     if (current.current === run) {
@@ -139,10 +175,16 @@ export default function SpeechTranscriber({
     };
   }, []);
   const active = (run) => mounted.current && current.current === run && !run.cancelled;
-  function fail(run, message) {
+  function fail(run, message, reason = 'error', error = null) {
     if (!active(run)) {
       return;
     }
+    log.warn('asr.session.failed', {
+      mode: run.mode,
+      reason,
+      durationMs: getSessionDurationMs(run),
+      ...errorFields(error),
+    });
     cleanup(run);
     setPhase('idle');
     setPartial('');
@@ -153,6 +195,7 @@ export default function SpeechTranscriber({
       return;
     }
     if (inputFile && inputFile.size > 25 * 1024 * 1024) {
+      log.warn('asr.session.rejected', { reason: 'file_too_large', fileSizeBytes: inputFile.size });
       setError('Choose an audio file smaller than 25 MiB.');
       return;
     }
@@ -168,8 +211,20 @@ export default function SpeechTranscriber({
     setSavedPath('');
     setConflict(null);
     setPhase('starting');
-    const run = { cancelled: false, finalText: '', partialText: '' };
+    const run = {
+      cancelled: false,
+      finalText: '',
+      partialText: '',
+      startedAt: performance.now(),
+      mode: getSessionMode(whole, Boolean(inputFile)),
+    };
     current.current = run;
+    log.info('asr.session.started', {
+      mode: run.mode,
+      latencyMs,
+      isPunctuationEnabled: punctuation,
+      isWordTimingEnabled: wordTiming,
+    });
     try {
       if (
         !whole &&
@@ -205,11 +260,16 @@ export default function SpeechTranscriber({
           return;
         }
         if (health?.modelLoadEngine !== 'asr' || health.modelLoadBarrier === 'idle') {
+          log.info('asr.engine.load.requested', { engineId: 'asr', reason: 'not_ready' });
           const { response, body } = await post('/api/runtime/models/asr/load');
           if (!active(run)) {
             return;
           }
           if (body.code === 'insufficient_gpu_memory') {
+            log.warn('asr.engine.load.blocked', {
+              engineId: 'asr',
+              reason: 'insufficient_gpu_memory',
+            });
             cleanup(run);
             setPhase('idle');
             setConflict(body);
@@ -244,6 +304,11 @@ export default function SpeechTranscriber({
         return;
       }
       if (!ready) {
+        log.warn('asr.engine.unavailable', {
+          engineId: 'asr',
+          reason: 'start_timeout',
+          durationMs: getSessionDurationMs(run),
+        });
         throw Error(
           'Speech recognition is still starting. Check Models & services before trying again.',
         );
@@ -262,7 +327,10 @@ export default function SpeechTranscriber({
           }),
           signal: run.abort.signal,
         });
-        const result = await response.json().catch(() => ({}));
+        const result = await response.json().catch((error) => {
+          log.debug('asr.transcribe.parse.failed', errorFields(error));
+          return {};
+        });
         if (!active(run)) {
           return;
         }
@@ -271,6 +339,11 @@ export default function SpeechTranscriber({
         }
         setTranscript(result.text.trim());
         setWords(Array.isArray(result.words) ? result.words : []);
+        log.info('asr.session.completed', {
+          mode: run.mode,
+          durationMs: getSessionDurationMs(run),
+          wordCount: Array.isArray(result.words) ? result.words.length : 0,
+        });
         cleanup(run);
         setPhase('idle');
         setCompletionNotice(
@@ -312,11 +385,16 @@ export default function SpeechTranscriber({
           setPartial('');
         },
       });
-      run.stream.done.catch((reason) => fail(run, reason.message));
+      run.stream.done.catch((reason) => fail(run, reason.message, 'stream_failed', reason));
       await run.stream.ready;
       if (!active(run)) {
         return;
       }
+      log.info('asr.session.opened', {
+        mode: run.mode,
+        latencyMs,
+        durationMs: getSessionDurationMs(run),
+      });
       if (inputFile) {
         const audio = await run.context.decodeAudioData(await inputFile.arrayBuffer());
         if (!active(run)) {
@@ -357,6 +435,10 @@ export default function SpeechTranscriber({
         }
         setPhase('finishing');
         run.stream.commit();
+        log.info('asr.session.commit.requested', {
+          mode: run.mode,
+          durationMs: getSessionDurationMs(run),
+        });
         await run.stream.done;
         if (active(run)) {
           const rate = (performance.now() - started) / 1000 / audio.duration;
@@ -365,12 +447,18 @@ export default function SpeechTranscriber({
               const next = [...previous, rate].slice(-20);
               try {
                 localStorage.setItem(timingKey, JSON.stringify(next));
-              } catch {
+              } catch (error) {
+                log.debug('asr.timing.save.failed', errorFields(error));
                 // Cleanup and local status updates continue if browser APIs are unavailable.
               }
               return next;
             });
           }
+          log.info('asr.session.completed', {
+            mode: run.mode,
+            durationMs: getSessionDurationMs(run),
+            ...(Number.isFinite(rate) ? { realtimeRatio: rate } : {}),
+          });
           cleanup(run);
           setPhase('idle');
           setCompletionNotice('Transcription complete.');
@@ -381,6 +469,7 @@ export default function SpeechTranscriber({
       if (!active(run)) {
         return;
       }
+      const micRequestedAt = performance.now();
       const media = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
         video: false,
@@ -390,6 +479,9 @@ export default function SpeechTranscriber({
         return;
       }
       run.media = media;
+      log.info('asr.microphone.access.granted', {
+        durationMs: Math.round(performance.now() - micRequestedAt),
+      });
       run.source = run.context.createMediaStreamSource(media);
       run.node = new AudioWorkletNode(run.context, 'forge-pcm16');
       run.gain = run.context.createGain();
@@ -405,15 +497,22 @@ export default function SpeechTranscriber({
             clearTimeout(run.flushTimer);
             run.media?.getTracks().forEach((track) => track.stop());
             run.stream.commit();
+            log.debug('asr.session.commit.requested', {
+              mode: run.mode,
+              durationMs: getSessionDurationMs(run),
+            });
           }
         } catch (reason) {
-          fail(run, reason.message);
+          log.warn('asr.audio.send.failed', errorFields(reason));
+          fail(run, reason.message, 'audio_send_failed');
         }
       };
       media
         .getAudioTracks()
         .forEach((track) =>
-          track.addEventListener('ended', () => fail(run, 'The microphone stopped unexpectedly.')),
+          track.addEventListener('ended', () =>
+            fail(run, 'The microphone stopped unexpectedly.', 'microphone_ended'),
+          ),
         );
       run.source.connect(run.node);
       run.node.connect(run.gain);
@@ -421,6 +520,17 @@ export default function SpeechTranscriber({
       setTranscript('');
       setPhase('recording');
     } catch (reason) {
+      const isPermissionDenied = reason?.name === 'NotAllowedError';
+      if (active(run)) {
+        if (isPermissionDenied) {
+          log.warn('asr.microphone.access.denied', {
+            reason: 'permission_denied',
+            ...errorFields(reason),
+          });
+        } else {
+          log.warn('asr.session.start.failed', { mode: run.mode, ...errorFields(reason) });
+        }
+      }
       fail(
         run,
         reason?.name === 'NotAllowedError'
@@ -429,6 +539,7 @@ export default function SpeechTranscriber({
               (inputFile
                 ? 'Could not transcribe this audio file.'
                 : 'Could not start the microphone.'),
+        isPermissionDenied ? 'microphone_denied' : 'start_failed',
       );
     }
   }
@@ -437,16 +548,21 @@ export default function SpeechTranscriber({
     if (!active(run) || !run.node) {
       return;
     }
+    log.info('asr.session.stop.requested', {
+      mode: run.mode,
+      durationMs: getSessionDurationMs(run),
+    });
     setPhase('finishing');
     try {
       run.source.disconnect();
       run.node.port.postMessage('flush');
       run.flushTimer = setTimeout(
-        () => fail(run, 'Microphone audio could not be finalized.'),
+        () => fail(run, 'Microphone audio could not be finalized.', 'flush_timeout'),
         5000,
       );
     } catch (reason) {
-      fail(run, reason.message);
+      log.warn('asr.session.stop.failed', errorFields(reason));
+      fail(run, reason.message, 'stop_failed');
       return;
     }
     run.stream.done
@@ -454,16 +570,22 @@ export default function SpeechTranscriber({
         if (!active(run)) {
           return;
         }
+        log.info('asr.session.completed', {
+          mode: run.mode,
+          durationMs: getSessionDurationMs(run),
+        });
         cleanup(run);
         setPhase('idle');
         setCompletionNotice('Transcription complete.');
       })
-      .catch(() => {
+      .catch((error) => {
+        log.debug('asr.session.stop.stream.failed', errorFields(error));
         // The stream error handler already reports failures through fail().
       });
   }
   function cancel() {
     const run = current.current;
+    log.info('asr.session.cancel.requested', { mode: run?.mode ?? 'none' });
     cleanup(run);
     setPhase('idle');
     setPartial('');
@@ -488,6 +610,7 @@ export default function SpeechTranscriber({
       try {
         await navigator.clipboard.writeText(transcript);
       } catch (reason) {
+        log.debug('asr.clipboard.write.failed', errorFields(reason));
         if (!legacyCopy(transcript)) {
           throw reason;
         }
@@ -498,7 +621,8 @@ export default function SpeechTranscriber({
           setCopied(false);
         }
       }, 2000);
-    } catch {
+    } catch (error) {
+      log.warn('asr.transcript.copy.failed', errorFields(error));
       setError('Could not copy the transcript. Select the text and copy it instead.');
     }
   }
@@ -516,16 +640,19 @@ export default function SpeechTranscriber({
     try {
       const projectId = project?.id;
       const result = await saveProjectText(projectId, 'transcript', transcript);
+      log.info('asr.transcript.saved', { projectId, transcriptLength: transcript.length });
       if (projectRef.current === projectId) {
         setSavedPath(result.path);
       }
     } catch (reason) {
+      log.warn('asr.transcript.save.failed', { projectId: project?.id, ...errorFields(reason) });
       setError(reason.message);
     } finally {
       setSaving(false);
     }
   }
   async function offload(id) {
+    log.info('asr.engine.offload.requested', { engineId: id });
     setWorking(true);
     setError('');
     try {
@@ -536,6 +663,7 @@ export default function SpeechTranscriber({
       setConflict(null);
       await start(pendingFile.current);
     } catch (reason) {
+      log.warn('asr.engine.offload.failed', { engineId: id, ...errorFields(reason) });
       setError(reason.message);
     } finally {
       setWorking(false);

@@ -11,6 +11,7 @@ import {
   MAX_REFERENCE_BYTES,
 } from './runtime/references.js';
 import { stageProjectClip } from './runtime/clips.js';
+import { atomicWriteFile } from './runtime/durable-file.js';
 import {
   readAssetMetadata,
   updateAsset,
@@ -30,7 +31,9 @@ import {
   readMetaIndex,
   searchAssetMeta,
 } from './runtime/asset-metadata.js';
+import { createLogger } from './runtime/app-log.js';
 
+const log = createLogger('projects');
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectsRoot = process.env.FORGE_PROJECTS_DIR || path.join(appRoot, 'projects');
 const metadataFile = '.forge-project.json';
@@ -106,6 +109,10 @@ async function listProjects() {
       try {
         assetMetadata = await readAssetMetadata(folder);
       } catch (error) {
+        log.warn('projects.metadata.read.failed', {
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
         console.error('Asset metadata read error:', error.message);
       }
       async function walk(dir, relative = '', depth = 0) {
@@ -153,7 +160,16 @@ async function listProjects() {
       found.push({ ...meta, folder, assets, updatedAt: assets[0]?.modified || meta.createdAt });
     } catch (error) {
       if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) {
+        log.warn('projects.project.read.failed', {
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
         console.error('Project read error:', error.message);
+      } else {
+        log.debug('projects.project.skipped', {
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
       }
     }
   }
@@ -174,26 +190,47 @@ export function projectsService() {
             req.headers.origin !== `http://${host}` ||
             req.headers['x-forge-request'] !== 'project'
           ) {
+            log.warn('projects.request.rejected', {
+              route: '/api/projects',
+              reason: 'not_local',
+            });
             return json(res, { error: 'Local studio requests only.' }, 403);
           }
           let body = '';
           for await (const chunk of req) {
             body += chunk;
             if (body.length > 10000) {
+              log.warn('projects.request.rejected', {
+                route: '/api/projects',
+                reason: 'too_large',
+              });
               return json(res, { error: 'Request too large.' }, 413);
             }
           }
           let input;
           try {
             input = JSON.parse(body);
-          } catch {
+          } catch (error) {
+            log.warn('projects.request.rejected', {
+              route: '/api/projects',
+              reason: 'invalid_json',
+              errorClass: error?.name,
+            });
             return json(res, { error: 'Invalid request.' }, 400);
           }
           if (!input || typeof input !== 'object' || Array.isArray(input)) {
+            log.warn('projects.request.rejected', {
+              route: '/api/projects',
+              reason: 'wrong_type',
+            });
             return json(res, { error: 'Invalid request.' }, 400);
           }
           const name = typeof input.name === 'string' ? input.name.trim() : '';
           if (!name || name.length > 80) {
+            log.warn('projects.request.rejected', {
+              route: '/api/projects',
+              reason: 'invalid_name',
+            });
             return json(res, { error: 'Enter a project name of up to 80 characters.' }, 400);
           }
           await fs.mkdir(projectsRoot, { recursive: true });
@@ -215,10 +252,10 @@ export function projectsService() {
             throw Error('Could not find an available project folder.');
           }
           const project = { id: randomUUID(), name, createdAt: new Date().toISOString() };
-          await fs.writeFile(path.join(folder, metadataFile), JSON.stringify(project, null, 2), {
-            flag: 'wx',
-          });
+          // Staged and flushed: a half-written project file would hide the project from the list.
+          await atomicWriteFile(path.join(folder, metadataFile), JSON.stringify(project, null, 2));
           await Promise.all(directories.map((dir) => fs.mkdir(path.join(folder, dir))));
+          log.info('projects.project.created', { projectId: project.id });
           return json(
             res,
             { project: { ...project, folder, assets: [], updatedAt: project.createdAt } },
@@ -233,6 +270,10 @@ export function projectsService() {
             req.headers.origin !== `http://${host}` ||
             req.headers['x-forge-request'] !== 'project'
           ) {
+            log.warn('projects.request.rejected', {
+              route: '/api/projects/:id/assets/create-text',
+              reason: 'not_local',
+            });
             return json(res, { error: 'Local studio requests only.' }, 403);
           }
           const project = (await listProjects()).find((item) => item.id === textAsset[1]);
@@ -244,6 +285,10 @@ export function projectsService() {
           for await (const chunk of req) {
             size += chunk.length;
             if (size > 500000) {
+              log.warn('projects.request.rejected', {
+                route: '/api/projects/:id/assets/create-text',
+                reason: 'too_large',
+              });
               return json(res, { error: 'Text asset is too large.' }, 413);
             }
             chunks.push(chunk);
@@ -255,6 +300,11 @@ export function projectsService() {
               201,
             );
           } catch (error) {
+            log.warn('projects.request.failed', {
+              route: '/api/projects/:id/assets/create-text',
+              errorClass: error?.name,
+              errorCode: error?.code,
+            });
             return json(res, { error: error.message || 'Could not save text.' }, 400);
           }
         }
@@ -289,6 +339,11 @@ export function projectsService() {
               : null;
             return json(res, { metadata: metadata && output ? { ...metadata, output } : metadata });
           } catch (error) {
+            log.warn('projects.request.failed', {
+              route: '/api/projects/:id/assets/:action',
+              errorClass: error?.name,
+              errorCode: error?.code,
+            });
             console.error('Asset details error:', error.message);
             return json(
               res,
@@ -312,6 +367,11 @@ export function projectsService() {
           try {
             return json(res, await listTrash(project));
           } catch (error) {
+            log.warn('projects.request.failed', {
+              route: '/api/projects/:id/assets/trash',
+              errorClass: error?.name,
+              errorCode: error?.code,
+            });
             return json(res, { error: error.message }, 400);
           }
         }
@@ -322,6 +382,10 @@ export function projectsService() {
             req.headers.origin !== `http://${host}` ||
             req.headers['x-forge-request'] !== 'project'
           ) {
+            log.warn('projects.request.rejected', {
+              route: '/api/projects/:id/assets/:action',
+              reason: 'not_local',
+            });
             return json(res, { error: 'Local studio requests only.' }, 403);
           }
           const project = (await listProjects()).find((item) => item.id === assetAction[1]);
@@ -332,6 +396,10 @@ export function projectsService() {
           for await (const chunk of req) {
             body += chunk;
             if (body.length > 10000) {
+              log.warn('projects.request.rejected', {
+                route: '/api/projects/:id/assets/:action',
+                reason: 'too_large',
+              });
               return json(res, { error: 'Request too large.' }, 413);
             }
           }
@@ -351,6 +419,12 @@ export function projectsService() {
                         : await restoreAsset(project, input.trashId);
             return json(res, result);
           } catch (error) {
+            log.warn('projects.request.failed', {
+              route: '/api/projects/:id/assets/:action',
+              action: assetAction[2],
+              errorClass: error?.name,
+              errorCode: error?.code,
+            });
             return json(res, { error: error.message || 'Could not update asset.' }, 400);
           }
         }
@@ -363,6 +437,10 @@ export function projectsService() {
               req.headers.origin !== `http://${host}` ||
               req.headers['x-forge-request'] !== 'project'
             ) {
+              log.warn('projects.request.rejected', {
+                route: '/api/projects/:id/thumbnail',
+                reason: 'not_local',
+              });
               return json(res, { error: 'Local studio requests only.' }, 403);
             }
           }
@@ -391,12 +469,21 @@ export function projectsService() {
           for await (const chunk of req) {
             body += chunk;
             if (body.length > 1500000) {
+              log.warn('projects.request.rejected', {
+                route: '/api/projects/:id/thumbnail',
+                reason: 'too_large',
+              });
               return json(res, { error: 'Thumbnail is too large.' }, 413);
             }
           }
           try {
             return json(res, await saveThumbnail(project, asset, JSON.parse(body)), 201);
           } catch (error) {
+            log.warn('projects.request.failed', {
+              route: '/api/projects/:id/thumbnail',
+              errorClass: error?.name,
+              errorCode: error?.code,
+            });
             return json(res, { error: error.message || 'Could not save thumbnail.' }, 400);
           }
         }
@@ -409,6 +496,10 @@ export function projectsService() {
             req.headers.origin !== `http://${host}` ||
             req.headers['x-forge-request'] !== 'project'
           ) {
+            log.warn('projects.request.rejected', {
+              route: '/api/projects/:id/:kind',
+              reason: 'not_local',
+            });
             return json(res, { error: 'Local studio requests only.' }, 403);
           }
           const project = (await listProjects()).find((item) => item.id === referenceMatch[1]);
@@ -421,6 +512,10 @@ export function projectsService() {
           }
           const limit = referenceMatch[3] ? 10000 : MAX_REFERENCE_BYTES;
           if (Number(req.headers['content-length']) > limit) {
+            log.warn('projects.request.rejected', {
+              route: '/api/projects/:id/:kind',
+              reason: 'too_large',
+            });
             return json(res, { error: 'Reference is too large.' }, 413);
           }
           const chunks = [];
@@ -428,6 +523,10 @@ export function projectsService() {
           for await (const chunk of req) {
             size += chunk.length;
             if (size > limit) {
+              log.warn('projects.request.rejected', {
+                route: '/api/projects/:id/:kind',
+                reason: 'too_large',
+              });
               return json(res, { error: 'Reference is too large.' }, 413);
             }
             chunks.push(chunk);
@@ -453,6 +552,11 @@ export function projectsService() {
                     : await stageReference(project.folder, bytes);
             return json(res, { reference }, 201);
           } catch (error) {
+            log.warn('projects.request.failed', {
+              route: '/api/projects/:id/:kind',
+              errorClass: error?.name,
+              errorCode: error?.code,
+            });
             return json(res, { error: `Could not stage reference: ${error.message}` }, 400);
           }
         }
@@ -474,6 +578,10 @@ export function projectsService() {
             path.relative(folderReal, real).startsWith('..') ||
             path.isAbsolute(path.relative(folderReal, real))
           ) {
+            log.warn('projects.request.rejected', {
+              route: '/api/projects/:id/asset',
+              reason: 'traversal',
+            });
             return json(res, { error: 'Asset not found.' }, 404);
           }
           const stat = await fs.stat(real);
@@ -526,6 +634,10 @@ export function projectsService() {
         }
         return json(res, { error: 'Not found.' }, 404);
       } catch (error) {
+        log.error('projects.request.failed', {
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
         console.error('Project service error:', error.message);
         return json(res, { error: 'Project service failed. Check Diagnostics.' }, 500);
       }

@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, ExternalLink, ImageOff, PackageOpen } from 'lucide-react';
-import { describeFormats, describeSizeRange, getMegascans } from './megascans-api';
+import { createLog } from './app-log.js';
+import {
+  describeFormats,
+  describeSizeRange,
+  getMegascans,
+  requestFailureFields,
+} from './megascans-api';
+
+const log = createLog('megascans');
 
 const PAGE_SIZE = 24;
 const MAX_INITIAL_PAGES = 10;
@@ -224,6 +232,7 @@ export default function ModelList({
         `${data.listings.length} more models loaded. Showing ${list.items.length + data.listings.length} of ${data.total}.`,
       );
     } catch (error) {
+      log.warn('megascans.list.more.failed', requestFailureFields(error));
       setMoreError(error.message);
     } finally {
       working.current = false;
@@ -265,6 +274,7 @@ export default function ModelList({
         setLiveText(`${added} more models read from Fab and shown.`);
       }
     } catch (error) {
+      log.warn('megascans.list.remote.failed', requestFailureFields(error));
       setMoreError(error.message);
     } finally {
       working.current = false;

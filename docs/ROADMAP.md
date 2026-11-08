@@ -329,7 +329,7 @@ machine unless an entry says so.
   base models do extract, lego and complete. LM models: `acestep-5Hz-lm-0.6B`, `-1.7B` and `-4B`
   (the 4B is strongest for audio understanding and melody copying). Upstream guidance is XL
   sft with the 4B LM and everything resident at 24 GB of GPU memory or more, which fits this
-  machine's 96 GB GPU.
+  machine's 96 GiB GPU.
 - **Why it matters for Forge:** the current Music page uses YuE2 (an external app, about 67 s for a
   15 s track in the real test). ACE-Step is far faster by its own numbers, and it adds features
   YuE2 does not offer here:

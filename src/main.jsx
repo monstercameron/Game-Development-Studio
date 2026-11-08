@@ -10,6 +10,14 @@ import {
 } from './segmentation-settings.js';
 import fieldTooltips from './tooltips';
 import { chatProjectKey } from './chat-project';
+import {
+  sanitizeDrafts,
+  sanitizeJobList,
+  sanitizeSelectedProject,
+  sanitizeSwitches,
+} from './storage-tolerance.js';
+import RecoveryPanel from './RecoveryPanel';
+import ConnectionStatus from './ConnectionStatus';
 import AssetThumbnail, { isVisualAsset } from './AssetThumbnail';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -78,13 +86,16 @@ import {
 import { estimateFromNearbyHistory, formatDuration } from './queue-timing.js';
 import { pageQueueStatus } from './nav-queue-status';
 import './clientLogging';
+import './app-log-install.js';
 import { reportNoticeError } from './error-capture.js';
 import ErrorsButton from './ErrorsButton';
 import ErrorsDialog from './ErrorsDialog';
 import AiAssistSettings from './AiAssistSettings';
+import StudioBehaviourSettings from './StudioBehaviourSettings';
 import { I18nProvider } from './i18n/index.js';
 import LanguageMenu from './i18n/LanguageMenu';
 import { shippedCatalogs } from './i18n/shipped-catalogs.js';
+import { createLog } from './app-log.js';
 import {
   ArrowRight,
   AudioLines,
@@ -163,6 +174,23 @@ import './ux-mobile-world-motion.css';
 import './ux-mobile-chat.css';
 import './ux-mobile-library.css';
 import './ux-mobile-system.css';
+
+const log = createLog('ui');
+
+// Log fields for a failed call: the error class and HTTP status only, never the message text.
+function errorFields(error) {
+  const fields = { errorClass: typeof error?.name === 'string' ? error.name : 'Error' };
+  if (Number.isFinite(error?.status)) {
+    fields.httpStatus = error.status;
+  }
+  return fields;
+}
+
+// A render that was not queued: 'http_error' when the server answered, 'not_sent' otherwise.
+function queueRejection(kind, projectId, error) {
+  const reason = Number.isFinite(error?.status) ? 'http_error' : 'not_sent';
+  return { kind, projectId, reason, ...errorFields(error) };
+}
 
 // Chat's Markdown renderer is only needed when the user opens that workspace.
 const Chat = React.lazy(() => import('./Chat'));
@@ -437,7 +465,8 @@ function load(key, fallback) {
   try {
     const v = localStorage.getItem(key);
     return v ? JSON.parse(v) : fallback;
-  } catch {
+  } catch (error) {
+    log.debug('ui.storage.read.failed', { settingKey: key, error });
     return fallback;
   }
 }
@@ -455,13 +484,8 @@ function App() {
     .join('|');
   const [section, navigate, routeParams, setRouteParams] = useNav();
   const [drafts, setDrafts] = useState(() => {
-    const saved = load('forge-drafts', initialDrafts);
-    return Object.fromEntries(
-      Object.entries(initialDrafts).map(([key, initial]) => [
-        key,
-        { ...initial, ...saved?.[key], refs: [] },
-      ]),
-    );
+    // Damaged or wrongly shaped saved drafts fall back to the defaults field by field.
+    return sanitizeDrafts(load('forge-drafts', null), initialDrafts);
   });
   const [renderQueueVersion, setRenderQueueVersion] = useState(0);
   const [submittingMusic, setSubmittingMusic] = useState(false);
@@ -470,6 +494,7 @@ function App() {
   // Scope and request keys keep the last estimate on screen while a new one loads.
   const estimateScope = useRef('');
   const estimateRequestKey = useRef('');
+  const isEstimateFailing = useRef(false);
   const [videoFiles, setVideoFiles] = useState([]);
   const [imageFiles, setImageFiles] = useState([]);
   const imageLoras = useImageLoras(section === 'images');
@@ -482,7 +507,8 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem('forge-nav-compact', JSON.stringify(navCompact));
-    } catch {
+    } catch (error) {
+      log.debug('ui.storage.write.failed', { settingKey: 'forge-nav-compact', error });
       // Browser storage can be unavailable in restricted contexts.
     }
   }, [navCompact]);
@@ -492,7 +518,8 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem('forge-nav-hidden', JSON.stringify(desktopNavHidden));
-    } catch {
+    } catch (error) {
+      log.debug('ui.storage.write.failed', { settingKey: 'forge-nav-hidden', error });
       // Browser storage can be unavailable in restricted contexts.
     }
   }, [desktopNavHidden]);
@@ -502,7 +529,7 @@ function App() {
   const menuButtonRef = useRef(null);
   const navigationRef = useRef(null);
   const projectSelectRef = useRef(null);
-  const [jobs, setJobs] = useState(() => load('forge-queue', []));
+  const [jobs, setJobs] = useState(() => sanitizeJobList(load('forge-queue', [])));
   const [notice, setNotice] = useState('');
   // Counts failed Voices submits. The voice fields show their errors only after the first one.
   const [voiceSubmitAttempts, setVoiceSubmitAttempts] = useState(0);
@@ -540,7 +567,7 @@ function App() {
   const setNewProjectOpen = (value) =>
     updateSearch(setRouteParams, { dialog: value ? 'new-project' : null });
   const [draftQueueOpen, setDraftQueueOpen] = useRouteToggle('draftQueue');
-  const initialSavedProject = useRef(load('forge-selected-project', null));
+  const initialSavedProject = useRef(sanitizeSelectedProject(load('forge-selected-project', null)));
   useEffect(() => {
     if (
       window.location.pathname === '/' &&
@@ -554,22 +581,26 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem('forge-selected-project', JSON.stringify(selectedProjectId));
-    } catch {
+    } catch (error) {
+      log.debug('ui.storage.write.failed', { settingKey: 'forge-selected-project', error });
       // Browser storage can be unavailable in restricted contexts.
     }
   }, [selectedProjectId]);
   const latestProjectsRequest = useRef(0);
+  const isProjectsRefreshFailing = useRef(false);
   useEffect(() => {
     try {
       localStorage.setItem('forge-drafts', JSON.stringify(drafts));
-    } catch {
+    } catch (error) {
+      log.debug('ui.storage.write.failed', { settingKey: 'forge-drafts', error });
       // Browser storage can be unavailable in restricted contexts.
     }
   }, [drafts]);
   useEffect(() => {
     try {
       localStorage.setItem('forge-queue', JSON.stringify(jobs));
-    } catch {
+    } catch (error) {
+      log.debug('ui.storage.write.failed', { settingKey: 'forge-queue', error });
       // Browser storage can be unavailable in restricted contexts.
     }
   }, [jobs]);
@@ -585,12 +616,25 @@ function App() {
         setProjects(data.projects);
         setProjectsError('');
         setProjectsLoading(false);
+        if (isProjectsRefreshFailing.current) {
+          isProjectsRefreshFailing.current = false;
+          log.info('ui.projects.refresh.recovered');
+        }
+      } else {
+        log.debug('ui.projects.refresh.stale', { outcome: 'completed' });
       }
       return data.projects;
     } catch (error) {
       if (request === latestProjectsRequest.current) {
+        // Logged once when the poll starts failing, not on every 5 second retry.
+        if (!isProjectsRefreshFailing.current) {
+          isProjectsRefreshFailing.current = true;
+          log.warn('ui.projects.refresh.failed', { error });
+        }
         setProjectsError('Could not load projects. Restart the studio.');
         setProjectsLoading(false);
+      } else {
+        log.debug('ui.projects.refresh.stale', { outcome: 'failed' });
       }
       throw error;
     }
@@ -598,6 +642,7 @@ function App() {
   useEffect(() => {
     const latestProjectsRequestRef = latestProjectsRequest;
     refreshProjects().catch(() => {});
+    // log-coverage: ignore -- refreshProjects logs the first failure and the recovery itself
     const timer = setInterval(() => refreshProjects().catch(() => {}), 5000);
     return () => {
       latestProjectsRequestRef.current++;
@@ -692,6 +737,7 @@ function App() {
       throw Error(result.error || 'Could not create the project.');
     }
     setProjects((items) => [result.project, ...items]);
+    log.info('ui.project.created', { projectId: result.project.id });
     updateSearch(setRouteParams, {
       project: result.project.id,
       collection: null,
@@ -731,6 +777,7 @@ function App() {
     if (activeProject) {
       return true;
     }
+    log.info('ui.submit.rejected', { reason: 'no_project', hasProjects: projects.length > 0 });
     setNotice(
       projects.length ? 'Choose a project for this creation.' : 'Create a project to get started.',
     );
@@ -794,15 +841,33 @@ function App() {
             if (estimateRequestKey.current === requestKey) {
               setRenderEstimate(result.available ? result : nearby || result);
               setEstimateError('');
+              if (isEstimateFailing.current) {
+                isEstimateFailing.current = false;
+                log.info('ui.estimate.recovered', { kind: type });
+              }
+            } else {
+              log.debug('ui.estimate.stale', { kind: type, outcome: 'completed' });
             }
           })
-          .catch(() => {
+          .catch((error) => {
             if (estimateRequestKey.current === requestKey) {
+              // Logged once per run of failures, not on every edit that triggers a new estimate.
+              if (!isEstimateFailing.current) {
+                isEstimateFailing.current = true;
+                log.warn('ui.estimate.failed', {
+                  kind: type,
+                  hasFallback: Boolean(nearby),
+                  ...errorFields(error),
+                });
+              }
               setRenderEstimate(nearby);
               setEstimateError(nearby ? '' : 'Could not check render timing.');
+            } else {
+              log.debug('ui.estimate.stale', { kind: type, outcome: 'failed' });
             }
           });
       } catch (reason) {
+        log.debug('ui.estimate.payload.failed', { kind: type, ...errorFields(reason) });
         if (active) {
           setEstimateError(reason.message || 'Check the render settings.');
         }
@@ -920,6 +985,12 @@ function App() {
     if (section === 'voices') {
       setVoiceSubmitAttempts((count) => count + 1);
     }
+    log.info('ui.submit.rejected', {
+      page: section,
+      reason: 'invalid_fields',
+      count: problems.length,
+      isDraft: forDraft,
+    });
     setNotice(validationSummary(problems));
     return true;
   };
@@ -965,6 +1036,7 @@ function App() {
         created: Date.now(),
       },
     ]);
+    log.info('ui.draft.added', { kind: section, projectId: activeProject.id });
     setNotice('Added to your project draft queue.');
   };
   const addReferenceFiles = (files) => {
@@ -1028,8 +1100,10 @@ function App() {
     try {
       await enqueueMusic(activeProject.id, draft);
       setRenderQueueVersion((v) => v + 1);
+      log.info('ui.queue.submitted', { kind: 'music', projectId: activeProject.id });
       setNotice('Music render added to the durable queue.');
     } catch (error) {
+      log.warn('ui.queue.rejected', queueRejection('music', activeProject.id, error));
       setNotice(`Could not queue music: ${error.message}`);
     } finally {
       setSubmittingMusic(false);
@@ -1043,8 +1117,10 @@ function App() {
     try {
       await enqueueSound(activeProject.id, draft);
       setRenderQueueVersion((v) => v + 1);
+      log.info('ui.queue.submitted', { kind: 'sfx', projectId: activeProject.id });
       setNotice('Sound effect added to the durable queue.');
     } catch (error) {
+      log.warn('ui.queue.rejected', queueRejection('sfx', activeProject.id, error));
       setNotice(`Could not queue sound: ${error.message}`);
     } finally {
       setSubmittingMusic(false);
@@ -1066,6 +1142,12 @@ function App() {
             alphaStatus,
           });
       setRenderQueueVersion((v) => v + 1);
+      log.info('ui.queue.submitted', {
+        kind: '3d',
+        projectId: activeProject.id,
+        mode: fromText ? 'text' : 'image',
+        isChained: Boolean(queued.chained),
+      });
       setNotice(
         queued.chained
           ? fromText
@@ -1076,6 +1158,7 @@ function App() {
             : '3D shape added to the durable queue.',
       );
     } catch (error) {
+      log.warn('ui.queue.rejected', queueRejection('3d', activeProject.id, error));
       setNotice(`Could not queue 3D shape: ${error.message}`);
     } finally {
       setSubmittingMusic(false);
@@ -1089,8 +1172,10 @@ function App() {
     try {
       await enqueueSegmentation(activeProject.id, draft, segmentationFiles[0]);
       setRenderQueueVersion((v) => v + 1);
+      log.info('ui.queue.submitted', { kind: 'segmentation', projectId: activeProject.id });
       setNotice('Segmentation added to the durable queue.');
     } catch (error) {
+      log.warn('ui.queue.rejected', queueRejection('segmentation', activeProject.id, error));
       setNotice(`Could not queue segmentation: ${error.message}`);
     } finally {
       setSubmittingMusic(false);
@@ -1115,8 +1200,14 @@ function App() {
             : 'Motion clip added to the durable queue.',
         );
       }
+      log.info('ui.queue.submitted', {
+        kind: 'motion',
+        projectId: activeProject.id,
+        mode: bricks ? 'motionbricks' : 'hymotion',
+      });
       setRenderQueueVersion((v) => v + 1);
     } catch (error) {
+      log.warn('ui.queue.rejected', queueRejection('motion', activeProject.id, error));
       setNotice(`Could not queue motion: ${error.message}`);
     } finally {
       setSubmittingMusic(false);
@@ -1129,6 +1220,7 @@ function App() {
     const voiceError = firstVoiceModeError(voiceModeFieldErrors(draft));
     if (voiceError) {
       setVoiceSubmitAttempts((count) => count + 1);
+      log.info('ui.submit.rejected', { page: 'voices', reason: 'invalid_voice_mode' });
       setNotice(voiceError);
       return;
     }
@@ -1136,8 +1228,10 @@ function App() {
     try {
       await enqueueVoice(activeProject.id, draft);
       setRenderQueueVersion((v) => v + 1);
+      log.info('ui.queue.submitted', { kind: 'voices', projectId: activeProject.id });
       setNotice('Voice added to the durable queue.');
     } catch (error) {
+      log.warn('ui.queue.rejected', queueRejection('voices', activeProject.id, error));
       setNotice(`Could not queue voice: ${error.message}`);
     } finally {
       setSubmittingMusic(false);
@@ -1152,12 +1246,18 @@ function App() {
       await enqueueImage(activeProject.id, draft, imageFiles);
       setRenderQueueVersion((v) => v + 1);
       const variations = Number(draft.imageVariations) || 1;
+      log.info('ui.queue.submitted', {
+        kind: 'images',
+        projectId: activeProject.id,
+        variationCount: variations,
+      });
       setNotice(
         variations > 1
           ? `${variations} image variations added to the durable queue.`
           : 'Image added to the durable queue.',
       );
     } catch (error) {
+      log.warn('ui.queue.rejected', queueRejection('images', activeProject.id, error));
       setNotice(`Could not queue image: ${error.message}`);
     } finally {
       setSubmittingMusic(false);
@@ -1176,8 +1276,10 @@ function App() {
     try {
       await enqueueVideo(activeProject.id, draft, videoFiles);
       setRenderQueueVersion((v) => v + 1);
+      log.info('ui.queue.submitted', { kind: 'video', projectId: activeProject.id });
       setNotice('Video added to the durable queue.');
     } catch (error) {
+      log.warn('ui.queue.rejected', queueRejection('video', activeProject.id, error));
       setNotice(`Could not queue video: ${error.message}`);
     } finally {
       setSubmittingMusic(false);
@@ -1185,9 +1287,11 @@ function App() {
   };
   const openDraft = (job) => {
     if (!configs[job.kind]) {
+      log.warn('ui.draft.open.rejected', { reason: 'unknown_kind' });
       setNotice('This draft type is unavailable.');
       return;
     }
+    log.info('ui.draft.opened', { kind: job.kind });
     setDrafts((d) => ({
       ...d,
       [job.kind]: {
@@ -1235,6 +1339,7 @@ function App() {
   const reuseSettings = (meta, projectId) => {
     const plan = reusePlan(meta);
     if (!plan) {
+      log.info('ui.settings.reuse.rejected', { reason: 'no_plan' });
       setNotice('These settings cannot be reused on a creation page.');
       return;
     }
@@ -1249,7 +1354,8 @@ function App() {
       try {
         // The World page reads this once when it opens; the prompt can be too long for the address.
         window.sessionStorage.setItem('forge-world-reuse', JSON.stringify(plan.world));
-      } catch {
+      } catch (error) {
+        log.debug('ui.storage.write.failed', { settingKey: 'forge-world-reuse', error });
         // Without session storage only the generator is selected.
       }
       switchTo('world', { project: projectId || null, model: plan.model });
@@ -1417,6 +1523,7 @@ function App() {
             type="button"
             className="nav-item nav-compact-toggle"
             aria-pressed={navCompact}
+            data-log-action="nav.compact.toggle"
             aria-label={navCompact ? 'Expand menu' : 'Make menu smaller'}
             title={navCompact ? 'Expand menu' : 'Make menu smaller'}
             onClick={() => setNavCompact((value) => !value)}
@@ -1444,6 +1551,7 @@ function App() {
               }
               aria-expanded={mobileNavigation ? navigationOpen : !desktopNavHidden}
               aria-controls="studio-navigation"
+              data-log-action="nav.menu.toggle"
               onClick={() =>
                 mobileNavigation
                   ? setNavigationOpen((value) => !value)
@@ -1498,6 +1606,7 @@ function App() {
             <LanguageMenu section={section} allowPseudo={import.meta.env.DEV} />
             <ErrorsButton onOpen={() => setErrorsOpen(true)} isOpen={errorsOpen} />
             <QueueTimingBadge onOpen={() => switchTo('queue')} />
+            <ConnectionStatus />
             <button
               type="button"
               className="prototype prototype-button"
@@ -1521,6 +1630,7 @@ function App() {
             </button>
           </div>
         </header>
+        <RecoveryPanel />
         {section === 'overview' ? (
           <div className="page overview">
             <div className="intro-row">
@@ -2636,20 +2746,21 @@ function StudioSettings({ onClose }) {
   const [permission, setPermission] = useState(() =>
     'Notification' in window ? Notification.permission : 'unsupported',
   );
-  const [settings, setSettings] = useState(() => ({
-    ...defaultNotifications,
-    ...load(notificationSettingsKey, {}),
-  }));
+  const [settings, setSettings] = useState(() =>
+    sanitizeSwitches(load(notificationSettingsKey, {}), defaultNotifications),
+  );
   const [power, setPower] = useState({ awake: false, loading: true, error: null });
   useEffect(() => {
     try {
       localStorage.setItem(notificationSettingsKey, JSON.stringify(settings));
-    } catch {
+    } catch (error) {
+      log.debug('ui.storage.write.failed', { settingKey: notificationSettingsKey, error });
       // Browser storage can be unavailable in restricted contexts.
     }
   }, [settings]);
   useEffect(() => {
     let active = true;
+    let isFailing = false;
     const refresh = async () => {
       try {
         const response = await fetch('/api/power');
@@ -2658,10 +2769,19 @@ function StudioSettings({ onClose }) {
         }
         const value = await response.json();
         if (active) {
+          if (isFailing) {
+            isFailing = false;
+            log.info('ui.power.refresh.recovered');
+          }
           setPower({ awake: value.awake, loading: false, error: value.error });
         }
-      } catch {
+      } catch (error) {
         if (active) {
+          // Logged once when the poll starts failing, not on every 10 second retry.
+          if (!isFailing) {
+            isFailing = true;
+            log.warn('ui.power.refresh.failed', { error });
+          }
           setPower((p) => ({
             ...p,
             loading: false,
@@ -2691,14 +2811,19 @@ function StudioSettings({ onClose }) {
         throw Error(data.error || 'Could not change power setting.');
       }
       setPower({ awake: data.awake, loading: false, error: data.error });
+      log.info('ui.power.changed', { enabled: Boolean(data.awake) });
     } catch (error) {
+      log.warn('ui.power.change.failed', { error });
       setPower((p) => ({ ...p, loading: false, error: error.message }));
     }
   }
   async function enableNotifications() {
     try {
-      setPermission(await Notification.requestPermission());
-    } catch {
+      const result = await Notification.requestPermission();
+      log.info('ui.notifications.permission.decided', { state: result });
+      setPermission(result);
+    } catch (error) {
+      log.warn('ui.notifications.permission.failed', { error });
       setPermission('unsupported');
     }
   }
@@ -2799,6 +2924,7 @@ function StudioSettings({ onClose }) {
             <input
               type="checkbox"
               checked={settings.render}
+              data-log-action="settings.notify.render"
               onChange={(e) => setSettings({ ...settings, render: e.target.checked })}
             />
             <span>When a render completes</span>
@@ -2807,6 +2933,7 @@ function StudioSettings({ onClose }) {
             <input
               type="checkbox"
               checked={settings.queue}
+              data-log-action="settings.notify.queue"
               onChange={(e) => setSettings({ ...settings, queue: e.target.checked })}
             />
             <span>When the render queue completes</span>
@@ -2819,6 +2946,7 @@ function StudioSettings({ onClose }) {
         </div>
         <CredentialSettings />
         <AiAssistSettings />
+        <StudioBehaviourSettings />
       </section>
     </div>
   );
@@ -2865,6 +2993,7 @@ function Queue({ jobs, setJobs, compact, onOpenDraft }) {
                 <button
                   className="icon-btn"
                   title="Remove draft"
+                  data-log-action="drafts.remove"
                   aria-label="Remove draft"
                   onClick={() => setJobs(jobs.filter((j) => j.id !== job.id))}
                 >

@@ -4,8 +4,11 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createLogger } from './app-log.js';
 import { redactText } from './error-redaction.js';
 import { sourceLabel } from './error-format.js';
+
+const log = createLogger('errors');
 
 export const OPENAI_BASE_URL = 'https://api.openai.com/v1/';
 export const SOURCE_CONTEXT_LINES = 6;
@@ -63,6 +66,7 @@ export function resolveRepoSource(repoRoot, relative) {
     return null;
   }
   if (isDeniedRelative(relative) || !SOURCE_EXTENSIONS.has(path.extname(relative).toLowerCase())) {
+    log.debug('errors.source.rejected', { reason: 'denied_or_unsupported' });
     return null;
   }
   try {
@@ -70,6 +74,7 @@ export function resolveRepoSource(repoRoot, relative) {
     const real = fs.realpathSync(path.resolve(realRoot, relative));
     const inside = path.relative(realRoot, real);
     if (!inside || inside.startsWith('..') || path.isAbsolute(inside) || isDeniedRelative(inside)) {
+      log.debug('errors.source.rejected', { reason: 'outside_or_denied' });
       return null;
     }
     const info = fs.statSync(real);
@@ -77,7 +82,8 @@ export function resolveRepoSource(repoRoot, relative) {
       return null;
     }
     return { file: real, relative: inside.split(path.sep).join('/') };
-  } catch {
+  } catch (error) {
+    log.debug('errors.source.resolve.failed', { errorClass: error.name, errorCode: error.code });
     return null;
   }
 }
@@ -216,6 +222,7 @@ export function sanitizeProviderText(text, key) {
 export class ProviderError extends Error {
   constructor(status, message, providerMessage = '') {
     super(message);
+    // log-coverage: ignore -- builds an error object, not a state change
     this.status = status;
     this.providerMessage = providerMessage;
   }
@@ -294,6 +301,13 @@ export async function requestFixSuggestion({
   signal,
   timeoutMs = FIX_TIMEOUT_MS,
 }) {
+  const fields = { provider: 'openai', model: body.model };
+  if (!key) {
+    log.warn('errors.fix.key.missing', fields);
+  }
+  log.info('errors.fix.requested', fields);
+  const stopCompleted = log.time('errors.fix.request.completed', fields);
+  const stopFailed = log.time('errors.fix.request.failed', fields);
   const linked = linkedSignal(signal, timeoutMs);
   try {
     let response;
@@ -306,10 +320,13 @@ export async function requestFixSuggestion({
         signal: linked.signal,
       });
     } catch (error) {
-      throw connectionError(error, key);
+      const failure = connectionError(error, key);
+      stopFailed({ status: failure.status, errorClass: error.name });
+      throw failure;
     }
     if (!response.ok) {
       const providerMessage = await readProviderMessage(response, key);
+      stopFailed({ status: response.status });
       throw new ProviderError(
         response.status,
         explainStatus(response.status, body.model, providerMessage),
@@ -320,6 +337,10 @@ export async function requestFixSuggestion({
     const text = responseText(data);
     if (!text) {
       const reason = data?.incomplete_details?.reason;
+      stopFailed({
+        status: 502,
+        reason: reason === 'max_output_tokens' ? 'output_limit' : 'empty_output',
+      });
       throw new ProviderError(
         502,
         reason === 'max_output_tokens'
@@ -328,6 +349,7 @@ export async function requestFixSuggestion({
       );
     }
     const incomplete = data?.status === 'incomplete';
+    stopCompleted({ status: response.status, isIncomplete: incomplete });
     return {
       text: incomplete ? `${text}\n\n_The answer was cut off by the output limit._` : text,
       model: typeof data?.model === 'string' ? data.model.slice(0, 100) : body.model,
@@ -348,6 +370,9 @@ export async function verifyModel({
   baseUrl = OPENAI_BASE_URL,
   signal,
 }) {
+  const fields = { provider: 'openai', model };
+  const stopVerified = log.time('errors.model.verify.completed', fields);
+  const stopFailed = log.time('errors.model.verify.failed', fields);
   const linked = linkedSignal(signal, 15000);
   const headers = { Authorization: `Bearer ${key}` };
   try {
@@ -359,20 +384,25 @@ export async function verifyModel({
         signal: linked.signal,
       });
     } catch (error) {
-      throw connectionError(error, key);
+      const failure = connectionError(error, key);
+      stopFailed({ status: failure.status, errorClass: error.name });
+      throw failure;
     }
     if (response.ok) {
       await response.body?.cancel?.();
+      stopVerified({ status: response.status, isAvailable: true });
       return { exists: true, message: `${model} is available to this key.`, models: [] };
     }
     const providerMessage = await readProviderMessage(response, key);
     if (response.status !== 404) {
+      stopFailed({ status: response.status });
       throw new ProviderError(
         response.status,
         explainStatus(response.status, model, providerMessage),
         providerMessage,
       );
     }
+    stopVerified({ status: response.status, isAvailable: false });
     let models = [];
     try {
       const list = await fetchImpl(new URL('models', baseUrl), {
@@ -386,7 +416,8 @@ export async function verifyModel({
         .filter((id) => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/.test(id))
         .sort()
         .slice(0, 300);
-    } catch {
+    } catch (error) {
+      log.debug('errors.model.list.failed', { provider: 'openai', errorClass: error.name });
       models = [];
     }
     return {

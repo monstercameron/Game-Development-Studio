@@ -1,0 +1,200 @@
+/* Recovery panel (src/RecoveryPanel.jsx) and the studio connection message. */
+.recovery-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ux-space-3);
+  margin: var(--ux-space-3) var(--ux-gutter);
+  padding: var(--ux-space-4);
+  color: var(--forge-text);
+  background: var(--forge-queue-warning-surface);
+  border: 1px solid var(--forge-queue-warning-border);
+  border-radius: var(--ux-radius-md);
+}
+.recovery-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ux-space-2);
+}
+.recovery-head h2,
+.recovery-group h3 {
+  margin: 0;
+}
+.recovery-head h2 {
+  font-size: var(--ux-text-lg);
+}
+.recovery-group h3 {
+  font-size: var(--ux-text-md);
+}
+.recovery-head-actions,
+.recovery-job-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+.recovery-panel p {
+  margin: 0;
+  max-width: 78ch;
+  line-height: 1.5;
+  color: var(--forge-text);
+}
+.recovery-panel .recovery-muted {
+  color: var(--forge-muted);
+  font-size: var(--ux-text-sm);
+}
+.recovery-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ux-space-2);
+  padding-block-start: var(--ux-space-3);
+  border-block-start: var(--ux-border);
+}
+.recovery-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ux-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recovery-job,
+.recovery-orphan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ux-space-2);
+  min-width: 0;
+}
+.recovery-job {
+  padding: var(--ux-space-3);
+  background: var(--forge-surface);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+}
+.recovery-job-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+.recovery-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-1);
+  padding: 0 var(--ux-space-2);
+  border: 1px solid var(--forge-queue-warning-border);
+  border-radius: var(--forge-radius-pill);
+  font-size: var(--ux-text-xs);
+  font-weight: 700;
+}
+.recovery-details pre {
+  margin: 0;
+  max-height: 9em;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--ux-font-mono);
+  font-size: var(--ux-text-xs);
+  color: var(--forge-muted);
+}
+.recovery-panel code {
+  overflow-wrap: anywhere;
+  font-family: var(--ux-font-mono);
+  font-size: var(--ux-text-sm);
+}
+.recovery-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-2);
+  min-height: var(--ux-target-min);
+  font-size: var(--ux-text-sm);
+}
+.recovery-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ux-space-1);
+  min-height: var(--ux-target-min);
+  padding: var(--ux-space-1) var(--ux-space-3);
+  color: var(--forge-text);
+  background: var(--forge-raised);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-md);
+  font-size: var(--ux-text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.recovery-button:hover:not(:disabled) {
+  background: var(--forge-control-hover);
+}
+.recovery-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.recovery-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-1);
+  min-height: var(--ux-target-min);
+  padding: 0 var(--ux-space-1);
+  color: var(--forge-queue-action);
+  background: none;
+  border: 0;
+  font-size: var(--ux-text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.recovery-link:hover {
+  color: var(--forge-queue-action-hover);
+}
+.recovery-button:focus-visible,
+.recovery-link:focus-visible,
+.recovery-check input:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+.recovery-alert,
+.recovery-error {
+  padding: var(--ux-space-2) var(--ux-space-3);
+  background: var(--forge-danger-surface);
+  border: 1px solid var(--forge-danger-border);
+  border-radius: var(--ux-radius-sm);
+}
+.recovery-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+  overflow-wrap: anywhere;
+}
+.connection-status {
+  display: inline-flex;
+  align-items: center;
+}
+.connection-status-text {
+  padding: var(--ux-space-1) var(--ux-space-3);
+  border: 1px solid var(--forge-queue-warning-border);
+  border-radius: var(--forge-radius-pill);
+  background: var(--forge-queue-warning-surface);
+  color: var(--forge-text);
+  font-size: var(--ux-text-xs);
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .recovery-panel {
+    margin-inline: var(--ux-space-2);
+    padding: var(--ux-space-3);
+  }
+  .recovery-head-actions .recovery-button,
+  .recovery-job-actions .recovery-button {
+    min-height: var(--ux-target-touch);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recovery-panel,
+  .recovery-panel * {
+    transition: none;
+    animation: none;
+  }
+}

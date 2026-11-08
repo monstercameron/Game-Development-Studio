@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+from app_log import get_logger
+
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location(
     "forge_trellis_download", ROOT / "runtime" / "trellis-download.py"
@@ -13,6 +15,8 @@ spec.loader.exec_module(common)
 # Loading the shared downloader first configures Hugging Face cache/privacy.
 from huggingface_hub import HfApi, hf_hub_download  # noqa: E402
 
+log = get_logger("three-d")
+
 REPO = "facebook/dinov3-vitl16-pretrain-lvd1689m"
 REVISION = "ea8dc2863c51be0a264bab82070e3e8836b02d51"
 WANTED = {"config.json", "model.safetensors", "preprocessor_config.json"}
@@ -20,6 +24,8 @@ DESTINATION = ROOT / "models" / "dinov3-vitl16-pretrain-lvd1689m"
 
 
 def main(token):
+    log.info("three-d.dinov3.download.started", {"fileCount": len(WANTED)})
+    stop = log.time("three-d.dinov3.download.completed", {"fileCount": len(WANTED)})
     info = HfApi().model_info(REPO, revision=REVISION, files_metadata=True, token=token)
     files = {item.rfilename: item for item in info.siblings if item.rfilename in WANTED}
     if WANTED - files.keys():
@@ -33,6 +39,7 @@ def main(token):
                 raise RuntimeError(f"Existing file has unexpected content; left untouched: {name}")
             continue
         print(f"Downloading {name} ({item.size:,} bytes)", flush=True)
+        stop_file = log.time("three-d.dinov3.file.downloaded", {"bytes": item.size})
         downloaded = Path(
             hf_hub_download(
                 repo_id=REPO, filename=name, revision=REVISION, local_dir=DESTINATION, token=token
@@ -40,7 +47,9 @@ def main(token):
         )
         if not common.verify(downloaded, item):
             raise RuntimeError(f"Download failed verification; left for inspection: {name}")
+        stop_file()
         print(f"Verified {name}", flush=True)
+    stop()
     print("DINOv3 checkpoints verified.", flush=True)
 
 
@@ -51,6 +60,7 @@ if __name__ == "__main__":
     try:
         main(token)
     except Exception as error:
+        log.error("three-d.dinov3.download.failed", {"errorClass": type(error).__name__})
         # Never echo the credential even if an upstream exception contains it.
         print(f"DINOv3 download failed: {str(error).replace(token, '[redacted]')}", file=sys.stderr)
         sys.exit(1)

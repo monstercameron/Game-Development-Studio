@@ -1,9 +1,10 @@
 // Global error review store: .forge-runtime/errors.sqlite. Rows are redacted before they are
 // written, repeats with the same fingerprint increase a count, and retention bounds the file.
-import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createLogger } from './app-log.js';
+import { openDatabase } from './durable-db.js';
 import {
   ERROR_FIELD_LIMITS,
   fingerprintSource,
@@ -15,6 +16,14 @@ export const ERROR_STATUSES = ['new', 'reviewed', 'resolved', 'verified', 'ignor
 export const FIX_SOURCES = ['self', 'ai', 'both'];
 export const ERROR_RETENTION = Object.freeze({ maxRows: 2000, maxAgeDays: 30 });
 const SOURCE_PATTERN = /^(?:browser|queue|server|engine:[a-z0-9][a-z0-9-]{0,40})$/;
+const log = createLogger('errors');
+
+// Log fields carry only the class and code of a failure. Messages and stacks can hold paths,
+// stored text or prompts, so they never reach the studio log.
+function failureFields(error) {
+  return { errorClass: error?.name, errorCode: error?.code };
+}
+
 function hash(text) {
   return createHash('sha256').update(text).digest('hex').slice(0, 32);
 }
@@ -37,8 +46,9 @@ function publicRow(row, { full = false } = {}) {
   let context;
   try {
     context = row.context_json ? JSON.parse(row.context_json) : {};
-  } catch {
+  } catch (error) {
     // A row written by an older build with invalid JSON still displays.
+    log.debug('errors.context.parse.failed', { errorId: row.id, ...failureFields(error) });
     context = {};
   }
   const summary = {
@@ -91,8 +101,19 @@ export function createErrorStore({
     throw Error('An errors directory is required.');
   }
   fs.mkdirSync(directory, { recursive: true });
-  const db = new DatabaseSync(path.join(directory, 'errors.sqlite'), { timeout: 5000 });
-  db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA secure_delete=ON;
+  // NORMAL is enough here: in WAL mode a power loss can lose the last few commits but never
+  // corrupts the file, and every row is re-collected from the logs and the job table.
+  let db;
+  let phase = 'open';
+  try {
+    db = openDatabase(path.join(directory, 'errors.sqlite'), {
+      name: 'errors',
+      journal: 'WAL',
+      synchronous: 'NORMAL',
+      directory,
+    });
+    phase = 'migrate';
+    db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA secure_delete=ON;
     CREATE TABLE IF NOT EXISTS errors (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       fingerprint TEXT NOT NULL UNIQUE,
@@ -128,6 +149,11 @@ export function createErrorStore({
       seen_at TEXT NOT NULL,
       PRIMARY KEY(job_id, error_hash)
     );`);
+  } catch (error) {
+    // The error is rethrown unchanged; the log only says whether opening or the schema failed.
+    log.error('errors.store.open.failed', { phase, ...failureFields(error) });
+    throw error;
+  }
   let writesSincePrune = 0;
   const redact = (text) => redactText(text, roots);
   // Trim before redacting so oversized input cannot make redaction slow, then trim again
@@ -136,12 +162,17 @@ export function createErrorStore({
 
   function prune() {
     const cutoff = new Date(now().getTime() - retention.maxAgeDays * 86400000).toISOString();
-    db.prepare('DELETE FROM errors WHERE last_seen < ?').run(cutoff);
-    db.prepare(
-      'DELETE FROM errors WHERE id NOT IN (SELECT id FROM errors ORDER BY last_seen DESC, id DESC LIMIT ?)',
-    ).run(retention.maxRows);
+    const expiredCount = db.prepare('DELETE FROM errors WHERE last_seen < ?').run(cutoff).changes;
+    const overflowCount = db
+      .prepare(
+        'DELETE FROM errors WHERE id NOT IN (SELECT id FROM errors ORDER BY last_seen DESC, id DESC LIMIT ?)',
+      )
+      .run(retention.maxRows).changes;
     db.prepare('DELETE FROM job_seen WHERE seen_at < ?').run(cutoff);
     writesSincePrune = 0;
+    if (expiredCount + overflowCount > 0) {
+      log.info('errors.retention.completed', { deletedCount: expiredCount + overflowCount });
+    }
   }
 
   function cleanContext(context) {
@@ -190,6 +221,14 @@ export function createErrorStore({
             status=CASE WHEN status IN ('resolved','verified') THEN 'new' ELSE status END,
             updated_at=? WHERE id=?`,
         ).run(at, at, at, at, stack, page, jobId, projectId, context, updatedAt, existing.id);
+        if (existing.status === 'resolved' || existing.status === 'verified') {
+          log.info('errors.status.changed', {
+            errorId: existing.id,
+            from: existing.status,
+            to: 'new',
+            reason: 'recurred',
+          });
+        }
       } else {
         db.prepare(
           `INSERT INTO errors(fingerprint,first_seen,last_seen,count,source,page,job_id,project_id,
@@ -213,6 +252,12 @@ export function createErrorStore({
       }
       const id =
         existing?.id ?? db.prepare('SELECT id FROM errors WHERE fingerprint=?').get(fingerprint).id;
+      const recordFields = { errorId: id, source, kind: entry.kind, isNew: !existing };
+      if (existing) {
+        log.debug('errors.error.repeated', recordFields);
+      } else {
+        log.info('errors.error.recorded', recordFields);
+      }
       return { id, created: !existing, fingerprint };
     },
     prune,
@@ -274,31 +319,37 @@ export function createErrorStore({
         if (fixSource !== undefined && fixSource !== null && !FIX_SOURCES.includes(fixSource)) {
           throw Error('Choose who fixed the error.');
         }
-        return (
-          db
-            .prepare(
-              'UPDATE errors SET status=?,fix_note=?,fix_source=?,verified_at=?,updated_at=? WHERE id=?',
-            )
-            .run(
-              status,
-              clip(String(fixNote || ''), ERROR_FIELD_LIMITS.note),
-              fixSource || null,
-              now().toISOString(),
-              now().toISOString(),
-              id,
-            ).changes > 0
-        );
       }
-      return (
-        db
-          .prepare('UPDATE errors SET status=?,updated_at=? WHERE id=?')
-          .run(status, now().toISOString(), id).changes > 0
-      );
+      const previousStatus = db.prepare('SELECT status FROM errors WHERE id=?').get(id)?.status;
+      const changes =
+        status === 'verified'
+          ? db
+              .prepare(
+                'UPDATE errors SET status=?,fix_note=?,fix_source=?,verified_at=?,updated_at=? WHERE id=?',
+              )
+              .run(
+                status,
+                clip(String(fixNote || ''), ERROR_FIELD_LIMITS.note),
+                fixSource || null,
+                now().toISOString(),
+                now().toISOString(),
+                id,
+              ).changes
+          : db
+              .prepare('UPDATE errors SET status=?,updated_at=? WHERE id=?')
+              .run(status, now().toISOString(), id).changes;
+      if (changes > 0) {
+        log.info('errors.status.changed', { errorId: id, from: previousStatus, to: status });
+      }
+      return changes > 0;
     },
     markReviewed(id) {
-      db.prepare(
-        "UPDATE errors SET status='reviewed',updated_at=? WHERE id=? AND status='new'",
-      ).run(now().toISOString(), id);
+      const result = db
+        .prepare("UPDATE errors SET status='reviewed',updated_at=? WHERE id=? AND status='new'")
+        .run(now().toISOString(), id);
+      if (result.changes > 0) {
+        log.info('errors.status.changed', { errorId: id, from: 'new', to: 'reviewed' });
+      }
     },
     setNote(id, note) {
       return (
@@ -330,7 +381,9 @@ export function createErrorStore({
       );
     },
     remove(id) {
-      return db.prepare('DELETE FROM errors WHERE id=?').run(id).changes > 0;
+      const isRemoved = db.prepare('DELETE FROM errors WHERE id=?').run(id).changes > 0;
+      log.info('errors.error.deleted', { errorId: id, isRemoved });
+      return isRemoved;
     },
     /** Deletes only rows whose message contains the marker (used for generated test errors). */
     removeMarked(marker) {
@@ -338,16 +391,22 @@ export function createErrorStore({
       if (!text) {
         return 0;
       }
-      return db.prepare('DELETE FROM errors WHERE instr(message, ?) > 0').run(text).changes;
+      const removedCount = db
+        .prepare('DELETE FROM errors WHERE instr(message, ?) > 0')
+        .run(text).changes;
+      log.info('errors.marked.removed', { removedCount });
+      return removedCount;
     },
     clear(statuses) {
       const list = statuses.filter((status) => ERROR_STATUSES.includes(status));
       if (!list.length) {
         return 0;
       }
-      return db
+      const removedCount = db
         .prepare(`DELETE FROM errors WHERE status IN (${list.map(() => '?').join(',')})`)
         .run(...list).changes;
+      log.info('errors.clear.completed', { removedCount });
+      return removedCount;
     },
     getSetting(key, fallback) {
       const row = db.prepare('SELECT value FROM settings WHERE key=?').get(key);

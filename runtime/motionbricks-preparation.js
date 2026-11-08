@@ -1,5 +1,9 @@
 import os from 'node:os';
+import { createLogger } from './app-log.js';
 import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
+import { resolveAutoStart } from './service-preparation.js';
+
+const log = createLogger('motion');
 
 // The worker independently rechecks these thresholds. Estimates are not reservations.
 export const MOTIONBRICKS_HOST_LOAD_BYTES = 7 * 1024 ** 3;
@@ -34,7 +38,8 @@ export function createMotionBricksLoader({
         ) {
           throw Error('Unexpected response');
         }
-      } catch {
+      } catch (error) {
+        log.debug('motion.motionbricks.status.failed', { error });
         return {
           status: 503,
           body: { code: 'engine_unavailable', message: 'Start the MotionBricks worker first.' },
@@ -65,6 +70,7 @@ export function createMotionBricksLoader({
       }
       const free = freeMemory();
       if (hostMemoryShort(free, MOTIONBRICKS_HOST_LOAD_BYTES)) {
+        log.warn('motion.motionbricks.memory.rejected', { reason: 'insufficient_host_memory' });
         return {
           status: 409,
           body: hostMemoryConflict(free, MOTIONBRICKS_HOST_LOAD_BYTES, await services(), [
@@ -80,6 +86,11 @@ export function createMotionBricksLoader({
           estimate: 'Estimated MotionBricks load budget plus system reserve.',
         };
       }
+      log.info('motion.motionbricks.memory.checked', {
+        freeMiB: plan.device?.freeMiB,
+        requiredMiB: plan.requiredMiB,
+        budgetMiB: MOTIONBRICKS_GPU_LOAD_MIB,
+      });
       if (plan.code !== 'ready') {
         return { status: 409, body: plan };
       }
@@ -92,6 +103,7 @@ export function createMotionBricksLoader({
           redirect: 'error',
         });
         if (!response.ok) {
+          log.warn('motion.motionbricks.load.rejected', { httpStatus: response.status });
           return response.status >= 500
             ? {
                 status: 503,
@@ -109,6 +121,7 @@ export function createMotionBricksLoader({
                 },
               };
         }
+        log.info('motion.motionbricks.load.requested');
         return {
           status: 202,
           body: {
@@ -117,7 +130,8 @@ export function createMotionBricksLoader({
             memory: plan,
           },
         };
-      } catch {
+      } catch (error) {
+        log.warn('motion.motionbricks.load.unknown', { error, reason: 'load_unknown' });
         return {
           status: 503,
           body: {
@@ -137,11 +151,14 @@ export function createMotionBricksLoader({
 export function createMotionBricksPreparation({ startEngine, loadModel, autoStart = true }) {
   return async ({ health, reachable, claimLoad, retryModel = false }) => {
     if (!reachable) {
-      if (!autoStart) {
+      if (!resolveAutoStart(autoStart)) {
+        log.info('motion.motionbricks.start.skipped', { reason: 'autostart_disabled' });
         return { status: 'waiting_engine', stage: 'Waiting for the MotionBricks worker.' };
       }
+      log.info('motion.motionbricks.start.started');
       const result = await startEngine('motion-bricks');
       if (result.status === 'recovery_unresolved') {
+        log.warn('motion.motionbricks.start.unresolved', { reason: 'recovery_unresolved' });
         if (!claimLoad()) {
           return null;
         }
@@ -153,12 +170,17 @@ export function createMotionBricksPreparation({ startEngine, loadModel, autoStar
         };
       }
       if (['missing', 'failed', 'port_in_use'].includes(result.status)) {
+        log.warn('motion.motionbricks.start.rejected', {
+          reason: 'start_failed',
+          status: result.status,
+        });
         return {
           status: 'needs_attention',
           stage: 'MotionBricks worker could not start.',
           error: result.message || `Worker status: ${result.status}.`,
         };
       }
+      log.info('motion.motionbricks.start.completed', { status: result.status });
       return { status: 'waiting_engine', stage: 'Starting the MotionBricks worker.' };
     }
     if (health.phase === 'generating') {
@@ -187,6 +209,7 @@ export function createMotionBricksPreparation({ startEngine, loadModel, autoStar
     if (!claimLoad()) {
       return null;
     }
+    log.info('motion.motionbricks.barrier.persisted');
     const result = await loadModel();
     if (result.body?.code === 'load_unknown') {
       return {

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Sparkles } from 'lucide-react';
+import { createLog } from './app-log.js';
 import './ai-assist-settings.css';
+
+const log = createLog('settings');
 
 const PROVIDER_LABELS = { openai: 'OpenAI (cloud)', local: 'Local (Qwen engine)' };
 const FEATURE_NOTES = {
@@ -11,6 +14,7 @@ const FEATURE_NOTES = {
 };
 
 async function verifyTranslationModel(model) {
+  // log-coverage: ignore -- failed /api calls are already logged by app-log-install (http.request.failed)
   const response = await fetch('/api/i18n/verify-model', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'i18n' },
@@ -24,6 +28,7 @@ async function verifyTranslationModel(model) {
 }
 
 async function request(method, body) {
+  // log-coverage: ignore -- failed /api calls are already logged by app-log-install (http.request.failed)
   const response = await fetch('/api/ai-assist/settings', {
     method,
     headers:
@@ -57,6 +62,7 @@ export default function AiAssistSettings() {
         }
       })
       .catch((reason) => {
+        log.warn('settings.ai_assist.load.failed', { errorClass: reason?.name });
         if (alive) {
           setError(reason.message);
         }
@@ -68,13 +74,16 @@ export default function AiAssistSettings() {
 
   // Only interface translation has a check here; error fix checks its model in the Errors review.
   async function checkModel(feature) {
+    log.info('settings.ai_assist.check.requested', { feature });
     setBusy(feature);
     setError('');
     setMessage('');
     try {
       const result = await verifyTranslationModel(drafts[feature].model.trim());
       setMessage(result.message);
+      log.info('settings.ai_assist.check.completed', { feature });
     } catch (reason) {
+      log.warn('settings.ai_assist.check.failed', { feature, errorClass: reason?.name });
       setError(reason.message);
     } finally {
       setBusy('');
@@ -82,6 +91,7 @@ export default function AiAssistSettings() {
   }
 
   async function save(feature) {
+    log.info('settings.ai_assist.save.requested', { feature });
     setBusy(feature);
     setError('');
     setMessage('');
@@ -93,7 +103,12 @@ export default function AiAssistSettings() {
       );
       setDrafts((current) => ({ ...current, [feature]: data.feature }));
       setMessage(`${data.feature.label} will use ${data.feature.model}.`);
+      log.info('settings.ai_assist.save.completed', {
+        feature,
+        provider: data.feature.provider,
+      });
     } catch (reason) {
+      log.warn('settings.ai_assist.save.failed', { feature, errorClass: reason?.name });
       setError(reason.message);
     } finally {
       setBusy('');

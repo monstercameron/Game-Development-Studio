@@ -1,19 +1,36 @@
+import { createLogger } from './app-log.js';
 import { saveAsset } from './job-io.js';
 import { requireAudioInput, soundPayload } from './sfx-request.js';
 
+const log = createLogger('sfx');
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function send(jobId, type, values = {}) {
+  // Progress is high volume (every poll), so it is traced; every other type is a state change.
+  if (type === 'progress') {
+    log.trace('sfx.job.progress.reported', { jobId });
+  } else {
+    log.info('sfx.job.state.changed', { jobId, to: type });
+  }
   if (process.connected) {
     process.send({ jobId, type, ...values });
   }
 }
-process.on('disconnect', () => process.exit(0));
+process.on('disconnect', () => {
+  log.info('sfx.process.stopped', { reason: 'disconnected' });
+  process.exit(0);
+});
 process.once('message', async ({ job, projectFolder, baseUrl }) => {
+  log.info('sfx.job.started', { jobId: job.id, hasRemoteId: Boolean(job.remoteId) });
   let remoteId = job.remoteId;
   try {
     if (!remoteId) {
       let session;
       try {
+        const stopSessionRequest = log.time('sfx.session.request.completed', {
+          jobId: job.id,
+          route: '/api/session',
+        });
         const response = await fetch(`${baseUrl}/api/session`, {
           signal: AbortSignal.timeout(5000),
           redirect: 'error',
@@ -23,7 +40,13 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           throw Error('Invalid session');
         }
         session = data.session;
-      } catch {
+        stopSessionRequest({ status: response.status });
+      } catch (error) {
+        log.warn('sfx.session.request.failed', {
+          jobId: job.id,
+          route: '/api/session',
+          error,
+        });
         send(job.id, 'failed', {
           error: 'Could not obtain a Stable Audio session. No job was submitted.',
         });
@@ -38,10 +61,15 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           await requireAudioInput(baseUrl);
         }
       } catch (error) {
+        log.warn('sfx.request.prepare.failed', { jobId: job.id, error });
         send(job.id, 'failed', { error: String(error.message).slice(0, 1000) });
         return;
       }
       let response, body;
+      const stopGenerateRequest = log.time('sfx.generate.request.completed', {
+        jobId: job.id,
+        route: '/api/generate',
+      });
       try {
         response = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
@@ -51,19 +79,28 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           redirect: 'error',
         });
         body = await response.json();
-      } catch {
+        stopGenerateRequest({ status: response.status });
+      } catch (error) {
+        log.warn('sfx.generate.request.failed', {
+          jobId: job.id,
+          route: '/api/generate',
+          outcome: 'unknown',
+          error,
+        });
         send(job.id, 'interrupted', {
           error: 'Submission result is unknown. Check Stable Audio Lab before resolving this job.',
         });
         return;
       }
       if (!response.ok) {
+        log.warn('sfx.generate.request.rejected', { jobId: job.id, status: response.status });
         send(job.id, response.status >= 500 ? 'interrupted' : 'failed', {
           error: `Stable Audio returned ${response.status}: ${JSON.stringify(body).slice(0, 1000)}`,
         });
         return;
       }
       if (typeof body.job_id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(body.job_id)) {
+        log.warn('sfx.generate.response.rejected', { jobId: job.id, reason: 'invalid_job_id' });
         send(job.id, 'interrupted', {
           error: 'Stable Audio accepted the request without a usable job ID. Check its history.',
         });
@@ -90,7 +127,8 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           throw Error(`HTTP ${response.status}`);
         }
         state = await response.json();
-      } catch {
+      } catch (error) {
+        log.warn('sfx.job.poll.failed', { jobId: job.id, route: '/api/jobs/:id', error });
         send(job.id, 'progress', { stage: 'Waiting to reconnect to Stable Audio.' });
         await sleep(5000);
         continue;
@@ -109,12 +147,16 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
     }
     const audio = state.result?.url;
     if (typeof audio !== 'string' || !/^\/audio\/[a-zA-Z0-9._-]+\.wav$/.test(audio)) {
+      log.warn('sfx.result.rejected', { jobId: job.id, reason: 'invalid_audio_path' });
       throw Error('Stable Audio returned an invalid audio path.');
     }
     send(job.id, 'finalizing');
+    const stopOutputSave = log.time('sfx.output.save.completed', { jobId: job.id, kind: 'sfx' });
     const output = await saveAsset(projectFolder, 'sfx', job.id, 'wav', `${baseUrl}${audio}`);
+    stopOutputSave();
     send(job.id, 'complete', { output });
   } catch (error) {
+    log.error('sfx.job.run.failed', { jobId: job.id, error });
     send(job.id, 'failed', { error: String(error.message).slice(0, 2000) });
   } finally {
     if (process.connected) {

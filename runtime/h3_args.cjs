@@ -44,6 +44,7 @@ function clipList(value, kind, env, errors) {
         (kind === 'video'
           ? fs.statSync(full).isDirectory() && fs.readdirSync(full).length >= 5
           : fs.statSync(full).isFile());
+      // log-coverage: ignore -- a missing reference file is returned as the refusal reason to the caller
     } catch {
       ok = false;
     }
@@ -164,6 +165,7 @@ function findFl2va(root) {
       files.find((name) => name.toLowerCase().endsWith('.safetensors'));
     return pick ? path.join(root, pick) : null;
   } catch {
+    // log-coverage: ignore -- an absent model folder is normal; the caller treats null as no FL2VA file
     return null;
   }
 }
@@ -242,6 +244,7 @@ function extend(args, body, context = {}) {
     }
     return null;
   } catch {
+    // log-coverage: ignore -- runs inside H3's process without the logger; the refusal text is returned to the caller
     return 'Forge could not apply the render options.';
   }
 }
@@ -266,6 +269,7 @@ const capabilities = {
 // Wraps H3's request listener so Forge can tell this launcher from one started before the update.
 function withCapabilities(listener) {
   return (req, res) => {
+    // log-coverage: ignore -- static capabilities reply; it has no state change or failure to record
     if (req.method === 'GET' && String(req.url).split('?')[0] === '/api/forge-capabilities') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       return res.end(JSON.stringify(capabilities));

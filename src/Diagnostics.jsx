@@ -15,8 +15,12 @@ import {
   Terminal,
 } from 'lucide-react';
 import ErrorPipelineTest from './ErrorPipelineTest';
+import StudioLogView from './StudioLogView.jsx';
+import { createLog } from './app-log.js';
 import { filterLogLines, isErrorLine, isWarnLine } from './diagnostics-filter.js';
 import './diagnostics-page.css';
+
+const log = createLog('diagnostics');
 
 // Relative wording for file times; the absolute time stays in the tooltip.
 function formatRelative(iso, now) {
@@ -54,6 +58,7 @@ export default function Diagnostics() {
   const [now, setNow] = useState(() => Date.now());
   const logWindowRef = useRef(null);
   const followTail = useRef(true);
+  const isMetadataFailing = useRef(false);
   const errorsOnly = params.get('errors') === '1';
   const setErrorsOnly = (value) => updateSearch(setParams, { errors: value ? '1' : null });
   async function refreshMetadata() {
@@ -64,7 +69,16 @@ export default function Diagnostics() {
       }
       setMetadata(await res.json());
       setMetadataError('');
-    } catch {
+      if (isMetadataFailing.current) {
+        isMetadataFailing.current = false;
+        log.info('diagnostics.metadata.recovered', {});
+      }
+    } catch (error) {
+      // Logged once per failure streak, not on every 15 second poll.
+      if (!isMetadataFailing.current) {
+        isMetadataFailing.current = true;
+        log.debug('diagnostics.metadata.failed', { error });
+      }
       setMetadata(null);
       setMetadataError(
         'Could not reach the diagnostics service. Refresh server details; if the problem continues, restart the studio.',
@@ -74,9 +88,14 @@ export default function Diagnostics() {
   useEffect(() => {
     refreshMetadata();
     const timer = setInterval(refreshMetadata, 15000);
-    return () => clearInterval(timer);
+    log.debug('diagnostics.metadata.polling.started', { intervalMs: 15000 });
+    return () => {
+      clearInterval(timer);
+      log.debug('diagnostics.metadata.polling.stopped', {});
+    };
   }, []);
   useEffect(() => {
+    // log-coverage: ignore -- display clock for relative times; it has no request or failure path
     const timer = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(timer);
   }, []);
@@ -86,13 +105,21 @@ export default function Diagnostics() {
       return;
     }
     setConnection('Connecting');
+    // Stream problems are logged once per connection attempt: a log record can itself refresh
+    // this view, so logging on every event could feed back into the stream.
+    let isInvalidResponseLogged = false;
+    let isReadFailureLogged = false;
     const stream = new EventSource('/api/logs/stream');
     stream.onopen = () => setConnection('Live');
     stream.addEventListener('logs', (event) => {
       try {
         setSources(JSON.parse(event.data).sources);
         setConnection('Live');
-      } catch {
+      } catch (error) {
+        if (!isInvalidResponseLogged) {
+          isInvalidResponseLogged = true;
+          log.warn('diagnostics.stream.invalid', { error });
+        }
         setConnection('Invalid log response');
       }
     });
@@ -104,8 +131,13 @@ export default function Diagnostics() {
       let detail = 'Unable to read logs.';
       try {
         detail = JSON.parse(event.data).error || detail;
+        // log-coverage: ignore -- fallback text may echo raw log lines or paths; it is shown only
       } catch {
         detail = event.data || detail;
+      }
+      if (!isReadFailureLogged) {
+        isReadFailureLogged = true;
+        log.warn('diagnostics.stream.failed', {});
       }
       setConnection(`Log read failed: ${detail}`);
     };
@@ -161,7 +193,8 @@ export default function Diagnostics() {
     try {
       await navigator.clipboard.writeText(value);
       setCopyMessage(`${label} copied.`);
-    } catch {
+    } catch (error) {
+      log.warn('diagnostics.clipboard.failed', { error });
       setCopyMessage('Could not access the clipboard in this browser.');
     }
   }
@@ -484,6 +517,7 @@ export default function Diagnostics() {
           </div>
         </section>
       </div>
+      <StudioLogView />
       <ErrorPipelineTest onOpenErrors={() => updateSearch(setParams, { dialog: 'errors' })} />
     </div>
   );

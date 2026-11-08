@@ -11,6 +11,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createLogger } from './app-log.js';
+
+const log = createLogger('vegetation');
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SEEDTHREE_ID = 'seedthree';
 export const DEFAULT_RELATIVE_DIRECTORY = 'external/SeedThree';
@@ -86,6 +89,16 @@ export function checkoutDirectory({ root = appRoot, env = process.env } = {}) {
   return path.resolve(override ? override : path.join(root, DEFAULT_RELATIVE_DIRECTORY));
 }
 
+// Error class and code only: messages can hold repository paths or stderr, so none are logged.
+function errorFields(error) {
+  const fields = { errorClass: error?.constructor?.name || 'Error' };
+  const code = error?.code;
+  if (typeof code === 'string' || typeof code === 'number') {
+    fields.errorCode = String(code);
+  }
+  return fields;
+}
+
 function clip(text) {
   const value = String(text || '');
   return value.length > OUTPUT_LIMIT ? `${value.slice(0, OUTPUT_LIMIT)}...` : value;
@@ -94,7 +107,8 @@ function clip(text) {
 /** Runs a program without a shell. Resolves {code, stdout, stderr}; never rejects on exit code. */
 export function runProgram(file, args, { cwd, timeoutMs = GIT_TIMEOUT_MS, env } = {}) {
   return new Promise((resolve) => {
-    execFile(
+    const startedAt = Date.now();
+    const child = execFile(
       file,
       args,
       {
@@ -105,14 +119,21 @@ export function runProgram(file, args, { cwd, timeoutMs = GIT_TIMEOUT_MS, env } 
         env: { ...process.env, ...env, GIT_TERMINAL_PROMPT: '0' },
       },
       (error, stdout, stderr) => {
-        resolve({
+        const result = {
           code: error ? (typeof error.code === 'number' ? error.code : 1) : 0,
           stdout: clip(stdout),
           stderr: clip(stderr || (error && typeof error.code !== 'number' ? error.message : '')),
           timedOut: !!error?.killed,
+        };
+        log.debug('vegetation.checkout.process.exited', {
+          exitCode: result.code,
+          durationMs: Date.now() - startedAt,
+          ...(result.timedOut ? { reason: 'timeout' } : {}),
         });
+        resolve(result);
       },
     );
+    log.debug('vegetation.checkout.process.spawned', child.pid ? { pid: child.pid } : {});
   });
 }
 
@@ -124,7 +145,8 @@ async function gitOutput(directory, args, run) {
 function exists(file) {
   try {
     return fs.statSync(file).isFile();
-  } catch {
+  } catch (error) {
+    log.debug('vegetation.checkout.path.check.failed', errorFields(error));
     return false;
   }
 }
@@ -132,7 +154,8 @@ function exists(file) {
 function isEmptyDirectory(directory) {
   try {
     return fs.readdirSync(directory).length === 0;
-  } catch {
+  } catch (error) {
+    log.debug('vegetation.checkout.directory.read.failed', errorFields(error));
     return true;
   }
 }
@@ -184,6 +207,9 @@ export async function inspectCheckout({
   );
   const isDirty = !!dirtyText;
   if (commit !== expected.commit) {
+    log.info('vegetation.checkout.revision.mismatched', {
+      reason: commit ? 'commit_differs' : 'commit_unreadable',
+    });
     return {
       ...base,
       commit,
@@ -227,14 +253,26 @@ export function npmInvocation({ env = process.env, execPath = process.execPath }
 }
 
 async function must(run, step, file, args, options) {
+  // Operation names come from fixed step labels ("git fetch" becomes "git-fetch").
+  const operation = step.replace(/\s+/g, '-');
+  const startedAt = Date.now();
+  log.info('vegetation.checkout.operation.started', { operation });
   const result = await run(file, args, options);
+  const durationMs = Date.now() - startedAt;
   if (result.code !== 0) {
+    log.warn('vegetation.checkout.operation.failed', {
+      operation,
+      exitCode: result.code,
+      durationMs,
+      reason: result.timedOut ? 'timeout' : 'exit_nonzero',
+    });
     const detail = (result.stderr || result.stdout).trim().split(/\r?\n/).slice(-3).join(' ');
     throw new CheckoutError(
       `${step} failed${result.timedOut ? ' (timed out)' : ` (exit ${result.code})`}.${detail ? ` ${detail}` : ''}`,
       'step_failed',
     );
   }
+  log.info('vegetation.checkout.operation.completed', { operation, exitCode: 0, durationMs });
   return result;
 }
 
@@ -262,6 +300,7 @@ export async function fetchSeedThree({
   }
   const hasGitDirectory = fs.existsSync(path.join(directory, '.git'));
   if (!isEmptyDirectory(directory) && !hasGitDirectory) {
+    log.warn('vegetation.checkout.request.rejected', { reason: 'foreign_folder' });
     throw new CheckoutError(
       `${state.location} exists but is not a git checkout. Move it away and fetch again.`,
       'foreign_folder',
@@ -271,12 +310,14 @@ export async function fetchSeedThree({
     if (hasGitDirectory) {
       const remote = await gitOutput(directory, ['remote', 'get-url', 'origin'], run);
       if (remote !== expected.repository) {
+        log.warn('vegetation.checkout.request.rejected', { reason: 'wrong_remote' });
         throw new CheckoutError(
           `${state.location} has a different origin remote. Fix it or move the folder away.`,
           'wrong_remote',
         );
       }
       if (state.isDirty) {
+        log.warn('vegetation.checkout.request.rejected', { reason: 'dirty' });
         throw new CheckoutError(
           `${state.location} has local changes. Commit or discard them yourself, then fetch again.`,
           'dirty',
@@ -345,6 +386,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       throw new CheckoutError('Use "status" or "fetch".', 'usage');
     }
   } catch (error) {
+    log.warn('vegetation.checkout.cli.failed', {
+      ...errorFields(error),
+      reason: error instanceof CheckoutError ? error.code : 'unexpected',
+    });
     console.error(error.message);
     process.exitCode = 1;
   }

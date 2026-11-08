@@ -2,7 +2,10 @@
 //
 // Forge does not fetch anything from Fab (see docs/MEGASCANS.md). Every field here is typed
 // or pasted by the user; the Fab address is only parsed for its listing id, never requested.
+import { createLogger } from './app-log.js';
 import { transaction } from './megascans-db.js';
+
+const log = createLogger('megascans');
 
 export const FAB_SELLER = 'Quixel Megascans';
 export const DEFAULT_LICENSE = 'Fab Standard License';
@@ -27,6 +30,7 @@ export class LibraryError extends Error {
   constructor(message, status = 400) {
     super(message);
     this.name = 'LibraryError';
+    // log-coverage: ignore -- error object field, not a state change
     this.status = status;
   }
 }
@@ -51,7 +55,8 @@ export function parseFabListing(input) {
       if (url.protocol === 'https:' && FAB_HOSTS.has(url.hostname) && match) {
         id = match[1];
       }
-    } catch {
+    } catch (error) {
+      log.debug('megascans.library.listing.parse.failed', { errorClass: error?.name });
       return null;
     }
   }
@@ -94,7 +99,8 @@ export function attributionText(listing) {
 function parseJson(value, fallback) {
   try {
     return JSON.parse(value) ?? fallback;
-  } catch {
+  } catch (error) {
+    log.debug('megascans.library.json.parse.failed', { errorClass: error?.name });
     return fallback;
   }
 }
@@ -177,6 +183,10 @@ export class MegascansLibrary {
   assertRoom() {
     const { count } = this.db.prepare('SELECT COUNT(*) AS count FROM listings').get();
     if (count >= LIBRARY_LIMITS.maxListings) {
+      log.warn('megascans.library.listing.rejected', {
+        reason: 'library_full',
+        limit: LIBRARY_LIMITS.maxListings,
+      });
       throw new LibraryError('The library is full. Remove listings you no longer need.');
     }
   }
@@ -188,6 +198,7 @@ export class MegascansLibrary {
   upsert(input) {
     const parsed = parseFabListing(input?.url ?? input?.id);
     if (!parsed) {
+      log.warn('megascans.library.listing.rejected', { reason: 'invalid_address' });
       throw new LibraryError(
         'Enter a Fab listing address such as https://www.fab.com/listings/<id>.',
       );
@@ -204,6 +215,7 @@ export class MegascansLibrary {
           .run(notes, JSON.stringify(userTags), stamp, parsed.id);
       } else {
         if (!title) {
+          log.warn('megascans.library.listing.rejected', { reason: 'missing_title' });
           throw new LibraryError('Enter a title for this listing.');
         }
         if (!existing) {
@@ -231,6 +243,7 @@ export class MegascansLibrary {
       }
       this.reindex(parsed.id);
     });
+    log.info('megascans.library.listing.saved', { listingId: parsed.id });
     return this.get(parsed.id);
   }
 
@@ -241,51 +254,64 @@ export class MegascansLibrary {
    */
   upsertFab(listings) {
     const stamp = this.now().toISOString();
+    const requestedCount = listings.length;
     let added = 0;
     let updated = 0;
-    transaction(this.db, () => {
-      for (const item of listings) {
-        const existing = this.db.prepare('SELECT 1 FROM listings WHERE id=?').get(item.id);
-        if (!existing) {
-          this.assertRoom();
+    const stopTiming = log.time('megascans.library.import.completed', { requestedCount });
+    log.debug('megascans.library.import.started', { requestedCount });
+    try {
+      transaction(this.db, () => {
+        for (const item of listings) {
+          const existing = this.db.prepare('SELECT 1 FROM listings WHERE id=?').get(item.id);
+          if (!existing) {
+            this.assertRoom();
+          }
+          this.db
+            .prepare(
+              `INSERT INTO listings (id,title,url,license,seller,tags,user_tags,notes,source,
+                 thumbnail_url,category,formats,size_min,size_max,published_at,fetched_at,
+                 created_at,updated_at)
+               VALUES (?,?,?,?,?,?,'[]','','fab',?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(id) DO UPDATE SET title=excluded.title, license=excluded.license,
+                 tags=excluded.tags, source='fab', thumbnail_url=excluded.thumbnail_url,
+                 category=excluded.category, formats=excluded.formats, size_min=excluded.size_min,
+                 size_max=excluded.size_max, published_at=excluded.published_at,
+                 fetched_at=excluded.fetched_at`,
+            )
+            .run(
+              item.id,
+              item.title,
+              `https://www.fab.com/listings/${item.id}`,
+              item.license,
+              FAB_SELLER,
+              JSON.stringify(normalizeTags(item.tags)),
+              item.thumbnailUrl,
+              item.category,
+              JSON.stringify(item.formats),
+              item.sizeMin,
+              item.sizeMax,
+              item.publishedAt,
+              stamp,
+              stamp,
+              stamp,
+            );
+          this.reindex(item.id);
+          if (existing) {
+            updated++;
+          } else {
+            added++;
+          }
         }
-        this.db
-          .prepare(
-            `INSERT INTO listings (id,title,url,license,seller,tags,user_tags,notes,source,
-               thumbnail_url,category,formats,size_min,size_max,published_at,fetched_at,
-               created_at,updated_at)
-             VALUES (?,?,?,?,?,?,'[]','','fab',?,?,?,?,?,?,?,?,?)
-             ON CONFLICT(id) DO UPDATE SET title=excluded.title, license=excluded.license,
-               tags=excluded.tags, source='fab', thumbnail_url=excluded.thumbnail_url,
-               category=excluded.category, formats=excluded.formats, size_min=excluded.size_min,
-               size_max=excluded.size_max, published_at=excluded.published_at,
-               fetched_at=excluded.fetched_at`,
-          )
-          .run(
-            item.id,
-            item.title,
-            `https://www.fab.com/listings/${item.id}`,
-            item.license,
-            FAB_SELLER,
-            JSON.stringify(normalizeTags(item.tags)),
-            item.thumbnailUrl,
-            item.category,
-            JSON.stringify(item.formats),
-            item.sizeMin,
-            item.sizeMax,
-            item.publishedAt,
-            stamp,
-            stamp,
-            stamp,
-          );
-        this.reindex(item.id);
-        if (existing) {
-          updated++;
-        } else {
-          added++;
-        }
-      }
-    });
+      });
+    } catch (error) {
+      log.error('megascans.library.import.failed', {
+        requestedCount,
+        errorClass: error?.name,
+        errorCode: error?.code,
+      });
+      throw error;
+    }
+    stopTiming({ addedCount: added, updatedCount: updated });
     return { added, updated };
   }
 
@@ -322,6 +348,10 @@ export class MegascansLibrary {
   remove(id) {
     return transaction(this.db, () => {
       const result = this.db.prepare('DELETE FROM listings WHERE id=?').run(String(id));
+      log.info('megascans.library.listing.removed', {
+        listingId: String(id),
+        removedCount: Number(result.changes),
+      });
       if (this.hasFts) {
         this.db.prepare('DELETE FROM listings_fts WHERE id=?').run(String(id));
       }

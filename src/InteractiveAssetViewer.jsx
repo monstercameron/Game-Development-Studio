@@ -5,6 +5,9 @@ import { ChevronLeft, ChevronRight, Maximize, Maximize2, Minimize2, X } from 'lu
 import { topModal } from './modal-layer';
 import './interactive-asset-viewer.css';
 import './ux-viewer.css';
+import { createLog } from './app-log.js';
+
+const log = createLog('three-d');
 
 const ModelPreview = React.lazy(() => import('./ModelPreview'));
 const MotionPreview = React.lazy(() => import('./MotionPreview'));
@@ -23,6 +26,7 @@ class ViewerBoundary extends React.Component {
 
   componentDidCatch(error) {
     console.error('3D viewer could not load:', error);
+    log.warn('viewer.preview.load.failed', { errorClass: error?.name });
   }
 
   render() {
@@ -142,8 +146,9 @@ function InspectionDialog({
       } else {
         await backdrop.current?.requestFullscreen();
       }
-    } catch {
+    } catch (error) {
       // Some hosts refuse fullscreen; the large workbench still works.
+      log.debug('viewer.fullscreen.refused', { errorClass: error?.name });
     }
   }
   const chrome = useMemo(
@@ -221,7 +226,9 @@ function InspectionDialog({
       document.removeEventListener('keydown', handle, true);
       document.removeEventListener('fullscreenchange', syncFullscreen);
       if (document.fullscreenElement === backdropElement) {
-        document.exitFullscreen?.().catch(() => {});
+        document.exitFullscreen?.().catch((error) => {
+          log.debug('viewer.fullscreen.exit_failed', { errorClass: error?.name });
+        });
       }
       document.body.style.overflow = previousOverflow;
       triggerElement?.focus();

@@ -1,8 +1,10 @@
+import { resolveAutoStart } from './service-preparation.js';
+
 // Start the worker and load YuE2 only when a queued job actually needs it.
 export function createMusicPreparation({ startEngine, loadModel, autoStart = true }) {
   return async function prepareMusic({ health, reachable, claimLoad, retryModel = false }) {
     if (!reachable) {
-      if (!autoStart) {
+      if (!resolveAutoStart(autoStart)) {
         return { status: 'waiting_engine', stage: 'Waiting for the configured YuE2 worker.' };
       }
       const result = await startEngine('music');

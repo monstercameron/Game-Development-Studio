@@ -17,6 +17,7 @@ from pathlib import Path
 
 import hidden_console  # noqa: F401  (hidden console for everything the worker starts)
 import uvicorn
+from app_log import get_logger, install_excepthook
 from asr_guard import WindowsJob
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
@@ -31,6 +32,12 @@ jobs = {}
 state = {"busy": False}
 app = FastAPI(title="Forge world generation worker")
 logger = logging.getLogger(__name__)
+log = get_logger("world")
+
+
+def elapsed_ms(started_at):
+    """Milliseconds since a time.monotonic() reading, for log durationMs fields."""
+    return round((time.monotonic() - started_at) * 1000)
 
 
 def log_lifecycle_event(model_id, event, job_id, started_at, error=None):
@@ -101,7 +108,11 @@ def wait_for_render(child, guard, memory_check=available_commit_bytes):
                 guard.close()
                 try:
                     child.wait(timeout=10)
-                except subprocess.TimeoutExpired:
+                except subprocess.TimeoutExpired as timeout_error:
+                    log.warn(
+                        "world.generator.stop.timed_out",
+                        {"errorClass": type(timeout_error).__name__},
+                    )
                     child.kill()
                     child.wait()
                 raise RuntimeError(
@@ -178,8 +189,16 @@ def run_job(job_id, request, work):
             raise
         startup_succeeded = True
         log_lifecycle_event(request.model, "startup_succeeded", job_id, started_at)
+        log.info(
+            "world.generator.started",
+            {"jobId": job_id, "model": request.model, "durationMs": elapsed_ms(started_at)},
+        )
         render_started_at = time.monotonic()
         code = wait_for_render(child, guard)
+        log.info(
+            "world.generator.exited",
+            {"jobId": job_id, "exitCode": code, "durationMs": elapsed_ms(render_started_at)},
+        )
         if code != 0:
             detail = (
                 (work / "error.txt").read_text(encoding="utf-8")[:1500]
@@ -192,9 +211,33 @@ def run_job(job_id, request, work):
         with lock:
             jobs[job_id].update(status="completed", message="World ready.")
         log_lifecycle_event(request.model, "render_succeeded", job_id, render_started_at)
+        log.info(
+            "world.render.completed",
+            {"jobId": job_id, "model": request.model, "durationMs": elapsed_ms(render_started_at)},
+        )
     except Exception as error:
         phase = "render" if startup_succeeded else "startup"
         phase_started_at = render_started_at if startup_succeeded else started_at
+        if startup_succeeded:
+            log.error(
+                "world.render.failed",
+                {
+                    "jobId": job_id,
+                    "model": request.model,
+                    "errorClass": type(error).__name__,
+                    "durationMs": elapsed_ms(phase_started_at),
+                },
+            )
+        else:
+            log.error(
+                "world.startup.failed",
+                {
+                    "jobId": job_id,
+                    "model": request.model,
+                    "errorClass": type(error).__name__,
+                    "durationMs": elapsed_ms(phase_started_at),
+                },
+            )
         log_lifecycle_event(
             request.model,
             f"{phase}_failed",
@@ -224,6 +267,7 @@ def generate(request: WorldRequest):
         or request.mode not in ("text", "image", "panorama")
         or request.output not in ("mesh", "splat", "glb")
     ):
+        log.warn("world.request.rejected", {"reason": "invalid_settings", "status": 400})
         raise HTTPException(400, "Invalid world generator settings.")
     if request.model == "hy-world" and (
         request.mode == "text"
@@ -231,6 +275,7 @@ def generate(request: WorldRequest):
         or request.output != "splat"
         or request.resolution not in (336, 518, 700, 952)
     ):
+        log.warn("world.request.rejected", {"reason": "invalid_hy_world_input", "status": 400})
         raise HTTPException(
             400, "HY-World requires 1–8 views or one panorama and a supported resolution."
         )
@@ -239,6 +284,7 @@ def generate(request: WorldRequest):
         or (request.mode == "text" and (not request.prompt.strip() or request.images))
         or (request.mode != "text" and len(request.images) != 1)
     ):
+        log.warn("world.request.rejected", {"reason": "invalid_worldgen_input", "status": 400})
         raise HTTPException(400, "WorldGen needs a description or one matching reference image.")
     decoded = []
     try:
@@ -257,30 +303,49 @@ def generate(request: WorldRequest):
         if sum(map(len, decoded)) > 40 * 1024 * 1024:
             raise ValueError("Images must total at most 40 MiB.")
     except (ValueError, binascii.Error) as error:
+        log.warn(
+            "world.request.rejected",
+            {"reason": "invalid_image", "status": 400, "errorClass": type(error).__name__},
+        )
         raise HTTPException(400, str(error)) from error
     with lock:
         if state["busy"]:
+            log.warn("world.request.rejected", {"reason": "already_running", "status": 409})
             raise HTTPException(409, "World generation is already running.")
         job_id = uuid.uuid4().hex
         work = OUTPUTS / job_id
         work.mkdir()
         for index, raw in enumerate(decoded):
             (work / f"input-{index}.png").write_bytes(raw)
-        (work / "request.json").write_text(
-            json.dumps({**request.model_dump(exclude={"images"}), "image_count": len(decoded)}),
-            encoding="utf-8",
+            log.debug("world.file.written", {"kind": "input_image", "bytes": len(raw)})
+        # json.dumps escapes non-ASCII text, so len() is the UTF-8 byte count.
+        request_json = json.dumps(
+            {**request.model_dump(exclude={"images"}), "image_count": len(decoded)}
         )
+        (work / "request.json").write_text(request_json, encoding="utf-8")
+        log.debug("world.file.written", {"kind": "request", "bytes": len(request_json)})
         jobs[job_id] = {"id": job_id, "status": "queued", "message": "Starting world generation."}
         state["busy"] = True
         threading.Thread(target=run_job, args=(job_id, request, work), daemon=True).start()
+        log.info(
+            "world.job.accepted",
+            {
+                "jobId": job_id,
+                "model": request.model,
+                "mode": request.mode,
+                "imageCount": len(decoded),
+            },
+        )
     return {"id": job_id}
 
 
 def valid_job(job_id):
     if not re.fullmatch(r"[a-f0-9]{32}", job_id):
+        log.warn("world.request.rejected", {"reason": "invalid_job_id", "status": 404})
         raise HTTPException(404, "Job not found.")
     work = OUTPUTS / job_id
     if work.is_symlink():
+        log.warn("world.request.rejected", {"reason": "job_is_symlink", "status": 404})
         raise HTTPException(404, "Job not found.")
     return work
 
@@ -297,11 +362,12 @@ def get_job(job_id: str):
                 stage = (work / "stage.txt").read_text(encoding="utf-8").strip()
                 if stage:
                     result["message"] = stage[:300]
-            except (OSError, UnicodeError):
-                pass
+            except (OSError, UnicodeError) as error:
+                log.debug("world.stage.read.failed", {"errorClass": type(error).__name__})
         return result
     if result_path(work):
         return {"id": job_id, "status": "completed", "message": "Recovered completed world."}
+    log.debug("world.job.not_found", {"status": 404})
     raise HTTPException(404, "World job not found.")
 
 
@@ -311,6 +377,7 @@ def get_world(job_id: str):
     job = get_job(job_id)
     result = result_path(work)
     if job["status"] != "completed" or result is None:
+        log.debug("world.request.rejected", {"reason": "world_not_ready", "status": 404})
         raise HTTPException(404, "World not found.")
     return FileResponse(result, media_type="application/octet-stream")
 
@@ -322,11 +389,16 @@ def get_panorama(job_id: str):
     job = get_job(job_id)
     panorama = work / "panorama.png"
     if job["status"] != "completed" or panorama.is_symlink() or not panorama.is_file():
+        log.debug("world.request.rejected", {"reason": "panorama_not_ready", "status": 404})
         raise HTTPException(404, "Panorama not found.")
     return FileResponse(panorama, media_type="image/png")
 
 
 if __name__ == "__main__":
+    install_excepthook("world")
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8288)
-    uvicorn.run(app, host="127.0.0.1", port=parser.parse_args().port)
+    port = parser.parse_args().port
+    log.info("world.process.started", {"port": port, "pid": os.getpid()})
+    uvicorn.run(app, host="127.0.0.1", port=port)
+    log.info("world.process.stopped")

@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-08T16:52:50.538Z",
+  "machine": {
+    "gpuName": "NVIDIA RTX Spark N1X (6144-core Blackwell RTX GPU)",
+    "gpuMemoryMiB": 98304,
+    "gpuMemoryGiB": 96,
+    "source": "GET /api/runtime/hardware (read-only)",
+    "measuredAt": "2026-11-08T16:52:50.528Z"
+  },
+  "method": [
+    "Sizes were measured on 2026-11-08 by tools/model-capacity.mjs. It walks every folder under the checkout’s models folder without following links, adds up the size of each regular file, and assigns each folder to one row of the table through a mapping written in the script. The script fails when a folder over 100 MiB is not mapped, so a new model cannot be left out. Sizes are file sizes, so they exclude filesystem overhead and are not parameter counts.",
+    "NTFS can give one file several names (hard links). Each such file is counted once, in the model row that owns it. Forge’s Models page and its storage scan add up every name, so they can report more bytes than the files really occupy.",
+    "The running studio’s own storage scan reported 381.48 GiB for the same models folder; this table totals 363.70 GiB. The difference is 18.08 GiB of hard-linked names that the studio scan counts twice, offset by 0.30 GiB in a folder the studio scan does not cover (no bytes are left unexplained).",
+    "3 of the counted files (9.85 GiB) also have hard links outside the models folder. They are counted here, but deleting them from the models folder would not free that space.",
+    "Not measured: parameter counts, compressed size, GPU memory used by a loaded model, or duplicate content stored as separate copies."
+  ],
+  "totals": {
+    "models": 16,
+    "modelsWithWeights": 15,
+    "supportingEntries": 6,
+    "files": 693,
+    "bytes": 390517359339,
+    "gib": 363.7,
+    "gb": 390.52,
+    "modelBytes": 320390542008,
+    "modelGib": 298.39,
+    "supportingBytes": 70126817331,
+    "supportingGib": 65.31
+  },
+  "rows": [
+    {
+      "id": "hy-world",
+      "name": "HY-World 2.0",
+      "area": "Worlds",
+      "card": "model-hyworld",
+      "kind": "weights",
+      "bytes": 76865478497,
+      "gib": 71.59,
+      "share": 0.19683,
+      "note": ""
+    },
+    {
+      "id": "video",
+      "name": "MiniMax H3 Ref2VA",
+      "area": "Video",
+      "card": "model-h3",
+      "kind": "weights",
+      "bytes": 74053333391,
+      "gib": 68.97,
+      "share": 0.18963,
+      "note": "Includes its LoRAs and VAEs."
+    },
+    {
+      "id": "world-hf-cache",
+      "name": "Shared Hugging Face cache",
+      "area": "Worlds",
+      "card": "model-support",
+      "kind": "cache",
+      "bytes": 59687534569,
+      "gib": 55.59,
+      "share": 0.15284,
+      "note": "Holds the FLUX.1 dev and Fill components, DA-2 and the WorldGen LoRAs."
+    },
+    {
+      "id": "images",
+      "name": "Qwen Image 2.1",
+      "area": "Images",
+      "card": "model-qwen-image",
+      "kind": "weights",
+      "bytes": 33453777983,
+      "gib": 31.16,
+      "share": 0.08567,
+      "note": "Includes the folder for image LoRAs."
+    },
+    {
+      "id": "motion-hy",
+      "name": "HY-Motion 1.0",
+      "area": "Character motion",
+      "card": "model-hymotion",
+      "kind": "weights",
+      "bytes": 22283456325,
+      "gib": 20.75,
+      "share": 0.05706,
+      "note": "Includes the CLIP ViT-L/14 and Qwen3-8B text encoders stored in the same folder."
+    },
+    {
+      "id": "3d-hunyuan",
+      "name": "Hunyuan3D 2.1",
+      "area": "3D models",
+      "card": "model-hunyuan",
+      "kind": "weights",
+      "bytes": 18258501912,
+      "gib": 17,
+      "share": 0.04675,
+      "note": ""
+    },
+    {
+      "id": "chat",
+      "name": "Qwen3.8-27B",
+      "area": "Chat",
+      "card": "model-chat",
+      "kind": "weights",
+      "bytes": 17741860192,
+      "gib": 16.52,
+      "share": 0.04543,
+      "note": "A quantized GGUF file."
+    },
+    {
+      "id": "worldgen",
+      "name": "WorldGen",
+      "area": "Worlds",
+      "card": "model-worldgen",
+      "kind": "weights",
+      "bytes": 16679182913,
+      "gib": 15.53,
+      "share": 0.04271,
+      "note": "The two Q5 transformers; the FLUX.1 components live in the shared cache."
+    },
+    {
+      "id": "game",
+      "name": "Mammoth-1",
+      "area": "Game logic",
+      "card": "model-mammoth",
+      "kind": "weights",
+      "bytes": 16567536345,
+      "gib": 15.43,
+      "share": 0.04242,
+      "note": ""
+    },
+    {
+      "id": "3d-trellis",
+      "name": "TRELLIS.2",
+      "area": "3D models",
+      "card": "model-trellis",
+      "kind": "weights",
+      "bytes": 14819880320,
+      "gib": 13.8,
+      "share": 0.03795,
+      "note": "Its decoder and DINOv3 encoder are listed separately as supporting checkpoints."
+    },
+    {
+      "id": "sfx",
+      "name": "Stable Audio 3 Medium",
+      "area": "Sound effects",
+      "card": "model-stable-audio",
+      "kind": "weights",
+      "bytes": 10443850080,
+      "gib": 9.73,
+      "share": 0.02674,
+      "note": ""
+    },
+    {
+      "id": "music",
+      "name": "YuE2",
+      "area": "Music",
+      "card": "model-yue2",
+      "kind": "weights",
+      "bytes": 7827126744,
+      "gib": 7.29,
+      "share": 0.02004,
+      "note": "The YuE2-3B model and the YuE2-Vae decoder."
+    },
+    {
+      "id": "tts-base",
+      "name": "Qwen3-TTS Base",
+      "area": "Voices",
+      "card": "model-support",
+      "kind": "supporting",
+      "bytes": 4544231583,
+      "gib": 4.23,
+      "share": 0.01164,
+      "note": "Optional checkpoint for voice cloning."
+    },
+    {
+      "id": "tts",
+      "name": "Qwen3-TTS 1.7B",
+      "area": "Voices",
+      "card": "model-tts",
+      "kind": "weights",
+      "bytes": 4520220349,
+      "gib": 4.21,
+      "share": 0.01157,
+      "note": "The preset-voice checkpoint; Base and VoiceDesign are listed separately."
+    },
+    {
+      "id": "tts-voicedesign",
+      "name": "Qwen3-TTS VoiceDesign",
+      "area": "Voices",
+      "card": "model-support",
+      "kind": "supporting",
+      "bytes": 4520165710,
+      "gib": 4.21,
+      "share": 0.01157,
+      "note": "Optional checkpoint for designing a voice from a description."
+    },
+    {
+      "id": "segmentation",
+      "name": "Meta SAM 3.1",
+      "area": "Segmentation",
+      "card": "model-sam",
+      "kind": "weights",
+      "bytes": 3502755846,
+      "gib": 3.26,
+      "share": 0.00897,
+      "note": ""
+    },
+    {
+      "id": "motion-bricks",
+      "name": "NVIDIA MotionBricks",
+      "area": "Character motion",
+      "card": "model-motionbricks",
+      "kind": "weights",
+      "bytes": 2673708022,
+      "gib": 2.49,
+      "share": 0.00685,
+      "note": ""
+    },
+    {
+      "id": "trellis-encoder",
+      "name": "DINOv3 ViT-L/16 encoder",
+      "area": "3D models",
+      "card": "model-support",
+      "kind": "supporting",
+      "bytes": 1212561670,
+      "gib": 1.13,
+      "share": 0.00311,
+      "note": "Used by TRELLIS.2."
+    },
+    {
+      "id": "asr",
+      "name": "Nemotron Speech Streaming 0.6B",
+      "area": "Voices",
+      "card": "model-asr",
+      "kind": "weights",
+      "bytes": 699873089,
+      "gib": 0.65,
+      "share": 0.00179,
+      "note": ""
+    },
+    {
+      "id": "trellis-decoder",
+      "name": "TRELLIS image decoder",
+      "area": "3D models",
+      "card": "model-support",
+      "kind": "supporting",
+      "bytes": 147592645,
+      "gib": 0.14,
+      "share": 0.00038,
+      "note": "Used by TRELLIS.2."
+    },
+    {
+      "id": "comfy-models",
+      "name": "ComfyUI companion files",
+      "area": "Video",
+      "card": "model-support",
+      "kind": "supporting",
+      "bytes": 14731154,
+      "gib": 0.01,
+      "share": 0.00004,
+      "note": "LoRA and preview files. A file it shares with MiniMax H3 is counted under H3."
+    },
+    {
+      "id": "vegetation",
+      "name": "SeedThree",
+      "area": "Vegetation",
+      "card": "model-vegetation",
+      "kind": "weights",
+      "bytes": 0,
+      "gib": 0,
+      "share": 0,
+      "note": "Runs on the CPU and has no model weights."
+    }
+  ],
+  "comparison": {
+    "gpuMemoryBytes": 103079215104,
+    "modelWeightsBytes": 320390542008,
+    "modelWeightsToGpuMemory": 3.11,
+    "text": "The model weights alone (298.39 GiB) are about 3.1 times the 96 GiB of GPU memory, which is why Forge loads one model at a time. This compares file sizes on disk with memory capacity: it does not say how much GPU memory a loaded model uses, and Forge does not record loaded sizes here."
+  },
+  "crossCheck": {
+    "source": "Forge studio storage scan (GET /api/runtime/model-storage, read-only)",
+    "observedAt": "2026-11-08T16:52:26.986Z",
+    "entries": 22,
+    "bytes": 409611033220,
+    "gib": 381.48,
+    "gb": 409.61,
+    "sameSizesAsDirectScan": true,
+    "reconciliation": {
+      "studioBytes": 409611033220,
+      "hardLinkedNamesCountedTwiceBytes": 19412493673,
+      "foldersTheStudioDoesNotScanBytes": 318819792,
+      "thisTotalBytes": 390517359339,
+      "unexplainedBytes": 0
+    }
+  }
+}

@@ -3,6 +3,7 @@ import { Copy, Download, ExternalLink, Pencil, Plus, Trash2, Upload, X } from 'l
 import useDialogFocus from './useDialogFocus';
 import { DownloadConsent } from './MegascansFab';
 import { LicencesAndTerms } from './MegascansLegal';
+import { createLog } from './app-log.js';
 import {
   describeFormats,
   describeSizeRange,
@@ -10,8 +11,11 @@ import {
   formatBytes,
   getMegascans,
   postMegascans,
+  requestFailureFields,
   statusLabel,
 } from './megascans-api';
+
+const log = createLog('megascans');
 
 function splitTags(text) {
   return text
@@ -64,6 +68,7 @@ export function ListingFormDialog({ listing, onClose, onSaved }) {
       });
       onSaved(data.listing);
     } catch (error) {
+      log.warn('megascans.listing.save.failed', requestFailureFields(error));
       setFormError(error.message);
     } finally {
       setBusy(false);
@@ -194,7 +199,14 @@ function FileRow({ file, recommended, offerDownload, disabledReason, busy, onSta
             <button type="button" className="primary" onClick={() => onStart(file, true)}>
               Download anyway
             </button>
-            <button type="button" className="ghost-button" onClick={() => setAsking(false)}>
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => {
+                log.info('megascans.download.confirm.declined');
+                setAsking(false);
+              }}
+            >
               Cancel
             </button>
           </div>
@@ -205,7 +217,14 @@ function FileRow({ file, recommended, offerDownload, disabledReason, busy, onSta
             disabled={Boolean(disabledReason) || busy}
             title={disabledReason || undefined}
             aria-label={`Download ${file.name} (${size})`}
-            onClick={() => (file.isLarge ? setAsking(true) : onStart(file, false))}
+            onClick={() => {
+              if (file.isLarge) {
+                log.info('megascans.download.confirm.shown');
+                setAsking(true);
+              } else {
+                onStart(file, false);
+              }
+            }}
           >
             <Download size={14} aria-hidden="true" /> Download
           </button>
@@ -241,8 +260,10 @@ function FileChoices({ listing, project, consent, onQueued }) {
         confirmLarge,
       });
       setMessage(`${file.name} is queued. Watch its progress under Downloads on the page.`);
+      log.info('megascans.download.queued', { isLargeConfirmed: confirmLarge === true });
       onQueued?.(file);
     } catch (failure) {
+      log.warn('megascans.download.start.failed', requestFailureFields(failure));
       setError(failure.message);
     } finally {
       setBusyUid('');
@@ -349,12 +370,14 @@ export function ListingDialog({
           }
         } catch (failure) {
           if (!controller.signal.aborted) {
+            log.warn('megascans.listing.detail.failed', requestFailureFields(failure));
             setDetailState({ status: 'error', error: failure.message });
           }
         }
       })
       .catch((error) => {
         if (error?.name !== 'AbortError') {
+          log.warn('megascans.listing.load.failed', requestFailureFields(error));
           setState({
             status: 'error',
             listing: null,
@@ -374,6 +397,7 @@ export function ListingDialog({
       setState((current) => ({ ...current, listing: refreshed.listing }));
       setDetailState({ status: 'idle', error: '' });
     } catch (failure) {
+      log.warn('megascans.listing.refresh.failed', requestFailureFields(failure));
       setDetailState({ status: 'error', error: failure.message });
     }
   }
@@ -382,7 +406,8 @@ export function ListingDialog({
     try {
       await navigator.clipboard.writeText(state.listing.attribution);
       setCopyMessage('Attribution copied.');
-    } catch {
+    } catch (error) {
+      log.debug('megascans.attribution.copy.failed', { errorClass: error?.name || 'Error' });
       setCopyMessage('Could not access the clipboard. Select the text and copy it.');
     }
   }
@@ -391,8 +416,10 @@ export function ListingDialog({
     setRemoveError('');
     try {
       await postMegascans(`/listings/${listingId}/remove`);
+      log.info('megascans.listing.removed');
       onRemoved();
     } catch (error) {
+      log.warn('megascans.listing.remove.failed', requestFailureFields(error));
       setRemoveError(error.message);
     }
   }

@@ -719,6 +719,258 @@ p {
   background: var(--surface);
 }
 
+/* Screenshot viewer: each screenshot is a link to its image file (works without JavaScript);
+   site.js upgrades the links to open the modal <dialog id="lightbox">. */
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.zoom {
+  position: relative;
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  cursor: zoom-in;
+  border-radius: var(--radius);
+}
+
+/* The window frame clips overflow, so the focus ring sits inside it. */
+.window .zoom {
+  border-radius: 0;
+}
+
+.window .zoom:focus-visible {
+  outline-offset: -6px;
+}
+
+.zoom-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  color: var(--strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.zoom-hint svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.zoom:hover .zoom-hint,
+.zoom:focus-visible .zoom-hint {
+  opacity: 1;
+}
+
+/* Touch screens have no hover: show a quiet, icon-only magnifier all the time. */
+@media (hover: none) {
+  .zoom-hint {
+    width: 32px;
+    padding: 0;
+    opacity: 0.85;
+  }
+  .zoom-hint span {
+    display: none;
+  }
+}
+
+body.lightbox-open {
+  overflow: hidden;
+  padding-right: var(--lightbox-scrollbar, 0);
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+  color: var(--text);
+}
+
+.lightbox[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.lightbox::backdrop {
+  background: transparent;
+}
+
+.lightbox-bar,
+.lightbox-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 10px 16px;
+  background: var(--surface);
+}
+
+.lightbox-bar {
+  border-bottom: 1px solid var(--border-quiet);
+}
+
+.lightbox-controls {
+  justify-content: center;
+  border-top: 1px solid var(--border-quiet);
+}
+
+.lightbox-title {
+  flex: 1 1 16rem;
+  max-height: 6.4em;
+  margin: 0;
+  overflow: auto;
+  color: var(--strong);
+  font: 600 0.95rem/1.45 var(--font-sans);
+  letter-spacing: 0;
+}
+
+.lightbox-count {
+  margin: 0;
+  color: var(--subtle);
+  font: 600 0.9rem/1 var(--font-mono);
+  white-space: nowrap;
+}
+
+.lightbox button.button {
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lightbox .button {
+  padding: 0 16px;
+}
+
+.lightbox button.button[aria-pressed='true'] {
+  border-color: var(--orange);
+  background: var(--raised);
+}
+
+/* A check mark, not only a colour change, shows that Full size is on. */
+.lightbox button.button[aria-pressed='true']::before {
+  content: '\2713';
+  content: '\2713' / '';
+}
+
+.lightbox-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  padding: 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.lightbox-img {
+  grid-area: 1 / 1;
+  margin: auto;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 96vw);
+  max-height: min(100%, 88vh);
+  object-fit: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+/* Full size: the image's own pixels, scrolled inside the stage. */
+.lightbox-stage.is-full .lightbox-img {
+  max-width: none;
+  max-height: none;
+}
+
+.lightbox-stage.is-loading .lightbox-img,
+.lightbox-stage.is-error .lightbox-img {
+  visibility: hidden;
+}
+
+.lightbox-note {
+  grid-area: 1 / 1;
+  align-self: center;
+  justify-self: center;
+  max-width: 28em;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--strong);
+  text-align: center;
+}
+
+.lightbox-note[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .zoom-hint {
+    transition: opacity 0.15s ease;
+  }
+  .lightbox[open] {
+    animation: lightbox-fade 0.16s ease-out;
+  }
+  @keyframes lightbox-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .lightbox-bar,
+  .lightbox-controls {
+    padding: 8px 16px;
+  }
+  .lightbox-stage {
+    padding: 8px;
+  }
+  /* Counter and Close share the first row; the caption gets the full width below them. */
+  .lightbox-count {
+    margin-right: auto;
+  }
+  .lightbox-title {
+    order: 1;
+    flex-basis: 100%;
+    max-height: 5.8em;
+  }
+}
+
 /* Workspaces */
 .ws-grid {
   list-style: none;
@@ -1615,7 +1867,8 @@ td code {
   .site-header,
   .skip-link,
   .filters,
-  .copy-btn {
+  .copy-btn,
+  .zoom-hint {
     display: none;
   }
   .model[hidden] {
@@ -1708,3 +1961,201 @@ td code {
     gap: 20px;
   }
 }
+
+/* === Model weight capacity (site/capacity.js, site/model-capacity.json) === */
+.cap-scope,
+.cap-compare,
+.cap-note {
+  max-width: 56em;
+  color: var(--muted);
+}
+
+.cap-tiles {
+  list-style: none;
+  margin: 24px 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.cap-tiles li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border-quiet);
+  border-left: 3px solid var(--orange);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.cap-tile-label {
+  color: var(--subtle);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cap-tile-value {
+  color: var(--strong);
+  font-size: 1.4rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.cap-tile-detail {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.cap-compare {
+  margin: 0 0 24px;
+}
+
+.cap-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border-quiet);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin-bottom: 18px;
+}
+
+.cap-table {
+  min-width: 700px;
+}
+
+.cap-caption {
+  margin: 0 0 8px;
+  color: var(--strong);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.cap-table tbody th {
+  white-space: normal;
+  min-width: 14rem;
+}
+
+.cap-table tfoot th,
+.cap-table tfoot td {
+  color: var(--strong);
+  font-weight: 700;
+  border-top: 2px solid var(--border);
+}
+
+.cap-row-note {
+  display: block;
+  margin-top: 2px;
+  max-width: 32em;
+  color: var(--subtle);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.cap-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cap-table thead th:nth-child(3) {
+  text-align: right;
+}
+
+/* The unit in a header is GiB, not GIB, so these headings keep their case. */
+.cap-table thead th {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 0.82rem;
+}
+
+.cap-share {
+  white-space: nowrap;
+}
+
+.cap-bar {
+  display: inline-block;
+  width: 88px;
+  height: 8px;
+  margin-right: 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--inset);
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.cap-bar > span {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  background: var(--orange);
+}
+
+.cap-share-text {
+  font-variant-numeric: tabular-nums;
+}
+
+.cap-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cap-sort:hover {
+  color: var(--strong);
+}
+
+.cap-sort-icon::before {
+  content: '\2195';
+}
+
+th[aria-sort='ascending'] .cap-sort-icon::before {
+  content: '\25B2';
+}
+
+th[aria-sort='descending'] .cap-sort-icon::before {
+  content: '\25BC';
+}
+
+th[aria-sort='ascending'],
+th[aria-sort='descending'] {
+  color: var(--strong);
+}
+
+.cap-method {
+  max-width: 56em;
+  margin-top: 18px;
+  padding: 12px 18px;
+  border: 1px solid var(--border-quiet);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.cap-method summary {
+  color: var(--strong);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cap-method p {
+  margin: 10px 0 0;
+  font-size: 0.92rem;
+}
+/* === end Model weight capacity === */

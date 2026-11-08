@@ -1,3 +1,7 @@
+import { createLog } from './app-log.js';
+
+const log = createLog('chat');
+
 // Only the studio-owned local Qwen alias is started automatically. Compatible
 // servers at other addresses (and other model IDs) remain user managed.
 export function isStudioQwen({ provider, endpoint, model }) {
@@ -16,6 +20,7 @@ export function isStudioQwen({ provider, endpoint, model }) {
       !u.search &&
       !u.hash
     );
+    // log-coverage: ignore -- pure check called during render (Chat.jsx); a bad URL is not a fault.
   } catch {
     return false;
   }
@@ -52,6 +57,7 @@ export async function ensureChatReady({
   timeoutMs = 600000,
 }) {
   if (!isStudioQwen({ ...connection, model })) {
+    log.debug('chat.autostart.skipped', { reason: 'not_studio_qwen' });
     return;
   }
   if (signal?.aborted) {
@@ -59,6 +65,7 @@ export async function ensureChatReady({
   }
   try {
     await probe(signal);
+    log.debug('chat.autostart.ready', { reason: 'already_running' });
     return;
   } catch (error) {
     if (error.name === 'AbortError') {
@@ -70,6 +77,7 @@ export async function ensureChatReady({
   }
   let loading = await isLoading(signal);
   if (!loading) {
+    log.info('chat.autostart.requested', { reason: 'not_running' });
     onStatus('Starting Qwen on the GPU...');
     try {
       await start(signal);
@@ -81,6 +89,10 @@ export async function ensureChatReady({
       if (!(await isLoading(signal))) {
         throw error;
       }
+      log.debug('chat.autostart.start.failed', {
+        reason: 'another_request_loading',
+        errorClass: error?.name || 'Error',
+      });
     }
   }
   onStatus('Loading Qwen on the GPU. Your message will send when it is ready...');
@@ -89,6 +101,10 @@ export async function ensureChatReady({
     await sleep(2000, signal);
     try {
       await probe(signal);
+      log.info('chat.autostart.ready', {
+        reason: 'loaded_after_start',
+        durationMs: now() - started,
+      });
       return;
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -101,12 +117,17 @@ export async function ensureChatReady({
     if (now() - started > 15000) {
       loading = await isLoading(signal);
       if (!loading) {
+        log.warn('chat.autostart.failed', {
+          reason: 'not_loading',
+          durationMs: now() - started,
+        });
         throw Error(
           'Qwen did not become ready. Check its engine logs in Diagnostics, then retry your message.',
         );
       }
     }
   }
+  log.warn('chat.autostart.failed', { reason: 'timeout', durationMs: now() - started });
   throw Error(
     'Qwen is taking longer than expected to load. Check Diagnostics, then retry your message.',
   );

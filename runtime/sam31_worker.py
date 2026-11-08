@@ -28,6 +28,8 @@ ROOT = Path(__file__).resolve().parent.parent
 # The isolated embedded Python ._pth does not add the script directory.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # These imports must follow sys.path setup for the isolated embedded Python runtime.
+from app_log import flush as flush_app_log  # noqa: E402
+from app_log import get_logger, install_excepthook  # noqa: E402
 from engine_identity import install_identity_endpoint  # noqa: E402
 from host_memory import host_bytes_needed  # noqa: E402
 from worker_outputs import recovered_job  # noqa: E402
@@ -49,6 +51,7 @@ jobs = {}
 model = None
 stop_timer = None
 logger = logging.getLogger("forge.sam31_worker")
+log = get_logger("segmentation")
 
 
 def log_lifecycle(event, job_id, started_at, error=None):
@@ -109,7 +112,12 @@ def free_host_memory():
 def require_memory(*, loading):
     # Conservative estimates, not reservations. Actual SAM budgets are uncalibrated.
     host_gib, gpu_gib = (9, 14) if loading else (3, 10)
-    if free_host_memory() < host_bytes_needed(host_gib * 1024**3):
+    free_host = free_host_memory()
+    if free_host < host_bytes_needed(host_gib * 1024**3):
+        log.warn(
+            "segmentation.memory.rejected",
+            {"reason": "host_memory", "hostFreeMiB": free_host // 1024**2, "requiredGiB": host_gib},
+        )
         raise RuntimeError(f"At least {host_gib} GiB of free system memory is required.")
     import torch
 
@@ -120,6 +128,10 @@ def require_memory(*, loading):
     except Exception as error:
         raise RuntimeError("Free GPU memory could not be measured.") from error
     if free < gpu_gib * 1024**3:
+        log.warn(
+            "segmentation.memory.rejected",
+            {"reason": "gpu_memory", "gpuFreeMiB": free // 1024**2, "requiredGiB": gpu_gib},
+        )
         raise RuntimeError(f"At least {gpu_gib} GiB of free GPU memory is required.")
 
 
@@ -148,14 +160,22 @@ def clear_cuda_cache():
     try:
         if torch is not None and torch.cuda.is_initialized():
             torch.cuda.empty_cache()
-    except Exception:
-        pass
+    except Exception as error:
+        log.debug("segmentation.cache.clear.failed", {"error": error})
+
+
+def match_log_fields(metadata):
+    """Match counts only; the report also holds prompt-derived text, which is never logged."""
+    if not isinstance(metadata, dict):
+        return {}
+    return {"matchCount": metadata.get("instances"), "keptCount": metadata.get("used")}
 
 
 def load_worker(job_id):
     global model
     started_at = time.perf_counter()
     log_lifecycle("model_load_started", job_id, started_at)
+    load_timer = log.time("segmentation.model.load.completed", {"modelId": "sam3.1"})
     try:
         require_memory(loading=True)
         loaded = load_detector()
@@ -163,18 +183,24 @@ def load_worker(job_id):
             model = loaded
             state.update(phase="ready", error=None)
         log_lifecycle("model_load_completed", job_id, started_at)
+        load_timer({"outcome": "completed"})
     except Exception as error:
         gc.collect()
         clear_cuda_cache()
         with lock:
             state.update(phase="error", error=str(error)[:1500])
         log_lifecycle("model_load_failed", job_id, started_at, error)
+        log.error("segmentation.model.load.failed", {"modelId": "sam3.1", "error": error})
 
 
 def render_worker(job_id, image, request):
     temp = OUTPUTS / f".{job_id}.part"
     started_at = time.perf_counter()
     log_lifecycle("segmentation_started", job_id, started_at)
+    render_timer = log.time(
+        "segmentation.render.completed",
+        {"jobId": job_id, "mode": getattr(request, "select", "all")},
+    )
     try:
         with lock:
             jobs[job_id].update(status="running", message="Segmenting image.")
@@ -182,22 +208,28 @@ def render_worker(job_id, image, request):
         result, metadata = run_segmentation(model, image, request)
         result.save(temp, format="PNG")
         os.replace(temp, OUTPUTS / f"{job_id}.png")
+        log.debug("segmentation.file.written", {"jobId": job_id, "kind": "output"})
         with lock:
             jobs[job_id].update(
                 status="completed", message="Segmentation ready.", metadata=metadata
             )
             state.update(phase="ready", error=None)
         log_lifecycle("segmentation_completed", job_id, started_at)
+        render_timer({"outcome": "completed", **match_log_fields(metadata)})
     except Exception as error:
         try:
             temp.unlink(missing_ok=True)
-        except OSError:
-            pass
+        except OSError as cleanup_error:
+            log.debug(
+                "segmentation.temp.cleanup.failed",
+                {"jobId": job_id, "error": cleanup_error},
+            )
         clear_cuda_cache()
         with lock:
             jobs[job_id].update(status="failed", message=str(error)[:1500])
             state.update(phase="ready" if model is not None else "error", error=None)
         log_lifecycle("segmentation_failed", job_id, started_at, error)
+        render_timer({"outcome": "failed", "error": error})
 
 
 class SegmentRequest(BaseModel):
@@ -214,11 +246,20 @@ def check_match_limit(request):
     select = getattr(request, "select", "all")
     max_instances = getattr(request, "max_instances", None)
     if select == "top" and max_instances is None:
+        log.warn(
+            "segmentation.request.rejected",
+            {"route": "/api/generate", "reason": "match_limit_missing", "mode": select},
+        )
         raise HTTPException(422, "max_instances is required when select is top.")
     if select != "top" and max_instances is not None:
+        log.warn(
+            "segmentation.request.rejected",
+            {"route": "/api/generate", "reason": "match_limit_unexpected", "mode": select},
+        )
         raise HTTPException(422, "max_instances only applies when select is top.")
 
 
+# log-coverage: ignore -- the queue polls status while loading; a log per poll is noise.
 @app.get("/api/status")
 def status():
     with lock:
@@ -237,14 +278,26 @@ def status():
 def load():
     with lock:
         if state["closing"]:
+            log.warn(
+                "segmentation.request.rejected",
+                {"route": "/api/model/load", "reason": "worker_stopping"},
+            )
             raise HTTPException(409, "Segmentation worker is stopping.")
         if model is not None:
             return {"message": "Already loaded."}
         if state["phase"] == "loading":
             return {"message": "Already loading."}
         if state["phase"] in ("preparing", "generating"):
+            log.warn(
+                "segmentation.request.rejected",
+                {"route": "/api/model/load", "reason": "worker_busy"},
+            )
             raise HTTPException(409, "Segmentation worker is busy.")
         if not MODEL.is_file():
+            log.warn(
+                "segmentation.request.rejected",
+                {"route": "/api/model/load", "reason": "model_missing"},
+            )
             raise HTTPException(409, "SAM 3.1 model file is missing.")
         state.update(phase="loading", error=None)
         job_id = uuid.uuid4().hex
@@ -260,11 +313,23 @@ def load():
 def generate(request: SegmentRequest):
     check_match_limit(request)
     if not request.prompt.strip():
+        log.warn(
+            "segmentation.request.rejected",
+            {"route": "/api/generate", "reason": "empty_prompt"},
+        )
         raise HTTPException(400, "Describe what to isolate.")
     with lock:
         if state["closing"] or state["phase"] in ("preparing", "loading", "generating"):
+            log.warn(
+                "segmentation.request.rejected",
+                {"route": "/api/generate", "reason": "worker_busy"},
+            )
             raise HTTPException(409, "Segmentation worker is busy.")
         if model is None:
+            log.warn(
+                "segmentation.request.rejected",
+                {"route": "/api/generate", "reason": "model_not_loaded"},
+            )
             raise HTTPException(409, "Load the SAM 3.1 model first.")
         state.update(phase="preparing", error=None)
     job_id = uuid.uuid4().hex
@@ -287,17 +352,23 @@ def generate(request: SegmentRequest):
     except (ValueError, binascii.Error, OSError, Image.DecompressionBombError) as error:
         with lock:
             state.update(phase="ready", error=None)
+        log.warn(
+            "segmentation.image.rejected",
+            {"jobId": job_id, "reason": "invalid_image", "error": error},
+        )
         raise HTTPException(400, f"Invalid reference image: {error}") from error
     except Exception as error:
         with lock:
             state.update(phase="ready", error=None)
         log_lifecycle("segmentation_prepare_failed", job_id, started_at, error)
+        log.error("segmentation.prepare.failed", {"jobId": job_id, "error": error})
         raise HTTPException(
             500, "Could not prepare the reference image. Check worker logs."
         ) from error
     with lock:
         jobs[job_id] = {"id": job_id, "status": "queued", "message": "Waiting for segmentation."}
         state.update(phase="generating", error=None)
+        log.info("segmentation.render.queued", {"jobId": job_id})
         try:
             threading.Thread(
                 target=render_worker, args=(job_id, image, request), daemon=True
@@ -305,10 +376,12 @@ def generate(request: SegmentRequest):
         except RuntimeError as error:
             del jobs[job_id]
             state.update(phase="ready", error=None)
+            log.warn("segmentation.render.start.failed", {"jobId": job_id, "error": error})
             raise HTTPException(503, "Could not start segmentation.") from error
     return {"id": job_id}
 
 
+# log-coverage: ignore -- the queue polls job status; a log per poll is noise.
 @app.get("/api/jobs/{job_id}")
 def job_status(job_id: str):
     with lock:
@@ -320,6 +393,7 @@ def job_status(job_id: str):
         return dict(job)
 
 
+# log-coverage: ignore -- the queue polls for the image; 404s while rendering are expected.
 @app.get("/api/jobs/{job_id}/image")
 def output_image(job_id: str):
     with lock:
@@ -334,6 +408,9 @@ def output_image(job_id: str):
 def finish_stop():
     with lock:
         if state["closing"]:
+            log.info("segmentation.process.stopped", {"reason": "stop_requested"})
+            # os._exit skips atexit, so buffered records are written here.
+            flush_app_log()
             os._exit(0)
 
 
@@ -341,6 +418,10 @@ def finish_stop():
 def control(action: str, x_forge_engine_token: str = Header(default="")):
     global stop_timer
     if not TOKEN or not hmac.compare_digest(TOKEN, x_forge_engine_token):
+        log.warn(
+            "segmentation.request.rejected",
+            {"route": "/api/forge/:action", "reason": "invalid_token"},
+        )
         raise HTTPException(403, "Forbidden.")
     with lock:
         if action == "resume":
@@ -348,12 +429,15 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
                 stop_timer.cancel()
                 stop_timer = None
             state["closing"] = False
+            log.info("segmentation.stop.cancelled")
             return {"resumed": True}
         if action != "stop":
             raise HTTPException(404, "Not found.")
         if state["phase"] in ("preparing", "loading", "generating"):
+            log.warn("segmentation.stop.rejected", {"reason": "worker_busy"})
             raise HTTPException(409, "Segmentation worker has active work.")
         state["closing"] = True
+        log.info("segmentation.stop.requested")
         if stop_timer is None:
             stop_timer = threading.Timer(1, finish_stop)
             stop_timer.daemon = True
@@ -362,7 +446,9 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
 
 
 if __name__ == "__main__":
+    install_excepthook("segmentation")
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
     args = parser.parse_args()
+    log.info("segmentation.process.started", {"port": args.port})
     uvicorn.run(app, host="127.0.0.1", port=args.port, access_log=False)

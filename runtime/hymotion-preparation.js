@@ -1,5 +1,9 @@
 import os from 'node:os';
+import { createLogger } from './app-log.js';
 import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
+import { resolveAutoStart } from './service-preparation.js';
+
+const log = createLogger('motion');
 
 // One short text-to-motion test succeeded. These admission budgets remain conservative
 // estimates, not reservations or limits on other applications.
@@ -34,7 +38,8 @@ export function createHyMotionLoader({
         ) {
           throw Error('Unexpected response');
         }
-      } catch {
+      } catch (error) {
+        log.debug('motion.hymotion.status.failed', { error });
         return {
           status: 503,
           body: { code: 'engine_unavailable', message: 'Start the HY-Motion worker first.' },
@@ -57,6 +62,7 @@ export function createHyMotionLoader({
       }
       const free = freeMemory();
       if (hostMemoryShort(free, HYMOTION_HOST_LOAD_BYTES)) {
+        log.warn('motion.hymotion.memory.rejected', { reason: 'insufficient_host_memory' });
         return {
           status: 409,
           body: hostMemoryConflict(free, HYMOTION_HOST_LOAD_BYTES, await services(), ['motion-hy']),
@@ -70,6 +76,11 @@ export function createHyMotionLoader({
           estimate: 'Conservative, uncalibrated HY-Motion GPU budget plus system reserve.',
         };
       }
+      log.info('motion.hymotion.memory.checked', {
+        freeMiB: plan.device?.freeMiB,
+        requiredMiB: plan.requiredMiB,
+        budgetMiB: HYMOTION_GPU_LOAD_MIB,
+      });
       if (plan.code !== 'ready') {
         return { status: 409, body: plan };
       }
@@ -80,6 +91,7 @@ export function createHyMotionLoader({
           redirect: 'error',
         });
         if (!response.ok) {
+          log.warn('motion.hymotion.load.rejected', { httpStatus: response.status });
           return response.status >= 500
             ? {
                 status: 503,
@@ -97,11 +109,13 @@ export function createHyMotionLoader({
                 },
               };
         }
+        log.info('motion.hymotion.load.requested');
         return {
           status: 202,
           body: { code: 'load_requested', message: 'HY-Motion loading requested.', memory: plan },
         };
-      } catch {
+      } catch (error) {
+        log.warn('motion.hymotion.load.unknown', { error, reason: 'load_unknown' });
         return {
           status: 503,
           body: {
@@ -121,11 +135,14 @@ export function createHyMotionLoader({
 export function createHyMotionPreparation({ startEngine, loadModel, autoStart = true }) {
   return async ({ health, reachable, claimLoad, retryModel = false }) => {
     if (!reachable) {
-      if (!autoStart) {
+      if (!resolveAutoStart(autoStart)) {
+        log.info('motion.hymotion.start.skipped', { reason: 'autostart_disabled' });
         return { status: 'waiting_engine', stage: 'Waiting for the configured motion worker.' };
       }
+      log.info('motion.hymotion.start.started');
       const result = await startEngine('motion-hy');
       if (result.status === 'recovery_unresolved') {
+        log.warn('motion.hymotion.start.unresolved', { reason: 'recovery_unresolved' });
         if (!claimLoad()) {
           return null;
         }
@@ -137,12 +154,17 @@ export function createHyMotionPreparation({ startEngine, loadModel, autoStart = 
         };
       }
       if (['missing', 'failed', 'port_in_use'].includes(result.status)) {
+        log.warn('motion.hymotion.start.rejected', {
+          reason: 'start_failed',
+          status: result.status,
+        });
         return {
           status: 'needs_attention',
           stage: 'Motion worker could not start.',
           error: result.message || `Worker status: ${result.status}.`,
         };
       }
+      log.info('motion.hymotion.start.completed', { status: result.status });
       return { status: 'waiting_engine', stage: 'Starting the motion worker.' };
     }
     if (['preparing', 'generating'].includes(health.phase)) {
@@ -171,6 +193,7 @@ export function createHyMotionPreparation({ startEngine, loadModel, autoStart = 
     if (!claimLoad()) {
       return null;
     }
+    log.info('motion.hymotion.barrier.persisted');
     const result = await loadModel();
     if (result.body?.code === 'load_unknown') {
       return {

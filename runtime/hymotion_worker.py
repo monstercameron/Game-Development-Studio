@@ -22,12 +22,14 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / ".forge-runtime" / "hymotion-packages"))
+from app_log import flush, get_logger, install_excepthook  # noqa: E402
 from engine_identity import install_identity_endpoint  # noqa: E402
 from host_memory import host_bytes_needed  # noqa: E402
 from worker_outputs import recovered_job  # noqa: E402
 
 SOURCE = Path(os.environ.get("FORGE_HYMOTION_SOURCE", ROOT / ".forge-runtime" / "hy-motion-src"))
 MODEL = Path(os.environ.get("FORGE_HYMOTION_MODEL", ROOT / "models" / "HY-Motion"))
+MODEL_ID = "HY-Motion-1.0"
 OUTPUTS = Path(os.environ.get("FORGE_RUNTIME_DIR", ROOT / ".forge-runtime")) / "hymotion-outputs"
 OUTPUTS.mkdir(parents=True, exist_ok=True)
 TOKEN = os.environ.get("FORGE_ENGINE_CONTROL_TOKEN", "")
@@ -41,6 +43,12 @@ jobs = {}
 model = None
 stop_timer = None
 logger = logging.getLogger(__name__)
+log = get_logger("motion")
+
+
+def elapsed_ms(started_at):
+    """Milliseconds since a time.perf_counter() reading, for durationMs fields."""
+    return round((time.perf_counter() - started_at) * 1000)
 
 
 def log_lifecycle(event, *, job_id, started_at, error=None):
@@ -156,8 +164,8 @@ def clear_cuda_cache():
     try:
         if torch is not None and torch.cuda.is_initialized():
             torch.cuda.empty_cache()
-    except Exception:
-        pass
+    except Exception as error:
+        log.debug("motion.cuda.cache.clear.failed", {"errorClass": type(error).__name__})
 
 
 def load_worker(job_id=None):
@@ -165,6 +173,7 @@ def load_worker(job_id=None):
     job_id = job_id or uuid.uuid4().hex
     started_at = time.perf_counter()
     log_lifecycle("model_load_started", job_id=job_id, started_at=started_at)
+    log.info("motion.model.load.started", {"modelId": MODEL_ID})
     pipeline = None
     try:
         require_memory(loading=True)
@@ -180,6 +189,10 @@ def load_worker(job_id=None):
             model = loaded
             state.update(phase="ready", error=None)
         log_lifecycle("model_load_completed", job_id=job_id, started_at=started_at)
+        log.info(
+            "motion.model.load.completed",
+            {"modelId": MODEL_ID, "durationMs": elapsed_ms(started_at)},
+        )
     except Exception as error:
         traceback.clear_frames(error.__traceback__)
         pipeline = None
@@ -188,11 +201,20 @@ def load_worker(job_id=None):
         with lock:
             state.update(phase="error", error=str(error)[:1500])
         log_lifecycle("model_load_failed", job_id=job_id, started_at=started_at, error=error)
+        log.error(
+            "motion.model.load.failed",
+            {
+                "modelId": MODEL_ID,
+                "errorClass": type(error).__name__,
+                "durationMs": elapsed_ms(started_at),
+            },
+        )
 
 
 def render_worker(job_id, request):
     started_at = time.perf_counter()
     log_lifecycle("motion_render_started", job_id=job_id, started_at=started_at)
+    log.info("motion.render.started", {"jobId": job_id})
     temp = OUTPUTS / f".{job_id}.part"
     try:
         with lock:
@@ -210,21 +232,45 @@ def render_worker(job_id, request):
         )
         temp.write_text(bvh, encoding="utf-8")
         os.replace(temp, OUTPUTS / f"{job_id}.bvh")
+        log.debug(
+            "motion.file.written",
+            {"jobId": job_id, "kind": "bvh", "bytes": len(bvh.encode("utf-8"))},
+        )
         with lock:
             jobs[job_id].update(status="completed", message="Motion clip ready.")
             state.update(phase="ready", error=None)
         log_lifecycle("motion_render_completed", job_id=job_id, started_at=started_at)
+        log.info(
+            "motion.render.completed",
+            {
+                "jobId": job_id,
+                "clipSec": request.duration,
+                "steps": request.steps,
+                "durationMs": elapsed_ms(started_at),
+            },
+        )
     except Exception as error:
         traceback.clear_frames(error.__traceback__)
         try:
             temp.unlink(missing_ok=True)
-        except OSError:
-            pass
+        except OSError as cleanup_error:
+            log.warn(
+                "motion.temp.cleanup.failed",
+                {"jobId": job_id, "errorClass": type(cleanup_error).__name__},
+            )
         clear_cuda_cache()
         with lock:
             jobs[job_id].update(status="failed", message=str(error)[:1500])
             state.update(phase="ready" if model is not None else "error", error=None)
         log_lifecycle("motion_render_failed", job_id=job_id, started_at=started_at, error=error)
+        log.error(
+            "motion.render.failed",
+            {
+                "jobId": job_id,
+                "errorClass": type(error).__name__,
+                "durationMs": elapsed_ms(started_at),
+            },
+        )
 
 
 class MotionRequest(BaseModel):
@@ -251,14 +297,20 @@ def status():
 def load():
     with lock:
         if state["closing"]:
+            log.warn("motion.request.rejected", {"route": "/api/model/load", "reason": "closing"})
             raise HTTPException(409, "Motion worker is stopping.")
         if model is not None:
             return {"message": "Already loaded."}
         if state["phase"] == "loading":
             return {"message": "Already loading."}
         if state["phase"] == "generating":
+            log.warn("motion.request.rejected", {"route": "/api/model/load", "reason": "busy"})
             raise HTTPException(409, "Motion worker is busy.")
         if not files_ready():
+            log.warn(
+                "motion.request.rejected",
+                {"route": "/api/model/load", "reason": "files_missing"},
+            )
             raise HTTPException(409, "HY-Motion model files are missing.")
         state.update(phase="loading", error=None)
         try:
@@ -272,11 +324,14 @@ def load():
 @app.post("/api/generate", status_code=202)
 def generate(request: MotionRequest):
     if not request.prompt.strip():
+        log.warn("motion.request.rejected", {"route": "/api/generate", "reason": "empty_prompt"})
         raise HTTPException(400, "Describe the motion.")
     with lock:
         if state["closing"] or state["phase"] in ("loading", "generating"):
+            log.warn("motion.request.rejected", {"route": "/api/generate", "reason": "busy"})
             raise HTTPException(409, "Motion worker is busy.")
         if model is None:
+            log.warn("motion.request.rejected", {"route": "/api/generate", "reason": "not_loaded"})
             raise HTTPException(409, "Load HY-Motion first.")
         job_id = uuid.uuid4().hex
         jobs[job_id] = {
@@ -319,6 +374,8 @@ def motion(job_id: str):
 def finish_stop():
     with lock:
         if state["closing"]:
+            log.info("motion.process.stopped", {"reason": "stop_requested"})
+            flush()
             os._exit(0)
 
 
@@ -326,6 +383,7 @@ def finish_stop():
 def control(action: str, x_forge_engine_token: str = Header(default="")):
     global stop_timer
     if not TOKEN or not hmac.compare_digest(TOKEN, x_forge_engine_token):
+        log.warn("motion.request.rejected", {"route": "/api/forge/:action", "reason": "forbidden"})
         raise HTTPException(403, "Forbidden.")
     with lock:
         if action == "resume":
@@ -338,6 +396,7 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
             raise HTTPException(404, "Not found.")
         if state["phase"] in ("loading", "generating"):
             raise HTTPException(409, "Motion worker has active work.")
+        log.info("motion.stop.requested", {"route": "/api/forge/:action"})
         state["closing"] = True
         if stop_timer is None:
             stop_timer = threading.Timer(1, finish_stop)
@@ -350,4 +409,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
     args = parser.parse_args()
+    install_excepthook("motion")
+    log.info("motion.process.started", {"port": args.port, "pid": os.getpid()})
     uvicorn.run(app, host="127.0.0.1", port=args.port, access_log=False)
+    log.info("motion.process.stopped", {"reason": "server_exited"})

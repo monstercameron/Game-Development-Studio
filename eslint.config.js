@@ -31,6 +31,10 @@ export default [
       'test/.vite-jsx-*/**',
       'test/.jsx-*/**',
       'test/.world-studio-ui-*/**',
+      'test/.generation-ui-*/**',
+      'test/.voice-pair-*/**',
+      // Deliberately unlogged sample code for the log-coverage tool tests.
+      'test/fixtures/log-coverage/**',
     ],
   },
   {

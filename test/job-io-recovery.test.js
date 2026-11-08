@@ -135,3 +135,29 @@ test(
     );
   },
 );
+
+test('the downloaded bytes are flushed before the final name exists', async (t) => {
+  const { root, folder, url } = await setup(t, (_req, res) => res.end('complete image'));
+  const probe = await fs.open(path.join(folder, 'probe'), 'w');
+  const prototype = Object.getPrototypeOf(probe);
+  await probe.close();
+  const order = [];
+  const originalSync = prototype.sync;
+  const originalLink = fs.link;
+  prototype.sync = async function sync() {
+    order.push('fsync');
+    return originalSync.call(this);
+  };
+  fs.link = async (...args) => {
+    order.push('link');
+    return originalLink(...args);
+  };
+  try {
+    await saveAsset(root, 'images', randomUUID(), 'png', url);
+  } finally {
+    prototype.sync = originalSync;
+    fs.link = originalLink;
+  }
+  assert.ok(order.includes('link'));
+  assert.ok(order.indexOf('fsync') !== -1 && order.indexOf('fsync') < order.indexOf('link'));
+});

@@ -5,6 +5,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('engine');
 
 const helper = fileURLToPath(new URL('./ownership-windows.ps1', import.meta.url));
 const lockHelper = fileURLToPath(new URL('./ownership-lock.ps1', import.meta.url));
@@ -61,6 +64,8 @@ async function invokeWindows(request) {
       ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', helper],
       { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
     );
+    const startedAtMs = Date.now();
+    log.debug('engine.helper.spawned', { kind: request.operation, pid: child.pid });
     let stdout = '',
       finished = false;
     const finish = (error, value) => {
@@ -73,9 +78,16 @@ async function invokeWindows(request) {
     };
     const timer = setTimeout(() => {
       child.kill();
+      log.warn('engine.helper.timed_out', {
+        kind: request.operation,
+        durationMs: Date.now() - startedAtMs,
+      });
       finish(Error('Windows ownership operation timed out.'));
     }, 12000);
-    child.on('error', () => finish(Error('Windows ownership operation could not start.')));
+    child.on('error', () => {
+      log.warn('engine.helper.failed', { kind: request.operation, reason: 'spawn_error' });
+      finish(Error('Windows ownership operation could not start.'));
+    });
     child.stdout.on('data', (chunk) => {
       stdout += chunk;
       if (stdout.length > 131072) {
@@ -85,9 +97,14 @@ async function invokeWindows(request) {
     });
     // Never relay stderr: a runtime or shell could include sensitive input.
     child.stderr.resume();
-    child.on('close', (code) =>
-      finish(code === 0 ? null : Error('Windows ownership operation failed.'), stdout),
-    );
+    child.on('close', (code) => {
+      log.debug('engine.helper.exited', {
+        kind: request.operation,
+        exitCode: code,
+        durationMs: Date.now() - startedAtMs,
+      });
+      finish(code === 0 ? null : Error('Windows ownership operation failed.'), stdout);
+    });
     child.stdin.on('error', () => {});
     child.stdin.end(input);
   });
@@ -133,6 +150,7 @@ export async function expectedEngineExecutables(launcher) {
       if (error.code !== 'ENOENT') {
         throw error;
       }
+      log.debug('engine.interpreter.base.absent', { errorCode: error.code });
     }
   }
   return expected;
@@ -250,6 +268,7 @@ export class EngineOwnershipJournal {
           ],
           { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
         );
+        log.debug('engine.lock.helper.spawned', { pid: child.pid });
         let acquired = false,
           done = false,
           buffer = '',
@@ -271,6 +290,10 @@ export class EngineOwnershipJournal {
               const id = ++nextId,
                 timer = setTimeout(() => {
                   pending.delete(id);
+                  log.warn('engine.ownership.mutation.unknown', {
+                    kind: command.operation,
+                    reason: 'timeout',
+                  });
                   child.kill();
                   rejectCommand(
                     Error(
@@ -281,6 +304,10 @@ export class EngineOwnershipJournal {
               pending.set(id, { resolve: resolveCommand, reject: rejectCommand, timer });
               child.stdin.write(JSON.stringify({ ...command, id }) + '\n', (error) => {
                 if (error && pending.has(id)) {
+                  log.warn('engine.ownership.mutation.unknown', {
+                    kind: command.operation,
+                    reason: 'write_failed',
+                  });
                   clearTimeout(timer);
                   pending.delete(id);
                   child.kill();
@@ -317,6 +344,7 @@ export class EngineOwnershipJournal {
           done = true;
           clearTimeout(timer);
           child.kill();
+          log.warn('engine.ownership.lock.refused', { reason: 'unavailable' });
           reject(Error('Another supervisor holds the ownership lock, or the lock is unavailable.'));
         };
         const timer = setTimeout(fail, 12000);
@@ -336,7 +364,11 @@ export class EngineOwnershipJournal {
             let value;
             try {
               value = JSON.parse(line);
-            } catch {
+            } catch (error) {
+              log.warn('engine.ownership.lock.reply.invalid', {
+                reason: 'malformed_reply',
+                errorClass: error?.name,
+              });
               child.kill();
               return fail();
             }
@@ -349,6 +381,7 @@ export class EngineOwnershipJournal {
               clearTimeout(timer);
               lock.held = true;
               this.lock = lock;
+              log.info('engine.ownership.lock.acquired');
               resolve(lock);
               continue;
             }
@@ -387,6 +420,11 @@ export class EngineOwnershipJournal {
             item.reject(Error('Ownership lock was lost; mutation outcome is unknown.'));
           }
           pending.clear();
+          if (releaseRequested) {
+            log.info('engine.ownership.lock.released');
+          } else {
+            log.warn('engine.ownership.lock.lost');
+          }
           finishLost({ state: releaseRequested ? 'released' : 'lost' });
         });
         child.stdin.write(JSON.stringify({ path: file }) + '\n');
@@ -445,6 +483,7 @@ export class EngineOwnershipJournal {
       id,
     );
     await this.put(record, true);
+    log.info('engine.ownership.claimed', { engineId: id, port, state: 'prepared' });
     return record;
   }
   async readSealed(id) {
@@ -499,6 +538,7 @@ export class EngineOwnershipJournal {
     }
     const next = checkRecord({ ...record, state: 'running', pid, creationTicks }, id);
     await this.put(next, false, saved.raw);
+    log.info('engine.ownership.bound', { engineId: id, pid, state: 'running' });
     return next;
   }
   async clear(id, nonce) {
@@ -513,6 +553,7 @@ export class EngineOwnershipJournal {
       throw Error('Ownership instance does not match.');
     }
     await this.lock.mutate({ operation: 'remove', file: `${id}.json`, expected: saved.raw });
+    log.info('engine.ownership.cleared', { engineId: id });
     return true;
   }
 }
@@ -573,17 +614,20 @@ export async function probeWindowsProcess({ pid, creationTicks, executable }) {
       return { state: 'indeterminate' };
     }
     return { state: 'alive' };
-  } catch {
+  } catch (error) {
+    log.warn('engine.ownership.probe.failed', { reason: 'probe_error', errorClass: error?.name });
     return { state: 'indeterminate' };
   }
 }
 
 async function identity(record) {
+  const stop = log.time('engine.identity.request.completed', { engineId: record.id });
   const response = await fetch(`http://127.0.0.1:${record.port}/api/forge/identity`, {
     headers: { 'X-Forge-Engine-Token': record.token },
     signal: AbortSignal.timeout(3000),
     redirect: 'error',
   });
+  stop({ status: response.status });
   if (!response.ok || !response.body) {
     throw Error('Identity challenge failed.');
   }
@@ -598,7 +642,12 @@ async function identity(record) {
       }
       length += value.length;
       if (length > 4096) {
-        await reader.cancel().catch(() => {});
+        await reader.cancel().catch((error) => {
+          log.debug('engine.identity.cancel.failed', {
+            engineId: record.id,
+            errorClass: error?.name,
+          });
+        });
         throw Error('Identity response is too large.');
       }
       chunks.push(value);
@@ -619,19 +668,25 @@ async function identity(record) {
 }
 
 export async function verifyEngineOwnership(record, { id, port, executable }) {
+  // The step that failed, reported as the refusal reason (never the error message).
+  let stage = 'record';
   try {
     checkRecord(record, id);
+    stage = 'endpoint';
     if (record.port !== port) {
       throw Error('Endpoint changed.');
     }
+    stage = 'executable';
     const expected = await expectedEngineExecutables(executable);
     if (!samePaths(record.executables, expected)) {
       throw Error('Engine configuration changed.');
     }
+    stage = 'identity';
     const pid = await identity(record);
     if (record.state === 'running' && record.pid !== pid) {
       throw Error('Process changed.');
     }
+    stage = 'process';
     const first = await inspectWindowsProcess(pid, port);
     if (
       !expected.some((item) => norm(item) === norm(first.executable)) ||
@@ -641,6 +696,7 @@ export async function verifyEngineOwnership(record, { id, port, executable }) {
     ) {
       throw Error('Process identity changed.');
     }
+    stage = 'recheck';
     if ((await identity(record)) !== pid) {
       throw Error('Endpoint changed.');
     }
@@ -653,13 +709,19 @@ export async function verifyEngineOwnership(record, { id, port, executable }) {
     ) {
       throw Error('Process identity changed.');
     }
+    log.info('engine.ownership.verified', { engineId: id, state: record.state, pid });
     return {
       verified: true,
       pid,
       creationTicks: first.creationTicks,
       executable: first.executable,
     };
-  } catch {
+  } catch (error) {
+    log.warn('engine.ownership.refused', {
+      engineId: id,
+      reason: stage,
+      errorClass: error?.name,
+    });
     return { verified: false };
   }
 }

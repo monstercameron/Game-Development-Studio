@@ -14,6 +14,8 @@ import GenerationDetails from './GenerationDetails';
 import { matchesMeta, useAssetMetaIndex, useMetaSearch } from './asset-meta-index';
 import { friendlyAssetLabel } from './asset-labels.js';
 import { RepeatButton, ShrinkButton } from './MiniPlayer';
+import { sanitizeRatings } from './storage-tolerance.js';
+import { createLog } from './app-log.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowDownToLine,
@@ -37,6 +39,8 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+
+const log = createLog('assets');
 
 const categories = ['All', 'Images', '3D', 'Motion', 'Video', 'Audio', 'Masks', 'Text'];
 const filesize = (size) =>
@@ -122,7 +126,10 @@ function NativeImageThumb({ asset }) {
         loading="lazy"
         decoding="async"
         onLoad={() => setState('loaded')}
-        onError={() => setState('failed')}
+        onError={() => {
+          log.debug('assets.thumbnail.failed', { kind: asset.category });
+          setState('failed');
+        }}
       />
     </>
   );
@@ -224,7 +231,8 @@ function AssetPreview({
     try {
       await navigator.clipboard.writeText(localPath);
       setMessage('File path copied.');
-    } catch {
+    } catch (error) {
+      log.debug('assets.path.copy.failed', { errorClass: error?.name });
       setMessage('Could not copy. Select the path below instead.');
     }
   }
@@ -247,6 +255,7 @@ function AssetPreview({
         onClose();
       }
     } catch (error) {
+      log.warn('assets.action.failed', { action: type, errorClass: error?.name });
       setMessage(error.message);
     } finally {
       setBusy(false);
@@ -280,7 +289,14 @@ function AssetPreview({
                 </span>
               </div>
             ) : (
-              <img src={asset.file} alt={asset.title} onError={() => setImagePreviewFailed(true)} />
+              <img
+                src={asset.file}
+                alt={asset.title}
+                onError={() => {
+                  log.debug('assets.preview.image.failed', { kind: asset.category });
+                  setImagePreviewFailed(true);
+                }}
+              />
             )
           ) : asset.category === 'Video' ? (
             <>
@@ -586,8 +602,9 @@ export default function Gallery({
   const [queueOpen, setQueueOpen] = useRouteToggle('queue');
   const [ratings, setRatings] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('forge-preview-ratings') || '{}');
+      return sanitizeRatings(JSON.parse(localStorage.getItem('forge-preview-ratings') || '{}'));
     } catch {
+      // log-coverage: ignore -- lazy useState initializer runs during render, no log there
       return {};
     }
   });
@@ -679,6 +696,7 @@ export default function Gallery({
     });
   }
   async function projectPost(action, body) {
+    // log-coverage: ignore -- the app-log fetch wrapper records failed /api calls
     const response = await fetch(`/api/projects/${scope}/assets/${action}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'project' },
@@ -693,6 +711,7 @@ export default function Gallery({
   async function reloadProject() {
     const requestedScope = scope;
     const request = ++projectRequestRef.current;
+    // log-coverage: ignore -- the app-log fetch wrapper records failed /api calls
     const response = await fetch('/api/projects');
     if (!response.ok) {
       return;
@@ -715,6 +734,7 @@ export default function Gallery({
         try {
           localStorage.setItem('forge-preview-ratings', JSON.stringify(next));
         } catch {
+          // log-coverage: ignore -- state updaters can run during render, no log there
           // Ratings still work for this session when browser storage is unavailable.
         }
         return next;
@@ -735,7 +755,14 @@ export default function Gallery({
       const result = await projectPost('trash', { path: asset.id });
       setTrashUndo({ projectId: scope, trashId: result.trashId });
       setTrashMessage('Asset moved to project trash.');
-      await reloadProject().catch(() => {});
+      log.info('assets.asset.trashed', {
+        kind: asset.category,
+        extension: extensionOf(fileNameOf(asset)),
+        outcome: 'trashed',
+      });
+      await reloadProject().catch((error) => {
+        log.warn('assets.project.reload.failed', { errorClass: error?.name });
+      });
       return;
     }
     throw Error('This asset action is unavailable.');
@@ -745,6 +772,7 @@ export default function Gallery({
       return;
     }
     try {
+      // log-coverage: ignore -- the app-log fetch wrapper records failed /api calls
       const response = await fetch(`/api/projects/${trashUndo.projectId}/assets/restore`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'project' },
@@ -756,10 +784,12 @@ export default function Gallery({
       }
       setTrashUndo(null);
       setTrashMessage('Asset restored.');
+      log.info('assets.trash.restored');
       if (scope === trashUndo.projectId) {
         await reloadProject();
       }
     } catch (error) {
+      log.warn('assets.trash.restore.failed', { errorClass: error?.name });
       setTrashMessage(error.message);
     }
   }

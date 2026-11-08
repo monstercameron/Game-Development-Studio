@@ -36,6 +36,7 @@ function startWatchdog() {
       }
     }, 1000);
   `;
+  // log-coverage: ignore -- this child logs nothing: a second log writer would live in a spawned process; the host logs vegetation.process.exited
   const watchdog = new Worker(source, {
     eval: true,
     workerData: { parentPid: process.ppid, deadlineMs },
@@ -84,7 +85,9 @@ async function main() {
     throw Error('Output files are required.');
   }
   const { glb, preset, result } = await generateVegetation(api, schema, command.request);
+  // log-coverage: ignore -- staged output write; a failure is returned in the reply and logged by the host
   fs.writeFileSync(command.glbFile, glb, { flag: 'wx' });
+  // log-coverage: ignore -- staged output write; a failure is returned in the reply and logged by the host
   fs.writeFileSync(command.presetFile, `${JSON.stringify(preset, null, 2)}\n`, { flag: 'wx' });
   const usage = process.resourceUsage();
   reply({

@@ -9,6 +9,7 @@ import { CreationQueueTiming } from './QueueTiming';
 import { formatDuration } from './queue-timing';
 import { reusePlan } from './generation-details';
 import { routeDetails, updateSearch, useRouteToggle } from './useNav';
+import { createLog } from './app-log.js';
 import './world-studio.css';
 
 const WORLDGEN_SIZES = [1024, 1600, 2048];
@@ -16,6 +17,7 @@ const HY_SIZES = [336, 518, 700, 952];
 const SPLAT_LIMITS = [250000, 500000, 1000000, 2000000, 5000000];
 const MAX_SEED = 2147483647;
 const NO_NOTICE = { text: '', kind: 'error' };
+const log = createLog('world');
 // Library pages hand a reused world to this page through the session, as it can be a long prompt.
 const REUSE_KEY = 'forge-world-reuse';
 
@@ -244,14 +246,16 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
     try {
       stored = window.sessionStorage.getItem(REUSE_KEY);
       window.sessionStorage.removeItem(REUSE_KEY);
-    } catch {
+    } catch (error) {
       // Session storage can be unavailable; the model is still selected from the address.
+      log.debug('world.reuse.take.failed', { error });
     }
     if (stored) {
       try {
         applyWorld(JSON.parse(stored));
-      } catch {
+      } catch (error) {
         // A damaged hand-off is ignored.
+        log.warn('world.reuse.restore.failed', { error });
       }
     }
   }, [applyWorld]);
@@ -320,7 +324,8 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
             setEstimate(result);
           }
         })
-        .catch(() => {
+        .catch((error) => {
+          log.debug('world.estimate.failed', { error });
           if (active) {
             setEstimateError(true);
           }
@@ -385,9 +390,16 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
     setBusy(true);
     setMessage('');
     let submittingJob = false;
+    const stopSubmit = log.time('world.submit.completed', { model, mode: actualMode });
+    log.info('world.submit.requested', {
+      model,
+      mode: actualMode,
+      referenceCount: actualMode === 'text' ? 0 : files.length,
+    });
     try {
       const ids = [];
       for (const file of actualMode === 'text' ? [] : files) {
+        // log-coverage: ignore -- /api requests are logged by the browser capture (http.request.failed).
         const response = await fetch(`/api/projects/${project.id}/references`, {
           method: 'POST',
           headers: {
@@ -408,9 +420,17 @@ export default function WorldStudio({ project, projects, onRefresh, onOpenLibrar
         projectId: project.id,
         request: buildRequest(ids),
       });
+      stopSubmit();
       setVersion((v) => v + 1);
       setMessage('World added to the render queue.', 'success');
     } catch (error) {
+      const isOutcomeUnknown = submittingJob && error.status === undefined;
+      log.warn('world.submit.failed', {
+        reason: isOutcomeUnknown ? 'outcome_unknown' : 'not_queued',
+        hasSubmittedJob: submittingJob,
+        status: error.status,
+        error,
+      });
       setMessage(
         submittingJob && error.status === undefined
           ? 'The connection ended before Forge could confirm the queue result. Check the render queue before submitting again.'

@@ -1,7 +1,10 @@
 import { access } from 'node:fs/promises';
+import { createLogger } from './app-log.js';
 import { localAsrUrl } from './asr-client.js';
 import { interpretStatus } from './catalog.js';
 import { planModelLoad } from './model-load.js';
+
+const log = createLogger('asr');
 
 // The GGUF and its CUDA workspace have not yet been calibrated under load.
 export const ASR_BUDGET_MIB = 4 * 1024;
@@ -13,10 +16,13 @@ export async function probeAsr(baseUrl, fetcher = fetch) {
       redirect: 'error',
     });
     if (!response.ok) {
+      log.debug('asr.probe.failed', { httpStatus: response.status });
       return false;
     }
     return !!interpretStatus('nemotron-asr', await response.json());
-  } catch {
+  } catch (error) {
+    // Not running is the normal state before a start request, so this stays at debug.
+    log.debug('asr.probe.failed', { errorClass: error?.name });
     return false;
   }
 }
@@ -33,7 +39,9 @@ export function createAsrStarter({
   checkFile = access,
 }) {
   return async function startAsr(begin) {
+    log.info('asr.start.started');
     if (await probeAsr(baseUrl, fetcher)) {
+      log.info('asr.start.skipped', { reason: 'already_loaded' });
       return {
         status: 200,
         body: { code: 'already_loaded', message: 'Nemotron ASR is ready.' },
@@ -42,7 +50,8 @@ export function createAsrStarter({
     }
     try {
       await checkFile(modelFile);
-    } catch {
+    } catch (error) {
+      log.warn('asr.start.rejected', { reason: 'model_missing', errorClass: error?.name });
       return {
         status: 409,
         body: { code: 'model_missing', message: 'Nemotron ASR model file is missing.' },
@@ -57,15 +66,26 @@ export function createAsrStarter({
         estimate: 'Conservative, uncalibrated estimate for Nemotron ASR and its working memory.',
       };
     }
+    log.info('asr.memory.checked', {
+      freeMiB: plan.device?.freeMiB,
+      requiredMiB: plan.requiredMiB,
+      budgetMiB: ASR_BUDGET_MIB,
+    });
     if (plan.code !== 'ready') {
+      log.warn('asr.start.rejected', { reason: plan.code });
       return { status: 409, body: plan, keepBarrier: false };
     }
     if (!begin()) {
+      log.error('asr.barrier.failed');
       throw Error('Could not persist the speech model-load barrier.');
     }
+    log.info('asr.barrier.persisted');
+    const stopEngineStart = log.time('asr.engine.returned');
     try {
       const result = await startEngine('asr');
+      stopEngineStart({ status: result.status });
       if (result.status === 'recovery_unresolved') {
+        log.warn('asr.start.unresolved', { reason: 'recovery_unresolved' });
         return {
           status: 503,
           body: {
@@ -78,6 +98,7 @@ export function createAsrStarter({
         };
       }
       if (['missing', 'failed', 'port_in_use', 'deleting'].includes(result.status)) {
+        log.warn('asr.start.rejected', { reason: 'start_failed', status: result.status });
         return {
           status: 409,
           body: {
@@ -87,6 +108,7 @@ export function createAsrStarter({
           keepBarrier: false,
         };
       }
+      log.info('asr.start.completed', { pid: result.pid });
       return {
         status: 202,
         body: {
@@ -97,7 +119,8 @@ export function createAsrStarter({
         },
         keepBarrier: true,
       };
-    } catch {
+    } catch (error) {
+      log.error('asr.start.failed', { reason: 'load_unknown', errorClass: error?.name });
       return {
         status: 503,
         body: {

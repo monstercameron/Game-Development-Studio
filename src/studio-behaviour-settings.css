@@ -1,0 +1,160 @@
+/* "Studio behaviour" section of the Studio settings dialog. */
+.studio-behaviour .behaviour-group {
+  margin-top: var(--ux-space-3);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+}
+.studio-behaviour .behaviour-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ux-space-2);
+  min-height: var(--ux-target-touch);
+  padding: 0 var(--ux-space-3);
+  font-weight: 700;
+  color: var(--forge-text-strong);
+  cursor: pointer;
+}
+.studio-behaviour .behaviour-group > summary:focus-visible,
+.studio-behaviour .behaviour-recent > summary:focus-visible {
+  outline: var(--ux-focus-ring);
+  outline-offset: var(--ux-focus-offset);
+}
+.studio-behaviour .behaviour-count {
+  font-size: var(--ux-text-xs);
+  color: var(--forge-muted);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+  padding: 0 var(--ux-space-2);
+}
+.studio-behaviour .behaviour-list {
+  display: grid;
+  gap: var(--ux-space-3);
+  padding: 0 var(--ux-space-3) var(--ux-space-3);
+}
+.studio-behaviour .behaviour-row {
+  display: grid;
+  gap: var(--ux-space-1);
+  padding: var(--ux-space-3);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+  background: var(--forge-surface-deep);
+}
+.studio-behaviour .behaviour-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ux-space-2);
+}
+.studio-behaviour .behaviour-main > label,
+.studio-behaviour .behaviour-switch,
+.studio-behaviour .behaviour-draft > label {
+  font-weight: 700;
+  color: var(--forge-text-strong);
+}
+.studio-behaviour .behaviour-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ux-space-2);
+  min-height: var(--ux-target-touch);
+  cursor: pointer;
+}
+.studio-behaviour .behaviour-switch input {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.studio-behaviour .behaviour-draft {
+  display: grid;
+  flex: 1 1 100%;
+  gap: var(--ux-space-1);
+}
+.studio-behaviour .behaviour-draft-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+.studio-behaviour .behaviour-draft-line input {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+.studio-behaviour select,
+.studio-behaviour input[type='number'],
+.studio-behaviour input[type='text'] {
+  min-height: var(--ux-target-min);
+  max-width: 100%;
+}
+.studio-behaviour .behaviour-unit {
+  color: var(--forge-muted);
+  font-size: var(--ux-text-sm);
+}
+.studio-behaviour .behaviour-badge {
+  padding: var(--ux-space-1) var(--ux-space-2);
+  border: var(--ux-border);
+  border-radius: var(--ux-radius-sm);
+  font-size: var(--ux-text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--forge-text-strong);
+}
+.studio-behaviour .behaviour-badge[data-effect='restart-required'] {
+  border-color: var(--forge-danger-border, currentColor);
+}
+.studio-behaviour .behaviour-hint,
+.studio-behaviour .behaviour-state {
+  margin: 0;
+}
+.studio-behaviour .behaviour-error {
+  margin: 0;
+}
+.studio-behaviour .behaviour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ux-space-2);
+}
+.studio-behaviour .behaviour-actions .reset-confirm {
+  margin-left: 0;
+}
+.studio-behaviour .behaviour-reset:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.studio-behaviour .behaviour-recent {
+  margin-top: var(--ux-space-3);
+}
+.studio-behaviour .behaviour-recent > summary {
+  cursor: pointer;
+  min-height: var(--ux-target-min);
+  font-weight: 700;
+}
+.studio-behaviour .behaviour-recent ul {
+  margin: var(--ux-space-2) 0 0;
+  padding-inline-start: var(--ux-space-4);
+  font-size: var(--ux-text-sm);
+  overflow-wrap: anywhere;
+}
+.studio-behaviour .behaviour-load-error {
+  display: grid;
+  gap: var(--ux-space-2);
+  justify-items: start;
+}
+@media (max-width: 600px) {
+  .studio-behaviour .behaviour-list {
+    padding-inline: var(--ux-space-2);
+  }
+  .studio-behaviour .behaviour-row {
+    padding: var(--ux-space-2);
+  }
+  .studio-behaviour .behaviour-badge {
+    white-space: normal;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-behaviour * {
+    transition: none;
+    animation: none;
+  }
+}

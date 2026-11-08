@@ -9,10 +9,13 @@ import {
   formatStackOnly,
   sourceLabel,
 } from '../runtime/error-format.js';
+import { createLog } from './app-log.js';
 import ErrorFixPanel from './ErrorFixPanel';
 import ErrorIssuePanel from './ErrorIssuePanel';
 import { copyToClipboard } from './error-copy.js';
 import { getErrors, postErrors } from './errors-api.js';
+
+const log = createLog('errors');
 
 function formatTime(iso) {
   const date = new Date(iso);
@@ -48,6 +51,7 @@ export default function ErrorDetail({ errorId, onChanged, onBack, onOpenSettings
         if (data.error.status === 'new' && !includePaths) {
           const viewed = await postErrors(`/${errorId}/viewed`);
           if (request === latest.current) {
+            log.debug('errors.status.viewed', { errorId, from: 'new', to: viewed.error.status });
             setError(viewed.error);
             onChangedRef.current?.(viewed.error);
           }
@@ -55,6 +59,7 @@ export default function ErrorDetail({ errorId, onChanged, onBack, onOpenSettings
       })
       .catch((reason) => {
         if (reason.name !== 'AbortError' && request === latest.current) {
+          log.warn('errors.detail.load.failed', { errorId, errorClass: reason?.name });
           setLoadError(reason.message);
         }
       });
@@ -80,10 +85,17 @@ export default function ErrorDetail({ errorId, onChanged, onBack, onOpenSettings
     setActionError('');
     try {
       const data = await postErrors(`/${errorId}/status`, { status: next, ...extra });
+      log.info('errors.status.changed', { errorId, from: error.status, to: next });
       applyUpdate(data.error);
       setIsVerifying(false);
       setStatus(`Marked ${STATUS_LABELS[next].toLowerCase()}.`);
     } catch (reason) {
+      log.warn('errors.status.failed', {
+        errorId,
+        to: next,
+        errorClass: reason?.name,
+        errorCode: reason?.code,
+      });
       setActionError(reason.message);
     }
   }
@@ -93,8 +105,14 @@ export default function ErrorDetail({ errorId, onChanged, onBack, onOpenSettings
     try {
       const data = await postErrors(`/${errorId}/note`, { note });
       applyUpdate(data.error);
+      log.info('errors.note.saved', { errorId });
       setStatus('Note saved.');
     } catch (reason) {
+      log.warn('errors.note.save.failed', {
+        errorId,
+        errorClass: reason?.name,
+        errorCode: reason?.code,
+      });
       setActionError(reason.message);
     }
   }

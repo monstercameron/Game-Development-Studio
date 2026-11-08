@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import MemoryDialog from './MemoryDialog';
 import { post } from './RuntimeQueue';
+import { createLog } from './app-log.js';
+
+const log = createLog('memory');
 
 export default function MemoryAlerts() {
   const [job, setJob] = useState(null),
@@ -9,6 +12,7 @@ export default function MemoryAlerts() {
   const seen = useRef(new Set());
   useEffect(() => {
     let alive = true;
+    let isPollFailing = false;
     async function poll() {
       try {
         const response = await fetch('/api/runtime/jobs');
@@ -16,6 +20,7 @@ export default function MemoryAlerts() {
           return;
         }
         const data = await response.json();
+        isPollFailing = false;
         if (!alive) {
           return;
         }
@@ -41,8 +46,12 @@ export default function MemoryAlerts() {
           }
           return next || null;
         });
-      } catch {
-        // Polling is best-effort; the next interval retries.
+      } catch (error) {
+        // Polling is best-effort; the next interval retries. Logged once per failure streak.
+        if (!isPollFailing) {
+          isPollFailing = true;
+          log.debug('memory.alert.poll.failed', { error });
+        }
       }
     }
     const open = (event) => {
@@ -61,6 +70,17 @@ export default function MemoryAlerts() {
       window.removeEventListener('forge:memory-alert', open);
     };
   }, []);
+  // Keyed on the id so a poll that refreshes the same alert does not log again.
+  const alertJobId = job?.id ?? null;
+  useEffect(() => {
+    if (!alertJobId) {
+      return undefined;
+    }
+    log.info('memory.alert.shown', { jobId: alertJobId });
+    return () => {
+      log.debug('memory.alert.hidden', { jobId: alertJobId });
+    };
+  }, [alertJobId]);
   async function retry() {
     if (!job) {
       return;
@@ -69,9 +89,11 @@ export default function MemoryAlerts() {
     setError('');
     try {
       await post(`/api/runtime/jobs/${job.id}/retry`);
+      log.info('memory.retry.completed', { jobId: job.id });
       seen.current.delete(job.id);
       setJob(null);
     } catch (e) {
+      log.warn('memory.retry.failed', { jobId: job.id, error: e });
       setError(e.message);
     } finally {
       setWorking(false);
@@ -86,9 +108,11 @@ export default function MemoryAlerts() {
     try {
       await post(`/api/runtime/models/${id}/offload`);
       await post(`/api/runtime/jobs/${job.id}/retry`);
+      log.info('memory.offload.completed', { jobId: job.id, modelId: id });
       seen.current.delete(job.id);
       setJob(null);
     } catch (e) {
+      log.warn('memory.offload.failed', { jobId: job.id, modelId: id, error: e });
       setError(e.message);
     } finally {
       setWorking(false);

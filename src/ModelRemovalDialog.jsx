@@ -1,7 +1,10 @@
 import { useEffect, useId, useState } from 'react';
 import { LoaderCircle, Power, ShieldCheck, Trash2, X } from 'lucide-react';
+import { createLog } from './app-log.js';
 import useDialogFocus from './useDialogFocus';
 import './model-removal-dialog.css';
+
+const log = createLog('model');
 
 const size = (value) =>
   value === null || value === undefined
@@ -10,6 +13,7 @@ const size = (value) =>
       ? `${(value / 1024 ** 3).toFixed(1)} GiB`
       : `${(value / 1024 ** 2).toFixed(1)} MiB`;
 async function post(path, body = {}) {
+  // log-coverage: ignore -- failed /api calls are already logged by app-log-install (http.request.failed)
   const response = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
@@ -51,7 +55,7 @@ export default function ModelRemovalDialog({
   const dialog = useDialogFocus({
     onClose: () => {
       if (!busy) {
-        onClose();
+        dismiss();
       }
     },
     initialFocus: '.settings-head button',
@@ -60,10 +64,19 @@ export default function ModelRemovalDialog({
     if (!inProgress) {
       return;
     }
+    log.debug('model.removal.polling.started');
     const timer = setInterval(() => onRefresh(), 1200);
-    return () => clearInterval(timer);
+    return () => {
+      log.debug('model.removal.polling.stopped');
+      clearInterval(timer);
+    };
   }, [inProgress, onRefresh]);
+  function dismiss() {
+    log.debug('model.removal.dismissed', { modelId: id });
+    onClose();
+  }
   async function remove() {
+    log.info('model.removal.confirmed', { modelId: id, isRetry: failed });
     setBusyAction('remove');
     setError('');
     try {
@@ -71,20 +84,25 @@ export default function ModelRemovalDialog({
         confirmation: 'permanently-delete-model',
         retry: failed,
       });
+      log.info('model.removal.accepted', { modelId: id });
       await onRefresh();
     } catch (reason) {
+      log.warn('model.removal.failed', { modelId: id, errorClass: reason?.name });
       setError(reason.message);
     } finally {
       setBusyAction('');
     }
   }
   async function stop() {
+    log.info('model.offload.requested', { modelId: id });
     setBusyAction('stop');
     setError('');
     try {
       await post(`/api/runtime/models/${id}/offload`);
+      log.info('model.offload.completed', { modelId: id });
       await onRefresh();
     } catch (reason) {
+      log.warn('model.offload.failed', { modelId: id, errorClass: reason?.name });
       setError(reason.message);
     } finally {
       setBusyAction('');
@@ -95,7 +113,7 @@ export default function ModelRemovalDialog({
       className="modal-backdrop"
       onClick={() => {
         if (!busy) {
-          onClose();
+          dismiss();
         }
       }}
     >
@@ -118,7 +136,7 @@ export default function ModelRemovalDialog({
               size when files are also used elsewhere, such as through hard links.
             </p>
           </div>
-          <button className="icon-btn" aria-label="Close" disabled={busy} onClick={onClose}>
+          <button className="icon-btn" aria-label="Close" disabled={busy} onClick={dismiss}>
             <X size={20} aria-hidden="true" />
           </button>
         </div>
@@ -183,7 +201,7 @@ export default function ModelRemovalDialog({
           </label>
         )}
         <div className="project-dialog-actions">
-          <button className="ghost-button" disabled={busy} onClick={onClose}>
+          <button className="ghost-button" disabled={busy} onClick={dismiss}>
             Close
           </button>
           {managed && !stopped && !inProgress && service?.canUnload && (

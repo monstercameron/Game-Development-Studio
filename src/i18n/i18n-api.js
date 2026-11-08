@@ -1,6 +1,10 @@
 // Browser client for the local /api/i18n service (runtime/i18n-service.js). Requests carry only
 // a language code, page namespaces and the preview digest; never interface or user text.
 
+import { createLog } from '../app-log.js';
+
+const log = createLog('i18n');
+
 const WRITE_HEADERS = { 'Content-Type': 'application/json', 'X-Forge-Request': 'i18n' };
 
 export class I18nApiError extends Error {
@@ -11,10 +15,23 @@ export class I18nApiError extends Error {
   }
 }
 
+/**
+ * Error class, code and HTTP status for log fields. The message is never logged: it can echo
+ * service text.
+ */
+export function errorLogFields(error) {
+  return {
+    errorClass: typeof error?.name === 'string' ? error.name : undefined,
+    errorCode: typeof error?.code === 'string' && error.code ? error.code : undefined,
+    status: Number.isInteger(error?.status) && error.status > 0 ? error.status : undefined,
+  };
+}
+
 /** JSON request to /api/i18n; throws I18nApiError with the service's message. */
 export async function i18nRequest(path, { method = 'GET', body, signal, fetchImpl = fetch } = {}) {
   let response;
   try {
+    // log-coverage: ignore -- /api responses are logged by the fetch wrapper in src/app-log.js.
     response = await fetchImpl(`/api/i18n${path}`, {
       method,
       headers: method === 'GET' ? undefined : WRITE_HEADERS,
@@ -76,6 +93,7 @@ export async function streamTranslation({
 }) {
   let response;
   try {
+    // log-coverage: ignore -- /api responses are logged by the fetch wrapper; the caller logs the outcome.
     response = await fetchImpl('/api/i18n/translate', {
       method: 'POST',
       headers: WRITE_HEADERS,
@@ -104,6 +122,8 @@ export async function streamTranslation({
     try {
       event = JSON.parse(line);
     } catch {
+      // A malformed progress line is skipped; the final report still decides the outcome.
+      log.debug('i18n.stream.line.skipped');
       continue;
     }
     onEvent?.(event);

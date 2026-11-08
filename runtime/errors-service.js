@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createAiAssistSettings, validateAiAssistEntry } from './ai-assist-settings.js';
+import { createLogger } from './app-log.js';
 import { credentialStore } from './credentials.js';
 import { buildIssueContent } from './error-format.js';
 import {
@@ -33,6 +34,41 @@ const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
 export const FIX_NOTICE =
   'The redacted error text and the listed source lines are sent to OpenAI. Nothing else is sent.';
 export const ISSUE_NOTICE = 'This will be posted publicly on GitHub as';
+const log = createLogger('errors');
+// Reason codes for rejections that carry no code of their own. They describe the rule, never
+// the rejected value.
+const REJECTION_REASONS = Object.freeze({
+  400: 'invalid_request',
+  403: 'forbidden',
+  404: 'not_found',
+  409: 'conflict',
+  413: 'too_large',
+  429: 'rate_limited',
+});
+
+// Log fields carry only the class and code of a failure, never its message or stack.
+function failureFields(error) {
+  return { errorClass: error?.name, errorCode: error?.code };
+}
+
+// Numeric ids become :id and any segment that is not a plain word becomes :param, so a log
+// line never holds a user-supplied path segment or a query string.
+function routeTemplate(prefix, pathname) {
+  const segments = pathname
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => {
+      if (/^\d{1,12}$/.test(segment)) {
+        return ':id';
+      }
+      return /^[a-z-]{1,40}$/.test(segment) ? segment : ':param';
+    });
+  return [prefix, ...segments].join('/');
+}
+
+function logRejected(route, status, reason) {
+  log.warn('errors.request.rejected', { route, status, reason });
+}
 
 function json(res, status, data) {
   res.writeHead(status, {
@@ -45,6 +81,7 @@ function json(res, status, data) {
 class RequestError extends Error {
   constructor(status, message, code) {
     super(message);
+    // log-coverage: ignore -- stores the HTTP status on the error object; not a state change
     this.status = status;
     this.code = code;
   }
@@ -114,6 +151,7 @@ export function parseBrowserReport(input) {
         if (!Number.isInteger(value) || value < 0 || value > 599) {
           throw new RequestError(400, 'context.status must be an HTTP status.');
         }
+        // log-coverage: ignore -- copies a validated HTTP status into a response context object
         context.status = value;
       } else if (key === 'method') {
         if (!HTTP_METHODS.includes(value)) {
@@ -182,7 +220,8 @@ function readAppVersion() {
   try {
     const manifest = JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8'));
     return typeof manifest.version === 'string' ? manifest.version : 'unknown';
-  } catch {
+  } catch (error) {
+    log.debug('errors.version.read.failed', failureFields(error));
     return 'unknown';
   }
 }
@@ -191,8 +230,9 @@ function defaultRoots(runtimeDir, projectsRoot) {
   let user;
   try {
     user = os.userInfo().username;
-  } catch {
+  } catch (error) {
     // Some service accounts have no user record; home-folder redaction still applies.
+    log.debug('errors.user.lookup.failed', failureFields(error));
     user = '';
   }
   return {
@@ -275,6 +315,7 @@ export function errorsService({
         scanProblems = [...logs.problems, ...jobs.problems].slice(0, 20);
         errorStore.prune();
       } catch (error) {
+        log.warn('errors.scan.failed', failureFields(error));
         scanProblems = [`scan: ${error.code || 'failed'}`];
       } finally {
         lastScanAt = now();
@@ -326,7 +367,8 @@ export function errorsService({
   function hasSavedKey() {
     try {
       return credentials.status().some((item) => item.provider === 'openai' && item.saved);
-    } catch {
+    } catch (error) {
+      log.warn('errors.key.status.failed', failureFields(error));
       return false;
     }
   }
@@ -335,7 +377,8 @@ export function errorsService({
     let key;
     try {
       key = await credentials.get('openai');
-    } catch {
+    } catch (error) {
+      log.warn('errors.key.unlock.failed', failureFields(error));
       throw new RequestError(
         500,
         'Could not unlock the saved OpenAI key. Check that the studio runs under the Windows account that saved it.',
@@ -371,6 +414,7 @@ export function errorsService({
       req.headers.origin !== `http://${req.headers.host}` ||
       req.headers['x-forge-request'] !== 'ai-assist'
     ) {
+      logRejected(routeTemplate('/api/ai-assist', pathname), 403, 'origin_mismatch');
       return json(res, 403, { error: 'Local studio requests only.' });
     }
     const input = await readJson(req, 4096);
@@ -502,12 +546,14 @@ export function errorsService({
       req.headers.origin !== `http://${req.headers.host}` ||
       req.headers['x-forge-request'] !== 'errors'
     ) {
+      logRejected(routeTemplate('/api/errors', pathname), 403, 'origin_mismatch');
       return json(res, 403, { error: 'Local studio requests only.' });
     }
     if (pathname === '/report') {
       const input = await readJson(req, 64 * 1024);
       const report = parseBrowserReport(input);
       if (!allowReport()) {
+        logRejected(routeTemplate('/api/errors', pathname), 429, 'rate_limited');
         return json(res, 429, { error: 'Too many error reports. Some were dropped.' });
       }
       const result = errorStore.record(report);
@@ -697,32 +743,51 @@ export function errorsService({
     return json(res, 404, { error: 'Not found.' });
   }
 
-  function guarded(handler) {
+  function guarded(handler, prefix) {
     return async (req, res) => {
+      const requestPath = new URL(req.url || '/', 'http://127.0.0.1').pathname;
+      const routeLabel = routeTemplate(prefix, requestPath);
       if (!LOOPBACK_HOST.test(req.headers.host || '')) {
+        logRejected(routeLabel, 403, 'non_loopback_host');
         return json(res, 403, { error: 'Local studio requests only.' });
       }
       try {
         await handler(req, res);
       } catch (failure) {
         if (res.headersSent || res.destroyed) {
+          log.debug('errors.response.abandoned', { route: routeLabel, ...failureFields(failure) });
           return;
         }
         if (failure instanceof RequestError) {
+          const reason = failure.code || REJECTION_REASONS[failure.status] || 'rejected';
+          if (failure.status >= 500) {
+            log.error('errors.request.failed', {
+              route: routeLabel,
+              status: failure.status,
+              reason,
+            });
+          } else {
+            logRejected(routeLabel, failure.status, reason);
+          }
           return json(res, failure.status, {
             error: failure.message,
             ...(failure.code ? { code: failure.code } : {}),
           });
         }
         // Unexpected failures return a generic message; details stay out of the response.
+        log.error('errors.request.failed', {
+          route: routeLabel,
+          status: 500,
+          ...failureFields(failure),
+        });
         json(res, 500, { error: 'The errors service failed. Check Diagnostics.' });
       }
     };
   }
 
   function attach(server) {
-    server.middlewares.use('/api/errors', guarded(route));
-    server.middlewares.use('/api/ai-assist', guarded(aiAssistRoute));
+    server.middlewares.use('/api/errors', guarded(route, '/api/errors'));
+    server.middlewares.use('/api/ai-assist', guarded(aiAssistRoute, '/api/ai-assist'));
     const logger = server.config?.logger;
     if (logger?.error) {
       const original = logger.error;
@@ -732,8 +797,9 @@ export function errorsService({
           if (typeof message === 'string' && message.trim()) {
             getStore().record({ source: 'server', ...describeLoggedError(message, args[0]) });
           }
-        } catch {
+        } catch (error) {
           // Capturing must never break the original logger.
+          log.debug('errors.capture.failed', failureFields(error));
         }
         return original.call(this, message, ...args);
       };
@@ -746,8 +812,12 @@ export function errorsService({
       // scan() records its own failures in scanProblems and never rejects.
       timer = setInterval(scan, scanIntervalMs);
       timer.unref?.();
+      log.info('errors.scan.started', { intervalMs: scanIntervalMs });
     }
     server.httpServer?.once('close', () => {
+      if (timer) {
+        log.info('errors.scan.stopped');
+      }
       clearInterval(timer);
       store?.close();
       store = null;

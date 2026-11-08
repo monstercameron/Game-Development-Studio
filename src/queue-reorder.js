@@ -81,6 +81,7 @@ function reasonFor(entries, id, spec) {
       return '';
     }
     return plan.clamped ? CLAMPED : 'It is already there.';
+    // log-coverage: ignore -- render-time helper; its message is shown, not logged
   } catch (error) {
     return error.message;
   }

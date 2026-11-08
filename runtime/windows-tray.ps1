@@ -278,6 +278,18 @@ $timer.Add_Tick({
     }
 })
 $timer.Start()
+# Windows is ending the session (logoff or shutdown). Ask the studio for an orderly stop so SQLite
+# is closed and the clean-shutdown marker is written, and wait briefly (never more than 4 seconds,
+# so this cannot hold up the shutdown) for it to exit.
+$script:sessionEnding = [Microsoft.Win32.SessionEndingEventHandler]{
+    param($sender, $e)
+    try {
+        $request = @{ pid = $OwnerPid; requestedAt = [datetime]::UtcNow.ToString('o'); reason = 'session-ending' } | ConvertTo-Json -Compress
+        [System.IO.File]::WriteAllText((Join-Path $runtimeDirectory "stop-request-$Port.json"), $request)
+        [void]$owner.WaitForExit(4000)
+    } catch { Write-TrayLog 'Could not request an orderly stop for the ending Windows session.' }
+}
+[Microsoft.Win32.SystemEvents]::add_SessionEnding($script:sessionEnding)
 if ($TestResponsiveness) {
     $probeTimer = New-Object System.Windows.Forms.Timer
     $probeTimer.Interval = 1200
@@ -309,6 +321,7 @@ if ($TestWindowActions) {
 }
 try { [System.Windows.Forms.Application]::Run() }
 finally {
+    [Microsoft.Win32.SystemEvents]::remove_SessionEnding($script:sessionEnding)
     if ($probeTimer) { $probeTimer.Stop(); $probeTimer.Dispose() }
     if ($actionTimer) { $actionTimer.Stop(); $actionTimer.Dispose() }
     $http.Dispose()

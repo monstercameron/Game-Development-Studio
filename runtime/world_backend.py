@@ -10,6 +10,10 @@ import shutil
 import sys
 from pathlib import Path
 
+from app_log import get_logger
+
+log = get_logger("world")
+
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
@@ -23,6 +27,7 @@ def report_stage(work, message):
     temporary = work / "stage.tmp"
     temporary.write_text(message, encoding="utf-8")
     os.replace(temporary, work / "stage.txt")
+    log.debug("world.file.written", {"kind": "stage", "bytes": len(message.encode("utf-8"))})
     print(message, flush=True)
 
 
@@ -33,6 +38,7 @@ def main():
     request_file = Path(args.request).resolve()
     work = request_file.parent
     request = json.loads(request_file.read_text(encoding="utf-8"))
+    stop_render = log.time("world.render.completed", {"modelId": request["model"]})
     # Initialize CUDA and model dependencies only in this spawned render process.
     import torch
 
@@ -128,12 +134,23 @@ def main():
                 num_inference_steps=request.get("steps", 50),
                 **guidance,
             )
-        generator = WorldGen(
-            mode={"text": "t2s", "image": "i2s", "panorama": "pano"}[mode],
-            resolution=request["resolution"],
-            device=torch.device("cuda"),
-            low_vram=False,
-        )
+        log.info("world.model.load.started", {"modelId": request["model"]})
+        stop_load = log.time("world.model.load.completed", {"modelId": request["model"]})
+        try:
+            generator = WorldGen(
+                mode={"text": "t2s", "image": "i2s", "panorama": "pano"}[mode],
+                resolution=request["resolution"],
+                device=torch.device("cuda"),
+                low_vram=False,
+            )
+        except Exception as error:
+            log.error(
+                "world.model.load.failed",
+                {"modelId": request["model"], "errorClass": type(error).__name__},
+            )
+            raise
+        stop_load()
+        log.info("world.generation.started", {"modelId": request["model"]})
         with torch.inference_mode():
             if mode == "panorama":
                 image = (
@@ -205,10 +222,21 @@ def main():
             cropped = normalize_views(images, inputs)
             if cropped:
                 print(f"Cropped views {cropped} to the first view's proportions.", flush=True)
-        model = WorldMirrorPipeline.from_pretrained(str(weights), enable_bf16=True)
+        log.info("world.model.load.started", {"modelId": request["model"]})
+        stop_load = log.time("world.model.load.completed", {"modelId": request["model"]})
+        try:
+            model = WorldMirrorPipeline.from_pretrained(str(weights), enable_bf16=True)
+        except Exception as error:
+            log.error(
+                "world.model.load.failed",
+                {"modelId": request["model"], "errorClass": type(error).__name__},
+            )
+            raise
+        stop_load()
         report_stage(work, "Reconstructing the scene from your reference views.")
-        log = Tee(sys.stdout)
-        with torch.inference_mode(), contextlib.redirect_stdout(log):
+        console_tee = Tee(sys.stdout)
+        log.info("world.generation.started", {"modelId": request["model"]})
+        with torch.inference_mode(), contextlib.redirect_stdout(console_tee):
             out = model(
                 str(inputs),
                 strict_output_path=str(work / "reconstruction"),
@@ -224,7 +252,7 @@ def main():
         if not out:
             # The pipeline only prints why it skipped the scene; say it in the error.
             raise RuntimeError(
-                skip_reason(log.text) or "HY-World did not produce a reconstruction."
+                skip_reason(console_tee.text) or "HY-World did not produce a reconstruction."
             )
         generated = Path(out) / "gaussians.ply"
         if not generated.is_file():
@@ -236,6 +264,7 @@ def main():
     if not target.is_file() or not target.stat().st_size:
         raise RuntimeError("The generator produced an empty world.")
     os.replace(target, work / f"result.{extension}")
+    stop_render()
     print("World render complete.", flush=True)
 
 
@@ -244,11 +273,15 @@ if __name__ == "__main__":
         main()
     except Exception as error:
         message = re.sub(r"hf_[A-Za-z0-9]+", "[redacted]", str(error))[:1500]
+        log.error("world.render.failed", {"errorClass": type(error).__name__})
         if "--request" in sys.argv:
             try:
                 (
                     Path(sys.argv[sys.argv.index("--request") + 1]).resolve().parent / "error.txt"
                 ).write_text(message, encoding="utf-8")
-            except Exception:
-                pass
+            except Exception as write_error:
+                log.warn(
+                    "world.error.file.write.failed",
+                    {"errorClass": type(write_error).__name__},
+                )
         raise

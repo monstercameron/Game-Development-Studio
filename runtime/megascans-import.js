@@ -6,7 +6,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { extractZipEntry, readZipDirectory, ZipError } from './zip-reader.js';
+import { createLogger } from './app-log.js';
 
+const log = createLogger('megascans');
 const MiB = 1024 * 1024;
 const GiB = 1024 * MiB;
 
@@ -78,9 +80,15 @@ const RESERVED_WINDOWS_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
 const INVALID_SEGMENT_CHARACTERS = /[<>:"|?*\u0000-\u001f]/;
 
 export class ImportError extends Error {
-  constructor(message) {
+  /**
+   * @param {string} message Safe to show to the user.
+   * @param {string} [reason] Short code for logs (for example zip_slip or too_large). Never logged
+   *   together with the message.
+   */
+  constructor(message, reason = 'rejected') {
     super(message);
     this.name = 'ImportError';
+    this.reason = reason;
   }
 }
 
@@ -122,11 +130,14 @@ export function cleanUploadName(value) {
  */
 export function safeSegments(name) {
   if (typeof name !== 'string' || !name || name.includes('\0')) {
-    throw new ImportError('The archive contains an invalid file name.');
+    throw new ImportError('The archive contains an invalid file name.', 'invalid_name');
   }
   const normalized = name.replaceAll('\\', '/');
   if (normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized)) {
-    throw new ImportError('The archive contains an absolute path, which is not allowed.');
+    throw new ImportError(
+      'The archive contains an absolute path, which is not allowed.',
+      'zip_slip',
+    );
   }
   const segments = [];
   for (const segment of normalized.split('/')) {
@@ -134,7 +145,10 @@ export function safeSegments(name) {
       continue;
     }
     if (segment === '..') {
-      throw new ImportError('The archive tries to write outside its folder and was rejected.');
+      throw new ImportError(
+        'The archive tries to write outside its folder and was rejected.',
+        'zip_slip',
+      );
     }
     if (
       INVALID_SEGMENT_CHARACTERS.test(segment) ||
@@ -142,12 +156,15 @@ export function safeSegments(name) {
       /[. ]$/.test(segment) ||
       segment.length > IMPORT_LIMITS.maxSegmentLength
     ) {
-      throw new ImportError('The archive contains a file name that Windows cannot store safely.');
+      throw new ImportError(
+        'The archive contains a file name that Windows cannot store safely.',
+        'invalid_name',
+      );
     }
     segments.push(segment);
   }
   if (!segments.length || segments.join('/').length > IMPORT_LIMITS.maxPathLength) {
-    throw new ImportError('The archive contains a missing or overlong file name.');
+    throw new ImportError('The archive contains a missing or overlong file name.', 'invalid_name');
   }
   return segments;
 }
@@ -176,7 +193,10 @@ function classify(extension) {
 export function planArchive(entries, overrides = {}) {
   const limits = { ...IMPORT_LIMITS, ...overrides };
   if (entries.length > limits.maxEntries) {
-    throw new ImportError(`The archive has more than ${limits.maxEntries} files.`);
+    throw new ImportError(
+      `The archive has more than ${limits.maxEntries} files.`,
+      'too_many_entries',
+    );
   }
   const files = [];
   const seen = new Set();
@@ -184,10 +204,10 @@ export function planArchive(entries, overrides = {}) {
   let totalBytes = 0;
   for (const entry of entries) {
     if (entry.isEncrypted) {
-      throw new ImportError('Encrypted ZIP archives are not supported.');
+      throw new ImportError('Encrypted ZIP archives are not supported.', 'encrypted');
     }
     if (entry.isSymlink) {
-      throw new ImportError('The archive contains a symbolic link and was rejected.');
+      throw new ImportError('The archive contains a symbolic link and was rejected.', 'symlink');
     }
     const segments = safeSegments(entry.name);
     if (entry.isDirectory) {
@@ -197,6 +217,7 @@ export function planArchive(entries, overrides = {}) {
     if (BLOCKED_EXTENSIONS.has(extension)) {
       throw new ImportError(
         `The archive contains an executable or script (${extension}) and was rejected.`,
+        'blocked_type',
       );
     }
     const kind = classify(extension);
@@ -205,13 +226,16 @@ export function planArchive(entries, overrides = {}) {
       continue;
     }
     if (entry.size > limits.maxFileBytes) {
-      throw new ImportError('A file in the archive is larger than the 4 GiB limit.');
+      throw new ImportError('A file in the archive is larger than the 4 GiB limit.', 'too_large');
     }
     if (
       entry.size > limits.ratioFloorBytes &&
       entry.size > Math.max(entry.compressedSize, 1) * limits.maxRatio
     ) {
-      throw new ImportError('The archive expands far more than expected and was rejected.');
+      throw new ImportError(
+        'The archive expands far more than expected and was rejected.',
+        'expansion_ratio',
+      );
     }
     if (kind === 'note' && entry.size > limits.maxNoteBytes) {
       skipped++;
@@ -219,18 +243,19 @@ export function planArchive(entries, overrides = {}) {
     }
     const key = segments.join('/').toLowerCase();
     if (seen.has(key)) {
-      throw new ImportError('The archive contains the same file name twice.');
+      throw new ImportError('The archive contains the same file name twice.', 'duplicate_name');
     }
     seen.add(key);
     totalBytes += entry.size;
     if (totalBytes > limits.maxExpandedBytes) {
-      throw new ImportError('The archive would expand to more than 6 GiB.');
+      throw new ImportError('The archive would expand to more than 6 GiB.', 'too_large');
     }
     files.push({ entry, segments, kind, size: entry.size });
   }
   if (!files.some((file) => file.kind === 'model')) {
     throw new ImportError(
       'No supported 3D model was found in the archive. Forge imports GLB, glTF, FBX, OBJ, PLY and STL; Unreal Engine packages are not supported.',
+      'no_model',
     );
   }
   // A single wrapper folder around everything adds nothing to the project.
@@ -250,7 +275,7 @@ export async function checkModelFile(file, extension) {
   try {
     const { size } = await handle.stat();
     if (size === 0) {
-      throw new ImportError('The file is empty.');
+      throw new ImportError('The file is empty.', 'empty_file');
     }
     const head = Buffer.alloc(Math.min(size, 512));
     await handle.read(head, 0, head.length, 0);
@@ -271,7 +296,10 @@ export async function checkModelFile(file, extension) {
                   ? size >= 84 || /^\s*solid/i.test(text)
                   : false;
     if (!valid) {
-      throw new ImportError(`This file does not look like a valid ${extension} model.`);
+      throw new ImportError(
+        `This file does not look like a valid ${extension} model.`,
+        'wrong_type',
+      );
     }
     return size;
   } finally {
@@ -321,7 +349,12 @@ async function readMegascansMetadata(directory, plan) {
     const parsed = JSON.parse(await fs.readFile(path.join(directory, ...note.segments), 'utf8'));
     const name = typeof parsed?.name === 'string' ? parsed.name.trim().slice(0, 120) : '';
     return name ? { title: name } : {};
-  } catch {
+  } catch (error) {
+    // The metadata only suggests a title, so an unreadable file is expected and stays at debug.
+    log.debug('megascans.metadata.read.failed', {
+      errorClass: error?.name,
+      errorCode: error?.code,
+    });
     return {};
   }
 }
@@ -343,6 +376,7 @@ async function readMegascansMetadata(directory, plan) {
 export async function runImport(job) {
   const { id, projectFolder, uploadPath, stagingDirectory, filename, signal, onProgress } = job;
   const extension = extensionOf(filename);
+  const startedAt = Date.now();
   const shortId = id.slice(0, 8);
   const workDirectory = path.join(stagingDirectory, 'work');
   await fs.rm(workDirectory, { recursive: true, force: true });
@@ -351,7 +385,7 @@ export async function runImport(job) {
   await fs.mkdir(modelsDirectory, { recursive: true });
   const modelsReal = await fs.realpath(modelsDirectory);
   if (!inside(await fs.realpath(projectFolder), modelsReal)) {
-    throw new ImportError('The project folder is not usable.');
+    throw new ImportError('The project folder is not usable.', 'project_unusable');
   }
   const baseName = slugify(job.title || path.basename(filename, extension));
   const progress = { bytesDone: 0, bytesTotal: 0 };
@@ -364,6 +398,11 @@ export async function runImport(job) {
       const target = path.join(modelsReal, `${baseName}-${shortId}${extension}`);
       throwIfAborted(signal);
       await moveIntoProject(uploadPath, target);
+      log.info('megascans.model.saved', {
+        importId: id,
+        bytes: progress.bytesTotal,
+        durationMs: Date.now() - startedAt,
+      });
       progress.bytesDone = progress.bytesTotal;
       report('Saved');
       return {
@@ -378,11 +417,13 @@ export async function runImport(job) {
     try {
       directory = await readZipDirectory(uploadPath, { maxEntries: IMPORT_LIMITS.maxEntries });
     } catch (error) {
-      throw error instanceof ZipError ? new ImportError(error.message) : error;
+      throw error instanceof ZipError ? new ImportError(error.message, 'invalid_archive') : error;
     }
     const plan = planArchive(directory.entries);
     progress.bytesTotal = plan.totalBytes;
     await ensureFreeSpace(projectFolder, plan.totalBytes);
+    const extractStartedAt = Date.now();
+    log.info('megascans.extract.started', { importId: id, entryCount: directory.entries.length });
     report('Extracting');
     const output = path.join(workDirectory, 'out');
     await fs.mkdir(output);
@@ -406,17 +447,33 @@ export async function runImport(job) {
         if (error?.name === 'AbortError') {
           throw error;
         }
+        log.warn('megascans.extract.failed', {
+          importId: id,
+          errorClass: error?.name,
+          errorCode: error?.code,
+          durationMs: Date.now() - extractStartedAt,
+        });
         throw error instanceof ZipError
-          ? new ImportError(error.message)
-          : new ImportError('The archive could not be extracted. It may be damaged.');
+          ? new ImportError(error.message, 'invalid_archive')
+          : new ImportError(
+              'The archive could not be extracted. It may be damaged.',
+              'damaged_archive',
+            );
       }
     }
+    log.info('megascans.extract.completed', {
+      importId: id,
+      fileCount: plan.files.length,
+      skippedCount: plan.skipped,
+      bytes: plan.totalBytes,
+      durationMs: Date.now() - extractStartedAt,
+    });
     throwIfAborted(signal);
     const suggested = await readMegascansMetadata(output, plan);
     const folderName = `megascans-${slugify(job.title || suggested.title || path.basename(filename, extension))}-${shortId}`;
     const target = path.join(modelsReal, folderName);
     if (!inside(modelsReal, target)) {
-      throw new ImportError('The output folder name is not usable.');
+      throw new ImportError('The output folder name is not usable.', 'invalid_name');
     }
     report('Saving to the project');
     await moveIntoProject(output, target);
@@ -430,8 +487,22 @@ export async function runImport(job) {
       bytes: plan.totalBytes,
       suggestedTitle: suggested.title,
     };
+  } catch (error) {
+    if (error instanceof ImportError) {
+      log.warn('megascans.archive.rejected', {
+        importId: id,
+        kind: extension === '.zip' ? 'archive' : 'model',
+        reason: error.reason,
+      });
+    }
+    throw error;
   } finally {
-    await fs.rm(workDirectory, { recursive: true, force: true }).catch(() => {});
+    await fs.rm(workDirectory, { recursive: true, force: true }).catch((error) => {
+      log.debug('megascans.work.cleanup.failed', {
+        errorClass: error?.name,
+        errorCode: error?.code,
+      });
+    });
   }
 }
 
@@ -440,7 +511,10 @@ export async function runImport(job) {
 async function moveIntoProject(source, target) {
   try {
     await fs.access(target);
-    throw new ImportError('A file with this import name already exists in the project.');
+    throw new ImportError(
+      'A file with this import name already exists in the project.',
+      'target_exists',
+    );
   } catch (error) {
     if (error instanceof ImportError) {
       throw error;
@@ -449,7 +523,7 @@ async function moveIntoProject(source, target) {
   try {
     await fs.rename(source, target);
   } catch {
-    throw new ImportError('Could not save the import into the project folder.');
+    throw new ImportError('Could not save the import into the project folder.', 'save_failed');
   }
 }
 
@@ -457,6 +531,7 @@ export async function ensureFreeSpace(folder, bytes) {
   if (bytes + IMPORT_LIMITS.freeSpaceMarginBytes > (await freeBytes(folder))) {
     throw new ImportError(
       'There is not enough free disk space on the project drive for this import.',
+      'no_space',
     );
   }
 }

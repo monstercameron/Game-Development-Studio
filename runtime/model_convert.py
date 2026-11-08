@@ -17,6 +17,10 @@ import struct
 import sys
 from pathlib import Path
 
+from app_log import get_logger
+
+log = get_logger("model")
+
 SOURCE_FORMATS = {".glb": "glb", ".gltf": "gltf", ".obj": "obj", ".ply": "ply", ".stl": "stl"}
 TARGET_FORMATS = ("glb", "gltf", "obj", "ply", "stl")
 MAX_SOURCE_BYTES = 512 * 1024 * 1024
@@ -27,15 +31,22 @@ MIME_BY_SUFFIX = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpe
 
 
 class ConversionError(Exception):
-    """A problem the user can act on; its message is shown as is."""
+    """A problem the user can act on; its message is shown as is.
+
+    `reason` is a short code for the log. The message may name the user's file: never log it.
+    """
+
+    def __init__(self, message, reason):
+        super().__init__(message)
+        self.reason = reason
 
 
 def read_glb(data):
     if len(data) < 20:
-        raise ConversionError("The GLB file is too short.")
+        raise ConversionError("The GLB file is too short.", "glb_too_short")
     magic, version, length = struct.unpack_from("<III", data, 0)
     if magic != GLB_MAGIC or version != 2 or length > len(data):
-        raise ConversionError("This is not a valid GLB 2.0 file.")
+        raise ConversionError("This is not a valid GLB 2.0 file.", "invalid_glb")
     document, binary, offset = None, b"", 12
     while offset + 8 <= length:
         size, kind = struct.unpack_from("<II", data, offset)
@@ -46,7 +57,7 @@ def read_glb(data):
             binary = bytes(chunk)
         offset += 8 + size + (-size % 4)
     if document is None:
-        raise ConversionError("The GLB file has no JSON chunk.")
+        raise ConversionError("The GLB file has no JSON chunk.", "glb_missing_json")
     return document, binary
 
 
@@ -65,15 +76,23 @@ def read_uri(uri, folder):
     if uri.startswith("data:"):
         header, _, payload = uri.partition(",")
         if ";base64" not in header:
-            raise ConversionError("Only base64 data URIs are supported inside glTF files.")
+            raise ConversionError(
+                "Only base64 data URIs are supported inside glTF files.", "uri_not_base64"
+            )
         return base64.b64decode(payload)
     if "://" in uri or uri.startswith(("/", "\\")) or ".." in Path(uri).parts:
-        raise ConversionError("The glTF file refers to a file outside its own folder.")
+        raise ConversionError(
+            "The glTF file refers to a file outside its own folder.", "uri_outside_folder"
+        )
     path = (folder / uri).resolve()
     if folder.resolve() not in path.parents:
-        raise ConversionError("The glTF file refers to a file outside its own folder.")
+        raise ConversionError(
+            "The glTF file refers to a file outside its own folder.", "uri_outside_folder"
+        )
     if not path.is_file():
-        raise ConversionError(f"The glTF file needs {uri}, which is missing next to it.")
+        raise ConversionError(
+            f"The glTF file needs {uri}, which is missing next to it.", "uri_missing"
+        )
     return path.read_bytes()
 
 
@@ -141,9 +160,11 @@ def load_mesh(source, trimesh):
     path = Path(source)
     kind = SOURCE_FORMATS.get(path.suffix.lower())
     if kind is None:
-        raise ConversionError("This file type cannot be converted.")
+        raise ConversionError("This file type cannot be converted.", "unsupported_source")
     if path.stat().st_size > MAX_SOURCE_BYTES:
-        raise ConversionError("The model is too large to convert (over 512 MiB).")
+        raise ConversionError(
+            "The model is too large to convert (over 512 MiB).", "source_too_large"
+        )
     if kind == "glb":
         loaded = trimesh.load(
             io.BytesIO(prepare_glb_for_trimesh(path.read_bytes())),
@@ -155,16 +176,17 @@ def load_mesh(source, trimesh):
     if isinstance(loaded, trimesh.Scene):
         meshes = [item for item in loaded.dump() if isinstance(item, trimesh.Trimesh)]
         if not meshes:
-            raise ConversionError("The file has no triangle mesh to convert.")
+            raise ConversionError("The file has no triangle mesh to convert.", "no_mesh")
         mesh = meshes[0] if len(meshes) == 1 else trimesh.util.concatenate(meshes)
     elif isinstance(loaded, trimesh.Trimesh):
         mesh = loaded
     else:
         raise ConversionError(
-            "This file holds points or a splat, not a triangle mesh, so it cannot be converted."
+            "This file holds points or a splat, not a triangle mesh, so it cannot be converted.",
+            "not_triangle_mesh",
         )
     if not len(mesh.vertices) or not len(mesh.faces):
-        raise ConversionError("The file has no triangle mesh to convert.")
+        raise ConversionError("The file has no triangle mesh to convert.", "no_mesh")
     return mesh
 
 
@@ -194,27 +216,31 @@ def write_obj(mesh, directory, stem):
     for name, data in extras.items():
         if name in names:
             (directory / names[name]).write_bytes(data)
+            log.debug("model.file.written", {"kind": "texture"})
             files.append({"name": names[name], "role": "texture"})
         else:
             mtl = data.decode("utf-8")
             for old, new in names.items():
                 mtl = mtl.replace(old, new)
             (directory / name).write_text(mtl, encoding="utf-8")
+            log.debug("model.file.written", {"kind": "material"})
             files.append({"name": name, "role": "material"})
     (directory / f"{stem}.obj").write_text(text, encoding="utf-8")
+    log.debug("model.file.written", {"kind": "output"})
     return [{"name": f"{stem}.obj", "role": "main"}, *files]
 
 
 def convert(source, directory, stem, target):
     if target not in TARGET_FORMATS:
-        raise ConversionError("Choose a supported 3D format.")
+        raise ConversionError("Choose a supported 3D format.", "unsupported_target")
     directory = Path(directory)
     source_kind = SOURCE_FORMATS.get(Path(source).suffix.lower())
     if source_kind == target:
-        raise ConversionError("The file is already in that format.")
+        raise ConversionError("The file is already in that format.", "same_format")
     notes = []
     if source_kind == "glb" and target == "gltf":
         (directory / f"{stem}.gltf").write_bytes(glb_to_gltf(Path(source).read_bytes()))
+        log.debug("model.file.written", {"kind": "output"})
         return {
             "backend": "container repackage",
             "files": [{"name": f"{stem}.gltf", "role": "main"}],
@@ -222,6 +248,7 @@ def convert(source, directory, stem, target):
         }
     if source_kind == "gltf" and target == "glb":
         (directory / f"{stem}.glb").write_bytes(gltf_to_glb(source))
+        log.debug("model.file.written", {"kind": "output"})
         return {
             "backend": "container repackage",
             "files": [{"name": f"{stem}.glb", "role": "main"}],
@@ -243,9 +270,11 @@ def convert(source, directory, stem, target):
             mesh.visual = mesh.visual.to_color()
             notes.append("PLY has no textures, so the texture was baked into vertex colours.")
         (directory / f"{stem}.ply").write_bytes(mesh.export(file_type="ply"))
+        log.debug("model.file.written", {"kind": "output"})
         files = [{"name": f"{stem}.ply", "role": "main"}]
     elif target == "stl":
         (directory / f"{stem}.stl").write_bytes(mesh.export(file_type="stl"))
+        log.debug("model.file.written", {"kind": "output"})
         files = [{"name": f"{stem}.stl", "role": "main"}]
         notes.append("STL holds geometry only; colours and textures are dropped.")
     else:
@@ -254,22 +283,38 @@ def convert(source, directory, stem, target):
         if target == "gltf":
             data = glb_to_gltf(data)
         (directory / f"{stem}.{target}").write_bytes(data)
+        log.debug("model.file.written", {"kind": "output"})
         files = [{"name": f"{stem}.{target}", "role": "main"}]
     return {"backend": f"trimesh {trimesh.__version__}", "files": files, "notes": notes}
 
 
 def main():
     request = json.load(sys.stdin)
+    # Only allow-listed values reach the log; the raw request fields may hold user paths.
+    target = request.get("format")
+    source_extension = Path(str(request.get("source", ""))).suffix.lower()
+    fields = {
+        "format": target if target in TARGET_FORMATS else "unknown",
+        "extension": source_extension if source_extension in SOURCE_FORMATS else "unknown",
+    }
+    log.info("model.convert.started", fields)
+    stop = log.time("model.convert.completed", fields)
     try:
         result = convert(
             request["source"], request["directory"], request["stem"], request["format"]
         )
     except ConversionError as error:
+        log.warn(
+            "model.convert.rejected",
+            {"reason": error.reason, "errorClass": type(error).__name__},
+        )
         print(str(error), file=sys.stderr)
         return 1
     except Exception as error:  # Any parser failure becomes one readable line.
+        log.error("model.convert.failed", {"errorClass": type(error).__name__, **fields})
         print(f"Could not convert this model: {str(error).splitlines()[0][:300]}", file=sys.stderr)
         return 1
+    stop({"fileCount": len(result["files"])})
     print(json.dumps(result))
     return 0
 

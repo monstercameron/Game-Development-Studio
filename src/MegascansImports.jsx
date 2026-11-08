@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, RotateCcw, Upload, X } from 'lucide-react';
 import { DownloadConsent } from './MegascansFab';
+import { createLog } from './app-log.js';
 import {
   ACTIVE_STATUSES,
   MAX_CONCURRENT_IMPORTS,
@@ -10,11 +11,13 @@ import {
   getMegascans,
   percentDone,
   postMegascans,
+  requestFailureFields,
   statusLabel,
 } from './megascans-api';
 
 const FAST_POLL_MS = 1200;
 const SLOW_POLL_MS = 10000;
+const log = createLog('megascans');
 
 /** Polls the import queue: quickly while something is active, slowly otherwise. */
 export function useImportQueue() {
@@ -23,19 +26,27 @@ export function useImportQueue() {
   const refresh = useCallback(() => setReload((value) => value + 1), []);
   const hasActive = state.imports.some((item) => ACTIVE_STATUSES.includes(item.status));
 
+  const hasLoggedFailure = useRef(false);
+
   useEffect(() => {
     const controller = new AbortController();
     const load = async () => {
       try {
         const data = await getMegascans('/imports', { signal: controller.signal });
+        hasLoggedFailure.current = false;
         setState({ imports: data.imports, summary: data.summary, error: '', loaded: true });
       } catch (error) {
         if (error?.name !== 'AbortError') {
+          if (!hasLoggedFailure.current) {
+            hasLoggedFailure.current = true;
+            log.warn('megascans.imports.load.failed', requestFailureFields(error));
+          }
           setState((current) => ({ ...current, error: error.message, loaded: true }));
         }
       }
     };
     load();
+    log.debug('megascans.imports.poll.started', { isFastPoll: hasActive });
     const timer = setInterval(load, hasActive ? FAST_POLL_MS : SLOW_POLL_MS);
     return () => {
       controller.abort();
@@ -173,8 +184,10 @@ export function ImportsPanel({
     setActionError('');
     try {
       await postMegascans(`/imports/${item.id}/${action}`);
+      log.info('megascans.import.action.completed', { action });
       refresh();
     } catch (failure) {
+      log.warn('megascans.import.action.failed', { action, ...requestFailureFields(failure) });
       if (alive.current) {
         setActionError(failure.message);
       }

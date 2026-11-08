@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
+import { fsyncFile } from './durable-file.js';
 
 const maxBytes = 1024 * 1024;
 function inside(root, target) {
@@ -98,6 +99,7 @@ export async function saveThumbnail(project, asset, input) {
     temp = path.join(path.dirname(target), `.${randomUUID()}.tmp`);
   try {
     await fs.writeFile(temp, image, { flag: 'wx' });
+    await fsyncFile(temp);
     try {
       await fs.link(temp, target);
     } catch (error) {

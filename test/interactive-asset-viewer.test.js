@@ -73,6 +73,7 @@ test('interactive preview fills the inspection window and manages keyboard focus
       import React, { Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
       import { createPortal } from 'react-dom';
       import { topModal } from '${pathToFileURL(path.join(repositoryRoot, 'src', 'modal-layer.js')).href}';
+      import { createLog } from '${pathToFileURL(path.join(repositoryRoot, 'src', 'app-log.js')).href}';
       const Maximize2 = () => null;
       const Maximize = () => null;
       const Minimize2 = () => null;

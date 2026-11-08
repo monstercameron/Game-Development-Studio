@@ -9,6 +9,9 @@ import {
   findSpecies,
   vegetationVariations,
 } from '../runtime/vegetation-request.js';
+import { createLog } from './app-log.js';
+
+const log = createLog('vegetation');
 
 export const DEFAULT_SPECIES = 'whiteOak';
 export const BUDGET_NAMES = { low: 'Low', medium: 'Medium', high: 'High' };
@@ -146,8 +149,9 @@ const REUSE_KEY = 'forge-vegetation-reuse';
 export function stashReuse(request) {
   try {
     window.sessionStorage.setItem(REUSE_KEY, JSON.stringify(request));
-  } catch {
+  } catch (error) {
     // Without session storage the page just opens with its own state.
+    log.debug('vegetation.reuse.stash.failed', { error });
   }
 }
 
@@ -156,7 +160,8 @@ export function takeReuse() {
     const text = window.sessionStorage.getItem(REUSE_KEY);
     window.sessionStorage.removeItem(REUSE_KEY);
     return text ? JSON.parse(text) : null;
-  } catch {
+  } catch (error) {
+    log.debug('vegetation.reuse.take.failed', { error });
     return null;
   }
 }

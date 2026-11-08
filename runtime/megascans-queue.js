@@ -6,7 +6,10 @@
 // processes) racing for the last slot cannot both win. A row left `running` by a crash becomes
 // `interrupted` and is never restarted automatically, because Forge cannot know how far the
 // extraction got. The user decides whether to retry.
+import { createLogger } from './app-log.js';
 import { transaction } from './megascans-db.js';
+
+const log = createLogger('megascans');
 
 export const MAX_CONCURRENT_IMPORTS = 2;
 export const MAX_WAITING_IMPORTS = 50;
@@ -15,12 +18,38 @@ export const TERMINAL_STATUSES = Object.freeze(['completed', 'failed', 'cancelle
 export const RESTART_MESSAGE =
   'Forge stopped while this import was running. Retry to start it again.';
 
+// Why a running import left the running state, as logged. Never the error text.
+const FINISH_REASON_BY_STATUS = Object.freeze({
+  completed: 'finished',
+  failed: 'runner_error',
+  cancelled: 'cancel_honored',
+  interrupted: 'restart_detected',
+});
+
 export class QueueError extends Error {
   constructor(message, status = 409) {
     super(message);
     this.name = 'QueueError';
+    // log-coverage: ignore -- an HTTP status on the error object, not an import state change
     this.status = status;
   }
+}
+
+function elapsedMs(startIso, endIso) {
+  const start = Date.parse(startIso);
+  const end = Date.parse(endIso);
+  return Number.isFinite(start) && Number.isFinite(end) ? Math.max(end - start, 0) : null;
+}
+
+// A user cancel is info (the service logs it); a failed import affects the user, so it is an error.
+function finishLevel(status) {
+  if (status === 'failed') {
+    return 'error';
+  }
+  if (status === 'interrupted') {
+    return 'warn';
+  }
+  return 'info';
 }
 
 function publicImport(row) {
@@ -76,7 +105,11 @@ export class ImportQueue {
            updated_at=?, rate_bps=NULL WHERE status='running'`,
       )
       .run(RESTART_MESSAGE, stamp, stamp);
-    return Number(result.changes);
+    const interruptedCount = Number(result.changes);
+    if (interruptedCount > 0) {
+      log.info('megascans.import.recovered', { interruptedCount, to: 'interrupted' });
+    }
+    return interruptedCount;
   }
 
   enqueue({
@@ -96,6 +129,11 @@ export class ImportQueue {
         .prepare("SELECT COUNT(*) AS count FROM imports WHERE status='queued'")
         .get();
       if (count >= MAX_WAITING_IMPORTS) {
+        log.warn('megascans.import.rejected', {
+          reason: 'too_many_waiting',
+          queueLength: count,
+          limit: MAX_WAITING_IMPORTS,
+        });
         throw new QueueError('Too many imports are waiting. Wait for some to finish.', 429);
       }
       this.db
@@ -165,7 +203,8 @@ export class ImportQueue {
    * @returns {object | null} The raw row, now `running`, or null when nothing can start.
    */
   claimNext() {
-    return transaction(this.db, () => {
+    let runningCount = 0;
+    const claimed = transaction(this.db, () => {
       const { count } = this.db
         .prepare("SELECT COUNT(*) AS count FROM imports WHERE status='running'")
         .get();
@@ -179,18 +218,34 @@ export class ImportQueue {
         return null;
       }
       const stamp = this.stamp();
+      // log-coverage: ignore -- the started event is logged by claimNext after the commit
       this.db
         .prepare(
           `UPDATE imports SET status='running', stage='Starting', started_at=?, finished_at=NULL,
              updated_at=?, error=NULL, bytes_done=0, rate_bps=NULL WHERE id=?`,
         )
         .run(stamp, stamp, next.id);
+      runningCount = count + 1;
       return this.row(next.id);
     });
+    // Logged after the commit, so a rolled-back claim is never reported as started.
+    if (claimed) {
+      log.info('megascans.import.started', {
+        importId: claimed.id,
+        kind: claimed.kind,
+        source: claimed.source,
+        from: 'queued',
+        to: 'running',
+        runningCount,
+        limit: this.maxConcurrent,
+      });
+    }
+    return claimed;
   }
 
   /** Records progress of a running import. Ignored once it left `running`. */
   setProgress(id, { bytesDone, bytesTotal, bytesPerSecond, stage }) {
+    // log-coverage: ignore -- progress tick once per chunk; the status is only a guard, not a change
     this.db
       .prepare(
         `UPDATE imports SET bytes_done=?, bytes_total=?, rate_bps=?, stage=?, updated_at=?
@@ -208,6 +263,7 @@ export class ImportQueue {
 
   finish(id, status, { error = null, output = null, stage = null } = {}) {
     const stamp = this.stamp();
+    const before = this.row(id);
     const result = this.db
       .prepare(
         `UPDATE imports SET status=?, stage=?, error=?, output=?, finished_at=?, updated_at=?,
@@ -224,7 +280,19 @@ export class ImportQueue {
         status,
         id,
       );
-    return Number(result.changes) > 0;
+    const isChanged = Number(result.changes) > 0;
+    if (isChanged) {
+      log[finishLevel(status)]('megascans.import.state.changed', {
+        importId: id,
+        from: 'running',
+        to: status,
+        reason: FINISH_REASON_BY_STATUS[status] || 'finished',
+        durationMs: elapsedMs(before?.started_at, stamp),
+        bytesTotal: before?.bytes_total,
+      });
+      log.debug('megascans.import.slot.released', { importId: id, to: status });
+    }
+    return isChanged;
   }
 
   complete(id, output) {
@@ -247,6 +315,7 @@ export class ImportQueue {
     return transaction(this.db, () => {
       const row = this.row(id);
       if (!row) {
+        log.warn('megascans.import.rejected', { reason: 'not_found', operation: 'cancel' });
         throw new QueueError('Import not found.', 404);
       }
       const stamp = this.stamp();
@@ -257,6 +326,12 @@ export class ImportQueue {
              WHERE id=?`,
           )
           .run(stamp, stamp, id);
+        log.debug('megascans.import.state.changed', {
+          importId: id,
+          from: 'queued',
+          to: 'cancelled',
+          reason: 'cancel_waiting',
+        });
         return { import: this.get(id), wasRunning: false };
       }
       if (row.status === 'running') {
@@ -265,8 +340,14 @@ export class ImportQueue {
             "UPDATE imports SET cancel_requested=1, stage='Cancelling', updated_at=? WHERE id=?",
           )
           .run(stamp, id);
+        log.debug('megascans.import.cancel.requested', { importId: id, from: 'running' });
         return { import: this.get(id), wasRunning: true };
       }
+      log.warn('megascans.import.rejected', {
+        importId: id,
+        reason: 'already_finished',
+        status: row.status,
+      });
       throw new QueueError('This import already finished.');
     });
   }
@@ -276,9 +357,15 @@ export class ImportQueue {
     return transaction(this.db, () => {
       const row = this.row(id);
       if (!row) {
+        log.warn('megascans.import.rejected', { reason: 'not_found', operation: 'retry' });
         throw new QueueError('Import not found.', 404);
       }
       if (!['failed', 'interrupted', 'cancelled'].includes(row.status)) {
+        log.warn('megascans.import.rejected', {
+          importId: id,
+          reason: 'not_retryable',
+          status: row.status,
+        });
         throw new QueueError('Only failed, interrupted or cancelled imports can be retried.');
       }
       const stamp = this.stamp();
@@ -298,12 +385,19 @@ export class ImportQueue {
     return transaction(this.db, () => {
       const row = this.row(id);
       if (!row) {
+        log.warn('megascans.import.rejected', { reason: 'not_found', operation: 'dismiss' });
         throw new QueueError('Import not found.', 404);
       }
       if (ACTIVE_STATUSES.includes(row.status)) {
+        log.warn('megascans.import.rejected', {
+          importId: id,
+          reason: 'still_active',
+          status: row.status,
+        });
         throw new QueueError('Cancel this import before dismissing it.');
       }
       this.db.prepare('DELETE FROM imports WHERE id=?').run(id);
+      log.debug('megascans.import.dismissed', { importId: id, status: row.status });
       return row;
     });
   }

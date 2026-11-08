@@ -42,6 +42,7 @@ export function createRuntimeLog({
       }
     });
   } catch (error) {
+    // log-coverage: ignore -- this is the runtime log file writer itself; it reports through reportUnavailable
     reportUnavailable(error);
   }
   return {

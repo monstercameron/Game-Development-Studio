@@ -1,8 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { KeyRound, Sparkles } from 'lucide-react';
+import { createLog } from './app-log.js';
 import ChatMarkdown from './ChatMarkdown';
 import { copyToClipboard } from './error-copy.js';
 import { getErrors, postErrors } from './errors-api.js';
+
+const log = createLog('errors');
+// Provider word for GPT suggestion events. The request body and the suggestion are never logged.
+const SUGGESTION_PROVIDER = 'openai';
+
+// Whole milliseconds since startedAt, for log durations.
+function elapsedMs(startedAt) {
+  return Math.round(performance.now() - startedAt);
+}
 
 /**
  * Optional "Suggest a fix with GPT". Nothing is sent until the user reviews the exact request
@@ -30,6 +40,7 @@ export default function ErrorFixPanel({ error, onUpdated, onOpenSettings, onStat
         }
       })
       .catch((reason) => {
+        log.warn('errors.settings.load.failed', { errorClass: reason?.name });
         if (alive) {
           setSettingsError(reason.message);
         }
@@ -61,6 +72,7 @@ export default function ErrorFixPanel({ error, onUpdated, onOpenSettings, onStat
       setPhase('idle');
       onStatus(`Model set to ${data.model}.`);
     } catch (reason) {
+      log.warn('errors.model.save.failed', { errorClass: reason?.name, errorCode: reason?.code });
       setModelCheck({ exists: false, message: reason.message, models: [] });
     }
   }
@@ -71,6 +83,7 @@ export default function ErrorFixPanel({ error, onUpdated, onOpenSettings, onStat
     try {
       setModelCheck(await postErrors('/settings/verify-model', { model: modelDraft.trim() }));
     } catch (reason) {
+      log.warn('errors.model.check.failed', { errorClass: reason?.name, errorCode: reason?.code });
       setModelCheck({ exists: false, message: reason.message, models: [] });
     } finally {
       setIsCheckingModel(false);
@@ -86,6 +99,11 @@ export default function ErrorFixPanel({ error, onUpdated, onOpenSettings, onStat
       setSettings((current) => (current ? { ...current, hasKey: data.hasKey } : current));
       setPhase('preview');
     } catch (reason) {
+      log.warn('errors.suggestion.preview.failed', {
+        errorId: error.id,
+        errorClass: reason?.name,
+        errorCode: reason?.code,
+      });
       setFailure(reason.message);
       setPhase('idle');
     }
@@ -93,6 +111,8 @@ export default function ErrorFixPanel({ error, onUpdated, onOpenSettings, onStat
 
   async function send() {
     sendController.current = new AbortController();
+    const startedAt = performance.now();
+    log.info('errors.suggestion.requested', { errorId: error.id, provider: SUGGESTION_PROVIDER });
     setPhase('sending');
     setFailure('');
     try {
@@ -105,10 +125,30 @@ export default function ErrorFixPanel({ error, onUpdated, onOpenSettings, onStat
       setPhase('idle');
       setPreview(null);
       onStatus('AI suggestion received. Review it before using it.');
+      log.info('errors.suggestion.completed', {
+        errorId: error.id,
+        provider: SUGGESTION_PROVIDER,
+        outcome: 'completed',
+        durationMs: elapsedMs(startedAt),
+      });
     } catch (reason) {
       if (reason.name === 'AbortError') {
+        log.info('errors.suggestion.cancelled', {
+          errorId: error.id,
+          provider: SUGGESTION_PROVIDER,
+          outcome: 'cancelled',
+          durationMs: elapsedMs(startedAt),
+        });
         setFailure('Cancelled. The request was stopped; OpenAI may still have received it.');
       } else {
+        log.warn('errors.suggestion.failed', {
+          errorId: error.id,
+          provider: SUGGESTION_PROVIDER,
+          outcome: 'failed',
+          durationMs: elapsedMs(startedAt),
+          errorClass: reason?.name,
+          errorCode: reason?.code,
+        });
         setFailure(reason.message);
         if (reason.code === 'no_key') {
           setSettings((current) => (current ? { ...current, hasKey: false } : current));

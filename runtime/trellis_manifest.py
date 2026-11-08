@@ -3,6 +3,10 @@
 import json
 from pathlib import Path
 
+from app_log import get_logger
+
+log = get_logger("three-d")
+
 ROOT = Path(__file__).resolve().parents[1]
 MODEL = ROOT / "models" / "TRELLIS.2-4B"
 DECODER = ROOT / "models" / "TRELLIS-image-large" / "ckpts" / "ss_dec_conv3d_16l8_fp16"
@@ -35,7 +39,11 @@ def missing_files():
             if path.suffix == ".json":
                 with path.open("r", encoding="utf-8") as stream:
                     json.load(stream)
-        except (OSError, UnicodeError, json.JSONDecodeError):
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            log.debug(
+                "three-d.manifest.file.unusable",
+                {"reason": "file_unusable", "errorClass": type(error).__name__},
+            )
             missing.append(path)
     return missing
 
@@ -67,7 +75,11 @@ def _usable(path):
             with path.open("r", encoding="utf-8") as stream:
                 json.load(stream)
         return True
-    except (OSError, UnicodeError, json.JSONDecodeError):
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        log.debug(
+            "three-d.manifest.file.unusable",
+            {"reason": "file_unusable", "errorClass": type(error).__name__},
+        )
         return False
 
 

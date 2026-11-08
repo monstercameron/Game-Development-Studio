@@ -22,6 +22,9 @@
     "i18n:extract": "node tools/i18n-extract.mjs",
     "i18n:check": "node tools/i18n-extract.mjs --check",
     "i18n:scan": "node tools/i18n-scan.mjs",
+    "log:coverage": "node tools/log-coverage.mjs --repo",
+    "log:check": "node tools/log-coverage.mjs --check",
+    "site:capacity": "node tools/model-capacity.mjs",
     "mcp": "node runtime/mcp.js",
     "start": "node server.js"
   },

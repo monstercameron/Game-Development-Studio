@@ -1,6 +1,10 @@
 // Detects whether a picture already has a real transparent background, in the browser, so the 3D
 // page can skip background removal. The rule matches the TRELLIS.2 worker: at least 1% of the
 // pixels must be mostly transparent and some pixels must be clearly visible.
+import { createLog } from './app-log.js';
+
+const log = createLog('image');
+
 export const TRANSPARENT_FRACTION = 0.01;
 const SAMPLE_SIDE = 256;
 
@@ -61,7 +65,8 @@ export async function measureTransparency(file) {
     } finally {
       bitmap.close?.();
     }
-  } catch {
+  } catch (error) {
+    log.warn('image.alpha.measure.failed', { errorClass: error?.name });
     return { status: 'unknown', transparentFraction: 0 };
   }
 }

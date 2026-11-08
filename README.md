@@ -4,10 +4,10 @@
 
 ![Built on NVIDIA RTX Spark](docs/images/built-on-rtx-spark.svg)
 
-Forge brings image, music, sound, video, voice, 3D, world and motion workflows
-into a React interface backed by a durable render queue. Keep each game's
-assets together, inspect local engine health, and connect agents through HTTP
-and MCP.
+Forge brings image, music, sound, video, voice, 3D, vegetation, world and motion
+workflows into a React interface backed by a durable render queue. Keep each
+game's assets together, inspect local engine health, review what the studio is
+doing, and connect agents through HTTP and MCP.
 
 ![Forge overview: the workspace sidebar, a Demo Project header and recent projects with sample artwork](docs/images/studio-overview.png)
 
@@ -29,7 +29,7 @@ been validated to the same level.
 ## Built on NVIDIA RTX Spark
 
 Forge is developed and tested on an **NVIDIA RTX Spark N1X** system: a Blackwell
-GPU with 6,144 cores and 96 GB of GPU memory (98,304 MiB as reported by the
+GPU with 6,144 cores and 96 GiB of GPU memory (98,304 MiB as reported by the
 driver), running Windows 11 on ARM64 natively, with no WSL and no CPU inference.
 That one-machine setup is where every "tested" status in these docs was
 measured, and its memory limits shape how Forge loads models one at a time. Other
@@ -73,6 +73,10 @@ controls. To stop the service, run:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\stop-server.ps1
 ```
 
+The stop script asks the Studio to shut down in an orderly way first (it closes
+its databases and records a clean stop) and terminates it only if it does not
+answer within a few seconds.
+
 The launcher does not load model weights just by starting the Studio. Engines
 can start or load when requested, subject to their configuration and memory
 checks. To inspect local prerequisites without downloading anything:
@@ -92,20 +96,57 @@ platform details and alternate ports.
   download, rename, rate and keep assets. Deleted project assets go to
   recoverable trash until it is cleared.
 - **Creation panels:** queue supported image, audio, video, speech, segmentation,
-  shape, motion and world jobs. Select compatible project assets as inputs and
-  iterate on supported results.
+  shape, motion, world and vegetation jobs. Select compatible project assets as
+  inputs and iterate on supported results.
 - **One render queue:** sequential jobs persist across restarts; uncertain
-  submissions pause for review. Estimates reflect available history and can be
-  unknown or approximate.
+  submissions pause for review instead of being resubmitted. Reorder waiting
+  jobs, chain a finished result into the next render, and read estimates that can
+  be unknown or approximate.
+- **Crash and power-loss recovery:** outputs are staged, flushed and then renamed
+  into place, databases are checked when they open and backed up every 15
+  minutes, and after an unclean stop a Recovery report lists what was
+  interrupted. The recovery logic is covered by failure-injection tests; a real
+  power cut and a real Windows shutdown have not been exercised. See
+  [Resilience](docs/RESILIENCE.md).
+- **Megascans portal:** browse a local cache of the free Quixel Megascans 3D
+  models on Fab, download the files you choose (two at a time, after you confirm
+  Fab's license once) or import your own, with source and license recorded. A
+  real end-to-end download through the current code has not been verified. See
+  [Megascans](docs/MEGASCANS.md).
+- **Vegetation:** grow procedural trees, shrubs and cacti with the linked
+  [SeedThree](https://github.com/SkyeShark/SeedThree) generator. It is alpha
+  software that runs on the CPU and needs no model; Forge links to it and does
+  not vendor it. An optional "Describe it" assistant can use OpenAI or the local
+  chat model. See [Vegetation](docs/VEGETATION.md).
 - **Engine control and diagnostics:** see service status, model storage and
-  memory estimates, request supported idle offloads, inspect logs, and copy
-  errors. Engines are isolated from the Studio host where supported.
+  memory estimates, request supported idle offloads, and copy errors. Engines are
+  isolated from the Studio host where supported.
+- **Studio log:** one searchable log for the host, queue, engines, MCP bridge and
+  browser, stored in `.forge-runtime/logs.sqlite` and reviewed under
+  Diagnostics. It records ids, states, counts and durations; prompts, typed
+  text, file contents, paths and keys are designed not to reach it. See
+  [Studio log](docs/LOGGING.md).
+- **Error review:** captured errors and stack traces are redacted, can be copied
+  and tracked to a fix, and you can optionally ask an OpenAI model for a
+  suggestion or open a GitHub issue for a verified fix. Both happen only when you
+  click, with your own key or `gh` login, and have only been tested against fake
+  services. See [Error review](docs/ERRORS.md).
+- **Settings and MCP control:** a "Studio behaviour" section in Settings, and
+  matching MCP tools, change queue and engine toggles. Credentials, consent
+  confirmations and security checks are deliberately not settings. See
+  [Studio behaviour settings](docs/SETTINGS.md).
+- **Interface translation:** the interface is English by default. Optional
+  machine translation with OpenAI fills in a language one page at a time, only
+  when you ask. It is partial: not every file is converted yet, no human
+  translations ship, and it has not been run against the real OpenAI API. See
+  [Interface translation](docs/I18N.md).
 - **Desktop and notifications:** use the Windows tray to control the desktop
   window, offload eligible idle models and receive queue notifications. Browser
   notifications and a keep-awake option are also available.
-- **Chat and game logic:** chat with the local Qwen server or a configured
-  compatible provider, request structured output, and use the Mammoth decision
-  bridge for supported game-logic requests.
+- **Chat and game logic:** chat with the local Qwen server (including image input
+  when its vision projector is installed, Markdown replies, saved conversations
+  and a thinking level) or a configured compatible provider, request structured
+  output, and use the Mammoth decision bridge for supported game-logic requests.
 
 ### Screenshots
 
@@ -132,30 +173,36 @@ _The Models and services catalog on a source checkout with no model weights inst
 
 ## Models and engines
 
-| Workspace               | Integrated models or services                    | Notes                                                                                                                                       |
-| ----------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Images                  | Qwen Image 2.1                                   | Local image generation and supported image references.                                                                                      |
-| Music and sound         | YuE2, Stable Audio 3                             | Stable Audio is gated and requires approved access.                                                                                         |
-| Voice                   | Qwen3-TTS, NVIDIA Nemotron Speech Streaming      | TTS uses preset voices; speech recognition supports realtime and file workflows.                                                            |
-| Video                   | MiniMax H3 Ref2VA                                | Uses the separately installed H3 application and native renderer.                                                                           |
-| 3D and worlds           | Hunyuan3D 2.1, TRELLIS.2, WorldGen, HY-World 2.0 | TRELLIS.2 remains experimental; a complete render has not been verified. World output may need cleanup before use in a game.                |
-| Segmentation and motion | SAM 3.1, HY-Motion 1.0, NVIDIA MotionBricks      | Motion workflows are experimental and do not provide automatic character rigging or retargeting.                                            |
-| Chat and game logic     | Qwen3.8-27B, Mammoth-1, compatible chat APIs     | Local chat uses a native CUDA llama.cpp server; MTP speculative decoding is configurable but needs verification on the target installation. |
+| Workspace               | Integrated models or services                    | Notes                                                                                                                                                                               |
+| ----------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Images                  | Qwen Image 2.1                                   | Local image generation, supported image references and LoRA files.                                                                                                                  |
+| Music and sound         | YuE2, Stable Audio 3                             | Stable Audio is gated and requires approved access.                                                                                                                                 |
+| Voice                   | Qwen3-TTS, NVIDIA Nemotron Speech Streaming      | TTS offers preset, cloned and designed voices (cloning needs a reference clip, its transcript and a consent confirmation). Speech recognition supports realtime and file workflows. |
+| Video                   | MiniMax H3 Ref2VA                                | Uses the separately installed H3 application and native renderer.                                                                                                                   |
+| 3D and worlds           | Hunyuan3D 2.1, TRELLIS.2, WorldGen, HY-World 2.0 | TRELLIS.2 remains experimental; a complete render has not been verified. World output may need cleanup before use in a game.                                                        |
+| Vegetation              | SeedThree (linked repository, alpha)             | Runs on the CPU in a separate Node process; no model or GPU. Flat materials, no textures or wind animation.                                                                         |
+| Segmentation and motion | SAM 3.1, HY-Motion 1.0, NVIDIA MotionBricks      | Motion workflows are experimental and do not provide automatic character rigging or retargeting.                                                                                    |
+| Chat and game logic     | Qwen3.8-27B, Mammoth-1, compatible chat APIs     | Local chat uses a native CUDA llama.cpp server; MTP speculative decoding is configurable but needs verification on the target installation.                                         |
 
 Availability varies by model, platform, installed dependencies and granted
 access. A present file or reachable service does not establish a working GPU
 render. The [model source guide](docs/MODEL_SOURCES.md) records sources,
-restore steps, compatibility work and known verification limits.
+restore steps, compatibility work and known verification limits. Integrations
+that are planned but not built are listed in the [roadmap](docs/ROADMAP.md).
 
 ## Data and model storage
 
 The Studio uses `models/` for local model files and `projects/` for project
-assets. `.forge-runtime/` holds runtime state, logs and the durable queue.
-These directories, installed dependencies and native binaries are ignored by
-Git. Back up projects and any needed runtime state separately from the source
-repository. Some standalone apps use compatibility links to the same model
-files; shared models are protected from Studio removal when their consumers
-cannot yet be safely coordinated.
+assets. `.forge-runtime/` holds runtime state, the structured log, database
+backups and the durable queue. These directories, installed dependencies and
+native binaries are ignored by Git. Back up projects and any needed runtime state
+separately from the source repository; the automatic database backups in
+`.forge-runtime/backups/` are on the same drive and do not replace an off-machine
+copy. Some standalone apps use compatibility
+links to the same model files; shared models are protected from Studio removal
+when their consumers cannot yet be safely coordinated.
+
+On the reference machine (NVIDIA RTX Spark N1X, 96 GiB of GPU memory), the 16 models and 6 supporting checkpoint and cache entries total 363.70 GiB (390.52 GB) of files in `models/`, measured 2026-11-08; the model weights alone are 298.39 GiB. These are on-disk file sizes, not parameter counts or loaded GPU memory. See [Refreshing the capacity figures](docs/STUDIO_GUIDE.md#refreshing-the-capacity-figures) for the method.
 
 On Windows, API keys saved through Studio settings are encrypted with the
 current user's Windows Data Protection API before storage in a local SQLite
@@ -168,8 +215,11 @@ implications before exposing it to another machine.
 
 Forge provides local HTTP APIs and MCP tools for model discovery, project and
 asset operations, queue control, and supported creation workflows. For example,
-`GET /api/models` returns the model catalog. With the Studio service running,
-the MCP bridge can also be started over stdio:
+`GET /api/models` returns the model catalog. The same surface covers Studio
+settings, the Studio log, the recovery report and error review, and the MCP tools
+can start a single engine, change the queue and engine toggles, and read logs
+and the recovery report. With the Studio service running, the MCP bridge can also
+be started over stdio:
 
 ```powershell
 npm run mcp
@@ -188,23 +238,33 @@ npm test                    # JavaScript tests
 npm run build               # Production frontend build
 npm run lint                # ESLint
 npm run format:check        # Prettier
+npm run log:check -- <file> # Structured-logging coverage for a file
+npm run i18n:extract        # Refresh the interface string catalogs
 ```
 
 Python checks use a separate development environment; see the
 [code quality guide](docs/CODE_QUALITY.md). Existing repository-wide lint and
 formatting debt is documented there. The [test guide](test/README.md) explains
 which checks use isolated workers and which load real GPU models. Follow
-[AGENTS.md](AGENTS.md) when changing the project.
+[AGENTS.md](AGENTS.md) when changing the project; the
+[code style guide](docs/CODE_STYLE.md), [adding a model](docs/ADDING_A_MODEL.md)
+and [adding a feature](docs/ADDING_A_FEATURE.md) explain the conventions.
 
 ## Documentation
+
+The [documentation index](docs/README.md) lists every guide. The main ones:
 
 - [Installation and model prerequisites](docs/INSTALLATION.md)
 - [Model sources, downloads and licensing](docs/MODEL_SOURCES.md)
 - [Studio operations and detailed local setup notes](docs/STUDIO_GUIDE.md)
 - [MCP and agent controls](docs/MCP.md)
+- [Studio behaviour settings](docs/SETTINGS.md), [Studio log](docs/LOGGING.md) and [Resilience](docs/RESILIENCE.md)
+- [Error review](docs/ERRORS.md), [Megascans](docs/MEGASCANS.md), [Vegetation](docs/VEGETATION.md) and [Interface translation](docs/I18N.md)
+- [Roadmap and to-do list](docs/ROADMAP.md)
 - [Agent setup](docs/AGENT_SETUP.md) and [runtime map](runtime/README.md)
 - [Windows ARM64 build notes](docs/WINDOWS_ARM64.md) and [tests](test/README.md)
 - [Private remote access with Tailscale and SSH](docs/TAILSCALE_REMOTE.md)
+- [Code style guide](docs/CODE_STYLE.md), [adding a model](docs/ADDING_A_MODEL.md) and [adding a feature](docs/ADDING_A_FEATURE.md)
 
 ## License
 

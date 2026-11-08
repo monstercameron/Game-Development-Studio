@@ -1,7 +1,16 @@
 import { fork } from 'node:child_process';
+import { createCrashLoopGuard, markRecoveryNeeded } from './crash-loop.js';
 import { createRuntimeLog } from './runtime-log.js';
 import { buildModelCatalog } from './model-catalog.js';
 import { LORA_FOLDER_NAME, listImageLoras } from './image-loras.js';
+import { createLogger } from './app-log.js';
+
+const appLog = createLogger('supervisor');
+
+// Only a real integer pid is logged; a placeholder string would be dropped by the log allow-list.
+function knownPid(child) {
+  return Number.isSafeInteger(child?.pid) ? child.pid : undefined;
+}
 
 const ENGINE_OPERATIONS = new Set([
   'health',
@@ -65,6 +74,8 @@ export class RuntimeSupervisor {
     engineBroker = null,
     forkWorker = fork,
     log = null,
+    crashLoop = createCrashLoopGuard(),
+    runtimeDirectory = undefined,
   } = {}) {
     this.workerUrl = workerUrl;
     this.restartDelay = restartDelay;
@@ -85,13 +96,41 @@ export class RuntimeSupervisor {
     this.child = null;
     this.timer = null;
     this.ready = false;
+    this.crashLoop = crashLoop;
+    this.runtimeDirectory = runtimeDirectory;
+    this.crashLooped = false;
   }
   scheduleRestart() {
-    if (this.stopped) {
+    if (this.stopped || this.crashLooped) {
+      return;
+    }
+    // A runtime worker that keeps crashing is not restarted forever. The queue is durable, so
+    // stopping loses nothing; the Recovery panel and /api/runtime/health say what happened.
+    const loop = this.crashLoop.record();
+    if (loop.tripped) {
+      this.crashLooped = true;
+      appLog.error('supervisor.restart.capped', {
+        count: loop.count,
+        windowMs: loop.windowMs,
+        reason: 'crash_loop',
+      });
+      this.log(
+        'ERROR',
+        `Supervisor event=worker_crash_loop attempts=${loop.count} auto_restart=stopped`,
+      );
+      markRecoveryNeeded(
+        'runtime worker',
+        loop,
+        this.runtimeDirectory ? { directory: this.runtimeDirectory } : {},
+      );
       return;
     }
     this.restarts++;
     const delay = Math.min(this.restartDelay * 2 ** Math.min(this.restarts - 1, 5), 10000);
+    appLog.warn('supervisor.worker.restart.scheduled', {
+      restartCount: this.restarts,
+      delayMs: delay,
+    });
     this.log(
       'WARN',
       `Supervisor event=restart_scheduled attempt=${this.restarts} delay_ms=${delay}`,
@@ -107,6 +146,18 @@ export class RuntimeSupervisor {
       return;
     }
     const reason = code === null && signal === null ? 'spawn_failed' : 'process_exit';
+    const exitFields = {
+      pid: knownPid(child),
+      exitCode: code,
+      signal,
+      restartCount: this.restarts,
+      reason,
+    };
+    if (this.stopped) {
+      appLog.info('supervisor.worker.exited', exitFields);
+    } else {
+      appLog.error('supervisor.worker.exited', exitFields);
+    }
     const pid = Number.isSafeInteger(child.pid) ? child.pid : 'unknown';
     this.log(
       this.stopped ? 'INFO' : 'ERROR',
@@ -122,7 +173,7 @@ export class RuntimeSupervisor {
     this.scheduleRestart();
   }
   start() {
-    if (this.stopped || this.child || this.timer) {
+    if (this.stopped || this.child || this.timer || this.crashLooped) {
       return;
     }
     let child;
@@ -136,10 +187,19 @@ export class RuntimeSupervisor {
       });
     } catch (error) {
       this.log('ERROR', 'Supervisor event=worker_start_failed reason=spawn_failed');
+      appLog.error('supervisor.worker.start.failed', {
+        reason: 'spawn_failed',
+        errorClass: error?.name,
+        restartCount: this.restarts,
+      });
       this.scheduleRestart();
       return;
     }
     this.child = child;
+    appLog.info('supervisor.worker.spawned', {
+      pid: knownPid(child),
+      restartCount: this.restarts,
+    });
     this.ready = false;
     child.stdout.on('data', (data) => this.log('INFO', data, true));
     child.stderr.on('data', (data) => this.log('ERROR', data, true));
@@ -148,6 +208,7 @@ export class RuntimeSupervisor {
         this.ready = true;
         const pid = Number.isSafeInteger(child.pid) ? child.pid : 'unknown';
         this.log('INFO', `Supervisor event=worker_ready pid=${pid}`);
+        appLog.info('supervisor.worker.ready', { pid: knownPid(child) });
         return;
       }
       if (message?.type === 'engine_request') {
@@ -155,6 +216,10 @@ export class RuntimeSupervisor {
           if (child.connected) {
             child.send({ type: 'engine_reply', id: message.id, result, error }, (sendError) => {
               if (sendError) {
+                appLog.warn('supervisor.broker.reply.failed', {
+                  operation: safeOperation(message.method),
+                  reason: 'send_failed',
+                });
                 this.log(
                   'WARN',
                   `Supervisor event=broker_reply_failed operation=${safeOperation(message.method)} reason=send_failed`,
@@ -168,6 +233,10 @@ export class RuntimeSupervisor {
             'WARN',
             `Supervisor event=broker_unavailable operation=${safeOperation(message.method)} reason=unavailable`,
           );
+          appLog.warn('supervisor.broker.unavailable', {
+            operation: safeOperation(message.method),
+            reason: 'unavailable',
+          });
           reply(undefined, 'Engine supervisor unavailable.');
           return;
         }
@@ -178,6 +247,11 @@ export class RuntimeSupervisor {
               'WARN',
               `Supervisor event=broker_call_failed operation=${safeOperation(message.method)} reason=broker_error`,
             );
+            appLog.warn('supervisor.broker.call.failed', {
+              operation: safeOperation(message.method),
+              reason: 'broker_error',
+              errorClass: error?.name,
+            });
             reply(undefined, error.message);
           },
         );
@@ -197,6 +271,10 @@ export class RuntimeSupervisor {
     });
     child.on('error', (_error) => {
       this.log('ERROR', 'Supervisor event=worker_process_error reason=process_error');
+      appLog.error('supervisor.worker.error', {
+        reason: 'process_error',
+        pid: knownPid(child),
+      });
       if (child.pid === null || child.pid === undefined) {
         this.workerStopped(child);
       }
@@ -213,6 +291,11 @@ export class RuntimeSupervisor {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         this.log('WARN', `Supervisor event=rpc_timeout operation=${operation} reason=timeout`);
+        appLog.warn('supervisor.call.timeout', {
+          operation,
+          reason: 'timeout',
+          durationMs: timeout,
+        });
         reject(new Error('Runtime request timed out.'));
       }, timeout);
       this.pending.set(id, { resolve, reject, timer });
@@ -224,17 +307,28 @@ export class RuntimeSupervisor {
           );
           clearTimeout(timer);
           this.pending.delete(id);
+          appLog.warn('supervisor.call.send.failed', {
+            operation,
+            reason: 'send_failed',
+            errorClass: error?.name,
+          });
           reject(error);
         }
       });
     });
   }
   status() {
-    return { ready: this.ready, pid: this.child?.pid ?? null, restarts: this.restarts };
+    return {
+      ready: this.ready,
+      pid: this.child?.pid ?? null,
+      restarts: this.restarts,
+      crashLooped: this.crashLooped,
+    };
   }
   stop() {
     if (!this.stopped) {
       this.log('INFO', 'Supervisor event=stop_requested');
+      appLog.info('supervisor.stop.requested', { restartCount: this.restarts });
     }
     this.stopped = true;
     clearTimeout(this.timer);
@@ -269,7 +363,11 @@ export function runtimeService({ engineBroker = null } = {}) {
       }
       try {
         return send(200, await supervisor.call('modelCatalog'));
-      } catch {
+      } catch (error) {
+        appLog.debug('supervisor.models.fallback', {
+          reason: 'runtime_unavailable',
+          errorClass: error?.name,
+        });
         return send(200, {
           ...buildModelCatalog(),
           runtimeError: 'Live model status and storage inventory are temporarily unavailable.',
@@ -418,6 +516,11 @@ export function runtimeService({ engineBroker = null } = {}) {
             throw Error('Expected a JSON object.');
           }
         } catch (error) {
+          appLog.warn('supervisor.request.rejected', {
+            operation: safeOperation(method),
+            reason: 'invalid_body',
+            errorClass: error?.name,
+          });
           return send(400, { error: 'Invalid request body.' });
         }
       } else {
@@ -502,6 +605,11 @@ export function runtimeService({ engineBroker = null } = {}) {
       } catch (error) {
         const unavailable =
           !supervisor.status().ready || /timed out|process stopped/i.test(error.message);
+        appLog.debug('supervisor.call.failed', {
+          operation: safeOperation(method),
+          reason: unavailable ? 'unavailable' : 'rejected',
+          errorClass: error?.name,
+        });
         send(unavailable ? 503 : 400, { error: error.message, supervisor: supervisor.status() });
       }
     });

@@ -1,5 +1,9 @@
 import os from 'node:os';
 import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
+import { resolveAutoStart } from './service-preparation.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('segmentation');
 
 // One still-image test succeeded. These admission budgets remain conservative
 // estimates, not reservations or limits on other applications.
@@ -34,7 +38,12 @@ export function createSam31Loader({
         ) {
           throw Error('Unexpected response');
         }
-      } catch {
+      } catch (error) {
+        // Not running is the normal state before a start request, so this stays at debug.
+        log.debug('segmentation.status.failed', {
+          errorClass: error?.name,
+          reason: 'engine_unavailable',
+        });
         return {
           status: 503,
           body: { code: 'engine_unavailable', message: 'Start the SAM 3.1 worker first.' },
@@ -70,7 +79,13 @@ export function createSam31Loader({
           estimate: 'Conservative, uncalibrated SAM 3.1 GPU budget plus system reserve.',
         };
       }
+      log.info('segmentation.memory.checked', {
+        requiredMiB: plan.requiredMiB,
+        freeMiB: plan.device?.freeMiB,
+        budgetMiB: SAM31_GPU_LOAD_MIB,
+      });
       if (plan.code !== 'ready') {
+        log.warn('segmentation.start.rejected', { reason: plan.code });
         return { status: 409, body: plan };
       }
       try {
@@ -80,6 +95,7 @@ export function createSam31Loader({
           redirect: 'error',
         });
         if (!response.ok) {
+          log.warn('segmentation.load.rejected', { httpStatus: response.status });
           return response.status >= 500
             ? {
                 status: 503,
@@ -97,11 +113,16 @@ export function createSam31Loader({
                 },
               };
         }
+        log.info('segmentation.load.requested', { httpStatus: response.status });
         return {
           status: 202,
           body: { code: 'load_requested', message: 'SAM 3.1 loading requested.', memory: plan },
         };
-      } catch {
+      } catch (error) {
+        log.warn('segmentation.load.unknown', {
+          errorClass: error?.name,
+          reason: 'load_unknown',
+        });
         return {
           status: 503,
           body: {
@@ -120,11 +141,14 @@ export function createSam31Loader({
 export function createSam31Preparation({ startEngine, loadModel, autoStart = true }) {
   return async ({ health, reachable, claimLoad, retryModel = false }) => {
     if (!reachable) {
-      if (!autoStart) {
+      if (!resolveAutoStart(autoStart)) {
+        log.info('segmentation.start.skipped', { reason: 'autostart_disabled' });
         return { status: 'waiting_engine', stage: 'Waiting for the configured SAM worker.' };
       }
+      log.info('segmentation.start.started');
       const result = await startEngine('segmentation');
       if (result.status === 'recovery_unresolved') {
+        log.warn('segmentation.start.unresolved', { reason: 'recovery_unresolved' });
         if (!claimLoad()) {
           return null;
         }
@@ -136,12 +160,14 @@ export function createSam31Preparation({ startEngine, loadModel, autoStart = tru
         };
       }
       if (['missing', 'failed', 'port_in_use'].includes(result.status)) {
+        log.warn('segmentation.start.rejected', { reason: 'start_failed', status: result.status });
         return {
           status: 'needs_attention',
           stage: 'SAM worker could not start.',
           error: result.message || `Worker status: ${result.status}.`,
         };
       }
+      log.info('segmentation.start.completed');
       return { status: 'waiting_engine', stage: 'Starting the SAM worker.' };
     }
     if (['preparing', 'generating'].includes(health.phase)) {
@@ -170,6 +196,7 @@ export function createSam31Preparation({ startEngine, loadModel, autoStart = tru
     if (!claimLoad()) {
       return null;
     }
+    log.info('segmentation.barrier.persisted');
     const result = await loadModel();
     if (result.body?.code === 'load_unknown') {
       return {

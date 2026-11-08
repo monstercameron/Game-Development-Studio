@@ -10,6 +10,9 @@ import {
   waitingIds,
   withWaitingOrder,
 } from './queue-reorder.js';
+import { createLog } from './app-log.js';
+
+const log = createLog('queue');
 
 // A non-breaking space makes a repeated sentence a change the screen reader announces again.
 const REPEAT_MARK = String.fromCharCode(160);
@@ -75,6 +78,11 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
     try {
       plan = planMove(entries, job.id, spec);
     } catch (reason) {
+      log.warn('queue.reorder.plan.failed', {
+        kind: spec.kind,
+        errorClass: reason?.name,
+        errorCode: reason?.code,
+      });
       setError(reason.message);
       announce(reason.message);
       return;
@@ -86,6 +94,12 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
       ...(anchor ? { expectedAnchorRank: anchor.queueRank ?? null } : {}),
     };
     if (!plan.moved) {
+      log.debug('queue.reorder.unchanged', {
+        kind: spec.kind,
+        position: plan.to,
+        count: plan.count,
+        isClamped: Boolean(plan.clamped),
+      });
       announce(moveAnnouncement(name, plan));
       return;
     }
@@ -95,19 +109,39 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
     // Show the planned order right away; `before` is what to restore if the move fails.
     const movableIds = new Set(waitingIds(entries));
     const before = applyOrder(plan.order.filter((id) => movableIds.has(id)));
+    log.debug('queue.reorder.requested', { jobId: job.id, kind: spec.kind, count: plan.count });
+    const stopTiming = log.time('queue.reorder.moved', { jobId: job.id, kind: spec.kind });
     try {
       const result = await post(`/api/runtime/jobs/${job.id}/move`, body);
       applyOrder(result.order, result.ranks);
+      stopTiming({
+        position: result.position,
+        count: result.count,
+        isClamped: Boolean(result.clamped),
+      });
       announce(moveAnnouncement(name, result));
       await refresh();
     } catch (reason) {
       const fresh = reason.body;
       if (reason.status === 409 && Array.isArray(fresh?.order)) {
+        log.warn('queue.reorder.conflicted', {
+          jobId: job.id,
+          kind: spec.kind,
+          httpStatus: reason.status,
+          errorCode: fresh.code,
+          count: fresh.order.length,
+        });
         applyOrder(fresh.order, fresh.ranks);
         const message = fresh.code === 'stale' ? CONFLICT_MESSAGE : reason.message;
         setError(message);
         announce(`${name} was not moved. ${message}`);
       } else {
+        log.error('queue.reorder.failed', {
+          jobId: job.id,
+          kind: spec.kind,
+          httpStatus: reason?.status,
+          errorClass: reason?.name,
+        });
         restoreJobs(before);
         const message = reason.message || 'The render could not be moved.';
         setError(message);
@@ -129,12 +163,19 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
     const entries = queueEntries(latest.current.jobs);
     const state = rowMoveState(entries, job.id);
     if (pendingRef.current || !isMovableJob(job) || !state.position || state.total < 2) {
+      log.debug('queue.reorder.pickup.refused', {
+        isPending: pendingRef.current,
+        isMovable: isMovableJob(job),
+        position: state.position,
+        count: state.total,
+      });
       announce(state.next.reason || 'This render cannot be moved right now.');
       return;
     }
     const order = waitingIds(entries);
     setError('');
     setHeldState({ id: job.id, order, start: order });
+    log.info('queue.reorder.pickup.started', { position: state.position, count: state.total });
     announce(
       `Picked up ${jobAccessibleName(job)}, position ${state.position} of ${state.total}. ` +
         'Use the arrow keys to move it, Space to drop it, Escape to cancel.',
@@ -151,11 +192,21 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
     try {
       plan = planMove(entries, job.id, spec);
     } catch (reason) {
+      log.warn('queue.reorder.step.failed', {
+        kind: spec.kind,
+        errorClass: reason?.name,
+        errorCode: reason?.code,
+      });
       announce(reason.message);
       return;
     }
     const total = waitingIds(entries).length;
     if (!plan.moved) {
+      log.debug('queue.reorder.step.unchanged', {
+        position: plan.to,
+        count: total,
+        isClamped: Boolean(plan.clamped),
+      });
       const edge = plan.to === 1 ? 'first' : 'last';
       announce(
         plan.clamped
@@ -177,6 +228,10 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
     setHeldState(null);
     const unchanged = current.order.join() === current.start.join();
     if (unchanged) {
+      log.debug('queue.reorder.drop.unchanged', {
+        position: current.start.indexOf(job.id) + 1,
+        count: current.start.length,
+      });
       announce(
         `${jobAccessibleName(job)} dropped where it was, position ${
           current.start.indexOf(job.id) + 1
@@ -202,6 +257,10 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
       return;
     }
     setHeldState(null);
+    log.debug('queue.reorder.cancelled', {
+      position: current.start.indexOf(current.id) + 1,
+      count: current.start.length,
+    });
     if (!silent) {
       announce(
         `Move cancelled. ${nameOf(current.id)} is back at position ${
@@ -306,12 +365,14 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
     event.preventDefault();
     try {
       event.currentTarget.setPointerCapture?.(event.pointerId);
-    } catch {
+    } catch (error) {
+      log.debug('queue.reorder.capture.failed', { errorClass: error?.name });
       // Capture can fail for a pointer that has already ended; the drag then ends with it.
     }
     event.currentTarget.focus?.();
     setError('');
     setDragState({ id: job.id, pointerId: event.pointerId, target: null });
+    log.info('queue.reorder.drag.started', { position: state.position, count: state.total });
     announce(`Dragging ${jobAccessibleName(job)}. Release over another render to drop it.`);
   }
 
@@ -337,6 +398,7 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
     const target = current.target;
     setDragState(null);
     if (!target) {
+      log.debug('queue.reorder.drag.cancelled');
       announce(`Move cancelled. ${jobAccessibleName(job)} stays where it was.`);
       return;
     }
@@ -349,6 +411,7 @@ export default function useQueueReorder({ jobs, items, post, applyOrder, restore
       return;
     }
     setDragState(null);
+    log.debug('queue.reorder.drag.cancelled');
     if (announceIt) {
       announce(`Move cancelled. ${nameOf(current.id)} stays where it was.`);
     }

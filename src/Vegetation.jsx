@@ -35,12 +35,15 @@ import {
   checkControlValue,
   findSpecies,
 } from '../runtime/vegetation-request.js';
+import { createLog } from './app-log.js';
 import './vegetation-studio.css';
 
 const GROUP_TITLES = { shape: 'Shape', leaves: 'Leaves', advanced: 'Advanced branch controls' };
 const NO_NOTICE = { text: '', kind: 'error' };
+const log = createLog('vegetation');
 
 async function api(path, options) {
+  // log-coverage: ignore -- /api requests are logged by the browser capture (http.request.failed).
   const response = await fetch(path, options);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -221,6 +224,8 @@ function DescribePanel({ status, species, speciesName, onApplied, onOpenSettings
     setBusy('describe');
     setError('');
     setResult(null);
+    const stopDescribe = log.time('vegetation.describe.completed', { provider: describe.provider });
+    log.info('vegetation.describe.requested', { provider: describe.provider });
     try {
       const data = await api(
         '/api/vegetation/describe',
@@ -228,7 +233,9 @@ function DescribePanel({ status, species, speciesName, onApplied, onOpenSettings
       );
       setResult(data.suggestion);
       onApplied(data.suggestion);
+      stopDescribe();
     } catch (reason) {
+      log.warn('vegetation.describe.failed', { provider: describe.provider, error: reason });
       setError(reason.message);
       if (reason.code === 'chat_model_unavailable') {
         refreshStatus();
@@ -253,6 +260,7 @@ function DescribePanel({ status, species, speciesName, onApplied, onOpenSettings
       });
       refreshStatus();
     } catch (reason) {
+      log.warn('vegetation.chat.load.failed', { error: reason });
       setError(reason.message);
     } finally {
       setBusy('');
@@ -271,6 +279,10 @@ function DescribePanel({ status, species, speciesName, onApplied, onOpenSettings
             : data.message,
       });
     } catch (reason) {
+      log.warn('vegetation.model.check.failed', {
+        provider: describe.provider,
+        error: reason,
+      });
       setCheck({ ok: false, text: reason.message });
     } finally {
       setBusy('');
@@ -397,6 +409,7 @@ export default function Vegetation({ project, projects, onRefresh, onOpenLibrary
       setLoadError('');
       return data;
     } catch (reason) {
+      log.debug('vegetation.status.failed', { error: reason });
       setLoadError(reason.message);
       return null;
     }
@@ -419,6 +432,7 @@ export default function Vegetation({ project, projects, onRefresh, onOpenLibrary
         }
       })
       .catch((reason) => {
+        log.warn('vegetation.schema.load.failed', { error: reason });
         if (alive) {
           setLoadError(reason.message);
         }
@@ -439,6 +453,7 @@ export default function Vegetation({ project, projects, onRefresh, onOpenLibrary
       return undefined;
     }
     wasFetching.current = true;
+    log.debug('vegetation.fetch.followed');
     const timer = setInterval(refreshStatus, 1000);
     return () => clearInterval(timer);
   }, [fetching, refreshStatus]);
@@ -550,7 +565,12 @@ export default function Vegetation({ project, projects, onRefresh, onOpenLibrary
         },
       })
         .then((result) => active && setEstimate(result))
-        .catch(() => active && setEstimateError(true));
+        .catch((error) => {
+          log.debug('vegetation.estimate.failed', { error });
+          if (active) {
+            setEstimateError(true);
+          }
+        });
     }, 300);
     return () => {
       active = false;
@@ -588,11 +608,16 @@ export default function Vegetation({ project, projects, onRefresh, onOpenLibrary
     setBusy(true);
     setMessage('');
     let queued = 0;
+    const speciesId = state.species;
+    const variationCount = state.variations;
+    const stopEnqueue = log.time('vegetation.enqueue.completed', { speciesId, variationCount });
+    log.info('vegetation.enqueue.requested', { speciesId, variationCount });
     try {
       for (const request of buildRequests(state)) {
         await post('/api/runtime/jobs', { type: 'vegetation', projectId: project.id, request });
         queued += 1;
       }
+      stopEnqueue({ queuedCount: queued });
       setVersion((v) => v + 1);
       setMessage(
         queued > 1
@@ -601,6 +626,12 @@ export default function Vegetation({ project, projects, onRefresh, onOpenLibrary
         'success',
       );
     } catch (error) {
+      log.warn('vegetation.enqueue.failed', {
+        speciesId,
+        variationCount,
+        queuedCount: queued,
+        error,
+      });
       const total = state.variations;
       setMessage(
         `${queued ? `${queued} of ${total} queued before an error. ` : ''}${error.message}`,
@@ -611,10 +642,12 @@ export default function Vegetation({ project, projects, onRefresh, onOpenLibrary
   }
   async function startFetch() {
     setFetchBusy(true);
+    log.info('vegetation.fetch.requested');
     try {
       const data = await api('/api/vegetation/fetch', writeOptions({}));
       setStatus((current) => ({ ...current, fetch: data.fetch }));
     } catch (reason) {
+      log.warn('vegetation.fetch.failed', { error: reason });
       setLoadError(reason.message);
     } finally {
       setFetchBusy(false);

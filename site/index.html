@@ -43,6 +43,7 @@
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
     <script src="site.js" defer></script>
+    <script src="capacity.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -108,13 +109,25 @@
                 <span class="window-dots"><i></i><i></i><i></i></span>
                 <span>127.0.0.1:5173</span>
               </div>
-              <img
-                src="assets/studio-overview.png"
-                width="1600"
-                height="1000"
-                alt="The Forge overview: a sidebar of workspaces, a Demo Project header with sample artwork, and recent project cards on a dark aubergine interface."
-                fetchpriority="high"
-              />
+              <a
+                class="zoom"
+                href="assets/studio-overview.png"
+                aria-label="View larger: The Forge overview with two demo projects and the bundled sample artwork"
+                aria-describedby="shot-overview"
+              >
+                <img
+                  id="shot-overview"
+                  src="assets/studio-overview.png"
+                  width="1600"
+                  height="1000"
+                  alt="The Forge overview: a sidebar of workspaces, a Demo Project header with sample artwork, and recent project cards on a dark aubergine interface."
+                  fetchpriority="high"
+                />
+                <span class="zoom-hint" aria-hidden="true"
+                  ><svg width="16" height="16" focusable="false"><use href="#icon-zoom" /></svg
+                  ><span>Click to enlarge</span></span
+                >
+              </a>
             </div>
             <figcaption>
               The Forge overview with two demo projects and the bundled sample artwork.
@@ -145,7 +158,7 @@
             <div class="prose">
               <p>
                 Forge is developed and tested on an <strong>NVIDIA RTX Spark N1X</strong> system: a
-                Blackwell GPU with 6,144 cores and 96 GB of GPU memory (98,304 MiB as reported by
+                Blackwell GPU with 6,144 cores and 96 GiB of GPU memory (98,304 MiB as reported by
                 the driver), running Windows 11 on ARM64 natively, with no WSL and no CPU inference.
                 Every <em>Tested</em> status on this page was measured on that one machine, and its
                 memory limits are why Forge loads one model at a time and checks GPU memory before
@@ -153,11 +166,13 @@
               </p>
               <p>
                 Other hardware has not been validated to the same level. The figures beside this
-                text are single runs on this machine, not benchmarks.
+                text are single runs on this machine, not benchmarks. How much the installed model
+                weights add up to, next to this memory, is in
+                <a href="#capacity">Model weight capacity</a>.
               </p>
             </div>
             <ul class="spark-stats" aria-label="Measured on NVIDIA RTX Spark N1X">
-              <li><strong>96 GB</strong><span>GPU memory available to the engines</span></li>
+              <li><strong>96 GiB</strong><span>GPU memory available to the engines</span></li>
               <li>
                 <strong>21 s</strong><span>Qwen Image 2.1, 1024 × 1024, 12 steps (warm)</span>
               </li>
@@ -228,14 +243,25 @@
           <h2 id="tour-title">Projects, panels and a library<span class="dot">.</span></h2>
           <div class="shots">
             <figure>
-              <img
-                src="assets/image-studio.png"
-                width="1600"
-                height="1000"
-                loading="lazy"
-                decoding="async"
-                alt="The Image studio: a prompt, a reference image, aspect ratio and quality controls with an inline help popover, an estimated render time bar, and a recent potion artwork."
-              />
+              <a
+                class="zoom"
+                href="assets/image-studio.png"
+                aria-label="View larger: The Image studio with a prompt, a reference image and an estimate bar"
+                aria-describedby="shot-image-studio"
+              >
+                <img
+                  id="shot-image-studio"
+                  src="assets/image-studio.png"
+                  width="1600"
+                  height="1000"
+                  loading="lazy"
+                  decoding="async"
+                  alt="The Image studio: a prompt, a reference image, aspect ratio and quality controls with an inline help popover, an estimated render time bar, and a recent potion artwork."
+                /><span class="zoom-hint" aria-hidden="true"
+                  ><svg width="16" height="16" focusable="false"><use href="#icon-zoom" /></svg
+                  ><span>Click to enlarge</span></span
+                ></a
+              >
               <figcaption>
                 Create images with project context and a reference image. Field help opens inline,
                 and the estimate bar says &ldquo;Not enough history&rdquo; until the project has
@@ -243,14 +269,25 @@
               </figcaption>
             </figure>
             <figure>
-              <img
-                src="assets/asset-library.png"
-                width="1600"
-                height="1000"
-                loading="lazy"
-                decoding="async"
-                alt="The asset library showing the bundled sample collection: three sample images and a sound effect, with search, type filters, sort and view controls."
-              />
+              <a
+                class="zoom"
+                href="assets/asset-library.png"
+                aria-label="View larger: The asset library showing the bundled sample collection"
+                aria-describedby="shot-asset-library"
+              >
+                <img
+                  id="shot-asset-library"
+                  src="assets/asset-library.png"
+                  width="1600"
+                  height="1000"
+                  loading="lazy"
+                  decoding="async"
+                  alt="The asset library showing the bundled sample collection: three sample images and a sound effect, with search, type filters, sort and view controls."
+                /><span class="zoom-hint" aria-hidden="true"
+                  ><svg width="16" height="16" focusable="false"><use href="#icon-zoom" /></svg
+                  ><span>Click to enlarge</span></span
+                ></a
+              >
               <figcaption>
                 Search, filter and preview assets in the library; the screenshot shows the bundled
                 sample collection.
@@ -583,14 +620,25 @@
 
           <div class="shots shots-single">
             <figure>
-              <img
-                src="assets/models.png"
-                width="1600"
-                height="1000"
-                loading="lazy"
-                decoding="async"
-                alt="The Models and services catalog showing model cards with category, status, notes, estimated GPU budget and file status."
-              />
+              <a
+                class="zoom"
+                href="assets/models.png"
+                aria-label="View larger: The Models and services catalog on a source checkout with no model weights"
+                aria-describedby="shot-models"
+              >
+                <img
+                  id="shot-models"
+                  src="assets/models.png"
+                  width="1600"
+                  height="1000"
+                  loading="lazy"
+                  decoding="async"
+                  alt="The Models and services catalog showing model cards with category, status, notes, estimated GPU budget and file status."
+                /><span class="zoom-hint" aria-hidden="true"
+                  ><svg width="16" height="16" focusable="false"><use href="#icon-zoom" /></svg
+                  ><span>Click to enlarge</span></span
+                ></a
+              >
               <figcaption>
                 The in-app catalog on a source checkout with no model weights installed: each card
                 reports its model files as not found, next to its estimated GPU budget and any
@@ -1956,6 +2004,74 @@
         </div>
       </section>
 
+      <!-- MODEL WEIGHT CAPACITY -->
+      <section class="section" id="capacity" aria-labelledby="capacity-title">
+        <div class="wrap">
+          <p class="kicker">Model weight capacity</p>
+          <h2 id="capacity-title">What the weights add up to<span class="dot">.</span></h2>
+          <p class="section-lead">
+            How much disk the models above take up on the reference machine, counted and summed from
+            the files themselves. These are measurements of installed files, not estimates.
+            <code>tools/model-capacity.mjs</code> writes the figures to
+            <code>model-capacity.json</code>, and this table is drawn from that file.
+          </p>
+          <!-- prettier-ignore -->
+          <div id="capacity-root" data-capacity-src="model-capacity.json">
+      <!-- capacity:static:start -->
+      <p class="cap-scope">Measured 2026-11-08: the model weights and supporting files installed on the reference machine, an NVIDIA RTX Spark N1X with 96 GiB of GPU memory, summed from the files in Forge’s models folder. This counts files and bytes. It is not a benchmark, a parameter count or a loaded-memory figure.</p>
+      <ul class="cap-tiles" aria-label="Capacity totals">
+        <li><span class="cap-tile-label">Models counted</span><strong class="cap-tile-value">16</strong><span class="cap-tile-detail">15 with weights on disk; SeedThree has none</span></li>
+        <li><span class="cap-tile-label">Total on disk</span><strong class="cap-tile-value">363.70 GiB</strong><span class="cap-tile-detail">390.52 GB in 22 entries</span></li>
+        <li><span class="cap-tile-label">Model weights</span><strong class="cap-tile-value">298.39 GiB</strong><span class="cap-tile-detail">65.31 GiB more in supporting checkpoints and caches</span></li>
+        <li><span class="cap-tile-label">Largest model</span><strong class="cap-tile-value">HY-World 2.0</strong><span class="cap-tile-detail">71.59 GiB, 19.7% of the total</span></li>
+        <li><span class="cap-tile-label">Weights vs GPU memory</span><strong class="cap-tile-value">3.1×</strong><span class="cap-tile-detail">model weights on disk ÷ 96 GiB of GPU memory</span></li>
+      </ul>
+      <p class="cap-compare">The model weights alone (298.39 GiB) are about 3.1 times the 96 GiB of GPU memory, which is why Forge loads one model at a time. This compares file sizes on disk with memory capacity: it does not say how much GPU memory a loaded model uses, and Forge does not record loaded sizes here.</p>
+      <p class="cap-caption" id="capacity-caption">Size on disk of each model and its supporting files, measured 2026-11-08</p>
+      <div class="cap-scroll" role="region" aria-labelledby="capacity-caption" tabindex="0">
+        <table class="cap-table" aria-labelledby="capacity-caption">
+          <thead><tr><th scope="col">Model</th><th scope="col">Area</th><th scope="col">Size on disk (GiB)</th><th scope="col">Share of total</th><th scope="col">Kind</th></tr></thead>
+          <tbody>
+          <tr><th scope="row"><a href="#model-hyworld">HY-World 2.0</a></th><td>Worlds</td><td class="cap-num">71.59</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:19.68%"></span></span><span class="cap-share-text">19.7%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-h3">MiniMax H3 Ref2VA</a><span class="cap-row-note">Includes its LoRAs and VAEs.</span></th><td>Video</td><td class="cap-num">68.97</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:18.96%"></span></span><span class="cap-share-text">19.0%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-support">Shared Hugging Face cache</a><span class="cap-row-note">Holds the FLUX.1 dev and Fill components, DA-2 and the WorldGen LoRAs.</span></th><td>Worlds</td><td class="cap-num">55.59</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:15.28%"></span></span><span class="cap-share-text">15.3%</span></td><td>Cache</td></tr>
+          <tr><th scope="row"><a href="#model-qwen-image">Qwen Image 2.1</a><span class="cap-row-note">Includes the folder for image LoRAs.</span></th><td>Images</td><td class="cap-num">31.16</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:8.57%"></span></span><span class="cap-share-text">8.6%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-hymotion">HY-Motion 1.0</a><span class="cap-row-note">Includes the CLIP ViT-L/14 and Qwen3-8B text encoders stored in the same folder.</span></th><td>Character motion</td><td class="cap-num">20.75</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:5.71%"></span></span><span class="cap-share-text">5.7%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-hunyuan">Hunyuan3D 2.1</a></th><td>3D models</td><td class="cap-num">17.00</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:4.68%"></span></span><span class="cap-share-text">4.7%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-chat">Qwen3.8-27B</a><span class="cap-row-note">A quantized GGUF file.</span></th><td>Chat</td><td class="cap-num">16.52</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:4.54%"></span></span><span class="cap-share-text">4.5%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-worldgen">WorldGen</a><span class="cap-row-note">The two Q5 transformers; the FLUX.1 components live in the shared cache.</span></th><td>Worlds</td><td class="cap-num">15.53</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:4.27%"></span></span><span class="cap-share-text">4.3%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-mammoth">Mammoth-1</a></th><td>Game logic</td><td class="cap-num">15.43</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:4.24%"></span></span><span class="cap-share-text">4.2%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-trellis">TRELLIS.2</a><span class="cap-row-note">Its decoder and DINOv3 encoder are listed separately as supporting checkpoints.</span></th><td>3D models</td><td class="cap-num">13.80</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:3.79%"></span></span><span class="cap-share-text">3.8%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-stable-audio">Stable Audio 3 Medium</a></th><td>Sound effects</td><td class="cap-num">9.73</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:2.67%"></span></span><span class="cap-share-text">2.7%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-yue2">YuE2</a><span class="cap-row-note">The YuE2-3B model and the YuE2-Vae decoder.</span></th><td>Music</td><td class="cap-num">7.29</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:2.00%"></span></span><span class="cap-share-text">2.0%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-support">Qwen3-TTS Base</a><span class="cap-row-note">Optional checkpoint for voice cloning.</span></th><td>Voices</td><td class="cap-num">4.23</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:1.16%"></span></span><span class="cap-share-text">1.2%</span></td><td>Supporting checkpoint</td></tr>
+          <tr><th scope="row"><a href="#model-tts">Qwen3-TTS 1.7B</a><span class="cap-row-note">The preset-voice checkpoint; Base and VoiceDesign are listed separately.</span></th><td>Voices</td><td class="cap-num">4.21</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:1.16%"></span></span><span class="cap-share-text">1.2%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-support">Qwen3-TTS VoiceDesign</a><span class="cap-row-note">Optional checkpoint for designing a voice from a description.</span></th><td>Voices</td><td class="cap-num">4.21</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:1.16%"></span></span><span class="cap-share-text">1.2%</span></td><td>Supporting checkpoint</td></tr>
+          <tr><th scope="row"><a href="#model-sam">Meta SAM 3.1</a></th><td>Segmentation</td><td class="cap-num">3.26</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:0.90%"></span></span><span class="cap-share-text">0.9%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-motionbricks">NVIDIA MotionBricks</a></th><td>Character motion</td><td class="cap-num">2.49</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:0.68%"></span></span><span class="cap-share-text">0.7%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-support">DINOv3 ViT-L/16 encoder</a><span class="cap-row-note">Used by TRELLIS.2.</span></th><td>3D models</td><td class="cap-num">1.13</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:0.31%"></span></span><span class="cap-share-text">0.3%</span></td><td>Supporting checkpoint</td></tr>
+          <tr><th scope="row"><a href="#model-asr">Nemotron Speech Streaming 0.6B</a></th><td>Voices</td><td class="cap-num">0.65</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:0.18%"></span></span><span class="cap-share-text">0.2%</span></td><td>Model weights</td></tr>
+          <tr><th scope="row"><a href="#model-support">TRELLIS image decoder</a><span class="cap-row-note">Used by TRELLIS.2.</span></th><td>3D models</td><td class="cap-num">0.14</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:0.04%"></span></span><span class="cap-share-text"><0.1%</span></td><td>Supporting checkpoint</td></tr>
+          <tr><th scope="row"><a href="#model-support">ComfyUI companion files</a><span class="cap-row-note">LoRA and preview files. A file it shares with MiniMax H3 is counted under H3.</span></th><td>Video</td><td class="cap-num">0.01</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"><span style="width:0.00%"></span></span><span class="cap-share-text"><0.1%</span></td><td>Supporting checkpoint</td></tr>
+          <tr><th scope="row"><a href="#model-vegetation">SeedThree</a><span class="cap-row-note">Runs on the CPU and has no model weights.</span></th><td>Vegetation</td><td class="cap-num">0.00</td><td class="cap-share"><span class="cap-bar" aria-hidden="true"></span><span class="cap-share-text">0.0%</span></td><td>Model weights</td></tr>
+          </tbody>
+          <tfoot><tr><th scope="row">Total (22 entries)</th><td></td><td class="cap-num">363.70</td><td class="cap-share"><span class="cap-share-text">100.0%</span></td><td>390.52 GB</td></tr></tfoot>
+        </table>
+      </div>
+      <p class="cap-note">Measured 2026-11-08 on NVIDIA RTX Spark N1X; sizes are on-disk bytes, not parameter counts. GiB = 1,024³ bytes; GB = 1,000³ bytes. Each row is rounded on its own, so the rows can differ from the total by a few hundredths of a GiB.</p>
+      <details class="cap-method">
+        <summary>How this was measured</summary>
+        <p>Sizes were measured on 2026-11-08 by tools/model-capacity.mjs. It walks every folder under the checkout’s models folder without following links, adds up the size of each regular file, and assigns each folder to one row of the table through a mapping written in the script. The script fails when a folder over 100 MiB is not mapped, so a new model cannot be left out. Sizes are file sizes, so they exclude filesystem overhead and are not parameter counts.</p>
+        <p>NTFS can give one file several names (hard links). Each such file is counted once, in the model row that owns it. Forge’s Models page and its storage scan add up every name, so they can report more bytes than the files really occupy.</p>
+        <p>The running studio’s own storage scan reported 381.48 GiB for the same models folder; this table totals 363.70 GiB. The difference is 18.08 GiB of hard-linked names that the studio scan counts twice, offset by 0.30 GiB in a folder the studio scan does not cover (no bytes are left unexplained).</p>
+        <p>3 of the counted files (9.85 GiB) also have hard links outside the models folder. They are counted here, but deleting them from the models folder would not free that space.</p>
+        <p>Not measured: parameter counts, compressed size, GPU memory used by a loaded model, or duplicate content stored as separate copies.</p>
+      </details>
+      <!-- capacity:static:end -->
+          </div>
+        </div>
+      </section>
+
       <!-- ARCHITECTURE -->
       <section class="section" id="architecture" aria-labelledby="arch-title">
         <div class="wrap">
@@ -2205,14 +2321,25 @@
 
           <div class="shots shots-single">
             <figure>
-              <img
-                src="assets/render-queue.png"
-                width="1600"
-                height="1000"
-                loading="lazy"
-                decoding="async"
-                alt="The render queue listing three waiting image renders with drag, run next, move up, move down and cancel controls, above a recently finished render."
-              />
+              <a
+                class="zoom"
+                href="assets/render-queue.png"
+                aria-label="View larger: The render queue with three waiting demo renders"
+                aria-describedby="shot-render-queue"
+              >
+                <img
+                  id="shot-render-queue"
+                  src="assets/render-queue.png"
+                  width="1600"
+                  height="1000"
+                  loading="lazy"
+                  decoding="async"
+                  alt="The render queue listing three waiting image renders with drag, run next, move up, move down and cancel controls, above a recently finished render."
+                /><span class="zoom-hint" aria-hidden="true"
+                  ><svg width="16" height="16" focusable="false"><use href="#icon-zoom" /></svg
+                  ><span>Click to enlarge</span></span
+                ></a
+              >
               <figcaption>
                 Waiting renders in order, with controls to reorder or cancel each one. The rows are
                 demo entries from an isolated copy with no engine running, so nothing was rendered.
@@ -3142,5 +3269,62 @@ npm run format:check        # Prettier</code></pre>
         </nav>
       </div>
     </footer>
+
+    <svg class="sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-zoom" viewBox="0 0 24 24">
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m15.5 15.5 5 5" />
+        <path d="M10.5 7.5v6M7.5 10.5h6" />
+      </symbol>
+    </svg>
+
+    <!-- Screenshot viewer: opened by site.js from the "zoom" links; closed and inert otherwise. -->
+    <dialog class="lightbox" id="lightbox" aria-labelledby="lightbox-title">
+      <div class="lightbox-bar">
+        <h2 class="lightbox-title" id="lightbox-title">Screenshot viewer</h2>
+        <p class="lightbox-count" id="lightbox-count"></p>
+        <button class="button button-quiet" id="lightbox-close" type="button">Close</button>
+      </div>
+      <div
+        class="lightbox-stage"
+        id="lightbox-stage"
+        role="region"
+        aria-label="Enlarged screenshot"
+      >
+        <img class="lightbox-img" id="lightbox-img" alt="" decoding="async" />
+        <p class="lightbox-note" id="lightbox-loading" hidden>Loading the screenshot&hellip;</p>
+        <p class="lightbox-note" id="lightbox-error" hidden>
+          This screenshot could not be loaded.
+          <a id="lightbox-error-link" href="#" target="_blank" rel="noopener"
+            >Open image in a new tab</a
+          >
+        </p>
+      </div>
+      <div class="lightbox-controls" role="group" aria-label="Viewer controls">
+        <button
+          class="button button-quiet"
+          id="lightbox-prev"
+          type="button"
+          aria-label="Previous screenshot (wraps from the first to the last)"
+        >
+          <span aria-hidden="true">&larr;</span> Previous
+        </button>
+        <button
+          class="button button-quiet"
+          id="lightbox-next"
+          type="button"
+          aria-label="Next screenshot (wraps from the last to the first)"
+        >
+          Next <span aria-hidden="true">&rarr;</span>
+        </button>
+        <button class="button button-quiet" id="lightbox-full" type="button" aria-pressed="false">
+          Full size
+        </button>
+        <a class="button button-quiet" id="lightbox-open" href="#" target="_blank" rel="noopener"
+          >Open image in a new tab</a
+        >
+      </div>
+      <p class="sr-only" id="lightbox-live" role="status" aria-live="polite"></p>
+    </dialog>
   </body>
 </html>

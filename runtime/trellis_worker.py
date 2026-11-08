@@ -14,8 +14,11 @@ import uuid
 from pathlib import Path
 
 import uvicorn
+from app_log import flush, get_logger, install_excepthook
 from engine_identity import install_identity_endpoint
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse
 from host_memory import host_bytes_needed
 from PIL import Image, ImageOps
@@ -38,6 +41,7 @@ PIPELINE_BUDGETS_GIB = {
     "1024_cascade": (18, 48),
     "1536_cascade": (20, 64),
 }
+log = get_logger("three-d")
 lock = threading.Lock()
 state = {"phase": "idle", "error": None, "closing": False}
 jobs = {}
@@ -45,6 +49,16 @@ model = None
 stop_timer = None
 app = FastAPI(title="Forge TRELLIS.2 512 worker (experimental)")
 install_identity_endpoint(app, TOKEN, "3d-trellis")
+
+
+def log_request_rejected(route, reason):
+    log.warn("three-d.request.rejected", {"route": route, "reason": reason})
+
+
+@app.exception_handler(RequestValidationError)
+async def handle_schema_rejected(request, exc):
+    log.warn("three-d.request.rejected", {"reason": "schema_invalid", "count": len(exc.errors())})
+    return await request_validation_exception_handler(request, exc)
 
 
 class MemoryStatus(ctypes.Structure):
@@ -84,17 +98,21 @@ def check_memory(host_bytes, gpu_bytes):
 def load_worker():
     global model
     try:
+        log.info("three-d.model.load.started")
         check_memory(HOST_LOAD_BYTES, GPU_LOAD_BYTES)
         from trellis_toolchain import configure_toolchain
 
         configure_toolchain()
         from trellis_backend import load_trellis
 
+        stop = log.time("three-d.model.load.completed")
         loaded = load_trellis()
         with lock:
             model = loaded
             state.update(phase="ready", error=None)
+        stop()
     except Exception as error:
+        log.error("three-d.model.load.failed", {"errorClass": type(error).__name__})
         traceback.print_exc()
         gc.collect()
         with lock:
@@ -106,6 +124,9 @@ def render_worker(job_id, image, request):
         host_gib, gpu_gib = PIPELINE_BUDGETS_GIB[request.pipeline]
         check_memory(host_gib * 1024**3, gpu_gib * 1024**3)
         from trellis_backend import generate_glb
+
+        log.info("three-d.job.started", {"jobId": job_id})
+        stop = log.time("three-d.job.completed", {"jobId": job_id})
 
         def report(message):
             with lock:
@@ -133,10 +154,13 @@ def render_worker(job_id, image, request):
             report=report,
         )
         os.replace(temp, OUTPUTS / f"{job_id}.glb")
+        log.debug("three-d.file.written", {"kind": "output"})
         with lock:
             jobs[job_id].update(status="completed", message="3D model ready.")
             state.update(phase="ready", error=None)
+        stop({"outcome": "completed"})
     except Exception as error:
+        log.error("three-d.job.failed", {"jobId": job_id, "errorClass": type(error).__name__})
         traceback.print_exc()
         with lock:
             jobs[job_id].update(status="failed", message=str(error)[:1500])
@@ -172,14 +196,17 @@ def status():
 def load():
     with lock:
         if state["closing"]:
+            log_request_rejected("/api/model/load", "closing")
             raise HTTPException(409, "TRELLIS.2 worker is stopping.")
         if model is not None:
             return {"message": "Already loaded."}
         if state["phase"] == "loading":
             return {"message": "Already loading."}
         if state["phase"] == "generating":
+            log_request_rejected("/api/model/load", "busy")
             raise HTTPException(409, "TRELLIS.2 worker is busy.")
         if missing_files():
+            log_request_rejected("/api/model/load", "model_files_missing")
             raise HTTPException(409, "TRELLIS.2 model files are missing.")
         state.update(phase="loading", error=None)
         threading.Thread(target=load_worker, daemon=True).start()
@@ -189,11 +216,14 @@ def load():
 @app.post("/api/generate", status_code=202)
 def generate(request: RenderRequest):
     if request.texture_size not in (512, 1024, 2048):
+        log_request_rejected("/api/generate", "unsupported_texture_size")
         raise HTTPException(400, "Unsupported texture size.")
     if request.pipeline not in PIPELINE_TYPES:
+        log_request_rejected("/api/generate", "unsupported_pipeline")
         raise HTTPException(400, "Unsupported pipeline.")
     # The 512 checkpoints are required to load the model at all, so only the others need a check.
     if request.pipeline != "512" and request.pipeline not in pipelines_available():
+        log_request_rejected("/api/generate", "pipeline_not_installed")
         raise HTTPException(
             400, f"The {request.pipeline} pipeline's checkpoints are not installed."
         )
@@ -221,11 +251,21 @@ def generate(request: RenderRequest):
                 "transparent). Cut the object out first, for example with Segmentation."
             )
     except (ValueError, binascii.Error, OSError) as error:
+        log.warn(
+            "three-d.request.rejected",
+            {
+                "route": "/api/generate",
+                "reason": "invalid_image",
+                "errorClass": type(error).__name__,
+            },
+        )
         raise HTTPException(400, f"Invalid reference image: {error}") from error
     with lock:
         if state["closing"] or state["phase"] in ("loading", "generating"):
+            log_request_rejected("/api/generate", "busy")
             raise HTTPException(409, "TRELLIS.2 worker is busy.")
         if model is None:
+            log_request_rejected("/api/generate", "model_not_loaded")
             raise HTTPException(409, "Load the TRELLIS.2 model first.")
         job_id = uuid.uuid4().hex
         jobs[job_id] = {"id": job_id, "status": "queued", "message": "Waiting for 3D generation."}
@@ -259,6 +299,8 @@ def mesh(job_id: str):
 def finish_stop():
     with lock:
         if state["closing"]:
+            log.info("three-d.process.stopped", {"reason": "stop_requested"})
+            flush()
             os._exit(0)
 
 
@@ -266,6 +308,7 @@ def finish_stop():
 def control(action: str, x_forge_engine_token: str = Header(default="")):
     global stop_timer
     if not TOKEN or not hmac.compare_digest(TOKEN, x_forge_engine_token):
+        log_request_rejected("/api/forge/:action", "forbidden")
         raise HTTPException(403, "Forbidden.")
     with lock:
         if action == "resume":
@@ -275,10 +318,13 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
             state["closing"] = False
             return {"resumed": True}
         if action != "stop":
+            log_request_rejected("/api/forge/:action", "unknown_action")
             raise HTTPException(404, "Not found.")
         if state["phase"] in ("loading", "generating"):
+            log_request_rejected("/api/forge/:action", "busy")
             raise HTTPException(409, "TRELLIS.2 worker has active work.")
         state["closing"] = True
+        log.info("three-d.process.stop.requested")
         if stop_timer is None:
             stop_timer = threading.Timer(1, finish_stop)
             stop_timer.daemon = True
@@ -287,7 +333,9 @@ def control(action: str, x_forge_engine_token: str = Header(default="")):
 
 
 if __name__ == "__main__":
+    install_excepthook("three-d")
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
     args = parser.parse_args()
+    log.info("three-d.process.started", {"port": args.port})
     uvicorn.run(app, host="127.0.0.1", port=args.port, access_log=False)

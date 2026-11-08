@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { checkAttachmentRoom, prepareChatImage } from './chat-images';
+import { createLog } from './app-log.js';
 
+const log = createLog('chat');
 const VISION_REFRESH_MS = 15000;
 
 /**
@@ -18,16 +20,24 @@ export function useChatImages() {
     if (!chosen.length) {
       return '';
     }
+    let stage = 'prepare';
     setPreparing(true);
     try {
       const prepared = [];
       for (const file of chosen) {
+        stage = 'prepare';
         prepared.push(await prepareChatImage(file));
+        stage = 'attachment_limit';
         checkAttachmentRoom(latest.current, prepared);
       }
       setAttachments((current) => [...current, ...prepared]);
       return '';
     } catch (reason) {
+      log.warn('chat.image.rejected', {
+        stage,
+        count: chosen.length,
+        errorClass: reason?.name || 'Error',
+      });
       return reason.message || 'Could not attach the picture.';
     } finally {
       setPreparing(false);
@@ -50,9 +60,11 @@ export function useChatVision({ provider, endpoint, serverStatus }) {
   const [vision, setVision] = useState(null);
   useEffect(() => {
     let alive = true;
+    let isRefreshFailing = false;
     const controller = new AbortController();
     async function refresh() {
       try {
+        // log-coverage: ignore -- same-origin /api request; the browser capture logs failures.
         const response = await fetch('/api/chat/vision', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'chat' },
@@ -62,12 +74,18 @@ export function useChatVision({ provider, endpoint, serverStatus }) {
         const data = await response.json();
         if (alive && response.ok && typeof data.available === 'boolean') {
           setVision(data);
+          isRefreshFailing = false;
         }
-      } catch {
+      } catch (error) {
         // The next interval or status change tries again; the last known answer stays.
+        if (alive && !isRefreshFailing) {
+          isRefreshFailing = true;
+          log.debug('chat.vision.refresh.failed', { errorClass: error?.name || 'Error' });
+        }
       }
     }
     refresh();
+    // log-coverage: ignore -- polling loop; failures are logged once per streak inside refresh().
     const timer = setInterval(refresh, VISION_REFRESH_MS);
     return () => {
       alive = false;

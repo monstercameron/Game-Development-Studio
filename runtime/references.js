@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { atomicWriteFile } from './durable-file.js';
 
 export const MAX_REFERENCE_BYTES = 10 * 1024 * 1024;
 export const MAX_REFERENCES_BYTES = 40 * 1024 * 1024;
@@ -39,7 +40,8 @@ export async function stageReference(projectFolder, bytes) {
   const [ext, mime] = imageType(bytes),
     dir = await inputDirectory(projectFolder, true),
     id = `${randomUUID()}.${ext}`;
-  await fs.writeFile(path.join(dir, id), bytes, { flag: 'wx' });
+  // Staged and flushed: a queued job must never read a reference cut short by a crash.
+  await atomicWriteFile(path.join(dir, id), bytes);
   return { id, mime, size: bytes.length };
 }
 export async function stageProjectAsset(projectFolder, relative) {
@@ -115,7 +117,7 @@ export async function stagePose(projectFolder, bytes) {
   poseText(bytes);
   const dir = await inputDirectory(projectFolder, true),
     id = `${randomUUID()}.bvh`;
-  await fs.writeFile(path.join(dir, id), bytes, { flag: 'wx' });
+  await atomicWriteFile(path.join(dir, id), bytes);
   return { id, mime: 'text/plain', size: bytes.length };
 }
 export async function stageProjectPose(projectFolder, relative) {

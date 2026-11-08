@@ -353,6 +353,8 @@ async function renderDetails(responses, props = {}) {
       const Check = () => null;
       const Copy = () => null;
       const RotateCcw = () => null;
+      // The shared logger is not needed in this render; a no-op keeps the transform self-contained.
+      const createLog = () => ({ debug() {}, info() {}, warn() {}, error() {} });
     `;
     const transformed = await transformWithEsbuild(`${prelude}\n${source}`, sourcePath, {
       loader: 'jsx',

@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('three-d');
 
 // Which TRELLIS.2 pipelines have their checkpoints on disk. This mirrors
 // trellis_manifest.pipelines_available() so the studio can offer (or hide) a pipeline while the
@@ -15,7 +18,11 @@ const EXTRA_CHECKPOINTS = [
 function present(file) {
   try {
     return fs.statSync(file).size > 0;
-  } catch {
+  } catch (error) {
+    log.debug('three-d.checkpoint.stat.failed', {
+      errorClass: error.name,
+      errorCode: error.code,
+    });
     return false;
   }
 }

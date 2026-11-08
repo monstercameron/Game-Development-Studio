@@ -6,6 +6,10 @@
 // (or back from) the mini player passes the current time and playing state, so
 // the store only ever holds the hand-off values.
 
+import { createLog } from './app-log.js';
+
+const log = createLog('ui');
+
 export const MINI_PLAYER_STORAGE_KEYS = {
   minimized: 'forge.miniPlayer.minimized',
   position: 'forge.miniPlayer.position',
@@ -65,28 +69,32 @@ let state = {
 function storage() {
   try {
     return typeof localStorage === 'undefined' ? null : localStorage;
-  } catch {
+  } catch (error) {
+    log.debug('ui.mini-player.storage.unavailable', { errorClass: error?.name });
     return null;
   }
 }
 function readMinimized() {
   try {
     return storage()?.getItem(MINI_PLAYER_STORAGE_KEYS.minimized) === '1';
-  } catch {
+  } catch (error) {
+    log.debug('ui.mini-player.minimized.read.failed', { errorClass: error?.name });
     return false;
   }
 }
 function readRepeat() {
   try {
     return normalizeRepeatMode(storage()?.getItem(MINI_PLAYER_STORAGE_KEYS.repeat));
-  } catch {
+  } catch (error) {
+    log.debug('ui.mini-player.repeat.read.failed', { errorClass: error?.name });
     return 'never';
   }
 }
 function persistMinimized(value) {
   try {
     storage()?.setItem(MINI_PLAYER_STORAGE_KEYS.minimized, value ? '1' : '0');
-  } catch {
+  } catch (error) {
+    log.debug('ui.mini-player.minimized.write.failed', { errorClass: error?.name });
     // Storage can be unavailable (private windows); the state still works in memory.
   }
 }
@@ -114,6 +122,7 @@ export function getServerSnapshot() {
 // Opening replaces whatever was playing: there is only ever one mini player.
 export function open({ kind, url, name, time = 0, playing = false, origin = null } = {}) {
   if (!kinds.has(kind) || typeof url !== 'string' || !url) {
+    log.warn('ui.mini-player.open.rejected', { reason: 'invalid_request' });
     return null;
   }
   const item = {
@@ -126,12 +135,14 @@ export function open({ kind, url, name, time = 0, playing = false, origin = null
     origin: origin || null,
   };
   set({ item, pendingReturn: null });
+  log.info('ui.mini-player.opened', { kind, isPlaying: item.playing });
   return item;
 }
 
 // Stops playback. Closing never resumes the inline preview.
 export function close() {
   if (state.item) {
+    log.info('ui.mini-player.closed', { kind: state.item.kind });
     set({ item: null });
   }
 }
@@ -143,6 +154,7 @@ export function requestExpand({ time, playing } = {}) {
   if (!item) {
     return null;
   }
+  log.info('ui.mini-player.expanded', { kind: item.kind, isPlaying: Boolean(playing) });
   set({
     item: null,
     pendingReturn: {
@@ -164,6 +176,7 @@ export function consumeReturn(url) {
   }
   if (Date.now() - pending.at > RETURN_WINDOW_MS) {
     // The user never came back to this preview; do not start playback out of nowhere later.
+    log.debug('ui.mini-player.return.expired');
     set({ pendingReturn: null });
     return null;
   }
@@ -175,6 +188,7 @@ export function setMinimized(value) {
   const minimized = Boolean(value);
   persistMinimized(minimized);
   if (minimized !== state.minimized) {
+    log.info('ui.mini-player.minimized.changed', { isMinimized: minimized });
     set({ minimized });
   }
 }
@@ -185,10 +199,12 @@ export function setRepeat(mode) {
   const repeat = normalizeRepeatMode(mode);
   try {
     storage()?.setItem(MINI_PLAYER_STORAGE_KEYS.repeat, repeat);
-  } catch {
+  } catch (error) {
+    log.debug('ui.mini-player.repeat.write.failed', { errorClass: error?.name });
     // The mode still applies for this page view.
   }
   if (repeat !== state.repeat) {
+    log.info('ui.mini-player.repeat.changed', { mode: repeat });
     set({ repeat });
   }
 }
@@ -208,6 +224,7 @@ export function loadPosition() {
   try {
     const value = JSON.parse(storage()?.getItem(MINI_PLAYER_STORAGE_KEYS.position) || 'null');
     return Number.isFinite(value?.right) && Number.isFinite(value?.bottom) ? value : null;
+    // log-coverage: ignore -- render-time initializer; falls back to no saved position
   } catch {
     return null;
   }
@@ -215,7 +232,8 @@ export function loadPosition() {
 export function savePosition(position) {
   try {
     storage()?.setItem(MINI_PLAYER_STORAGE_KEYS.position, JSON.stringify(position));
-  } catch {
+  } catch (error) {
+    log.debug('ui.mini-player.position.write.failed', { errorClass: error?.name });
     // Remembering the position is a convenience only.
   }
 }

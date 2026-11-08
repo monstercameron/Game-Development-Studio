@@ -7,13 +7,21 @@ import {
 } from '../runtime/chat-memory.js';
 import { saveProjectText } from './save-project-text';
 import { EMPTY_SAMPLING, SAMPLING_FIELDS, samplingFromForm } from './chat-sampling-form';
-import { chatStorageKey, chatsForStorage, normalizeSavedChats } from './chat-project';
+import {
+  chatStorageKey,
+  chatsForStorage,
+  normalizeSavedChats,
+  readChatDraft,
+  sanitizeSavedChatList,
+  writeChatDraft,
+} from './chat-project';
 import { ChatImageButtons, ChatImageTray } from './ChatImageInput';
 import { useChatImages, useChatVision } from './use-chat-images';
 import { imageInputBlock, savedImageRecord } from './chat-images';
 import { CHAT_PROJECTOR_MIB } from '../runtime/chat-image-limits.js';
 import { checkJsonSyntax, isStructuredJsonFormat } from './chat-output';
 import { createResponseMetrics } from './chat-metrics';
+import { createLog } from './app-log.js';
 import ChatMarkdown from './ChatMarkdown';
 import { useSearchParams } from 'react-router';
 import { updateSearch, useRouteToggle, routeDetails } from './useNav';
@@ -61,16 +69,31 @@ const makeChat = () => ({
   createdAt: Date.now(),
 });
 const headers = { 'Content-Type': 'application/json', 'X-Forge-Request': 'chat' };
+const log = createLog('chat');
+// Error text can echo prompts or server output, so only the class and codes are logged.
+function errorFields(error) {
+  return {
+    errorClass: typeof error?.name === 'string' ? error.name : 'Error',
+    ...(typeof error?.code === 'string' ? { errorCode: error.code } : {}),
+    ...(Number.isFinite(error?.status) ? { httpStatus: error.status } : {}),
+  };
+}
 async function readRuntimeResponse(response) {
   try {
     return await response.json();
-  } catch {
+  } catch (error) {
+    log.warn('chat.runtime.response.unreadable', {
+      ...errorFields(error),
+      httpStatus: response.status,
+    });
     throw Error(
       `The studio returned an unreadable response (${response.status}). Try again or check Diagnostics.`,
+      { cause: error },
     );
   }
 }
 async function call(route, body, signal) {
+  // log-coverage: ignore -- failed /api calls are already logged by app-log-install (http.request.failed)
   const r = await fetch('/api/chat/' + route, {
     method: 'POST',
     headers,
@@ -88,9 +111,11 @@ async function call(route, body, signal) {
 }
 function readSaved(key) {
   try {
-    const x = JSON.parse(localStorage.getItem(key));
-    return Array.isArray(x) && x.length ? normalizeSavedChats(x) : [makeChat()];
-  } catch {
+    const x = sanitizeSavedChatList(JSON.parse(localStorage.getItem(key)));
+    log.debug('chat.conversations.loaded', { conversationCount: x.length });
+    return x.length ? normalizeSavedChats(x) : [makeChat()];
+  } catch (error) {
+    log.warn('chat.conversations.load.failed', { ...errorFields(error), reason: 'using_empty' });
     return [makeChat()];
   }
 }
@@ -98,7 +123,8 @@ function savedNumber(key, fallback, valid) {
   try {
     const value = Number(localStorage.getItem(key));
     return valid(value) ? value : fallback;
-  } catch {
+  } catch (error) {
+    log.debug('chat.setting.read.failed', { ...errorFields(error), reason: 'using_default' });
     return fallback;
   }
 }
@@ -134,7 +160,15 @@ export default function Chat({ project }) {
   const [params, setParams] = useSearchParams();
   const active = params.get('conversation') || chats[0]?.id;
   const setActive = (id) => updateSearch(setParams, { conversation: id });
-  const [prompt, setPrompt] = useState('');
+  // Unsent text survives this page being mounted again (the project resolving late) and a reload.
+  const [prompt, setPrompt] = useState(() => {
+    const draft = readChatDraft();
+    log.debug('chat.draft.restored', { hasDraft: draft.length > 0 });
+    return draft;
+  });
+  useEffect(() => {
+    writeChatDraft(prompt);
+  }, [prompt]);
   const [provider, setProvider] = useState('compatible');
   const [endpoint, setEndpoint] = useState('http://127.0.0.1:8098/v1');
   const [model, setModel] = useState('qwen3.8-27b');
@@ -198,6 +232,7 @@ export default function Chat({ project }) {
     setSchema(exampleSchema);
     setSampling(EMPTY_SAMPLING);
     setResetArmed(false);
+    log.info('chat.options.reset');
     // The confirmation buttons unmount; keep keyboard focus inside the composer options.
     setTimeout(() => document.querySelector('.chat-options > summary')?.focus(), 0);
   };
@@ -235,7 +270,11 @@ export default function Chat({ project }) {
     try {
       // Pictures are never saved here: only thumbnails and asset references (see chatsForStorage).
       localStorage.setItem(key, JSON.stringify(chatsForStorage(chats)));
-    } catch {
+    } catch (error) {
+      log.warn('chat.conversations.save.failed', {
+        ...errorFields(error),
+        conversationCount: chats.length,
+      });
       setError(
         'Could not save this conversation in your browser. Export important text before closing.',
       );
@@ -317,7 +356,8 @@ export default function Chat({ project }) {
         if (active) {
           setMemory(status);
         }
-      } catch {
+      } catch (error) {
+        log.debug('chat.memory.status.failed', errorFields(error));
         if (active) {
           setMemory(null);
         }
@@ -325,9 +365,11 @@ export default function Chat({ project }) {
     }
     refreshMemory();
     const timer = setInterval(refreshMemory, 15000);
+    log.debug('chat.memory.poll.started', { intervalMs: 15000 });
     return () => {
       active = false;
       clearInterval(timer);
+      log.debug('chat.memory.poll.stopped');
     };
   }, []);
   useEffect(() => {
@@ -337,7 +379,8 @@ export default function Chat({ project }) {
       if (Number.isSafeInteger(n) && n >= 1 && n <= 262144) {
         localStorage.setItem('forge-chat-max-output-v1', String(n));
       }
-    } catch {
+    } catch (error) {
+      log.debug('chat.settings.save.failed', errorFields(error));
       // Browser storage is optional; in-memory settings remain usable.
     }
   }, [contextSize, maxTokens]);
@@ -353,15 +396,18 @@ export default function Chat({ project }) {
         if (alive) {
           setChatRuntime(data.models?.find((item) => item.id === 'chat')?.service || null);
         }
-      } catch {
+      } catch (error) {
+        log.debug('chat.runtime.status.failed', errorFields(error));
         // Runtime status is refreshed on the next interval.
       }
     }
     refresh();
     const timer = setInterval(refresh, 10000);
+    log.debug('chat.runtime.poll.started', { intervalMs: 10000 });
     return () => {
       alive = false;
       clearInterval(timer);
+      log.debug('chat.runtime.poll.stopped');
     };
   }, []);
   const actualContext =
@@ -384,6 +430,7 @@ export default function Chat({ project }) {
     setChats((x) => [c, ...x]);
     setActive(c.id);
     setError('');
+    log.info('chat.conversation.created', { conversationCount: chats.length + 1 });
   }
   function cancelRename(id) {
     renameCancelled.current = true;
@@ -400,6 +447,7 @@ export default function Chat({ project }) {
     setRenaming(null);
     if (title && id) {
       updateChat(id, (c) => ({ ...c, title, titleLocked: true }));
+      log.debug('chat.conversation.renamed');
     }
     setTimeout(() => document.querySelector(`[data-rename-for="${id}"]`)?.focus(), 0);
   }
@@ -415,13 +463,19 @@ export default function Chat({ project }) {
     if (active === id) {
       setActive(remaining[0].id);
     }
+    log.info('chat.conversation.deleted', { conversationCount: remaining.length });
   }
   async function copy(value, id) {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(id);
       setTimeout(() => setCopied(''), 1800);
-    } catch {
+      log.debug('chat.copy.succeeded', { kind: id === 'error' ? 'error' : 'message' });
+    } catch (error) {
+      log.warn('chat.copy.failed', {
+        ...errorFields(error),
+        kind: id === 'error' ? 'error' : 'message',
+      });
       setError('Clipboard unavailable. Select and copy the text manually.');
     }
   }
@@ -437,16 +491,24 @@ export default function Chat({ project }) {
   const contextEstimate = estimateChatMemory(contextSize, { projectorMiB });
   async function attachImageFiles(files) {
     if (busy) {
+      log.debug('chat.attachment.rejected', { reason: 'busy', fileCount: files.length });
       return;
     }
     if (imageBlock) {
+      log.info('chat.attachment.rejected', {
+        reason: 'vision_unavailable',
+        fileCount: files.length,
+      });
       setError(imageBlock);
       return;
     }
     setError('');
     const problem = await images.addFiles(files);
     if (problem) {
+      log.warn('chat.attachment.rejected', { reason: 'add_failed', fileCount: files.length });
       setError(problem);
+    } else {
+      log.info('chat.attachment.accepted', { fileCount: files.length });
     }
   }
   function imageFilesFromTransfer(transfer) {
@@ -478,13 +540,16 @@ export default function Chat({ project }) {
         },
       });
       setStatus(`Saved to ${saved.path}`);
+      log.info('chat.response.saved');
     } catch (reason) {
+      log.warn('chat.response.save.failed', errorFields(reason));
       setError(reason.message);
     } finally {
       setSavingMessage(null);
     }
   }
   async function checkLocal(signal) {
+    log.info('chat.model.load.requested', { contextSize, isSpeculative: speculative });
     const r = await fetch('/api/runtime/models/chat/load', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
@@ -494,6 +559,7 @@ export default function Chat({ project }) {
     const data = await readRuntimeResponse(r);
     if (['insufficient_host_memory', 'insufficient_gpu_memory'].includes(data.code)) {
       setMemoryConflict(data);
+      log.info('chat.model.load.waiting', { reason: data.code });
       setStatus('Waiting for memory to start Qwen.');
       return false;
     }
@@ -555,8 +621,10 @@ export default function Chat({ project }) {
       await checkLocal(pendingMemory.current?.signal);
     } catch (e) {
       if (e.name === 'AbortError') {
+        log.debug('chat.model.load.aborted');
         return;
       }
+      log.warn('chat.model.load.failed', errorFields(e));
       setStatus('');
       if (memoryConflict) {
         setMemoryError(e.message);
@@ -569,6 +637,7 @@ export default function Chat({ project }) {
   }
   async function offloadForChat(id) {
     const signal = pendingMemory.current?.signal;
+    log.info('chat.model.offload.requested', { modelId: id });
     setMemoryWorking(true);
     setMemoryError('');
     try {
@@ -587,13 +656,17 @@ export default function Chat({ project }) {
       await checkLocal(signal);
     } catch (e) {
       if (e.name !== 'AbortError') {
+        log.warn('chat.model.offload.failed', { ...errorFields(e), modelId: id });
         setMemoryError(e.message);
+      } else {
+        log.debug('chat.model.offload.aborted', { modelId: id });
       }
     } finally {
       setMemoryWorking(false);
     }
   }
   async function chatLoading(signal) {
+    // log-coverage: ignore -- failed /api calls are already logged by app-log-install (http.request.failed)
     const r = await fetch('/api/runtime/health', { signal });
     if (!r.ok) {
       throw Error('Could not check the studio runtime.');
@@ -605,9 +678,11 @@ export default function Chat({ project }) {
     if (
       !window.confirm('Force stop the Qwen server? Any active chat response will be interrupted.')
     ) {
+      log.debug('chat.model.stop.declined');
       return;
     }
     setError('');
+    log.info('chat.model.stop.requested');
     try {
       const r = await fetch('/api/runtime/models/chat/force-stop', {
         method: 'POST',
@@ -621,7 +696,9 @@ export default function Chat({ project }) {
       setChatRuntime((current) => ({ ...current, status: 'stopped' }));
       setMemory(null);
       setStatus('');
+      log.info('chat.model.stop.completed');
     } catch (e) {
+      log.warn('chat.model.stop.failed', errorFields(e));
       setError(e.message);
     }
   }
@@ -631,6 +708,7 @@ export default function Chat({ project }) {
     try {
       const data = await (await call('models', connection)).json();
       setModels(data.models);
+      log.debug('chat.models.listed', { modelCount: data.models.length });
       if (data.models.length && !data.models.includes(model)) {
         setModel(data.models[0]);
       }
@@ -640,6 +718,7 @@ export default function Chat({ project }) {
           : 'Connected; no models returned',
       );
     } catch (e) {
+      log.warn('chat.models.list.failed', errorFields(e));
       setStatus('');
       setError(e.message);
     }
@@ -657,6 +736,8 @@ export default function Chat({ project }) {
           throw Error();
         }
       } catch {
+        // The parse error would quote the schema text, so only a reason code is logged.
+        log.warn('chat.send.rejected', { reason: 'invalid_schema' });
         setError('Enter a valid JSON schema object.');
         setSchemaOpen(true);
         return;
@@ -664,15 +745,18 @@ export default function Chat({ project }) {
     }
     const outputTokens = Number(maxTokens);
     if (!Number.isSafeInteger(outputTokens) || outputTokens < 1 || outputTokens > 262144) {
+      log.warn('chat.send.rejected', { reason: 'invalid_max_tokens' });
       setError('Maximum output tokens must be a whole number from 1 to 262,144.');
       return;
     }
     const sampling = Number(temperature);
     if (temperature === '' || !Number.isFinite(sampling) || sampling < 0 || sampling > 2) {
+      log.warn('chat.send.rejected', { reason: 'invalid_temperature' });
       setError('Temperature must be a number from 0 to 2.');
       return;
     }
     if (Object.keys(samplingState.errors).length) {
+      log.warn('chat.send.rejected', { reason: 'invalid_sampling' });
       setError(`Check Advanced sampling: ${Object.values(samplingState.errors)[0]}`);
       setOptionsOpen(true);
       setAdvancedOpen(true);
@@ -683,6 +767,7 @@ export default function Chat({ project }) {
       contextLimit !== null &&
       outputTokens > contextLimit
     ) {
+      log.warn('chat.send.rejected', { reason: 'exceeds_context', contextSize: contextLimit });
       setError(
         `Maximum output cannot exceed the ${contextLimit.toLocaleString()}-token context window. Leave room for your prompt and conversation too.`,
       );
@@ -691,6 +776,10 @@ export default function Chat({ project }) {
 
     const attached = images.attachments;
     if (attached.length && imageBlock) {
+      log.warn('chat.send.rejected', {
+        reason: 'vision_unavailable',
+        imageCount: attached.length,
+      });
       setError(imageBlock);
       return;
     }
@@ -716,6 +805,7 @@ export default function Chat({ project }) {
       prior.length + (system.trim() ? 1 : 0) + 1 > 150 ||
       [user, ...prior].some((m) => m.content.length > 100000)
     ) {
+      log.warn('chat.send.rejected', { reason: 'too_long', messageCount: prior.length + 1 });
       setError(
         'This message or conversation is too long to send: up to 150 messages and 100,000 characters per message. Shorten the message or start a new conversation.',
       );
@@ -729,7 +819,19 @@ export default function Chat({ project }) {
     const ac = new AbortController();
     controller.current = ac;
     let submitted = false,
-      metrics = null;
+      metrics = null,
+      malformedEventCount = 0;
+    const startedAt = performance.now();
+    const hasImages = attached.length > 0;
+    const messageCount = prior.length + 1;
+    log.info('chat.stream.started', {
+      messageCount,
+      hasImages,
+      imageCount: attached.length,
+      format,
+      provider,
+      isLocalModel: localQwen,
+    });
     try {
       await ensureChatReady({
         connection,
@@ -802,6 +904,9 @@ export default function Chat({ project }) {
           try {
             part = JSON.parse(data);
           } catch {
+            // Counted for the finish record; trace keeps a per-event line off by default.
+            malformedEventCount += 1;
+            log.trace('chat.stream.event.malformed', { count: malformedEventCount });
             continue;
           }
           if (part.error) {
@@ -861,7 +966,32 @@ export default function Chat({ project }) {
         return { ...c, messages };
       });
       setAnnouncement('Response complete.');
+      log.info('chat.stream.completed', {
+        durationMs: Math.round(performance.now() - startedAt),
+        messageCount,
+        hasImages,
+        malformedEventCount,
+      });
     } catch (err) {
+      const durationMs = Math.round(performance.now() - startedAt);
+      if (err.name === 'AbortError') {
+        log.info('chat.stream.aborted', {
+          durationMs,
+          messageCount,
+          hasImages,
+          malformedEventCount,
+          reason: submitted ? 'stopped_while_streaming' : 'cancelled_before_send',
+        });
+      } else {
+        log.error('chat.stream.failed', {
+          ...errorFields(err),
+          durationMs,
+          messageCount,
+          hasImages,
+          malformedEventCount,
+          phase: submitted ? 'streaming' : 'preparing',
+        });
+      }
       if (submitted) {
         updateChat(id, (c) => {
           const messages = [...c.messages],
@@ -1374,7 +1504,16 @@ export default function Chat({ project }) {
                     )}
                     <label>
                       Thinking
-                      <select value={effort} onChange={(e) => setEffort(e.target.value)}>
+                      <select
+                        value={effort}
+                        onChange={(e) => {
+                          setEffort(e.target.value);
+                          log.info('chat.options.changed', {
+                            settingKey: 'thinking',
+                            mode: e.target.value,
+                          });
+                        }}
+                      >
                         <option value="auto">Model default</option>
                         <option value="none">Off</option>
                         <option value="low">Low</option>

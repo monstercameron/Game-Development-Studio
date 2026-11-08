@@ -1,6 +1,7 @@
 // Builds OpenAI Responses API requests that translate shipped English UI strings, and validates
 // every returned string before it is stored. Only catalog strings (key + English text) are ever
 // placed in a request; nothing here reads projects, prompts, files or any user content.
+import { createLogger } from './app-log.js';
 import {
   PLURAL_CATEGORIES,
   parseRichText,
@@ -9,6 +10,8 @@ import {
   tagsOf,
 } from '../src/i18n/message-format.js';
 import { PROTECTED_TERMS, glossaryFor } from './i18n-glossary.js';
+
+const log = createLogger('i18n');
 
 export const CHUNK_SIZE = 80;
 export const TRANSLATE_TIMEOUT_MS = 90000;
@@ -32,7 +35,8 @@ export function pluralCategoriesFor(locale) {
   try {
     const categories = new Intl.PluralRules(locale).resolvedOptions().pluralCategories;
     return PLURAL_CATEGORIES.filter((category) => categories.includes(category));
-  } catch {
+  } catch (failure) {
+    log.debug('i18n.plural.rules.failed', { locale, errorClass: failure?.name });
     return ['one', 'other'];
   }
 }
@@ -230,7 +234,13 @@ export function parseTranslationOutput(text, items, locale) {
   let data;
   try {
     data = JSON.parse(text);
-  } catch {
+  } catch (failure) {
+    // The caller rejects every key as missing; log the cause without the model output.
+    log.warn('i18n.output.parse.failed', {
+      locale,
+      reason: 'invalid_json',
+      errorClass: failure?.name,
+    });
     data = null;
   }
   const accepted = new Map();

@@ -1,6 +1,10 @@
-// Pure, dependency-free logic shared by the 3D viewer UI and engine: camera view
+// Pure logic shared by the 3D viewer UI and engine: camera view
 // presets, formatting, persisted preferences, keyboard shortcut mapping and error
 // descriptions. Nothing here touches three.js, React or the DOM so it can be unit tested.
+
+import { createLog } from './app-log.js';
+
+const log = createLog('three-d');
 
 // ---------------------------------------------------------------------------
 // Camera views
@@ -202,6 +206,7 @@ export function loadPrefs(storage = globalThis.localStorage) {
     if (raw) {
       memoryPrefs = sanitizePrefs(JSON.parse(raw));
     }
+    // log-coverage: ignore -- called from a useState initializer during render; no logging there
   } catch {
     // Storage can be blocked or corrupt; fall back to this session's memory copy.
   }
@@ -212,7 +217,8 @@ export function savePrefs(prefs, storage = globalThis.localStorage) {
   memoryPrefs = sanitizePrefs(prefs);
   try {
     storage?.setItem(PREFS_KEY, JSON.stringify(memoryPrefs));
-  } catch {
+  } catch (error) {
+    log.debug('viewer.prefs.write.failed', { errorClass: error?.name });
     // The preference still holds for this page session.
   }
   return { ...memoryPrefs };

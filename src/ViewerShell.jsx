@@ -40,6 +40,9 @@ import {
 import { describePanoramaView } from './viewer-panorama';
 import { topModal } from './modal-layer';
 import './ux-viewer.css';
+import { createLog } from './app-log.js';
+
+const log = createLog('three-d');
 
 const TOGGLES = {
   autoRotate: { label: 'Auto-rotate', keys: 'O', icon: Orbit },
@@ -245,7 +248,11 @@ export default function ViewerShell({
       const blob = await actions.snapshot();
       downloadBlob(blob, snapshotFilename(name, activeView || 'view'));
       say('PNG snapshot downloaded');
-    } catch {
+    } catch (error) {
+      log.warn('viewer.snapshot.failed', {
+        errorClass: error?.name,
+        errorCode: error?.code,
+      });
       say('Could not create the snapshot.');
     }
   };

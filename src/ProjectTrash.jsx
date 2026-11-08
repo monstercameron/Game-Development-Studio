@@ -2,6 +2,9 @@ import { useRouteToggle, updateSearch } from './useNav';
 import { useSearchParams } from 'react-router';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
+import { createLog } from './app-log.js';
+
+const log = createLog('projects');
 
 export default function ProjectTrash({ projectId, revision, onChanged }) {
   const [open] = useRouteToggle('trash');
@@ -36,18 +39,21 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
     }
     setLoading(true);
     setLoadError('');
+    // log-coverage: ignore -- the app-log fetch wrapper records failed /api calls
     fetch(`/api/projects/${projectId}/assets/trash`)
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) {
           throw Error(data.error || 'Could not load trash.');
         }
+        log.debug('projects.trash.loaded', { itemCount: data.items?.length ?? 0 });
         if (active) {
           setItems(data.items);
           setWarnings(data.warnings || []);
         }
       })
       .catch((error) => {
+        log.warn('projects.trash.load.failed', { errorClass: error?.name });
         if (active) {
           setLoadError(error.message);
         }
@@ -96,6 +102,7 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
     setMessage('');
     setActionError('');
     try {
+      // log-coverage: ignore -- the app-log fetch wrapper records failed /api calls
       const response = await fetch(`/api/projects/${projectId}/assets/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'project' },
@@ -106,6 +113,11 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
         throw Error(data.error || 'Could not update trash.');
       }
       const cleanupPending = action === 'restore' && data.cleanupPending === true;
+      if (action === 'restore') {
+        log.info('projects.trash.restored', { isCleanupPending: cleanupPending });
+      } else {
+        log.info('projects.trash.cleared', { deletedCount: data.deleted });
+      }
       if (cleanupPending) {
         setPendingCleanupIds((previous) => [...new Set([...previous, body.trashId])]);
       } else if (action === 'restore' || action === 'clear-trash') {
@@ -133,6 +145,7 @@ export default function ProjectTrash({ projectId, revision, onChanged }) {
       );
       await onChanged();
     } catch (error) {
+      log.warn('projects.trash.action.failed', { action, errorClass: error?.name });
       setActionError(error.message);
     } finally {
       setBusy(false);

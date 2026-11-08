@@ -1,11 +1,10 @@
-import { DatabaseSync } from 'node:sqlite';
 import { randomInt, randomUUID } from 'node:crypto';
 import { fork } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { recordConversion, recordJobOutput } from './asset-metadata.js';
-import { planChainUnload } from './chain-unload.js';
+import { planChainUnload, resolveChainUnloadOption } from './chain-unload.js';
 import { normalizeImageExtras } from './image-options.js';
 import { normalizeDerivedMusic, resolveDerivedMusic } from './music-derived.js';
 import { normalizeSoundSource } from './sfx-request.js';
@@ -16,7 +15,12 @@ import { quickCheckoutStatus, loadSchemaSync } from './vegetation-runner.js';
 import { cleanVegetationResult, normalizeVegetationRequest } from './vegetation-request.js';
 import { checkpointForRequest, checkpointLoadedFor, voiceModeFields } from './voice-modes.js';
 import { NEXT_RANK_SQL, moveQueuedJob, parseMoveRequest } from './queue-order.js';
+import { openDatabase } from './durable-db.js';
+import { inspectFinishedOutput } from './job-recovery.js';
+import { recordRecoveryEvent } from './recovery-events.js';
+import { createLogger } from './app-log.js';
 
+const log = createLogger('queue');
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const runtimeDir = process.env.FORGE_RUNTIME_DIR || path.join(appRoot, '.forge-runtime');
 export const projectsRoot = process.env.FORGE_PROJECTS_DIR || path.join(appRoot, 'projects');
@@ -34,7 +38,12 @@ export function findProject(id, root = projectsRoot) {
     let meta;
     try {
       meta = JSON.parse(fs.readFileSync(path.join(folder, '.forge-project.json'), 'utf8'));
-    } catch {
+    } catch (error) {
+      // A folder without readable project metadata is not a project; keep scanning.
+      log.debug('queue.project.scan.skipped', {
+        reason: 'unreadable_metadata',
+        errorClass: error.name,
+      });
       continue;
     }
     if (meta.id === id) {
@@ -858,6 +867,34 @@ function validateType(input, root = projectsRoot) {
     },
   };
 }
+// Whole milliseconds from an ISO timestamp to now; undefined when the timestamp is missing.
+function elapsedMs(startIso) {
+  const startMs = Date.parse(startIso);
+  return Number.isFinite(startMs) ? Math.max(0, Date.now() - startMs) : undefined;
+}
+const FINISHED_STATUSES = ['completed', 'failed', 'cancelled', 'interrupted'];
+// Fields of a job.state.changed record. durationMs is how long the render had run (from its
+// start to now) and is set only when the new status ends it; never pass a prompt or output name.
+function transitionFields(jobId, job, from, to, reason) {
+  return {
+    jobId,
+    type: job?.type,
+    from,
+    to,
+    reason,
+    durationMs: FINISHED_STATUSES.includes(to) ? elapsedMs(job?.startedAt) : undefined,
+  };
+}
+// The memory numbers of a waiting_memory preparation, for the admission log. Both are MiB
+// estimates from the preparer; a value that is not a finite number is left out.
+function admissionMemory(details) {
+  const requiredMiB = details?.requiredMiB;
+  const freeMiB = details?.device?.freeMiB ?? details?.freeMiB;
+  return {
+    ...(Number.isFinite(requiredMiB) ? { requiredMiB } : {}),
+    ...(Number.isFinite(freeMiB) ? { freeMiB } : {}),
+  };
+}
 function publicJob(row) {
   if (!row) {
     return null;
@@ -1023,7 +1060,8 @@ export class JobQueue {
     prepareImage = null,
     recoverService = null,
     autoMemory = null,
-    // true or false overrides FORGE_CHAIN_UNLOAD; null reads it (default on). See chain-unload.js.
+    // true or false overrides FORGE_CHAIN_UNLOAD; a function is asked each time (the worker passes
+    // the live queue.chainUnload setting); null reads the environment (default on).
     chainUnload = null,
     // Re-reads GPU memory after a chained render freed a model so the next admission sees it.
     refreshHardware = null,
@@ -1061,7 +1099,15 @@ export class JobQueue {
     this.onModelLoadBarrier = onModelLoadBarrier;
     this.onQueueLog = onQueueLog;
     fs.mkdirSync(directory, { recursive: true });
-    this.db = new DatabaseSync(path.join(directory, 'jobs.sqlite'));
+    this.directory = directory;
+    // FULL synchronous: a committed queue change must survive a power loss. The open also runs
+    // the integrity check and, on corruption, sets the file aside and restores a backup.
+    this.db = openDatabase(path.join(directory, 'jobs.sqlite'), {
+      name: 'jobs',
+      journal: 'WAL',
+      synchronous: 'FULL',
+      directory,
+    });
     this.db.exec(
       `PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, type TEXT NOT NULL, project_id TEXT NOT NULL, request TEXT NOT NULL, status TEXT NOT NULL, remote_id TEXT, stage TEXT, error TEXT, output TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS runtime_owner (id INTEGER PRIMARY KEY CHECK(id=1), owner TEXT NOT NULL, expires INTEGER NOT NULL); INSERT OR IGNORE INTO runtime_owner(id,owner,expires) VALUES(1,'',0); CREATE TABLE IF NOT EXISTS model_loads (id TEXT PRIMARY KEY, state TEXT NOT NULL); INSERT OR IGNORE INTO model_loads(id,state) VALUES('music','idle'); INSERT OR IGNORE INTO model_loads(id,state) VALUES('sfx','idle'); INSERT OR IGNORE INTO model_loads(id,state) VALUES('tts','idle'); INSERT OR IGNORE INTO model_loads(id,state) VALUES('asr','idle');`,
     );
@@ -1081,6 +1127,7 @@ export class JobQueue {
       if (!columns.includes(column)) {
         try {
           this.db.exec(`ALTER TABLE jobs ADD COLUMN ${column} TEXT`);
+          log.info('queue.migration.completed', { operation: 'add_column', target: column });
         } catch (error) {
           if (
             !this.db
@@ -1101,6 +1148,7 @@ export class JobQueue {
     if (!columns.includes('queue_rank')) {
       try {
         this.db.exec('ALTER TABLE jobs ADD COLUMN queue_rank REAL');
+        log.info('queue.migration.completed', { operation: 'add_column', target: 'queue_rank' });
       } catch (error) {
         if (
           !this.db
@@ -1120,6 +1168,7 @@ export class JobQueue {
     if (!ownerColumns.includes('epoch')) {
       try {
         this.db.exec('ALTER TABLE runtime_owner ADD COLUMN epoch INTEGER NOT NULL DEFAULT 0');
+        log.info('queue.migration.completed', { operation: 'add_column', target: 'epoch' });
       } catch (error) {
         if (
           !this.db
@@ -1139,13 +1188,17 @@ export class JobQueue {
     this.stopped = false;
     this.suspendedEngines = new Set();
     this.memoryRetryAt = new Map();
+    // Last health result per job type, so a polling queue logs a change, not every tick.
+    this.engineReachable = new Map();
     this.refreshModelLoad();
+    log.info('queue.process.started', { intervalMs, leaseMs, isAutoStart: !!autoStart });
     if (autoStart) {
       this.timer = setInterval(() => {
         if (this.polling || this.modelLoadInProgress) {
           try {
             this.lease();
           } catch (error) {
+            log.warn('queue.lease.renewal.failed', { error });
             console.error('Queue lease renewal:', error.message);
           }
         } else {
@@ -1158,6 +1211,7 @@ export class JobQueue {
           try {
             this.lease();
           } catch (error) {
+            log.warn('queue.lease.recovery.failed', { error });
             console.error('Queue lease recovery:', error.message);
           }
         } else {
@@ -1232,8 +1286,9 @@ export class JobQueue {
     }
     try {
       this.onQueueLog(record);
-    } catch {
+    } catch (error) {
       // Queue logging must never alter durable queue behavior.
+      log.warn('queue.log.callback.failed', { error, kind: 'lifecycle' });
     }
   }
   lifecycleEvent(status) {
@@ -1258,6 +1313,7 @@ export class JobQueue {
     );
   }
   insertJob(value, id, now, dependsOn = null) {
+    // log-coverage: ignore -- enqueue() and enqueueChain() log job.state.changed after the commit
     this.db
       .prepare(
         `INSERT INTO jobs(id,type,project_id,request,status,stage,created_at,updated_at,depends_on,queue_rank) VALUES(?,?,?,?,?,?,?,?,?,${NEXT_RANK_SQL})`,
@@ -1323,6 +1379,13 @@ export class JobQueue {
       this.assertChainParent(value, this.get(parentId));
     }
     this.insertJob(value, id, now, parentId);
+    log.info('job.state.changed', {
+      jobId: id,
+      type: value.type,
+      to: 'queued',
+      reason: 'enqueued',
+      isChained: !!parentId,
+    });
     if (this.autoStart) {
       setImmediate(() => this.tick());
     }
@@ -1375,6 +1438,10 @@ export class JobQueue {
       try {
         this.db.exec('ROLLBACK');
       } catch (rollbackError) {
+        log.warn('queue.transaction.rollback.failed', {
+          operation: 'enqueue_chain',
+          error: rollbackError,
+        });
         console.error('Could not roll back chain enqueue:', rollbackError.message);
       }
       throw error;
@@ -1382,6 +1449,16 @@ export class JobQueue {
     if (this.autoStart) {
       setImmediate(() => this.tick());
     }
+    values.forEach((value, index) => {
+      log.info('job.state.changed', {
+        jobId: ids[index],
+        type: value.type,
+        to: 'queued',
+        reason: 'enqueued_chain',
+        isChained: index > 0,
+        stepIndex: index,
+      });
+    });
     return ids.map((id) => this.get(id));
   }
   // Renders still waiting on a reference from `parentId`. Renders that already have their
@@ -1414,6 +1491,13 @@ export class JobQueue {
       if (result.changes) {
         this.memoryRetryAt.delete(child.id);
         this.logLifecycle('cancelled', this.get(child.id));
+        log.info('job.state.changed', {
+          jobId: child.id,
+          type: child.type,
+          from: child.status,
+          to: 'cancelled',
+          reason: 'parent_cancelled',
+        });
         this.cancelDependents(child.id);
       }
     }
@@ -1425,12 +1509,21 @@ export class JobQueue {
       if (child.stage !== DEPENDENCY_FAILED_STAGE) {
         continue;
       }
-      this.db
+      const requeued = this.db
         .prepare(
           "UPDATE jobs SET status='queued',stage=?,error=NULL,updated_at=? WHERE id=? AND status='failed' AND remote_id IS NULL",
         )
         .run(CHAIN_WAITING_STAGE, now, child.id);
       this.logLifecycle('retry_queued', this.get(child.id));
+      if (requeued.changes) {
+        log.info('job.state.changed', {
+          jobId: child.id,
+          type: child.type,
+          from: 'failed',
+          to: 'queued',
+          reason: 'parent_retried',
+        });
+      }
       this.requeueDependents(child.id);
     }
   }
@@ -1447,7 +1540,14 @@ export class JobQueue {
       throw Error('Only queued jobs can be cancelled here.');
     }
     this.memoryRetryAt.delete(id);
-    this.logLifecycle('cancelled', this.get(id));
+    const cancelled = this.get(id);
+    this.logLifecycle('cancelled', cancelled);
+    log.info('job.state.changed', {
+      jobId: id,
+      type: cancelled?.type,
+      to: 'cancelled',
+      reason: 'cancelled_by_user',
+    });
     this.cancelDependents(id);
     return this.get(id);
   }
@@ -1464,8 +1564,16 @@ export class JobQueue {
       .all(new Date().toISOString());
     for (const row of rows) {
       this.memoryRetryAt.delete(row.id);
-      this.logLifecycle('cancelled', this.get(row.id));
+      const cancelled = this.get(row.id);
+      this.logLifecycle('cancelled', cancelled);
+      log.info('job.state.changed', {
+        jobId: row.id,
+        type: cancelled?.type,
+        to: 'cancelled',
+        reason: 'cleared_waiting',
+      });
     }
+    log.info('queue.waiting.cleared', { count: rows.length });
     return { cancelled: rows.length };
   }
   retry(id) {
@@ -1484,6 +1592,12 @@ export class JobQueue {
     this.chainUnloadAttempted.delete(id);
     const retried = this.get(id);
     this.logLifecycle(retried.remoteId ? 'retry_recheck' : 'retry_queued', retried);
+    log.info('job.state.changed', {
+      jobId: id,
+      type: retried.type,
+      to: retried.status,
+      reason: retried.remoteId ? 'retry_recheck' : 'retry_queued',
+    });
     this.requeueDependents(id);
     if (this.autoStart) {
       setImmediate(() => this.tick());
@@ -1502,7 +1616,15 @@ export class JobQueue {
     if (!result.changes) {
       throw Error('Only interrupted jobs can be resolved.');
     }
-    this.logLifecycle('resolved', this.get(id));
+    const resolved = this.get(id);
+    this.logLifecycle('resolved', resolved);
+    log.info('job.state.changed', {
+      jobId: id,
+      type: resolved?.type,
+      from: 'interrupted',
+      to: 'cancelled',
+      reason: 'resolved_by_user',
+    });
     this.cancelDependents(id);
     if (this.autoStart) {
       setImmediate(() => this.tick());
@@ -1593,6 +1715,13 @@ export class JobQueue {
         throw Error('Could not fence the active render.');
       }
       this.logLifecycle('interrupted', this.get(current.id));
+      log.warn('job.state.changed', {
+        jobId: current.id,
+        type: current.type,
+        from: current.status,
+        to: 'interrupted',
+        reason: 'force_stop_unknown_outcome',
+      });
       if (this.active?.id === current.id) {
         this.active.forced = true;
         this.active.child.kill();
@@ -1648,6 +1777,12 @@ export class JobQueue {
     this.modelLoadEngine = engine;
     this.modelLoadState = 'checking';
     this.modelLoadInProgress = true;
+    log.info('queue.model_load.changed', {
+      engineId: engine,
+      from: 'idle',
+      to: 'checking',
+      reason: 'queue_reserved',
+    });
   }
   claimQueuedModelLoad(id, token, engine = 'music') {
     if (
@@ -1681,6 +1816,11 @@ export class JobQueue {
         );
       if (!job.changes) {
         this.db.exec('ROLLBACK');
+        log.debug('queue.model_load.claim.declined', {
+          jobId: id,
+          engineId: engine,
+          reason: 'not_claimable',
+        });
         return false;
       }
       this.db
@@ -1690,12 +1830,30 @@ export class JobQueue {
       this.modelLoadEngine = engine;
       this.modelLoadState = 'checking';
       this.modelLoadInProgress = true;
-      this.logLifecycle('status_transition', this.get(id));
+      const claimedJob = this.get(id);
+      this.logLifecycle('status_transition', claimedJob);
+      log.info('job.state.changed', {
+        jobId: id,
+        type: claimedJob?.type,
+        to: 'preparing',
+        reason: 'model_load_claimed',
+        engineId: engine,
+      });
+      log.info('queue.model_load.changed', {
+        engineId: engine,
+        from: 'idle',
+        to: 'checking',
+        reason: 'job_claimed',
+      });
       return true;
     } catch (error) {
       try {
         this.db.exec('ROLLBACK');
       } catch (rollbackError) {
+        log.warn('queue.transaction.rollback.failed', {
+          operation: 'claim_model_load',
+          error: rollbackError,
+        });
         console.error('Could not roll back model-load transaction:', rollbackError.message);
       }
       throw error;
@@ -1711,6 +1869,12 @@ export class JobQueue {
       return false;
     }
     this.modelLoadState = 'loading';
+    log.info('queue.model_load.changed', {
+      engineId: engine,
+      from: 'checking',
+      to: 'loading',
+      reason: 'load_requested',
+    });
     return true;
   }
   resumeAfterModelLoad(engine = 'music') {
@@ -1726,6 +1890,7 @@ export class JobQueue {
       return false;
     }
     this.refreshModelLoad();
+    log.info('queue.model_load.changed', { engineId: engine, to: 'idle', reason: 'load_finished' });
     if (this.autoStart) {
       setImmediate(() => this.tick());
     }
@@ -1767,7 +1932,23 @@ export class JobQueue {
         Date.now(),
       );
     if (result.changes && values.status && values.status !== previousStatus) {
-      this.logLifecycle(event, this.get(id), values.status);
+      const changedJob = this.get(id);
+      this.logLifecycle(event, changedJob, values.status);
+      const fields = transitionFields(id, changedJob, previousStatus, values.status, event);
+      if (values.status === 'failed') {
+        log.error('job.state.changed', fields);
+      } else if (values.status === 'interrupted') {
+        log.warn('job.state.changed', fields);
+      } else {
+        log.info('job.state.changed', fields);
+      }
+    } else if (!result.changes && values.status) {
+      // The lease moved on, or the row is gone: the owner check in the UPDATE refused the write.
+      log.debug('queue.job.update.rejected', {
+        jobId: id,
+        to: values.status,
+        reason: 'lease_lost_or_job_missing',
+      });
     }
     return !!result.changes;
   }
@@ -1794,7 +1975,30 @@ export class JobQueue {
         Date.now(),
       );
     if (result.changes && values.status && values.status !== previousStatus) {
-      this.logLifecycle(this.lifecycleEvent(values.status), this.get(id), values.status);
+      const changedJob = this.get(id);
+      const event = this.lifecycleEvent(values.status);
+      this.logLifecycle(event, changedJob, values.status);
+      const fields = transitionFields(id, changedJob, previousStatus, values.status, event);
+      if (values.status === 'failed') {
+        log.error('job.state.changed', fields);
+      } else if (values.status === 'needs_attention') {
+        log.warn('job.state.changed', fields);
+      } else {
+        log.info('job.state.changed', fields);
+      }
+      if (values.status === 'waiting_memory') {
+        log.info('queue.admission.waited', {
+          jobId: id,
+          reason: 'waiting_memory',
+          ...admissionMemory(changedJob?.details),
+        });
+      }
+    } else if (!result.changes && values.status) {
+      log.debug('queue.job.update.rejected', {
+        jobId: id,
+        to: values.status,
+        reason: 'not_pending_or_lease_lost',
+      });
     }
     return !!result.changes;
   }
@@ -1849,8 +2053,10 @@ export class JobQueue {
           ),
       });
     } catch (error) {
+      log.warn('queue.memory.manage.failed', { jobId: job.id, error });
       result = { status: 'failed', error: error.message };
     }
+    log.info('queue.memory.managed', { jobId: job.id, outcome: result.status });
     if (!isCurrent()) {
       return;
     }
@@ -1907,11 +2113,18 @@ export class JobQueue {
         position: result.to,
         count: result.count,
       });
-    } catch {
+    } catch (error) {
       // Queue logging must never alter durable queue behavior.
+      log.warn('queue.log.callback.failed', { error, kind: 'move' });
     }
   }
   logChainUnload(job, parent, outcome) {
+    log.info('queue.chain_unload.decided', {
+      jobId: job.id,
+      type: job.type,
+      source: parent.type,
+      outcome,
+    });
     if (typeof this.onQueueLog !== 'function') {
       return;
     }
@@ -1923,8 +2136,9 @@ export class JobQueue {
         outcome,
         jobId: job.id,
       });
-    } catch {
+    } catch (error) {
       // Queue logging must never alter durable queue behavior.
+      log.warn('queue.log.callback.failed', { error, kind: 'chain_unload' });
     }
   }
   // A chained render is about to start: free the model of the render it took its input from
@@ -1951,7 +2165,7 @@ export class JobQueue {
       parentType: parent.type,
       childEngine: engineId(job.type),
       upcomingEngines: upcoming,
-      enabled: typeof this.chainUnload === 'boolean' ? this.chainUnload : undefined,
+      enabled: resolveChainUnloadOption(this.chainUnload),
     });
     this.chainUnloadAttempted.add(job.id);
     if (!plan.engine) {
@@ -1989,6 +2203,7 @@ export class JobQueue {
           ),
       });
     } catch (error) {
+      log.warn('queue.chain_unload.failed', { jobId: job.id, error });
       result = { status: 'failed', error: error.message };
     }
     this.logChainUnload(job, parent, result.status);
@@ -1996,6 +2211,7 @@ export class JobQueue {
       try {
         await this.refreshHardware?.();
       } catch (error) {
+        log.warn('queue.hardware.refresh.failed', { jobId: job.id, error });
         console.error('Could not re-read GPU memory after freeing a model:', error.message);
       }
       this.updatePending(
@@ -2043,23 +2259,65 @@ export class JobQueue {
       try {
         this.db.exec('ROLLBACK');
       } catch (rollbackError) {
+        log.error('queue.transaction.rollback.failed', {
+          operation: 'lease',
+          error: rollbackError,
+        });
         console.error('Could not roll back queue lease transaction:', rollbackError.message);
       }
       throw error;
     }
     for (const row of uncertainRows) {
       this.logLifecycle('uncertain_recovery', { ...row, status: 'interrupted' });
+      log.warn('job.state.changed', {
+        jobId: row.id,
+        type: row.type,
+        from: 'submitting',
+        to: 'interrupted',
+        reason: 'lease_changed_unknown_outcome',
+      });
+      recordRecoveryEvent(
+        { code: 'job.interrupted', severity: 'warn', kind: 'job', id: row.id, detail: row.type },
+        { directory: this.directory },
+      );
     }
     for (const row of recheckRows) {
       this.logLifecycle('remote_recheck', { ...row, status: 'waiting_engine' });
+      log.info('job.state.changed', {
+        jobId: row.id,
+        type: row.type,
+        from: 'preparing',
+        to: 'waiting_engine',
+        reason: 'lease_changed_recheck',
+      });
+      recordRecoveryEvent(
+        { code: 'job.rechecked', kind: 'job', id: row.id, detail: row.type },
+        { directory: this.directory },
+      );
     }
     if (!claimed) {
       if (this.hasLease) {
+        log.warn('queue.lease.lost', { epochCount: this.epoch, reason: 'owned_by_other_runtime' });
         this.active?.child.kill();
       }
       this.hasLease = false;
       this.epoch = null;
       return false;
+    }
+    if (changed) {
+      // A new epoch while this runtime still believed it held the lease means it expired and was
+      // claimed again; that fences any worker still running under the old epoch.
+      const leaseFields = {
+        epochCount: claimed.epoch,
+        previousEpochCount: this.epoch,
+        interruptedCount: uncertainRows.length,
+        recheckCount: recheckRows.length,
+      };
+      if (this.hasLease) {
+        log.warn('queue.lease.reacquired', leaseFields);
+      } else {
+        log.info('queue.lease.acquired', leaseFields);
+      }
     }
     if (changed && this.active) {
       this.active.child.kill();
@@ -2067,6 +2325,13 @@ export class JobQueue {
     this.hasLease = true;
     this.epoch = claimed.epoch;
     this.refreshModelLoad();
+    if (changed && this.modelLoadState === 'loading') {
+      log.info('queue.model_load.changed', {
+        engineId: this.modelLoadEngine,
+        to: 'loading',
+        reason: 'lease_changed',
+      });
+    }
     if (this.modelLoadState === 'loading' && this.onModelLoadBarrier) {
       const engine = this.modelLoadEngine;
       setImmediate(() => {
@@ -2098,8 +2363,9 @@ export class JobQueue {
         this.resolveOutputs || (await import('./asset-output.js')).resolveAssetOutputs;
       const [resolved] = await resolver([parent], { root: this.projects });
       return resolved?.output || parent.output;
-    } catch {
+    } catch (error) {
       // A renamed file is only an optimisation; the original path is the durable record.
+      log.debug('queue.chain.output.lookup.failed', { jobId: parent.id, error });
       return parent.output;
     }
   }
@@ -2159,6 +2425,12 @@ export class JobQueue {
         throw Error('TRELLIS.2 needs a transparent PNG or WebP.');
       }
     } catch (error) {
+      log.warn('queue.chain.reference.failed', {
+        jobId: job.id,
+        type: job.type,
+        errorClass: error.name,
+        errorCode: error.code,
+      });
       return this.endChainedJob(
         job,
         token,
@@ -2185,6 +2457,11 @@ export class JobQueue {
         token.epoch,
         Date.now(),
       );
+    log.debug('queue.chain.reference.staged', {
+      jobId: job.id,
+      parentId: parent.id,
+      isApplied: !!changed.changes,
+    });
     return changed.changes ? this.get(job.id) : null;
   }
   async tick() {
@@ -2230,11 +2507,24 @@ export class JobQueue {
         this.startVegetation(job, token);
         return;
       }
+      // A render that died while saving may already have its finished output in the project.
+      if (
+        job.remoteId &&
+        job.status === 'finalizing' &&
+        (await this.completeFromSavedOutput(job, token))
+      ) {
+        return;
+      }
       // Resume known remote jobs; new jobs wait for an already-loaded engine.
       if (!job.remoteId) {
         try {
           findProject(job.projectId, this.projects);
         } catch (error) {
+          log.warn('queue.job.project.unavailable', {
+            jobId: job.id,
+            type: job.type,
+            errorClass: error.name,
+          });
           this.updatePending(
             job.id,
             { status: 'failed', stage: 'Project unavailable.', error: error.message },
@@ -2246,11 +2536,18 @@ export class JobQueue {
           health = null,
           reachable = false;
         try {
+          const healthStartedMs = Date.now();
           const response = await fetch(
             `${engineUrl(job.type)}${job.type === 'music' ? '/api/v1/health' : '/api/status'}`,
             { signal: AbortSignal.timeout(1500), redirect: 'error' },
           );
           health = await response.json();
+          // Every tick checks the engine: trace here, and only a change is logged below.
+          log.trace('queue.engine.health.checked', {
+            type: job.type,
+            status: response.status,
+            durationMs: Date.now() - healthStartedMs,
+          });
           reachable =
             response.ok &&
             (job.type === 'music'
@@ -2318,9 +2615,20 @@ export class JobQueue {
                             (health.status === 'error' &&
                               (job.stage === 'Queued for retry.' ||
                                 job.status === 'waiting_memory'))))));
-        } catch {
+        } catch (error) {
+          // An engine that is not running is the normal state while a render waits for it.
+          log.trace('queue.engine.health.failed', { type: job.type, errorClass: error.name });
           health = null;
           reachable = false;
+        }
+        if (this.engineReachable.get(job.type) !== reachable) {
+          this.engineReachable.set(job.type, reachable);
+          log.debug('queue.engine.health.changed', {
+            jobId: job.id,
+            type: job.type,
+            isReachable: reachable,
+            isReady: ready,
+          });
         }
         if (this.stopped || this.suspendedEngines.has(engineId(job.type))) {
           return;
@@ -2388,6 +2696,7 @@ export class JobQueue {
                 await this.manageMemory(job, preparation, token);
               }
             } catch (error) {
+              log.warn('queue.engine.prepare.failed', { jobId: job.id, type: job.type, error });
               this.updatePending(
                 job.id,
                 {
@@ -2420,6 +2729,7 @@ export class JobQueue {
                 );
               }
             } catch (error) {
+              log.warn('queue.service.prepare.failed', { jobId: job.id, type: job.type, error });
               this.updatePending(
                 job.id,
                 {
@@ -2514,6 +2824,7 @@ export class JobQueue {
               return;
             }
           } catch (error) {
+            log.warn('queue.admission.check.failed', { jobId: job.id, type: job.type, error });
             this.updatePending(
               job.id,
               {
@@ -2543,6 +2854,13 @@ export class JobQueue {
           return;
         }
         this.logLifecycle('status_transition', this.get(job.id), 'submitting');
+        log.info('job.state.changed', {
+          jobId: job.id,
+          type: job.type,
+          from: job.status,
+          to: 'submitting',
+          reason: 'submission_started',
+        });
       } else if (this.recoverService) {
         try {
           const recovery = await this.recoverService(job.type);
@@ -2558,6 +2876,7 @@ export class JobQueue {
             return;
           }
         } catch (error) {
+          log.warn('queue.job.reconnect.failed', { jobId: job.id, type: job.type, error });
           this.update(
             job.id,
             {
@@ -2583,6 +2902,7 @@ export class JobQueue {
       try {
         this.launch(job, token);
       } catch (error) {
+        log.error('queue.worker.launch.failed', { jobId: job.id, type: job.type, error });
         this.update(
           job.id,
           {
@@ -2593,10 +2913,56 @@ export class JobQueue {
         );
       }
     } catch (error) {
+      log.error('queue.scheduler.failed', { error });
       console.error('Job scheduler:', error.message);
     } finally {
       this.polling = false;
     }
+  }
+  // After a crash while "finalizing" the output may already be saved. The job is completed only
+  // from a file whose size and signature prove it whole, and no engine is started for it. A
+  // damaged file is left for saveAsset, which sets it aside and downloads again.
+  async completeFromSavedOutput(job, token) {
+    let projectFolder;
+    let inspected;
+    try {
+      projectFolder = findProject(job.projectId, this.projects);
+      inspected = await inspectFinishedOutput(job, projectFolder);
+    } catch (error) {
+      // Not being able to look at the saved output is normal; the job then continues as before.
+      log.debug('queue.recovery.output.inspect.failed', { jobId: job.id, errorClass: error.name });
+      return false;
+    }
+    if (inspected.state === 'invalid') {
+      recordRecoveryEvent(
+        { code: 'job.output_damaged', severity: 'warn', kind: 'job', id: job.id },
+        { directory: this.directory },
+      );
+      return false;
+    }
+    if (inspected.state !== 'valid') {
+      return false;
+    }
+    const changed = this.update(
+      job.id,
+      {
+        status: 'completed',
+        output: inspected.output,
+        finished_at: new Date().toISOString(),
+        stage: 'Completed. The saved output was verified after a restart.',
+        error: null,
+      },
+      token,
+      'completed',
+    );
+    if (changed) {
+      recordRecoveryEvent(
+        { code: 'job.completed_from_output', kind: 'job', id: job.id, detail: job.type },
+        { directory: this.directory },
+      );
+      recordJobOutput(this.get(job.id), projectFolder);
+    }
+    return changed;
   }
   // Starts a vegetation job: no engine health check and no memory admission, because the work is
   // CPU only and bounded by the child's own timeout and heap cap (see vegetation-runner.js).
@@ -2604,6 +2970,11 @@ export class JobQueue {
     try {
       findProject(job.projectId, this.projects);
     } catch (error) {
+      log.warn('queue.job.project.unavailable', {
+        jobId: job.id,
+        type: job.type,
+        errorClass: error.name,
+      });
       this.update(
         job.id,
         { status: 'failed', stage: 'Project unavailable.', error: error.message },
@@ -2643,9 +3014,17 @@ export class JobQueue {
       return;
     }
     this.logLifecycle('status_transition', this.get(job.id), 'running');
+    log.info('job.state.changed', {
+      jobId: job.id,
+      type: job.type,
+      from: job.status,
+      to: 'running',
+      reason: job.status === 'running' ? 'vegetation_regrow' : 'vegetation_started',
+    });
     try {
       this.launch(job, token);
     } catch (error) {
+      log.error('queue.worker.launch.failed', { jobId: job.id, type: job.type, error });
       this.update(
         job.id,
         {
@@ -2678,11 +3057,20 @@ export class JobQueue {
     this.active.forced = true;
     try {
       child.send({ type: 'cancel' });
-    } catch {
+    } catch (error) {
       // The worker already ended; the kill below is then a no-op.
+      log.debug('queue.worker.cancel.signal.failed', { jobId: id, errorClass: error.name });
     }
     setTimeout(() => child.kill(), 3000).unref();
     this.logLifecycle('cancelled', this.get(id));
+    log.info('job.state.changed', {
+      jobId: id,
+      type: job.type,
+      from: 'running',
+      to: 'cancelled',
+      reason: 'cancelled_by_user',
+      durationMs: elapsedMs(job.startedAt),
+    });
     return true;
   }
   launch(job, token) {
@@ -2707,6 +3095,13 @@ export class JobQueue {
       windowsHide: true,
     });
     this.active = { id: job.id, child };
+    const spawnedAtMs = Date.now();
+    log.info('queue.worker.spawned', {
+      jobId: job.id,
+      type: job.type,
+      kind: 'job_worker',
+      pid: child.pid,
+    });
     let terminal = false;
     child.stderr.on('data', (data) => process.stderr.write(`[${job.type} job] ${data}`));
     child.stdout.on('data', (data) => process.stdout.write(`[${job.type} job] ${data}`));
@@ -2766,6 +3161,12 @@ export class JobQueue {
         interrupted: 'interrupted',
       }[message.type];
       if (!this.update(job.id, changes, token, event)) {
+        log.warn('queue.worker.message.rejected', {
+          jobId: job.id,
+          type: job.type,
+          kind: message.type,
+          reason: 'update_refused',
+        });
         child.kill();
         return;
       }
@@ -2791,8 +3192,25 @@ export class JobQueue {
         terminal = true;
       }
     });
-    child.on('error', (error) => console.error('Music job worker:', error.message));
-    child.once('exit', () => {
+    child.on('error', (error) => {
+      log.error('queue.worker.failed', { jobId: job.id, type: job.type, error });
+      console.error('Music job worker:', error.message);
+    });
+    child.once('exit', (exitCode, signal) => {
+      const exitFields = {
+        jobId: job.id,
+        type: job.type,
+        kind: 'job_worker',
+        exitCode,
+        signal,
+        durationMs: Date.now() - spawnedAtMs,
+        isTerminal: terminal,
+      };
+      if (terminal || this.stopped || (this.active?.child === child && this.active.forced)) {
+        log.info('queue.worker.exited', exitFields);
+      } else {
+        log.warn('queue.worker.exited', { ...exitFields, reason: 'unexpected_exit' });
+      }
       if (this.active?.child !== child) {
         return;
       }
@@ -2838,6 +3256,53 @@ export class JobQueue {
     });
     child.send({ job, projectFolder, baseUrl: engineUrl(job.type) });
   }
+  // The computer was suspended (sleep or hibernate) for `gapMs`. A submission that was in flight
+  // may or may not have reached the engine, and its sockets are gone, so it becomes interrupted
+  // with the unknown-outcome reason (never resubmitted). Jobs that already have a remote id keep
+  // polling and reconnect on their own; nothing is guessed for them.
+  handleResume(gapMs = 0) {
+    recordRecoveryEvent(
+      {
+        code: 'power.resumed',
+        kind: 'power',
+        count: Math.round(gapMs / 1000),
+        detail: 'The computer was suspended; in-flight submissions are now unknown.',
+      },
+      { directory: this.directory },
+    );
+    if (this.stopped || !this.hasLease || this.db.isTransaction) {
+      return [];
+    }
+    const rows = this.db
+      .prepare(
+        "UPDATE jobs SET status='interrupted',error=?,updated_at=? WHERE status='submitting' AND EXISTS (SELECT 1 FROM runtime_owner WHERE id=1 AND owner=? AND epoch=? AND expires>?) RETURNING id,type",
+      )
+      .all(
+        'The computer was suspended while this render was being submitted. Check whether the engine accepted it before resolving this job.',
+        new Date().toISOString(),
+        this.owner,
+        this.epoch,
+        Date.now(),
+      );
+    if (rows.length) {
+      this.active?.child.kill();
+    }
+    for (const row of rows) {
+      this.logLifecycle('uncertain_recovery', { ...row, status: 'interrupted' });
+      log.warn('job.state.changed', {
+        jobId: row.id,
+        type: row.type,
+        from: 'submitting',
+        to: 'interrupted',
+        reason: 'power_resumed_unknown_outcome',
+      });
+      recordRecoveryEvent(
+        { code: 'job.interrupted', severity: 'warn', kind: 'job', id: row.id, detail: row.type },
+        { directory: this.directory },
+      );
+    }
+    return rows;
+  }
   stop() {
     this.stopped = true;
     clearInterval(this.timer);
@@ -2846,8 +3311,17 @@ export class JobQueue {
       this.db
         .prepare('UPDATE runtime_owner SET expires=0 WHERE id=1 AND owner=? AND epoch=?')
         .run(this.owner, this.epoch);
+      log.info('queue.lease.released', { epochCount: this.epoch, reason: 'stopped' });
+    }
+    try {
+      // Fold the write-ahead log into the main file so a copy of jobs.sqlite alone is current.
+      this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    } catch (error) {
+      log.warn('queue.checkpoint.failed', { error });
+      console.error('Queue checkpoint on stop:', error.message);
     }
     this.db.close();
+    log.info('queue.process.stopped', { reason: 'stop_requested' });
   }
 }
 export function engineUrl(type) {

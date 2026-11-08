@@ -56,6 +56,7 @@ test('model removal dialog explains storage recovery and unavailable scan state'
     const prelude = `
       import React, { useEffect, useId, useRef, useState } from 'react';
       import useDialogFocus from '${focusHookUrl}';
+      const createLog = () => ({ debug() {}, info() {}, warn() {}, error() {} });
       const LoaderCircle = () => null;
       const Power = () => null;
       const ShieldCheck = () => null;

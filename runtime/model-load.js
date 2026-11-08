@@ -1,3 +1,7 @@
+import { createLogger } from './app-log.js';
+
+const log = createLogger('model');
+
 // YuE2's existing CUDA pipeline is configured with a 24 GiB memory budget.
 // Keep 2 GiB free for the system; this is a conservative admission threshold,
 // not a reservation or a guarantee against concurrent allocations.
@@ -31,13 +35,24 @@ export function memoryCandidates(services, exclude = []) {
 // Host RAM is a soft requirement. The per-engine budgets are uncalibrated estimates, and weights are
 // loaded with memory mapping, so a desktop that is merely busy must not block a job while the GPU has
 // room. Only a real shortage (below a small hard floor) blocks by default. Set
-// FORGE_HOST_MEMORY_POLICY=strict to enforce the full per-engine budget again.
+// FORGE_HOST_MEMORY_POLICY=strict (or the memory.hostPolicy setting) enforces the full per-engine
+// budget again.
 export const HOST_MEMORY_FLOOR_BYTES = 2 * 1024 ** 3;
-export function hostMemoryShort(
-  freeBytes,
-  requiredBytes,
-  policy = process.env.FORGE_HOST_MEMORY_POLICY,
-) {
+const environmentHostMemoryPolicy = () => process.env.FORGE_HOST_MEMORY_POLICY;
+let readHostMemoryPolicy = environmentHostMemoryPolicy;
+
+/**
+ * Chooses where the default policy comes from. The queue worker passes a reader of the live
+ * memory.hostPolicy setting (environment variable, then saved override, then soft); with no
+ * argument the plain environment variable is read again, as before the setting existed.
+ *
+ * @param {(() => string|undefined)|null} [reader]
+ */
+export function setHostMemoryPolicySource(reader = null) {
+  readHostMemoryPolicy = reader ?? environmentHostMemoryPolicy;
+}
+
+export function hostMemoryShort(freeBytes, requiredBytes, policy = readHostMemoryPolicy()) {
   if (!Number.isFinite(freeBytes)) {
     return true;
   }
@@ -130,7 +145,12 @@ export function createModelLoader({
         ) {
           throw Error('Unexpected engine response');
         }
-      } catch {
+      } catch (error) {
+        log.debug('model.health.failed', {
+          engine: 'yue2',
+          errorClass: error.name,
+          errorCode: error.code,
+        });
         return {
           status: 503,
           body: { code: 'engine_unavailable', message: 'Start YuE2 before loading its model.' },
@@ -154,6 +174,12 @@ export function createModelLoader({
         plan = planModelLoad(snapshot, await services());
       }
       if (plan.code !== 'ready') {
+        log.warn('model.load.blocked', {
+          engine: 'yue2',
+          reason: plan.code,
+          requiredMiB: plan.requiredMiB,
+          freeMiB: plan.device?.freeMiB,
+        });
         return { status: 409, body: plan };
       }
       try {
@@ -163,6 +189,7 @@ export function createModelLoader({
           redirect: 'error',
         });
         if (!response.ok) {
+          log.warn('model.load.failed', { engine: 'yue2', httpStatus: response.status });
           return response.status >= 500
             ? {
                 status: 503,
@@ -180,11 +207,22 @@ export function createModelLoader({
               };
         }
         lastRequested = Date.now();
+        log.info('model.load.requested', {
+          engine: 'yue2',
+          requiredMiB: plan.requiredMiB,
+          freeMiB: plan.device.freeMiB,
+        });
         return {
           status: 202,
           body: { code: 'load_requested', message: 'YuE2 model loading requested.', memory: plan },
         };
-      } catch {
+      } catch (error) {
+        log.warn('model.load.failed', {
+          engine: 'yue2',
+          outcome: 'unknown',
+          errorClass: error.name,
+          errorCode: error.code,
+        });
         return {
           status: 503,
           body: {

@@ -2,6 +2,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { findProject, projectsRoot } from './jobs.js';
 import { readAssetMetadata } from '../project-assets.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('assets');
 
 function safeRelative(value) {
   return (
@@ -61,7 +64,13 @@ export async function resolveAssetOutputs(jobs, { root = projectsRoot } = {}) {
             ) {
               continue;
             }
-          } catch {
+          } catch (error) {
+            // A deleted or unreadable alias is skipped; the original output stays the fallback.
+            log.debug('assets.output.alias.failed', {
+              errorClass: error?.name,
+              errorCode: error?.code,
+              reason: 'skipped_candidate',
+            });
             continue;
           }
           // Multiple existing aliases are ambiguous; retain the original path.
@@ -72,8 +81,14 @@ export async function resolveAssetOutputs(jobs, { root = projectsRoot } = {}) {
           }
         }
         byProject.set(id, aliases);
-      } catch {
+      } catch (error) {
         // A missing or unreadable project keeps the original job output unchanged.
+        log.debug('assets.output.project.failed', {
+          projectId: id,
+          errorClass: error?.name,
+          errorCode: error?.code,
+          reason: 'keeps_original_output',
+        });
       }
     }),
   );

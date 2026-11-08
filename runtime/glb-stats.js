@@ -3,7 +3,9 @@
 // Triangle and vertex counts come from the accessor counts, so the geometry itself is never
 // loaded. The result describes the file as stored, not any later change in a viewer.
 import fs from 'node:fs';
+import { createLogger } from './app-log.js';
 
+const log = createLogger('three-d');
 const GLB_MAGIC = 0x46546c67;
 const JSON_CHUNK = 0x4e4f534a;
 // A GLB JSON chunk larger than this is not a mesh Forge made; refuse rather than read it all.
@@ -74,7 +76,9 @@ export function readGlbStats(file) {
       return null;
     }
     return { bytes: size, ...statsFromGltf(JSON.parse(json.toString('utf8'))) };
-  } catch {
+  } catch (error) {
+    // An unreadable or malformed file only means no statistics are shown.
+    log.debug('three-d.glb.stats.failed', { error });
     return null;
   } finally {
     if (handle !== undefined) {

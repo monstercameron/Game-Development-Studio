@@ -11,6 +11,7 @@
 //   * redirects are never followed and only allow-listed hosts are contacted.
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createLogger } from './app-log.js';
 import { describeFiles } from './megascans-files.js';
 
 export const FAB_BASE_URL = 'https://www.fab.com';
@@ -26,6 +27,12 @@ export const SEARCH_PAGE_SIZE = 24;
 export const CDN_HOST_SUFFIXES = Object.freeze(['.epicgames.com', '.epicgamescdn.com']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FORMAT_CODE = /^[a-z0-9-]{1,40}$/;
+const log = createLogger('megascans');
+
+// Milliseconds since `startedMs` (from performance.now()), for request timing logs.
+function millisecondsSince(startedMs) {
+  return Math.round(performance.now() - startedMs);
+}
 
 let cachedVersion;
 function forgeVersion() {
@@ -33,7 +40,11 @@ function forgeVersion() {
     try {
       const file = fileURLToPath(new URL('../package.json', import.meta.url));
       cachedVersion = JSON.parse(fs.readFileSync(file, 'utf8')).version || '0';
-    } catch {
+    } catch (error) {
+      log.warn('megascans.version.read.failed', {
+        errorClass: error?.name,
+        reason: 'using_default',
+      });
       cachedVersion = '0';
     }
   }
@@ -45,6 +56,7 @@ export class FabBlockedError extends Error {
   constructor(message, { status = 0, kind = 'blocked', retryAfterSeconds = null } = {}) {
     super(message);
     this.name = 'FabBlockedError';
+    // log-coverage: ignore -- stores the HTTP status on the error object, not a state change
     this.status = status;
     // 'blocked' (challenge or refusal) or 'rate_limited' (429 that outlasted our retries).
     this.kind = kind;
@@ -57,6 +69,7 @@ export class FabError extends Error {
   constructor(message, { status = 0, code = null } = {}) {
     super(message);
     this.name = 'FabError';
+    // log-coverage: ignore -- stores the HTTP status on the error object, not a state change
     this.status = status;
     // 'unreachable' when the request never got an answer (offline, DNS, timeout).
     this.code = code;
@@ -209,6 +222,7 @@ export class FabClient {
   async getJson(pathAndQuery, { signal, revalidateKey } = {}) {
     const url = new URL(pathAndQuery, this.base);
     if (url.origin !== this.base.origin) {
+      log.warn('megascans.fab.request.rejected', { kind: 'api', reason: 'unexpected_host' });
       throw new FabError('Refused to contact an unexpected host.');
     }
     const known = revalidateKey ? this.validators?.get(revalidateKey) : null;
@@ -227,7 +241,12 @@ export class FabClient {
     }
     try {
       return JSON.parse(body.toString('utf8'));
-    } catch {
+    } catch (error) {
+      log.warn('megascans.fab.response.rejected', {
+        kind: 'api',
+        reason: 'malformed_json',
+        errorClass: error?.name,
+      });
       throw new FabError('Fab sent a response Forge could not read.');
     }
   }
@@ -237,11 +256,17 @@ export class FabClient {
     let url;
     try {
       url = new URL(imageUrl);
-    } catch {
+    } catch (error) {
+      log.warn('megascans.fab.request.rejected', {
+        kind: 'image',
+        reason: 'unreadable_address',
+        errorClass: error?.name,
+      });
       throw new FabError('The thumbnail address is not valid.');
     }
     const sameBase = url.origin === this.base.origin;
     if (!(sameBase || (url.protocol === 'https:' && this.imageHosts.has(url.hostname)))) {
+      log.warn('megascans.fab.request.rejected', { kind: 'image', reason: 'unexpected_host' });
       throw new FabError('Refused to contact an unexpected host.');
     }
     return this.fetchWithRetry(url, {
@@ -258,7 +283,12 @@ export class FabClient {
     let url;
     try {
       url = new URL(address);
-    } catch {
+    } catch (error) {
+      log.warn('megascans.fab.request.rejected', {
+        kind: 'download',
+        reason: 'unreadable_address',
+        errorClass: error?.name,
+      });
       throw new FabError('Fab sent a download address Forge could not read.');
     }
     const host = url.hostname.toLowerCase();
@@ -267,6 +297,7 @@ export class FabClient {
     const allowedScheme =
       url.protocol === 'https:' || (this.allowInsecureCdn && url.protocol === 'http:');
     if (!allowedHost || !allowedScheme || url.username || url.password) {
+      log.warn('megascans.fab.request.rejected', { kind: 'download', reason: 'unexpected_host' });
       throw new FabError('Fab sent a download address on an unexpected host, so Forge refused it.');
     }
     return url;
@@ -279,6 +310,7 @@ export class FabClient {
    */
   async getDownloadInfo(listingId, formatCode, fileUid, { signal } = {}) {
     if (!UUID.test(listingId) || !FORMAT_CODE.test(formatCode) || !UUID.test(fileUid)) {
+      log.warn('megascans.fab.request.rejected', { kind: 'download-info', reason: 'invalid_id' });
       throw new FabError('That file is not valid.');
     }
     const json = await this.getJson(
@@ -287,6 +319,10 @@ export class FabClient {
     );
     const entry = Array.isArray(json?.downloadInfo) ? json.downloadInfo[0] : null;
     if (!entry || typeof entry.downloadUrl !== 'string') {
+      log.warn('megascans.fab.response.rejected', {
+        kind: 'download-info',
+        reason: 'no_download_offered',
+      });
       throw new FabError('Fab did not offer a download for that file.');
     }
     const expires = typeof entry.expires === 'string' ? Date.parse(entry.expires) : NaN;
@@ -311,6 +347,7 @@ export class FabClient {
     const abort = () => controller.abort();
     signal?.addEventListener('abort', abort, { once: true });
     const timer = setTimeout(abort, this.timeoutMs);
+    const startedMs = performance.now();
     let response;
     try {
       response = await this.fetchImpl(url, {
@@ -319,10 +356,16 @@ export class FabClient {
         headers,
         signal: controller.signal,
       });
-    } catch {
+    } catch (error) {
       if (signal?.aborted) {
         throw signal.reason ?? Object.assign(new Error('Aborted'), { name: 'AbortError' });
       }
+      log.warn('megascans.fab.request.failed', {
+        kind: 'download',
+        reason: 'unreachable',
+        durationMs: millisecondsSince(startedMs),
+        errorClass: error?.name,
+      });
       throw new FabError('Could not reach the download server. Try again.', {
         code: 'unreachable',
       });
@@ -331,8 +374,14 @@ export class FabClient {
       signal?.removeEventListener('abort', abort);
     }
     const status = response.status;
+    log.info('megascans.fab.request.completed', {
+      kind: 'download',
+      status,
+      durationMs: millisecondsSince(startedMs),
+    });
     if (status >= 300 && status < 400) {
       await response.body?.cancel();
+      log.warn('megascans.fab.request.blocked', { kind: 'download', status, reason: 'redirect' });
       throw new FabBlockedError(
         'The download server redirected the request, which Forge does not follow.',
         { status },
@@ -340,11 +389,18 @@ export class FabClient {
     }
     if (status === 401 || status === 403) {
       await response.body?.cancel();
+      log.warn('megascans.fab.request.blocked', { kind: 'download', status, reason: 'refused' });
       throw new FabBlockedError('The download server refused the request.', { status });
     }
     if (status === 429) {
       const wait = retryAfterMs(response.headers.get('retry-after'), this.now());
       await response.body?.cancel();
+      log.warn('megascans.fab.request.throttled', {
+        kind: 'download',
+        status,
+        hasRetryAfter: wait !== null,
+        retryAfterSeconds: Math.ceil((wait ?? 0) / 1000),
+      });
       throw new FabBlockedError('The download server asked Forge to slow down.', {
         status,
         kind: 'rate_limited',
@@ -358,6 +414,7 @@ export class FabClient {
     const type = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
     if (type === 'text/html' || type === 'application/json') {
       await response.body?.cancel();
+      log.warn('megascans.fab.request.blocked', { kind: 'download', status, reason: 'html_page' });
       throw new FabBlockedError('The download server sent a page instead of the file.', { status });
     }
     const range = /^bytes (\d+)-(\d+)\/(\d+|\*)$/.exec(response.headers.get('content-range') || '');
@@ -396,6 +453,7 @@ export class FabClient {
         this.requestCount++;
         const timeout = AbortSignal.timeout(this.timeoutMs);
         const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+        const startedMs = performance.now();
         let response;
         try {
           response = await this.fetchImpl(url, {
@@ -408,6 +466,13 @@ export class FabClient {
           if (signal?.aborted) {
             throw error;
           }
+          log.warn('megascans.fab.request.failed', {
+            kind,
+            attempt,
+            reason: attempt < this.maxAttempts ? 'retrying' : 'unreachable',
+            durationMs: millisecondsSince(startedMs),
+            errorClass: error?.name,
+          });
           if (attempt < this.maxAttempts) {
             await this.sleep(this.backoffMs * 2 ** (attempt - 1), signal);
             continue;
@@ -417,12 +482,21 @@ export class FabClient {
           });
         }
         const status = response.status;
+        // Thumbnails arrive in bursts (about two a second), so they are debug only.
+        const logCompleted = kind === 'image' ? log.debug : log.info;
+        logCompleted.call(log, 'megascans.fab.request.completed', {
+          kind,
+          status,
+          attempt,
+          durationMs: millisecondsSince(startedMs),
+        });
         if (status === 304 && conditional) {
           await response.body?.cancel();
           return { status, type: '', body: Buffer.alloc(0), etag: null, lastModified: null };
         }
         if (status >= 300 && status < 400) {
           await response.body?.cancel();
+          log.warn('megascans.fab.request.blocked', { kind, status, reason: 'redirect' });
           throw new FabBlockedError('Fab redirected the request, which Forge does not follow.', {
             status,
           });
@@ -430,6 +504,22 @@ export class FabClient {
         if (status === 429 || status >= 500) {
           const lastRetryAfter = retryAfterMs(response.headers.get('retry-after'), this.now());
           await response.body?.cancel();
+          if (status === 429) {
+            log.warn('megascans.fab.request.throttled', {
+              kind,
+              status,
+              attempt,
+              hasRetryAfter: lastRetryAfter !== null,
+              retryAfterSeconds: Math.ceil((lastRetryAfter ?? 0) / 1000),
+            });
+          } else {
+            log.warn('megascans.fab.request.failed', {
+              kind,
+              status,
+              attempt,
+              reason: 'server_error',
+            });
+          }
           if (status === 429 && lastRetryAfter !== null && lastRetryAfter > MAX_RETRY_AFTER_MS) {
             throw new FabBlockedError('Fab asked Forge to slow down for a while.', {
               status,
@@ -455,6 +545,7 @@ export class FabClient {
         }
         if (status === 401 || status === 403) {
           await response.body?.cancel();
+          log.warn('megascans.fab.request.blocked', { kind, status, reason: 'refused' });
           throw new FabBlockedError('Fab is blocking automated requests.', { status });
         }
         if (status === 404) {
@@ -472,7 +563,13 @@ export class FabClient {
         const body = await readLimited(response, limit);
         if (kind === 'api' && type !== 'application/json') {
           // An HTML page where JSON was expected is a challenge, a login wall or an outage.
-          throw looksLikeChallenge(response.headers, body.toString('utf8'))
+          const isChallenge = looksLikeChallenge(response.headers, body.toString('utf8'));
+          log.warn('megascans.fab.request.blocked', {
+            kind,
+            status,
+            reason: isChallenge ? 'challenge' : 'not_json',
+          });
+          throw isChallenge
             ? new FabBlockedError('Fab is blocking automated requests.', { status })
             : new FabError('Fab answered with something other than data.', { status });
         }
@@ -693,6 +790,7 @@ export class FabSource {
       formats = await this.client.getJson(`/i/listings/${safe}/asset-formats`, { signal });
     }
     if (!Array.isArray(formats)) {
+      log.warn('megascans.fab.response.rejected', { kind: 'formats', reason: 'bad_shape' });
       throw new FabError('Fab sent a file list Forge could not read.');
     }
     let tech = null;
@@ -703,6 +801,7 @@ export class FabSource {
         if (error instanceof FabBlockedError || signal?.aborted) {
           throw error;
         }
+        log.debug('megascans.fab.technical.failed', { errorClass: error?.name });
       }
     }
     return parseDetail(detail, formats, tech);

@@ -14,10 +14,17 @@ import os
 import sys
 import wave
 
+# video-media.js starts this file with python -I, which leaves the script directory off sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from app_log import get_logger  # noqa: E402
+
 FPS = 24
 SAMPLE_RATE = 32000
 MIN_FRAMES = 5
 MIN_AUDIO_SECONDS = 0.5
+
+log = get_logger("video")
 
 
 def cover(image, width, height):
@@ -97,6 +104,7 @@ def clip_frames(task):
         raise ValueError("The reference video needs at least 5 frames (about 0.2 seconds).")
     for index in range(keep, written):
         os.remove(os.path.join(directory, f"{index:05d}.png"))
+    log.debug("video.frames.trimmed", {"keptFrames": keep, "removedCount": written - keep})
     return {"frames": keep, "seconds": round(keep / FPS, 2), "has_audio": has_audio}
 
 
@@ -147,5 +155,6 @@ if __name__ == "__main__":
             results.append(OPERATIONS[item["op"]](item))
         print(json.dumps({"results": results}))
     except Exception as exc:
+        log.error("video.inputs.failed", {"errorClass": type(exc).__name__})
         print(str(exc) or exc.__class__.__name__, file=sys.stderr)
         sys.exit(1)

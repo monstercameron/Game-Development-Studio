@@ -39,6 +39,9 @@ async function render(file, props, { replacements = {}, extra = {} } = {}) {
   for (const [from, to] of Object.entries(replacements)) {
     source = source.replaceAll(`from '${from}'`, `from '${to}'`);
   }
+  // The temp copy sits outside src/, so point the browser logger at the real module.
+  const appLogUrl = pathToFileURL(path.join(repositoryRoot, 'src', 'app-log.js')).href;
+  source = source.replaceAll("from './app-log.js'", `from '${appLogUrl}'`);
   const { code } = await transformWithEsbuild(source, sourcePath, {
     loader: 'jsx',
     jsx: 'automatic',

@@ -9,6 +9,9 @@ import { FabBlockedError, FabError } from './megascans-fab.js';
 import { downloadFabFile } from './megascans-download.js';
 import { ImportError, extensionOf, runImport } from './megascans-import.js';
 import { recordMegascansImport } from './megascans-metadata.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('megascans');
 
 /** The hidden per-import folder inside the project; same volume as the final location. */
 export function stagingDirectory(projectFolder, importId) {
@@ -67,6 +70,10 @@ export class ImportRunner {
       try {
         row = this.queue.claimNext();
       } catch (error) {
+        log.error('megascans.queue.claim.failed', {
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
         this.logger.error('Megascans queue claim failed:', error.message);
         return;
       }
@@ -76,7 +83,13 @@ export class ImportRunner {
       const controller = new AbortController();
       this.controllers.set(row.id, controller);
       const work = this.execute(row, controller)
-        .catch((error) => this.logger.error('Megascans import crashed:', error.message))
+        .catch((error) => {
+          log.error('megascans.runner.crashed', {
+            errorClass: error?.name,
+            errorCode: error?.code,
+          });
+          this.logger.error('Megascans import crashed:', error.message);
+        })
         .finally(() => {
           this.controllers.delete(row.id);
           this.running.delete(work);
@@ -100,6 +113,7 @@ export class ImportRunner {
 
   stop() {
     this.stopped = true;
+    log.info('megascans.runner.stopped', { activeCount: this.controllers.size });
     for (const controller of this.controllers.values()) {
       controller.abort();
     }
@@ -138,6 +152,7 @@ export class ImportRunner {
         return 'cancelled';
       }
       if (error instanceof FabBlockedError) {
+        log.warn('megascans.download.blocked', { importId: row.id, httpStatus: error.status });
         this.onBlocked(error);
         return 'Fab is blocking automated requests. Try again later, or download from Fab yourself and use Import.';
       }
@@ -152,8 +167,11 @@ export class ImportRunner {
 
   async execute(row, controller) {
     const { signal } = controller;
+    const startedAt = Date.now();
+    log.info('megascans.runner.started', { importId: row.id, source: row.source });
     const project = await this.resolveProject(row.project_id);
     if (!project) {
+      log.warn('megascans.import.failed', { importId: row.id, reason: 'project_missing' });
       this.queue.fail(row.id, 'The project for this import no longer exists.');
       return;
     }
@@ -193,17 +211,27 @@ export class ImportRunner {
         onProgress,
       });
       if (outcome === 'cancelled') {
+        log.info('megascans.import.cancelled', {
+          importId: row.id,
+          durationMs: Date.now() - startedAt,
+        });
         this.queue.markCancelled(row.id);
         return;
       }
       if (outcome !== 'done') {
+        log.warn('megascans.import.failed', { importId: row.id, reason: 'download_failed' });
         this.queue.fail(row.id, outcome);
         return;
       }
     } else {
       try {
         await fs.access(upload);
-      } catch {
+      } catch (error) {
+        log.warn('megascans.import.failed', {
+          importId: row.id,
+          reason: 'upload_missing',
+          errorCode: error?.code,
+        });
         this.queue.fail(row.id, 'The uploaded file is gone. Choose the file again.');
         return;
       }
@@ -233,6 +261,11 @@ export class ImportRunner {
           { logger: this.logger },
         );
       } catch (error) {
+        log.warn('megascans.provenance.record.failed', {
+          importId: row.id,
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
         this.logger.warn('Megascans provenance record failed:', error.message);
       }
       this.queue.setProgress(row.id, {
@@ -242,7 +275,13 @@ export class ImportRunner {
       });
       // The staged upload is consumed once the files are in the project, so remove it before the
       // import reads as completed.
-      await fs.rm(staging, { recursive: true, force: true }).catch(() => {});
+      await fs.rm(staging, { recursive: true, force: true }).catch((error) => {
+        log.debug('megascans.staging.remove.failed', {
+          importId: row.id,
+          errorClass: error?.name,
+          errorCode: error?.code,
+        });
+      });
       this.queue.complete(row.id, {
         files: result.files,
         folder: result.folder,
@@ -250,12 +289,35 @@ export class ImportRunner {
         bytes: result.bytes,
         detailsRecorded: recorded === result.files.length,
       });
+      log.info('megascans.import.completed', {
+        importId: row.id,
+        fileCount: result.files.length,
+        skippedCount: result.skipped,
+        bytes: result.bytes,
+        isDetailsRecorded: recorded === result.files.length,
+        durationMs: Date.now() - startedAt,
+      });
     } catch (error) {
       if (error?.name === 'AbortError' || signal.aborted) {
+        log.info('megascans.import.cancelled', {
+          importId: row.id,
+          durationMs: Date.now() - startedAt,
+        });
         this.queue.markCancelled(row.id);
       } else if (error instanceof ImportError) {
+        log.warn('megascans.import.failed', {
+          importId: row.id,
+          reason: error.reason,
+          durationMs: Date.now() - startedAt,
+        });
         this.queue.fail(row.id, error.message);
       } else {
+        log.error('megascans.import.failed', {
+          importId: row.id,
+          errorClass: error?.name,
+          errorCode: error?.code,
+          durationMs: Date.now() - startedAt,
+        });
         this.logger.error('Megascans import failed:', error?.message);
         this.queue.fail(row.id, 'The import failed unexpectedly. Check Diagnostics.');
       }

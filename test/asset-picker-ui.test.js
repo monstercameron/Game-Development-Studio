@@ -68,6 +68,12 @@ test('asset picker announces its states and preserves keyboard, filter, and proj
     );
     const focusModulePath = path.join(temporaryDirectory, 'useDialogFocus.mjs');
     await writeFile(focusModulePath, transformedFocus.code, 'utf8');
+    const loggerModulePath = path.join(temporaryDirectory, 'app-log.mjs');
+    await writeFile(
+      loggerModulePath,
+      'export const createLog = () => ({ debug() {}, info() {}, warn() {}, error() {} });\n',
+      'utf8',
+    );
     const source = await readFile(path.join(repositoryRoot, 'src', 'AssetPicker.jsx'), 'utf8');
     const normalizedSource = source
       .replace(
@@ -75,7 +81,8 @@ test('asset picker announces its states and preserves keyboard, filter, and proj
         `from '${pathToFileURL(path.join(repositoryRoot, 'src', 'asset-picker.js'))}'`,
       )
       .replace("from './useDialogFocus'", `from '${pathToFileURL(focusModulePath)}'`)
-      .replace("import './asset-picker.css';", '');
+      .replace("import './asset-picker.css';", '')
+      .replace("from './app-log.js'", `from '${pathToFileURL(loggerModulePath)}'`);
     const transformed = await transformWithEsbuild(
       normalizedSource,
       path.join(temporaryDirectory, 'AssetPicker.jsx'),

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { KeyRound } from 'lucide-react';
+import { createLog } from './app-log.js';
 import './credential-settings.css';
+
+const log = createLog('credentials');
 
 const providers = [
   {
@@ -15,6 +18,7 @@ const providers = [
   },
 ];
 async function request(action, body = {}) {
+  // log-coverage: ignore -- failed /api calls are already logged by app-log-install (http.request.failed)
   const response = await fetch(`/api/credentials/${action}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'credentials' },
@@ -53,6 +57,7 @@ export default function CredentialSettings() {
         }
       })
       .catch(() => {
+        log.warn('credentials.status.failed', { reason: 'load_failed' });
         if (alive) {
           setError('Could not load saved-key status. Restart the studio.');
         }
@@ -62,6 +67,7 @@ export default function CredentialSettings() {
     };
   }, []);
   async function save(provider) {
+    log.info('credentials.save.requested', { provider });
     setBusy(provider);
     setError('');
     setMessage('');
@@ -69,19 +75,23 @@ export default function CredentialSettings() {
       await request('save', { provider, secret: values[provider].trim() });
       setValues((current) => ({ ...current, [provider]: '' }));
       setSavedStatus(provider, true);
+      log.info('credentials.save.completed', { provider });
       setMessage(`${providers.find((item) => item.id === provider).label} key saved.`);
       try {
         await refresh();
       } catch {
+        log.warn('credentials.status.failed', { provider, reason: 'refresh_failed' });
         setError('Key saved, but its status could not be refreshed.');
       }
     } catch (reason) {
+      log.warn('credentials.save.failed', { provider, errorClass: reason?.name });
       setError(reason.message);
     } finally {
       setBusy('');
     }
   }
   async function remove(provider) {
+    log.info('credentials.remove.requested', { provider });
     setBusy(provider);
     setError('');
     setMessage('');
@@ -89,13 +99,16 @@ export default function CredentialSettings() {
       await request('remove', { provider });
       setValues((current) => ({ ...current, [provider]: '' }));
       setSavedStatus(provider, false);
+      log.info('credentials.remove.completed', { provider });
       setMessage(`${providers.find((item) => item.id === provider).label} key removed.`);
       try {
         await refresh();
       } catch {
+        log.warn('credentials.status.failed', { provider, reason: 'refresh_failed' });
         setError('Key removed, but its status could not be refreshed.');
       }
     } catch (reason) {
+      log.warn('credentials.remove.failed', { provider, errorClass: reason?.name });
       setError(reason.message);
     } finally {
       setBusy('');

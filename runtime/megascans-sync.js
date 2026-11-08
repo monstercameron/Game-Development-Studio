@@ -6,7 +6,10 @@
 // the user-started catalog scan (a few pages per run, resumable, cancellable). A refusal from
 // Fab (challenge, 401/403, a limit it asks Forge to respect) is stored as a "blocked" state and
 // all Fab requests stop until it expires; Forge never tries to get around it.
+import { createLogger } from './app-log.js';
 import { FabBlockedError, FabError } from './megascans-fab.js';
+
+const log = createLogger('megascans');
 
 export const SEARCH_TTL_MS = 24 * 60 * 60 * 1000;
 export const DETAIL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -23,6 +26,7 @@ export class SyncError extends Error {
   constructor(message, status = 409, retryAfterSeconds = null) {
     super(message);
     this.name = 'SyncError';
+    // log-coverage: ignore -- error value object, not a state change
     this.status = status;
     this.retryAfterSeconds = retryAfterSeconds;
   }
@@ -31,6 +35,15 @@ export class SyncError extends Error {
 const BLOCK_MESSAGE =
   'Fab is blocking automated requests. Try again later, or download from Fab yourself and use Import.';
 const RATE_MESSAGE = 'Fab asked Forge to slow down. Try again later, or use what is already saved.';
+
+// Error class and code only. Messages can echo Fab text, so they are never logged.
+function errorFields(error) {
+  const fields = { errorClass: typeof error?.name === 'string' ? error.name : 'Error' };
+  if (typeof error?.code === 'string') {
+    fields.errorCode = error.code;
+  }
+  return fields;
+}
 
 export class FabSync {
   /**
@@ -74,7 +87,8 @@ export class FabSync {
     }
     try {
       return JSON.parse(row.value);
-    } catch {
+    } catch (error) {
+      log.debug('megascans.sync.kv.parse.failed', { target: key, ...errorFields(error) });
       return fallback;
     }
   }
@@ -109,6 +123,12 @@ export class FabSync {
       message: rateLimited ? RATE_MESSAGE : BLOCK_MESSAGE,
     };
     this.writeKv('block', stored);
+    log.warn('megascans.sync.paused', {
+      kind: error.kind,
+      status: error.status,
+      waitSeconds: Math.ceil(wait / 1000),
+      isRateLimited: rateLimited,
+    });
     this.logger.warn(`Megascans: Fab ${error.kind} (status ${error.status}); pausing requests.`);
     return stored;
   }
@@ -117,6 +137,7 @@ export class FabSync {
   assertNotBlocked() {
     const active = this.block();
     if (active) {
+      log.debug('megascans.sync.request.refused', { reason: 'blocked', kind: active.kind });
       throw new FabBlockedError(active.message, {
         kind: active.kind,
         status: active.status ?? 0,
@@ -136,13 +157,21 @@ export class FabSync {
       );
     }
     this.db.prepare("DELETE FROM kv WHERE key='block'").run();
+    if (stored) {
+      log.info('megascans.sync.block.cleared', { kind: stored.kind });
+    }
   }
 
   async guarded(work) {
     this.assertNotBlocked();
+    const startedMs = Date.now();
     try {
       return await this.reachable(work);
     } catch (error) {
+      log.warn('megascans.sync.request.failed', {
+        ...errorFields(error),
+        durationMs: Date.now() - startedMs,
+      });
       if (error instanceof FabBlockedError) {
         this.recordBlock(error);
       } else if (error instanceof FabError && error.code === 'unreachable') {
@@ -245,6 +274,7 @@ export class FabSync {
     const last = this.lastRefresh.get('|') ?? 0;
     const wait = last + REFRESH_COOLDOWN_MS - this.now().getTime();
     if (wait > 0) {
+      log.debug('megascans.sync.refresh.throttled', { waitSeconds: Math.ceil(wait / 1000) });
       throw new SyncError(
         'Refreshed a moment ago. Try again shortly.',
         429,
@@ -253,7 +283,10 @@ export class FabSync {
     }
     this.refreshing = this.guarded(async () => {
       this.lastRefresh.set('|', this.now().getTime());
-      return this.readPage({ cursor: '' });
+      const startedMs = Date.now();
+      const result = await this.readPage({ cursor: '' });
+      this.logPage('refresh', result, startedMs);
+      return result;
     }).finally(() => {
       this.refreshing = null;
     });
@@ -316,7 +349,9 @@ export class FabSync {
       return { added: 0, updated: 0, received: 0, hasMore: false };
     }
     this.loadingMore = this.guarded(async () => {
+      const startedMs = Date.now();
       const result = await this.readPage({ cursor });
+      this.logPage('more', result, startedMs);
       this.saveScan({
         cursor: result.nextCursor || '',
         pagesTotal: scan.pagesTotal + 1,
@@ -329,6 +364,19 @@ export class FabSync {
       this.loadingMore = null;
     });
     return this.loadingMore;
+  }
+
+  /** Logs one page read: counts and timing only, never the cursor or listing ids. */
+  logPage(trigger, result, startedMs) {
+    log.debug('megascans.sync.page.fetched', {
+      trigger,
+      isNotModified: Boolean(result.notModified),
+      receivedCount: result.received,
+      addedCount: result.added,
+      updatedCount: result.updated,
+      hasMore: Boolean(result.hasMore),
+      durationMs: Date.now() - startedMs,
+    });
   }
 
   storePage({ query, cursor, page }) {
@@ -378,6 +426,7 @@ export class FabSync {
     const last = this.lastDetail.get(id) ?? 0;
     const wait = last + DETAIL_COOLDOWN_MS - this.now().getTime();
     if (wait > 0) {
+      log.debug('megascans.sync.detail.throttled', { waitSeconds: Math.ceil(wait / 1000) });
       throw new SyncError('Checked a moment ago. Try again shortly.', 429, Math.ceil(wait / 1000));
     }
     const read = this.guarded(async () => {
@@ -473,16 +522,30 @@ export class FabSync {
   }
 
   async runScan(signal) {
+    const runStartMs = Date.now();
     try {
+      const started = this.scanStatus();
+      log.info('megascans.sync.scan.started', {
+        pagesLimit: this.scanMaxPages,
+        pagesTotal: started.pagesTotal,
+        isResumed: started.pagesTotal > 0,
+      });
       for (;;) {
         const current = this.scanStatus();
         if (current.pagesThisRun >= this.scanMaxPages) {
+          log.info('megascans.sync.scan.capped', {
+            pagesCount: current.pagesThisRun,
+            pagesTotal: current.pagesTotal,
+            durationMs: Date.now() - runStartMs,
+          });
           this.saveScan({ status: 'capped' });
           return;
         }
         const cursor = current.cursor;
         this.assertNotBlocked();
+        const pageStartMs = Date.now();
         const page = await this.readPage({ cursor, signal });
+        this.logPage('scan', page, pageStartMs);
         const done = !page.nextCursor || page.received === 0;
         this.saveScan({
           cursor: page.nextCursor || '',
@@ -494,17 +557,34 @@ export class FabSync {
           lastAdded: page.added,
         });
         if (done) {
+          log.info('megascans.sync.scan.completed', {
+            pagesTotal: current.pagesTotal + 1,
+            listingsCount: current.listingsSeen + page.count,
+            durationMs: Date.now() - runStartMs,
+          });
           return;
         }
       }
     } catch (error) {
+      const durationMs = Date.now() - runStartMs;
       if (signal.aborted) {
+        log.info('megascans.sync.scan.stopped', { reason: 'cancelled', durationMs });
         this.saveScan({ status: 'cancelled', error: null });
       } else if (error instanceof FabBlockedError) {
         this.recordBlock(error);
+        log.warn('megascans.sync.scan.stopped', {
+          reason: 'blocked',
+          kind: error.kind,
+          durationMs,
+        });
         this.saveScan({ status: 'blocked', error: error.message });
       } else {
-        this.logger.warn('Megascans scan stopped:', error.message);
+        // Class only: the message can echo Fab text.
+        log.warn('megascans.sync.scan.stopped', {
+          reason: 'failed',
+          ...errorFields(error),
+          durationMs,
+        });
         this.saveScan({
           status: 'failed',
           error: error instanceof FabError ? error.message : 'The scan stopped unexpectedly.',

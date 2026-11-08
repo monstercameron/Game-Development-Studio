@@ -1,4 +1,8 @@
 // Browser client for Forge's same-origin PCM16 transcription proxy.
+import { createLog } from './app-log.js';
+
+const log = createLog('asr');
+
 export function openAsrStream({
   url,
   sampleRate,
@@ -14,6 +18,9 @@ export function openAsrStream({
   }
   const socket = new WebSocketImpl(url);
   socket.binaryType = 'arraybuffer';
+  socket.addEventListener('open', () => {
+    log.info('asr.socket.opened');
+  });
   let configured = false,
     committed = false,
     settled = false,
@@ -32,18 +39,23 @@ export function openAsrStream({
   });
   ready.catch(() => {});
   done.catch(() => {});
-  let timer = setTimeout(() => fail(Error('Speech session did not become ready.')), timeoutMs);
-  function fail(error) {
+  let timer = setTimeout(
+    () => fail(Error('Speech session did not become ready.'), 'ready_timeout'),
+    timeoutMs,
+  );
+  function fail(error, reason) {
     if (settled) {
       return;
     }
     settled = true;
     clearTimeout(timer);
+    log.warn('asr.session.failed', { reason, wasConfigured: configured, wasCommitted: committed });
     readyReject(error);
     doneReject(error);
     try {
       socket.close();
-    } catch {
+    } catch (closeError) {
+      log.debug('asr.socket.close.failed', { errorClass: closeError?.name || 'Error' });
       // The socket may already be closed; the original failure is reported above.
     }
   }
@@ -51,8 +63,9 @@ export function openAsrStream({
     let data;
     try {
       data = JSON.parse(event.data);
-    } catch {
-      return fail(Error('Speech service sent an invalid event.'));
+    } catch (error) {
+      log.debug('asr.event.parse.failed', { errorClass: error?.name || 'Error' });
+      return fail(Error('Speech service sent an invalid event.'), 'invalid_event');
     }
     try {
       if (data.type === 'session.created') {
@@ -69,11 +82,15 @@ export function openAsrStream({
           configured = true;
           clearTimeout(timer);
           readyResolve();
+          log.info('asr.session.ready');
         }
         return;
       }
       if (data.type === 'error') {
-        return fail(Error(String(data.message || 'Speech service error.').slice(0, 500)));
+        return fail(
+          Error(String(data.message || 'Speech service error.').slice(0, 500)),
+          'service_error',
+        );
       }
       if (data.type === 'conversation.item.input_audio_transcription.delta') {
         if (typeof data.delta === 'string') {
@@ -83,24 +100,32 @@ export function openAsrStream({
       }
       if (data.type === 'conversation.item.input_audio_transcription.completed') {
         if (typeof data.transcript !== 'string') {
-          return fail(Error('Speech service returned an invalid transcript.'));
+          return fail(
+            Error('Speech service returned an invalid transcript.'),
+            'invalid_transcript',
+          );
         }
         onFinal(data.transcript);
         if (committed && !settled) {
           settled = true;
           clearTimeout(timer);
+          log.info('asr.session.completed', { audioBytes: total });
           doneResolve(data);
           socket.close();
         }
       }
     } catch (error) {
-      fail(error instanceof Error ? error : Error('Speech session failed.'));
+      log.warn('asr.event.handler.failed', { errorClass: error?.name || 'Error' });
+      fail(error instanceof Error ? error : Error('Speech session failed.'), 'handler_error');
     }
   });
-  socket.addEventListener('error', () => fail(Error('Could not connect to the speech service.')));
+  socket.addEventListener('error', () =>
+    fail(Error('Could not connect to the speech service.'), 'socket_error'),
+  );
   socket.addEventListener('close', () => {
+    log.info('asr.socket.closed', { isSettled: settled });
     if (!settled) {
-      fail(Error('Speech service disconnected before the transcript finished.'));
+      fail(Error('Speech service disconnected before the transcript finished.'), 'socket_closed');
     }
   });
   return {
@@ -133,13 +158,13 @@ export function openAsrStream({
       }
       committed = true;
       timer = setTimeout(
-        () => fail(Error('Speech transcription did not finish in time.')),
+        () => fail(Error('Speech transcription did not finish in time.'), 'completion_timeout'),
         completionTimeoutMs,
       );
       socket.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
     },
     cancel() {
-      fail(Error('Speech session cancelled.'));
+      fail(Error('Speech session cancelled.'), 'cancelled');
     },
   };
 }

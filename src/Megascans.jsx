@@ -7,17 +7,20 @@ import { ImportsPanel, useImportQueue } from './MegascansImports';
 import { FabCacheBar, useFabCache } from './MegascansFab';
 import ModelList from './MegascansList';
 import { LicencesAndTerms } from './MegascansLegal';
+import { createLog } from './app-log.js';
 import {
   DEFAULT_SORT,
   FAB_SELLER_URL,
   SORTS,
   UPLOAD_ACCEPT,
   checkChosenFile,
+  requestFailureFields,
   uploadImportFile,
 } from './megascans-api';
 import './megascans.css';
 
 const SEARCH_DELAY_MS = 250;
+const log = createLog('megascans');
 
 /**
  * The Megascans page. Listings come from a local cache of Fab's public data (filled slowly and
@@ -85,12 +88,14 @@ export default function Megascans({ project, projects = [], onSelect, onRefresh,
   const startUpload = useCallback(
     async (file, forListingId) => {
       if (!project) {
+        log.info('megascans.upload.blocked', { reason: 'no_project' });
         setAnnouncement('Choose a project before importing a file.');
         return;
       }
       const problem = checkChosenFile(file);
       const key = `upload-${++uploadSequence.current}`;
       if (problem) {
+        log.warn('megascans.upload.rejected', { reason: 'client_check' });
         setUploads((current) => [
           ...current,
           { key, name: file?.name || 'File', loaded: 0, total: 0, error: problem },
@@ -110,14 +115,17 @@ export default function Megascans({ project, projects = [], onSelect, onRefresh,
       aborters.current.set(key, request.abort);
       try {
         await request.promise;
+        log.info('megascans.upload.queued', { uploadBytes: file.size });
         setUploads((current) => current.filter((item) => item.key !== key));
         setAnnouncement(`${file.name} was queued for import into ${project.name}.`);
         refreshQueue();
         setReload((value) => value + 1);
       } catch (error) {
         if (error?.name === 'AbortError') {
+          log.info('megascans.upload.cancelled');
           setUploads((current) => current.filter((item) => item.key !== key));
         } else {
+          log.warn('megascans.upload.failed', requestFailureFields(error));
           setUploads((current) =>
             current.map((item) => (item.key === key ? { ...item, error: error.message } : item)),
           );

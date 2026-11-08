@@ -56,10 +56,12 @@ test('the voice mode switch disables uninstalled checkpoints and shows the mode 
     );
     const navModule = pathToFileURL(path.join(repositoryRoot, 'src', 'useNav.js')).href;
     const modesModule = pathToFileURL(path.join(repositoryRoot, 'src', 'voice-modes.js')).href;
+    const appLogModule = pathToFileURL(path.join(repositoryRoot, 'src', 'app-log.js')).href;
     const transformed = await transformWithEsbuild(
       source
         .replace("from './useNav'", `from '${navModule}'`)
-        .replace("from './voice-modes.js'", `from '${modesModule}'`),
+        .replace("from './voice-modes.js'", `from '${modesModule}'`)
+        .replace("from './app-log.js'", `from '${appLogModule}'`),
       sourcePath,
       { loader: 'jsx', jsx: 'automatic' },
     );
@@ -205,10 +207,12 @@ test('choosing a reference clip moves focus to the transcript instead of the pag
     );
     const navModule = pathToFileURL(path.join(repositoryRoot, 'src', 'useNav.js')).href;
     const modesModule = pathToFileURL(path.join(repositoryRoot, 'src', 'voice-modes.js')).href;
+    const appLogModule = pathToFileURL(path.join(repositoryRoot, 'src', 'app-log.js')).href;
     const transformed = await transformWithEsbuild(
       source
         .replace("from './useNav'", `from '${navModule}'`)
-        .replace("from './voice-modes.js'", `from '${modesModule}'`),
+        .replace("from './voice-modes.js'", `from '${modesModule}'`)
+        .replace("from './app-log.js'", `from '${appLogModule}'`),
       sourcePath,
       { loader: 'jsx', jsx: 'automatic' },
     );
@@ -348,10 +352,12 @@ async function mountClonePage(initialDraft) {
   );
   const navModule = pathToFileURL(path.join(repositoryRoot, 'src', 'useNav.js')).href;
   const modesModule = pathToFileURL(path.join(repositoryRoot, 'src', 'voice-modes.js')).href;
+  const appLogModule = pathToFileURL(path.join(repositoryRoot, 'src', 'app-log.js')).href;
   const transformed = await transformWithEsbuild(
     source
       .replace("from './useNav'", `from '${navModule}'`)
-      .replace("from './voice-modes.js'", `from '${modesModule}'`),
+      .replace("from './voice-modes.js'", `from '${modesModule}'`)
+      .replace("from './app-log.js'", `from '${appLogModule}'`),
     sourcePath,
     { loader: 'jsx', jsx: 'automatic' },
   );
@@ -629,10 +635,12 @@ test('a clone clip shows its length and warns when it is outside 3 to 30 seconds
     );
     const navModule = pathToFileURL(path.join(repositoryRoot, 'src', 'useNav.js')).href;
     const modesModule = pathToFileURL(path.join(repositoryRoot, 'src', 'voice-modes.js')).href;
+    const appLogModule = pathToFileURL(path.join(repositoryRoot, 'src', 'app-log.js')).href;
     const transformed = await transformWithEsbuild(
       source
         .replace("from './useNav'", `from '${navModule}'`)
-        .replace("from './voice-modes.js'", `from '${modesModule}'`),
+        .replace("from './voice-modes.js'", `from '${modesModule}'`)
+        .replace("from './app-log.js'", `from '${appLogModule}'`),
       sourcePath,
       { loader: 'jsx', jsx: 'automatic' },
     );
@@ -788,10 +796,12 @@ test('a failed voice submit shows each missing field inline and focuses the firs
     );
     const navModule = pathToFileURL(path.join(repositoryRoot, 'src', 'useNav.js')).href;
     const modesModule = pathToFileURL(path.join(repositoryRoot, 'src', 'voice-modes.js')).href;
+    const appLogModule = pathToFileURL(path.join(repositoryRoot, 'src', 'app-log.js')).href;
     const transformed = await transformWithEsbuild(
       source
         .replace("from './useNav'", `from '${navModule}'`)
-        .replace("from './voice-modes.js'", `from '${modesModule}'`),
+        .replace("from './voice-modes.js'", `from '${modesModule}'`)
+        .replace("from './app-log.js'", `from '${appLogModule}'`),
       sourcePath,
       { loader: 'jsx', jsx: 'automatic' },
     );

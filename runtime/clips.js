@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { copyFileExclusive } from './durable-file.js';
 import { audioClipPattern, videoClipPattern } from './video-options.js';
 
 // Reference videos and audio for H3 come from the project's own assets. Like staged images
@@ -62,7 +63,7 @@ export async function stageProjectClip(projectFolder, relative) {
   }
   const dir = await inputDirectory(root, true),
     id = `${randomUUID()}${path.extname(real).toLowerCase()}`;
-  await fs.copyFile(real, path.join(dir, id), fs.constants.COPYFILE_EXCL);
+  await copyFileExclusive(real, path.join(dir, id));
   return { id, kind, size: info.size };
 }
 // Resolves a staged clip to its file, rechecking type and link status when the job runs.

@@ -4,6 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createLogger } from './app-log.js';
+
+const log = createLogger('image');
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const LORA_FOLDER_NAME = 'Qwen-Image-2.1-LoRA';
 export const MAX_LORA_SCALE = 2;
@@ -21,25 +24,46 @@ export function isLoraName(value) {
 
 // Regular .safetensors files only; links, folders and odd names are skipped.
 export function listImageLoras(directory = loraDirectory()) {
+  const startedMs = performance.now();
   let entries;
   try {
     entries = fs.readdirSync(directory, { withFileTypes: true });
-  } catch {
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      // A missing folder is normal until the first LoRA is installed.
+      log.debug('image.lora.scan.failed', { reason: 'folder_missing', errorCode: error.code });
+    } else {
+      log.warn('image.lora.scan.failed', {
+        reason: 'folder_unreadable',
+        errorClass: error?.name,
+        errorCode: error?.code,
+      });
+    }
     return [];
   }
-  return entries
+  let unknownSizeCount = 0;
+  const loras = entries
     .filter((entry) => entry.isFile() && !entry.isSymbolicLink() && isLoraName(entry.name))
     .slice(0, MAX_LORAS)
     .map((entry) => {
       let size = null;
       try {
         size = fs.statSync(path.join(directory, entry.name)).size;
+        // log-coverage: ignore -- a mid-scan removal is expected; counted in the scan summary, not per file
       } catch {
         // The file may have been removed between the listing and the stat.
+        unknownSizeCount += 1;
       }
       return { name: entry.name, size };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
+  log.debug('image.lora.scan.completed', {
+    loraCount: loras.length,
+    skippedCount: entries.length - loras.length,
+    unknownSizeCount,
+    durationMs: Math.round(performance.now() - startedMs),
+  });
+  return loras;
 }
 
 export function assertKnownLora(name, directory = loraDirectory()) {

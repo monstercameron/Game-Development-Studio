@@ -4,6 +4,7 @@ export function isStudioUrl(value, origin) {
     const url = new URL(value);
     return url.origin === origin && !url.username && !url.password;
   } catch {
+    // log-coverage: ignore -- not a valid URL is an expected result; logging it would leak the URL
     return false;
   }
 }
@@ -13,6 +14,7 @@ export function isExternalWebUrl(value) {
     const url = new URL(value);
     return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password;
   } catch {
+    // log-coverage: ignore -- not a valid URL is an expected result; logging it would leak the URL
     return false;
   }
 }

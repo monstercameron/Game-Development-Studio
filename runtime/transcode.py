@@ -3,6 +3,13 @@
 import json
 import sys
 import warnings
+from pathlib import Path
+
+# The conversion runtime may be an embedded Python that omits the script folder from sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from app_log import get_logger  # noqa: E402
+
+log = get_logger("transcode")
 
 
 def image(source, target, fmt, quality, background):
@@ -37,6 +44,7 @@ def image(source, target, fmt, quality, background):
                         out.write(encoded)
                     return "NVIDIA GPU (nvJPEG)"
             except Exception as exc:
+                log.info("transcode.gpu.unavailable", {"error": exc, "format": fmt})
                 print("GPU JPEG encoding unavailable; using CPU: " + str(exc), file=sys.stderr)
         options = {"quality": quality} if fmt in ("jpeg", "webp") else {}
         if fmt == "webp":
@@ -219,5 +227,6 @@ if __name__ == "__main__":
             backend = audio(config["source"], config["target"], config["format"], config["quality"])
         print(json.dumps({"backend": backend}))
     except Exception as exc:
+        log.error("transcode.conversion.failed", {"error": exc})
         print(str(exc), file=sys.stderr)
         sys.exit(1)

@@ -1,4 +1,7 @@
 import { useEffect, useId, useState } from 'react';
+import { createLog } from './app-log.js';
+
+const log = createLog('asr');
 
 const modes = [
   [80, '80 ms · fastest replies'],
@@ -8,6 +11,7 @@ const modes = [
 ];
 
 async function call(method, body) {
+  // log-coverage: ignore -- failed /api calls are already logged by app-log-install (http.request.failed)
   const response = await fetch('/api/runtime/asr/latency', {
     method,
     headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
@@ -42,8 +46,9 @@ export default function AsrLatency({ disabled = false, onSaved = ignoreSavedLate
           onSaved(result.latencyMs);
         }
       })
-      .catch(() => {
+      .catch((reason) => {
         // Without a reading the control still works; it just cannot show the saved value.
+        log.debug('asr.latency.read.failed', { errorClass: reason?.name });
       });
     return () => {
       active = false;
@@ -51,6 +56,7 @@ export default function AsrLatency({ disabled = false, onSaved = ignoreSavedLate
   }, [onSaved]);
 
   async function apply() {
+    log.info('asr.latency.change.requested', { latencyMs: choice });
     setBusy(true);
     setError('');
     setMessage('');
@@ -59,7 +65,9 @@ export default function AsrLatency({ disabled = false, onSaved = ignoreSavedLate
       setSaved(result.latencyMs);
       onSaved(result.latencyMs);
       setMessage(result.message);
+      log.info('asr.latency.change.completed', { latencyMs: result.latencyMs });
     } catch (reason) {
+      log.warn('asr.latency.change.failed', { latencyMs: choice, errorClass: reason?.name });
       setError(reason.message);
     } finally {
       setBusy(false);

@@ -10,13 +10,27 @@ import { createWriteStream } from 'node:fs';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { FabError } from './megascans-fab.js';
+import { fsyncFile } from './durable-file.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('megascans');
+
+// After a crash, the end of a partial file can hold zeros that the file size already counts
+// (the size is journaled before the data). The studio sets this when the previous session ended
+// uncleanly, and a resumed download then repeats the last few megabytes.
+const UNCLEAN_RESUME_OVERLAP_BYTES = 8 * 1024 * 1024;
 
 export const STALL_TIMEOUT_MS = 60_000;
 
 async function sizeOf(file) {
   try {
     return (await fs.stat(file)).size;
-  } catch {
+  } catch (error) {
+    // A missing partial file is the normal first attempt, so this stays at debug.
+    log.debug('megascans.download.part.stat.failed', {
+      errorClass: error?.name,
+      errorCode: error?.code,
+    });
     return 0;
   }
 }
@@ -32,7 +46,7 @@ async function sizeOf(file) {
  * @param {(progress: { bytesDone: number, bytesTotal: number, stage: string }) => void} [options.onProgress]
  * @returns {Promise<{ bytes: number, resumed: boolean }>}
  */
-export async function downloadFabFile({
+async function transferFabFile({
   client,
   listingId,
   file,
@@ -41,15 +55,26 @@ export async function downloadFabFile({
   signal,
   onProgress,
   stallMs = STALL_TIMEOUT_MS,
+  resumeOverlapBytes = process.env.FORGE_PREVIOUS_UNCLEAN === '1'
+    ? UNCLEAN_RESUME_OVERLAP_BYTES
+    : 0,
 }) {
   const expected = file.size;
   let offset = await sizeOf(partPath);
+  if (offset > 0 && resumeOverlapBytes > 0) {
+    offset = Math.max(0, offset - resumeOverlapBytes);
+    await fs.truncate(partPath, offset);
+    log.debug('megascans.download.part.truncated', { resumeOffsetBytes: offset });
+  }
   if (expected !== null && offset > expected) {
     await fs.rm(partPath, { force: true });
+    log.debug('megascans.download.part.removed', { reason: 'oversized' });
     offset = 0;
   }
   if (expected !== null && offset === expected) {
+    await fsyncFile(partPath);
     await fs.rename(partPath, finalPath);
+    log.debug('megascans.download.part.renamed', { bytes: expected });
     return { bytes: expected, resumed: true };
   }
   const info = await client.getDownloadInfo(listingId, file.formatCode, file.uid, { signal });
@@ -60,8 +85,10 @@ export async function downloadFabFile({
       resumed = true;
     } else {
       // The server ignored the range (or answered another one): start over from the beginning.
+      log.warn('megascans.download.range.ignored', { listingId, httpStatus: response.status });
       await response.body?.cancel().catch(() => {});
       await fs.rm(partPath, { force: true });
+      log.debug('megascans.download.part.removed', { reason: 'range_ignored' });
       offset = 0;
       response = await client.openDownload(info.url, { start: 0, signal });
     }
@@ -124,6 +151,43 @@ export async function downloadFabFile({
   if (expected !== null && written !== expected) {
     throw new FabError('The download ended early. Retry to continue where it stopped.');
   }
+  // The bytes are flushed before the finished name exists (see docs/RESILIENCE.md).
+  await fsyncFile(partPath);
   await fs.rename(partPath, finalPath);
+  log.debug('megascans.download.part.renamed', { bytes: written });
   return { bytes: written, resumed };
+}
+
+/**
+ * Downloads one Fab file (contract in transferFabFile) and logs only its outcome. The listing id
+ * and byte counts are logged; the signed address and file paths never are.
+ */
+export async function downloadFabFile(options) {
+  const { listingId, file, signal } = options;
+  const startedAt = Date.now();
+  log.info('megascans.download.started', { listingId, expectedBytes: file.size ?? undefined });
+  try {
+    const result = await transferFabFile(options);
+    log.info('megascans.download.completed', {
+      listingId,
+      bytes: result.bytes,
+      isResumed: result.resumed,
+      durationMs: Date.now() - startedAt,
+    });
+    return result;
+  } catch (error) {
+    const durationMs = Date.now() - startedAt;
+    if (signal?.aborted || error?.name === 'AbortError') {
+      log.info('megascans.download.cancelled', { listingId, durationMs });
+    } else {
+      log.error('megascans.download.failed', {
+        listingId,
+        errorClass: error?.name,
+        errorCode: error?.code,
+        httpStatus: error?.status,
+        durationMs,
+      });
+    }
+    throw error;
+  }
 }

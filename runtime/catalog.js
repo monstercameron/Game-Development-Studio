@@ -1,4 +1,7 @@
 import { installedTrellisPipelines } from './trellis-pipelines.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('catalog');
 
 // Service addresses are deliberately fixed to loopback. An open TCP port alone
 // is not enough to claim that an engine is ready or its model is loaded.
@@ -149,7 +152,13 @@ export function configuredServices(env = process.env) {
         throw Error('Invalid origin');
       }
       return { ...service, host: url.hostname, port: Number(url.port || 80) };
-    } catch {
+    } catch (error) {
+      log.warn('catalog.origin.rejected', {
+        serviceId: service.id,
+        settingKey: key,
+        reason: 'invalid_origin',
+        errorClass: error?.name,
+      });
       return {
         ...service,
         port: null,
@@ -337,12 +346,23 @@ async function inspectServiceStatus(service) {
     return { ...visible, status: 'not_configured', modelLoaded: null, canUnload: false };
   }
   const url = `http://${service.host || '127.0.0.1'}:${service.port}`;
+  // Each path below stops this timer exactly once (every return or the catch).
+  // A status poll probes up to a dozen services, so the result is debug rather than info.
+  const probeStartedMs = performance.now();
+  const stopProbe = (extra) => {
+    log.debug('catalog.service.probed', {
+      serviceId: service.id,
+      ...extra,
+      durationMs: Math.round(performance.now() - probeStartedMs),
+    });
+  };
   try {
     const response = await fetch(url + endpoint, {
       signal: AbortSignal.timeout(1500),
       redirect: 'error',
     });
     if (!response.ok) {
+      stopProbe({ httpStatus: response.status, outcome: 'unverified' });
       return { ...visible, url, status: 'unverified', modelLoaded: null, canUnload: false };
     }
     const raw = await response.text();
@@ -350,10 +370,35 @@ async function inspectServiceStatus(service) {
       throw new Error('Status response too large');
     }
     const details = interpretStatus(kind, JSON.parse(raw));
+    stopProbe({ httpStatus: response.status, outcome: details ? 'reachable' : 'unverified' });
     return details
       ? { ...visible, url, status: 'reachable', ...details, canUnload: false }
       : { ...visible, url, status: 'unverified', modelLoaded: null, canUnload: false };
-  } catch {
-    return { ...visible, url, status: 'unavailable', modelLoaded: null, canUnload: false };
+  } catch (error) {
+    // A refused connection means nothing is listening (stopped or crashed). A timeout means a
+    // process accepted the connection but did not answer, which is a hang: the two need
+    // different recovery, so the reason is kept.
+    const reason =
+      error?.name === 'TimeoutError' || error?.name === 'AbortError' ? 'timeout' : 'refused';
+    stopProbe({ outcome: 'unavailable', reason });
+    // A refused probe is expected while a service is stopped, so it is debug; a hang is warn.
+    if (reason === 'timeout') {
+      log.warn('catalog.service.probe.failed', { serviceId: service.id, reason });
+    } else {
+      log.debug('catalog.service.probe.failed', {
+        serviceId: service.id,
+        reason,
+        errorClass: error?.name,
+        errorCode: error?.code,
+      });
+    }
+    return {
+      ...visible,
+      url,
+      status: 'unavailable',
+      reason,
+      modelLoaded: null,
+      canUnload: false,
+    };
   }
 }

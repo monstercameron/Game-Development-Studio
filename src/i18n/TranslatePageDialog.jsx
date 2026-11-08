@@ -1,11 +1,14 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { LoaderCircle, X } from 'lucide-react';
 import useDialogFocus from '../useDialogFocus';
-import { i18nRequest, streamTranslation } from './i18n-api.js';
+import { createLog } from '../app-log.js';
+import { errorLogFields, i18nRequest, streamTranslation } from './i18n-api.js';
 import { DEFAULT_LOCALE, PSEUDO_LOCALE, t } from './i18n-core.js';
 import { useLocale, useT } from './i18n-react.js';
 import { filterLanguages, languageOptions, parseLanguageCode } from './languages.js';
 import './language-menu.css';
+
+const log = createLog('i18n');
 
 // Rejection reason codes from runtime/i18n-translate.js, shown in the UI language.
 const REASON_LABELS = {
@@ -79,6 +82,7 @@ function TranslationReview({ lang, namespaces, fetchImpl, onChanged }) {
       .then((data) => setRows(data.strings))
       .catch((reason) => {
         if (reason.name !== 'AbortError') {
+          log.warn('i18n.strings.failed', { locale: lang, ...errorLogFields(reason) });
           setRows([]);
           setError(reason.message);
         }
@@ -111,6 +115,7 @@ function TranslationReview({ lang, namespaces, fetchImpl, onChanged }) {
       );
       onChanged();
     } catch (reason) {
+      log.warn('i18n.review.failed', { locale: lang, ...errorLogFields(reason) });
       setError(reason.message);
     } finally {
       setSavingKey('');
@@ -277,6 +282,7 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
 
   const handleClose = () => {
     // Closing while a translation runs cancels the remaining requests.
+    log.debug('i18n.translate.closed', { phase: step, isRunning: Boolean(runRef.current) });
     runRef.current?.abort();
     onClose();
   };
@@ -305,7 +311,9 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
       });
       setPreview(data);
       setStep('preview');
+      log.debug('i18n.preview.completed', { locale: code, stringCount: data.strings });
     } catch (reason) {
+      log.warn('i18n.preview.failed', { locale: code, ...errorLogFields(reason) });
       showError(reason);
     } finally {
       setIsBusy(false);
@@ -319,6 +327,14 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
     setError('');
     setErrorCode('');
     setProgress({ done: 0, total: preview.strings });
+    const startedAt = performance.now();
+    const logFields = {
+      locale: preview.lang,
+      namespaceCount: namespaces.length,
+      stringCount: preview.strings,
+    };
+    const elapsedMs = () => Math.round(performance.now() - startedAt);
+    log.info('i18n.translation.started', logFields);
     try {
       const result = await streamTranslation({
         lang: preview.lang,
@@ -335,8 +351,16 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
       setReport(result);
       setStep('report');
       reloadCatalogs(preview.lang);
+      log.info('i18n.translation.completed', {
+        ...logFields,
+        translatedCount: result.translated,
+        keptEnglishCount: result.keptEnglish,
+        notTranslatedCount: result.notTranslated,
+        durationMs: elapsedMs(),
+      });
     } catch (reason) {
       if (reason.name === 'AbortError') {
+        log.info('i18n.translation.cancelled', { ...logFields, durationMs: elapsedMs() });
         setReport(null);
         setStep('preview');
         setStatusMessage(
@@ -347,6 +371,11 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
         );
         reloadCatalogs(preview.lang);
       } else {
+        log.warn('i18n.translation.failed', {
+          ...logFields,
+          durationMs: elapsedMs(),
+          ...errorLogFields(reason),
+        });
         showError(reason);
         setStep('preview');
       }
@@ -360,6 +389,7 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
       await setLocale(code);
       onClose();
     } catch (reason) {
+      log.warn('i18n.locale.failed', { locale: code, ...errorLogFields(reason) });
       showError(reason);
     }
   }
@@ -377,6 +407,11 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
           confirm: 'delete',
         },
         fetchImpl,
+      });
+      log.info('i18n.cache.removed', {
+        locale: preview.lang,
+        scope: kind,
+        removedCount: data.removed,
       });
       setConfirming('');
       setStatusMessage(
@@ -396,6 +431,11 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
       }
       await loadPreview(preview.lang);
     } catch (reason) {
+      log.warn('i18n.cache.failed', {
+        locale: preview.lang,
+        scope: kind,
+        ...errorLogFields(reason),
+      });
       showError(reason);
     } finally {
       setIsBusy(false);

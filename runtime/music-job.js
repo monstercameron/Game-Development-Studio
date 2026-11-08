@@ -1,15 +1,26 @@
+import { createLogger } from './app-log.js';
 import { saveAsset } from './job-io.js';
 import { derivedSubmission, sourceTrack, submission } from './music-request.js';
 
+const log = createLogger('music');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function send(jobId, type, values = {}) {
   if (process.connected) {
     process.send({ jobId, type, ...values });
   }
 }
-process.on('disconnect', () => process.exit(0));
+process.on('disconnect', () => {
+  log.info('music.process.disconnected');
+  process.exit(0);
+});
 process.once('message', async ({ job, projectFolder, baseUrl }) => {
   let remoteId = job.remoteId;
+  const jobLog = log.child({ jobId: job.id });
+  const stopJob = jobLog.time('music.job.completed');
+  jobLog.info('music.job.started', {
+    operation: job.request?.operation,
+    hasRemoteId: Boolean(remoteId),
+  });
   try {
     if (!remoteId) {
       // Extending or re-synthesizing names a track YuE2 already holds. Looking it up submits
@@ -22,6 +33,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
             await sourceTrack(baseUrl, job.request.source_remote),
           );
         } catch (error) {
+          jobLog.warn('music.source.lookup.failed', { error, operation: job.request.operation });
           send(job.id, 'failed', {
             error: `Could not find the source track in YuE2: ${String(error.message).slice(0, 500)}`,
           });
@@ -29,6 +41,10 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
         }
       }
       let response, body;
+      jobLog.info('music.submit.requested', {
+        operation: job.request.operation,
+        addSeconds: job.request.add_seconds,
+      });
       try {
         const { path, payload } = planned || submission(job.request);
         response = await fetch(`${baseUrl}${path}`, {
@@ -39,13 +55,15 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           redirect: 'error',
         });
         body = await response.json();
-      } catch {
+      } catch (error) {
+        jobLog.warn('music.submit.failed', { error, outcome: 'unknown' });
         send(job.id, 'interrupted', {
           error: 'Submission result is unknown. Check YuE2 before resolving this job.',
         });
         return;
       }
       if (!response.ok) {
+        jobLog.warn('music.submit.rejected', { httpStatus: response.status });
         send(job.id, response.status >= 500 ? 'interrupted' : 'failed', {
           error: `YuE2 returned ${response.status}: ${JSON.stringify(body).slice(0, 1000)}. ${response.status >= 500 ? 'Check the engine before resolving this job.' : ''}`,
         });
@@ -54,6 +72,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       // The studio endpoint wraps its jobs in a list; the compact v1 endpoint returns one job.
       body = Array.isArray(body.jobs) ? body.jobs[0] || {} : body;
       if (typeof body.id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(body.id)) {
+        jobLog.warn('music.submit.rejected', { reason: 'missing_remote_id' });
         send(job.id, 'interrupted', {
           error:
             'YuE2 accepted the request without a usable job ID. Check YuE2 before resolving this job.',
@@ -61,8 +80,11 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
         return;
       }
       remoteId = body.id;
+      jobLog.info('music.job.accepted', { remoteId });
       send(job.id, 'accepted', { remoteId });
     }
+    let lastRemoteStatus = 'unknown';
+    let isReconnecting = false;
     while (true) {
       let state;
       try {
@@ -71,6 +93,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           redirect: 'error',
         });
         if (response.status === 404) {
+          jobLog.warn('music.job.interrupted', { httpStatus: 404, reason: 'remote_missing' });
           send(job.id, 'interrupted', {
             error:
               'YuE2 no longer recognizes the remote job. Check its history before resolving this job.',
@@ -81,15 +104,29 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           throw Error(`HTTP ${response.status}`);
         }
         state = await response.json();
-      } catch {
+      } catch (error) {
+        // Log the start of a reconnect streak only, not each retry in the loop.
+        if (!isReconnecting) {
+          isReconnecting = true;
+          jobLog.warn('music.poll.failed', { error });
+        }
         send(job.id, 'progress', { stage: 'Waiting to reconnect to YuE2.' });
         await sleep(5000);
         continue;
+      }
+      if (isReconnecting) {
+        isReconnecting = false;
+        jobLog.info('music.poll.recovered');
+      }
+      if (state.status !== lastRemoteStatus) {
+        jobLog.info('music.job.state.changed', { from: lastRemoteStatus, to: state.status });
+        lastRemoteStatus = state.status;
       }
       if (state.status === 'done') {
         break;
       }
       if (['failed', 'cancelled', 'canceled'].includes(state.status)) {
+        jobLog.error('music.job.failed', { status: state.status });
         send(job.id, 'failed', {
           error: String(state.error || `YuE2 job ${state.status}.`).slice(0, 2000),
         });
@@ -101,6 +138,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       await sleep(3000);
     }
     send(job.id, 'finalizing');
+    const stopSave = jobLog.time('music.output.saved');
     const output = await saveAsset(
       projectFolder,
       'music',
@@ -108,8 +146,11 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       'flac',
       `${baseUrl}/api/v1/jobs/${encodeURIComponent(remoteId)}/audio`,
     );
+    stopSave();
+    stopJob({ outcome: 'completed' });
     send(job.id, 'complete', { output });
   } catch (error) {
+    jobLog.error('music.job.failed', { error });
     send(job.id, 'failed', { error: String(error.message).slice(0, 2000) });
   } finally {
     if (process.connected) {

@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { createLogger, routeTemplate } from './app-log.js';
 import { openMegascansDb, ValidatorStore } from './megascans-db.js';
 import {
   FAB_SELLER,
@@ -34,8 +35,10 @@ import { ImportRunner, stagingDirectory, uploadFile } from './megascans-runner.j
 import { FabBlockedError, FabClient, FabError, FabSource } from './megascans-fab.js';
 import { FabSync, SyncError } from './megascans-sync.js';
 import { ThumbnailCache } from './megascans-thumbs.js';
+import { fsyncFile } from './durable-file.js';
 import { pickFile } from './megascans-files.js';
 
+const log = createLogger('megascans');
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT_METADATA = '.forge-project.json';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -92,7 +95,8 @@ export function createProjectResolver(projectsRoot) {
     let entries;
     try {
       entries = await fs.readdir(projectsRoot, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      log.debug('megascans.projects.read.failed', { error });
       return null;
     }
     for (const entry of entries) {
@@ -105,7 +109,8 @@ export function createProjectResolver(projectsRoot) {
         if (typeof meta.id === 'string' && meta.id.toLowerCase() === projectId.toLowerCase()) {
           return { id: meta.id, name: String(meta.name || ''), folder: await fs.realpath(folder) };
         }
-      } catch {
+      } catch (error) {
+        log.debug('megascans.project.metadata.failed', { error });
         continue;
       }
     }
@@ -121,6 +126,7 @@ async function prepareStaging(project, importId) {
   const relative = path.relative(project.folder, real);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
     await fs.rm(directory, { recursive: true, force: true });
+    log.warn('megascans.staging.rejected', { reason: 'outside_project' });
     throw new ImportError('The project staging folder is not usable.');
   }
   return directory;
@@ -131,6 +137,7 @@ function limitedStream(limit, counter) {
     transform(chunk, _encoding, callback) {
       counter.bytes += chunk.length;
       if (counter.bytes > limit) {
+        log.warn('megascans.upload.rejected', { reason: 'too_large', limit, bytes: counter.bytes });
         const error = new ImportError('The file is larger than the import limit.');
         error.status = 413;
         callback(error);
@@ -150,7 +157,8 @@ export async function sweepOrphanStaging(
   let projects;
   try {
     projects = await fs.readdir(projectsRoot, { withFileTypes: true });
-  } catch {
+  } catch (error) {
+    log.debug('megascans.staging.sweep.failed', { error });
     return 0;
   }
   let removed = 0;
@@ -162,7 +170,8 @@ export async function sweepOrphanStaging(
     let children;
     try {
       children = await fs.readdir(root, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      log.debug('megascans.staging.read.failed', { error });
       continue;
     }
     for (const child of children) {
@@ -173,6 +182,7 @@ export async function sweepOrphanStaging(
       const stat = await fs.stat(target).catch(() => null);
       if (stat && Date.now() - stat.mtimeMs > maxAgeMs) {
         await fs.rm(target, { recursive: true, force: true });
+        log.debug('megascans.staging.removed', { kind: 'staging', reason: 'orphan' });
         removed++;
       }
     }
@@ -230,14 +240,28 @@ export function megascansService(options = {}) {
         logger,
         client,
         isBlocked: () => Boolean(sync.block()),
-        onBlocked: (error) => sync.recordBlock(error),
+        onBlocked: (error) => {
+          log.warn('megascans.fab.blocked', {
+            source: 'import',
+            kind: error?.kind,
+            retryAfterSeconds: error?.retryAfterSeconds,
+          });
+          return sync.recordBlock(error);
+        },
       });
       const thumbs = new ThumbnailCache({
         client,
         library,
         directory: options.thumbsDirectory,
         isBlocked: () => Boolean(sync.block()),
-        onBlocked: (error) => sync.recordBlock(error),
+        onBlocked: (error) => {
+          log.warn('megascans.fab.blocked', {
+            source: 'thumbnail',
+            kind: error?.kind,
+            retryAfterSeconds: error?.retryAfterSeconds,
+          });
+          return sync.recordBlock(error);
+        },
         logger,
       });
       const interrupted = queue.recoverInterrupted();
@@ -245,6 +269,7 @@ export function megascansService(options = {}) {
         logger.warn(`Megascans: ${interrupted} import(s) were interrupted by a restart.`);
       }
       state = { handle, library, queue, runner, sync, thumbs, client };
+      log.info('megascans.database.opened', { interruptedCount: interrupted || 0 });
       const known = new Set(queue.list({ limit: 1000 }).map((item) => item.id));
       sweepOrphanStaging(projectsRoot, known).catch((error) =>
         logger.warn('Megascans staging sweep failed:', error.message),
@@ -252,6 +277,7 @@ export function megascansService(options = {}) {
       runner.pump();
     } catch (error) {
       startupError = error;
+      log.error('megascans.database.open.failed', { error });
       logger.error('Megascans database could not be opened:', error.message);
     }
     return state;
@@ -328,6 +354,13 @@ export function megascansService(options = {}) {
       fileUid: file.uid,
       formatCode: file.formatCode,
     });
+    log.info('megascans.import.state.changed', {
+      importId: item.id,
+      to: 'queued',
+      source: 'fab',
+      listingId,
+      uploadBytes: file.size,
+    });
     runner.pump();
     return send(res, 201, { import: item });
   }
@@ -342,6 +375,7 @@ export function megascansService(options = {}) {
     try {
       filename = cleanUploadName(url.searchParams.get('filename'));
     } catch (error) {
+      log.warn('megascans.request.rejected', { error, reason: 'invalid_name', status: 400 });
       return send(res, 400, { error: error.message });
     }
     let listingId = null;
@@ -356,6 +390,12 @@ export function megascansService(options = {}) {
       return send(res, 411, { error: 'The upload needs a known size.' });
     }
     if (declared > maxUploadBytes) {
+      log.warn('megascans.request.rejected', {
+        reason: 'too_large',
+        status: 413,
+        limit: maxUploadBytes,
+        bytes: declared,
+      });
       res.setHeader('Connection', 'close');
       res.on('finish', () => req.destroy());
       return send(res, 413, {
@@ -380,7 +420,9 @@ export function megascansService(options = {}) {
       if (counter.bytes !== declared) {
         throw new ImportError('The upload was incomplete. Try again.');
       }
+      await fsyncFile(`${destination}.part`);
       await fs.rename(`${destination}.part`, destination);
+      log.debug('megascans.upload.stored', { bytes: counter.bytes });
       const item = queue.enqueue({
         id,
         projectId: project.id,
@@ -389,10 +431,21 @@ export function megascansService(options = {}) {
         kind: extensionOf(filename) === '.zip' ? 'archive' : 'model',
         uploadBytes: counter.bytes,
       });
+      log.info('megascans.import.state.changed', {
+        importId: item.id,
+        to: 'queued',
+        source: 'upload',
+        uploadBytes: counter.bytes,
+      });
       runner.pump();
       return send(res, 201, { import: queue.get(item.id) });
     } catch (error) {
-      await fs.rm(directory, { recursive: true, force: true }).catch(() => {});
+      log.warn('megascans.upload.failed', { importId: id, bytes: counter.bytes, error });
+      await fs
+        .rm(directory, { recursive: true, force: true })
+        .catch((cleanupError) =>
+          log.debug('megascans.staging.cleanup.failed', { error: cleanupError }),
+        );
       if (res.headersSent || req.destroyed) {
         return undefined;
       }
@@ -464,10 +517,14 @@ export function megascansService(options = {}) {
       }
       const body = await readJson(req);
       if (body.action === 'cancel') {
-        return send(res, 200, { scan: sync.cancelScan() });
+        const scan = sync.cancelScan();
+        log.info('megascans.scan.cancel.requested');
+        return send(res, 200, { scan });
       }
       if (body.action === 'start' || body.action === 'resume') {
-        return send(res, 202, { scan: sync.startScan({ resume: body.action === 'resume' }) });
+        const scan = sync.startScan({ resume: body.action === 'resume' });
+        log.info('megascans.scan.started', { mode: body.action });
+        return send(res, 202, { scan });
       }
       return send(res, 400, { error: 'Choose start, resume or cancel.' });
     }
@@ -546,6 +603,12 @@ export function megascansService(options = {}) {
       if (parts.length === 3 && write) {
         if (parts[2] === 'cancel') {
           const { import: item, wasRunning } = queue.cancel(id);
+          log.info('megascans.import.state.changed', {
+            importId: id,
+            to: item?.status,
+            reason: 'cancel_requested',
+            wasRunning,
+          });
           if (wasRunning) {
             runner.cancel(id);
           }
@@ -572,16 +635,29 @@ export function megascansService(options = {}) {
             });
           }
           const item = queue.retry(id);
+          log.info('megascans.import.state.changed', {
+            importId: id,
+            to: item?.status,
+            reason: 'retry_requested',
+          });
           runner.pump();
           return send(res, 200, { import: item });
         }
         if (parts[2] === 'dismiss') {
           const row = queue.dismiss(id);
+          log.info('megascans.import.state.changed', {
+            importId: id,
+            to: row.status,
+            reason: 'dismiss_requested',
+          });
           const project = await resolveProject(row.project_id);
           if (project) {
             await fs
               .rm(stagingDirectory(project.folder, id), { recursive: true, force: true })
-              .catch((error) => logger.warn('Megascans staging cleanup failed:', error.message));
+              .catch((error) => {
+                log.warn('megascans.staging.cleanup.failed', { error });
+                logger.warn('Megascans staging cleanup failed:', error.message);
+              });
           }
           return send(res, 200, { dismissed: true });
         }
@@ -593,6 +669,15 @@ export function megascansService(options = {}) {
   function attach(server) {
     start();
     server.middlewares.use('/api/megascans', async (req, res) => {
+      const startedAt = performance.now();
+      res.once('finish', () => {
+        log.debug('megascans.request.completed', {
+          method: req.method,
+          route: routeTemplate(req.url),
+          status: res.statusCode,
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+      });
       if (!isLocalRequest(req)) {
         return send(res, 403, { error: 'Local studio requests only.' });
       }
@@ -628,6 +713,7 @@ export function megascansService(options = {}) {
         if (error instanceof FabError) {
           return send(res, 502, { error: error.message });
         }
+        log.error('megascans.request.failed', { error });
         logger.error('Megascans service error:', error.message);
         return send(res, 500, { error: 'Megascans service failed. Check Diagnostics.' });
       }

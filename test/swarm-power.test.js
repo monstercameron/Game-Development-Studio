@@ -2,9 +2,13 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import test from 'node:test';
+import { createLogger } from '../runtime/app-log.js';
 import { powerService } from '../power.js';
 
 test('server shutdown during helper startup does not leave keep-awake active', async () => {
+  // The first emitted record installs the logger's own process exit hook. Emit one before the
+  // listener snapshot so the assertion below counts only the keep-awake service's listener.
+  createLogger('power').info('power.test.warmup');
   const helper = new EventEmitter();
   helper.stdout = new EventEmitter();
   helper.stderr = new EventEmitter();

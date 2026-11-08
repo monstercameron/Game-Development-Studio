@@ -8,6 +8,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { FabBlockedError } from './megascans-fab.js';
 import { runtimeDirectory } from './megascans-db.js';
+import { atomicWriteFile } from './durable-file.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('megascans');
 
 export const THUMBNAIL_DIRECTORY_NAME = 'megascans-thumbs';
 export const MAX_CACHE_BYTES = 200 * 1024 * 1024;
@@ -85,15 +89,19 @@ export class ThumbnailCache {
     }
     const cached = await this.read(id);
     if (cached) {
+      log.debug('megascans.thumbnail.cache.hit', { isStale: cached.stale });
       return cached.stale ? this.revalidate(id, cached) : cached;
     }
     if (this.isBlocked() || (this.failed.get(id) ?? 0) > this.now()) {
+      log.debug('megascans.thumbnail.skipped', { reason: 'paused_or_recently_failed' });
       return null;
     }
     const source = this.library.thumbnailSource(id);
     if (!source) {
+      log.debug('megascans.thumbnail.skipped', { reason: 'no_source' });
       return null;
     }
+    log.debug('megascans.thumbnail.cache.miss');
     if (!this.pending.has(id)) {
       const work = this.fetchAndStore(id, source).finally(() => this.pending.delete(id));
       this.pending.set(id, work);
@@ -116,6 +124,7 @@ export class ThumbnailCache {
       try {
         const result = await this.client.getImage(source, { conditional: known });
         if (result.status === 304) {
+          log.debug('megascans.thumbnail.revalidated', { status: 304 });
           const now = new Date(this.now());
           await fs.utimes(this.file(id), now, now);
           return image;
@@ -123,7 +132,10 @@ export class ThumbnailCache {
         return (await this.store(id, result)) ?? image;
       } catch (error) {
         if (error instanceof FabBlockedError) {
+          log.warn('megascans.thumbnail.rejected', { reason: 'fab_blocked', error });
           this.onBlocked(error);
+        } else {
+          log.debug('megascans.thumbnail.revalidate.failed', { error });
         }
         return image;
       }
@@ -138,7 +150,8 @@ export class ThumbnailCache {
       const [bytes, stat] = await Promise.all([fs.readFile(file), fs.stat(file)]);
       const type = sniffImage(bytes);
       return type ? { bytes, type, stale: this.now() - stat.mtimeMs > REVALIDATE_AFTER_MS } : null;
-    } catch {
+    } catch (error) {
+      log.debug('megascans.thumbnail.read.failed', { error });
       return null;
     }
   }
@@ -151,9 +164,7 @@ export class ThumbnailCache {
     }
     await fs.mkdir(this.directory, { recursive: true });
     const target = this.file(id);
-    const partial = `${target}.part`;
-    await fs.writeFile(partial, body);
-    await fs.rename(partial, target);
+    await atomicWriteFile(target, body);
     if (etag || lastModified) {
       this.client.validators?.set(`thumb:${id}`, { etag, lastModified });
     }
@@ -162,14 +173,18 @@ export class ThumbnailCache {
   }
 
   async fetchAndStore(id, source) {
+    const stop = log.time('megascans.thumbnail.fetch.completed');
     try {
-      return await this.store(id, await this.client.getImage(source));
+      const image = await this.store(id, await this.client.getImage(source));
+      stop({ bytes: image.bytes.length });
+      return image;
     } catch (error) {
       this.failed.set(id, this.now() + FAILURE_MEMORY_MS);
       if (error instanceof FabBlockedError) {
+        log.warn('megascans.thumbnail.rejected', { reason: 'fab_blocked', error });
         this.onBlocked(error);
       } else {
-        this.logger.warn('Megascans thumbnail skipped:', error.message);
+        log.warn('megascans.thumbnail.failed', { error });
       }
       return null;
     }
@@ -180,7 +195,8 @@ export class ThumbnailCache {
     let entries;
     try {
       entries = await fs.readdir(this.directory, { withFileTypes: true });
-    } catch {
+    } catch (error) {
+      log.debug('megascans.thumbnail.trim.failed', { error });
       return;
     }
     const files = [];
@@ -204,6 +220,7 @@ export class ThumbnailCache {
         break;
       }
       await fs.rm(path.join(this.directory, file.name), { force: true });
+      log.debug('megascans.thumbnail.evicted', { bytes: file.size });
       total -= file.size;
     }
   }

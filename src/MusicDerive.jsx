@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { canDeriveMusic, deriveMusicRequest } from './music-derive.js';
+import { createLog } from './app-log.js';
+
+const log = createLog('music');
 
 async function queue(projectId, request) {
+  // log-coverage: ignore -- non-OK responses are thrown to submit(), which logs music.derive.failed; failed /api calls are captured by app-log
   const response = await fetch('/api/runtime/jobs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Forge-Request': 'runtime' },
@@ -60,6 +64,7 @@ function MusicDeriveActions({ project, asset, onQueued }) {
     setHasError(false);
     try {
       await queue(project.id, deriveMusicRequest(mode, asset, values));
+      log.info('music.derive.queued', { mode });
       setMessage(
         mode === 'extend'
           ? 'Extension added to the render queue. The original track is not changed.'
@@ -70,6 +75,7 @@ function MusicDeriveActions({ project, asset, onQueued }) {
       setValues({});
       onQueued?.();
     } catch (error) {
+      log.warn('music.derive.failed', { mode, errorClass: error?.name });
       setHasError(true);
       setMessage(`Could not queue it: ${error.message}`);
     } finally {

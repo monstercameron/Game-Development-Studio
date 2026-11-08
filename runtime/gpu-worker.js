@@ -1,5 +1,8 @@
 import { parentPort } from 'node:worker_threads';
 import { execFile } from 'node:child_process';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('gpu');
 
 export function parseNvidiaCsv(output) {
   return output
@@ -25,6 +28,7 @@ export function parseNvidiaCsv(output) {
 
 if (parentPort) {
   parentPort.on('message', ({ id }) => {
+    const stopQuery = log.time('gpu.query.finished', { kind: 'nvidia-smi' });
     execFile(
       'nvidia-smi',
       [
@@ -34,6 +38,7 @@ if (parentPort) {
       { timeout: 5000, windowsHide: true, maxBuffer: 128 * 1024 },
       (error, stdout) => {
         if (error) {
+          stopQuery({ outcome: 'failed', errorCode: error.code });
           return parentPort.postMessage({
             id,
             result: {
@@ -44,6 +49,7 @@ if (parentPort) {
           });
         }
         const devices = parseNvidiaCsv(stdout);
+        stopQuery({ outcome: 'completed', count: devices.length });
         parentPort.postMessage({
           id,
           result: {

@@ -12,18 +12,21 @@ import {
   useMemo,
   useSyncExternalStore,
 } from 'react';
+import { createLog } from '../app-log.js';
 import { DEFAULT_LOCALE, PSEUDO_LOCALE, directionFor, i18n, normalizeLocale } from './i18n-core.js';
 import { PLACEHOLDER, parseRichText } from './message-format.js';
 
 export const LOCALE_STORAGE_KEY = 'forge-locale';
 const I18nContext = createContext(null);
+const log = createLog('i18n');
 
 function readStoredLocale(storage) {
   try {
     const value = storage?.getItem(LOCALE_STORAGE_KEY);
     return value === PSEUDO_LOCALE ? value : normalizeLocale(value);
-  } catch {
+  } catch (error) {
     // Storage can be blocked (private mode, policy); the default locale is used.
+    log.debug('i18n.storage.unavailable', { errorClass: error?.name });
     return null;
   }
 }
@@ -35,8 +38,9 @@ function writeStoredLocale(storage, locale) {
     } else {
       storage?.setItem(LOCALE_STORAGE_KEY, locale);
     }
-  } catch {
+  } catch (error) {
     // Storage can be blocked; the server-side preference still records the choice.
+    log.debug('i18n.storage.unavailable', { errorClass: error?.name });
   }
 }
 
@@ -147,6 +151,7 @@ export function shippedCatalogLoader(globMap = {}) {
 export function serverCatalogLoader(fetchImpl) {
   return async (locale, namespace) => {
     const query = new URLSearchParams({ lang: locale, ns: namespace });
+    // log-coverage: ignore -- /api responses are logged by the fetch wrapper in src/app-log.js.
     const response = await fetchImpl(`/api/i18n/catalog?${query}`);
     if (!response.ok) {
       throw Error(`Catalog ${namespace} is unavailable (${response.status}).`);
@@ -159,6 +164,7 @@ export function serverCatalogLoader(fetchImpl) {
 function defaultStorage() {
   try {
     return typeof window !== 'undefined' ? window.localStorage : null;
+    // log-coverage: ignore -- runs once per mount inside useMemo during render; a blocked read returns null.
   } catch {
     return null;
   }
@@ -166,6 +172,7 @@ function defaultStorage() {
 
 // One stable function, so effects that depend on it do not rerun on every render. It reads the
 // global fetch at call time, which keeps test stubs working.
+// log-coverage: ignore -- a pass-through; the fetch wrapper in src/app-log.js logs /api failures.
 const globalFetch = (...args) => globalThis.fetch(...args);
 
 function defaultFetch() {
@@ -211,8 +218,9 @@ export function I18nProvider({ children, catalogs, fetchImpl, storage }) {
           i18n.setLocale(locale);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         // The service may be unavailable (static preview, tests); English stays active.
+        log.debug('i18n.preference.read.failed', { errorClass: error?.name });
       });
     return () => {
       active = false;
@@ -241,6 +249,7 @@ export function I18nProvider({ children, catalogs, fetchImpl, storage }) {
         body: JSON.stringify({ locale: applied }),
       });
       if (!response.ok) {
+        log.warn('i18n.preference.save.failed', { locale: applied, status: response.status });
         throw Error('The language was changed here but could not be saved for the studio.');
       }
       return applied;

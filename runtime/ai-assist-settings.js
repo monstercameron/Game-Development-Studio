@@ -1,10 +1,10 @@
 // Shared "AI assist" settings: which provider and model each optional AI feature uses.
 // Stored in .forge-runtime/settings.sqlite (app-level, not per project). API keys are NOT kept
 // here; they stay in the encrypted credential store (runtime/credentials.js).
-import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openDatabase } from './durable-db.js';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -51,6 +51,39 @@ export function validateAiAssistEntry({ feature, provider, model }) {
   return { feature, provider, model: trimmed };
 }
 
+/** Creates the table when needed. Shared with the settings registry (runtime/core-settings.js). */
+export function ensureAiAssistTable(db) {
+  db.exec(
+    'PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS ai_assist (feature TEXT PRIMARY KEY, provider TEXT NOT NULL, model TEXT NOT NULL, updated_at TEXT NOT NULL)',
+  );
+}
+
+/** Reads one feature with defaults applied. `db` may be null when no database exists yet. */
+export function readAiAssistEntry(db, feature) {
+  const defaults = AI_ASSIST_FEATURES[feature];
+  const row = db
+    ?.prepare('SELECT provider,model,updated_at FROM ai_assist WHERE feature=?')
+    .get(feature);
+  const isStoredValid =
+    row && AI_ASSIST_PROVIDERS.includes(row.provider) && isValidAiModelId(row.model);
+  return {
+    feature,
+    label: defaults.label,
+    provider: isStoredValid ? row.provider : defaults.provider,
+    model: isStoredValid ? row.model : defaults.model,
+    defaultProvider: defaults.provider,
+    defaultModel: defaults.model,
+    updatedAt: isStoredValid ? row.updated_at : null,
+  };
+}
+
+/** Writes one already validated entry. Runs inside the caller's transaction, if it has one. */
+export function writeAiAssistEntry(db, { feature, provider, model }, updatedAt) {
+  db.prepare(
+    'INSERT INTO ai_assist(feature,provider,model,updated_at) VALUES(?,?,?,?) ON CONFLICT(feature) DO UPDATE SET provider=excluded.provider, model=excluded.model, updated_at=excluded.updated_at',
+  ).run(feature, provider, model, updatedAt);
+}
+
 /**
  * @param {{directory?: string, now?: () => Date}} options directory defaults to the Forge
  *   runtime folder. The database is created on the first write only.
@@ -65,34 +98,16 @@ export function createAiAssistSettings({
       return null;
     }
     fs.mkdirSync(directory, { recursive: true });
-    const db = new DatabaseSync(file, { timeout: 5000 });
+    const db = openDatabase(file, { name: 'settings', journal: null, directory });
     try {
-      db.exec(
-        'PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS ai_assist (feature TEXT PRIMARY KEY, provider TEXT NOT NULL, model TEXT NOT NULL, updated_at TEXT NOT NULL)',
-      );
+      ensureAiAssistTable(db);
       return db;
     } catch (error) {
       db.close();
       throw error;
     }
   }
-  function read(db, feature) {
-    const defaults = AI_ASSIST_FEATURES[feature];
-    const row = db
-      ?.prepare('SELECT provider,model,updated_at FROM ai_assist WHERE feature=?')
-      .get(feature);
-    const isStoredValid =
-      row && AI_ASSIST_PROVIDERS.includes(row.provider) && isValidAiModelId(row.model);
-    return {
-      feature,
-      label: defaults.label,
-      provider: isStoredValid ? row.provider : defaults.provider,
-      model: isStoredValid ? row.model : defaults.model,
-      defaultProvider: defaults.provider,
-      defaultModel: defaults.model,
-      updatedAt: isStoredValid ? row.updated_at : null,
-    };
-  }
+  const read = readAiAssistEntry;
   return {
     get(feature) {
       if (!Object.hasOwn(AI_ASSIST_FEATURES, feature)) {
@@ -117,9 +132,7 @@ export function createAiAssistSettings({
       const { feature, provider, model } = validateAiAssistEntry(entry);
       const db = open(true);
       try {
-        db.prepare(
-          'INSERT INTO ai_assist(feature,provider,model,updated_at) VALUES(?,?,?,?) ON CONFLICT(feature) DO UPDATE SET provider=excluded.provider, model=excluded.model, updated_at=excluded.updated_at',
-        ).run(feature, provider, model, now().toISOString());
+        writeAiAssistEntry(db, { feature, provider, model }, now().toISOString());
         return read(db, feature);
       } finally {
         db.close();

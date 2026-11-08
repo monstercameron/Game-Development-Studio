@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
+import { createLog } from './app-log.js';
 import { safeChatMarkdownHref } from './chat-output.js';
+
+const log = createLog('chat');
 
 function ChatMarkdownLink({ href, children }) {
   const safeHref = safeChatMarkdownHref(href);
@@ -29,7 +32,8 @@ function ChatMarkdownPre({ children }) {
     try {
       await navigator.clipboard.writeText(textOfNode(children).replace(/\n$/, ''));
       setState('copied');
-    } catch {
+    } catch (error) {
+      log.debug('chat.clipboard.write.failed', { errorClass: error?.name || 'Error' });
       setState('failed');
     }
     setTimeout(() => setState('idle'), 1800);

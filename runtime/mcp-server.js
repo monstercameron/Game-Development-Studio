@@ -5,6 +5,9 @@ import { registerExtendedTools } from './mcp-studio-tools.js';
 import { registerMegascansTools } from './mcp-megascans-tools.js';
 import { registerVegetationTools } from './mcp-vegetation-tools.js';
 import { registerErrorsTools } from './mcp-errors-tools.js';
+import { registerRecoveryTools } from './mcp-recovery-tools.js';
+import { registerLogsTools } from './mcp-logs-tools.js';
+import { registerSettingsTools } from './mcp-settings-tools.js';
 import {
   MAX_VIDEO_FRAMES,
   validFrameCount,
@@ -24,6 +27,7 @@ import {
   removeBackgroundChain,
   textTo3dChain,
 } from './three-d-chain.js';
+import { createLogger, routeTemplate } from './app-log.js';
 
 // Optional on the 3D tools: cut the object out of the reference first with SAM 3.1, then build
 // the model from the cutout (two chained jobs; the second waits for the first).
@@ -34,13 +38,35 @@ const removeBackgroundSchema = z
       .min(1)
       .max(1000)
       .default(REMOVE_BACKGROUND_DEFAULT_PROMPT)
-      .describe('What SAM 3.1 should isolate, for example "the dragon". A concrete noun works far better than "the main object".'),
+      .describe(
+        'What SAM 3.1 should isolate, for example "the dragon". A concrete noun works far better than "the main object".',
+      ),
     confidence: z.number().min(0).max(1).default(0.5),
   })
   .optional()
   .describe(
     'Remove the background first with SAM 3.1 (queues a segmentation job, then the 3D job chained to its transparent output). Use it for photos and opaque images; skip it when the reference already has a transparent background.',
   );
+
+const log = createLogger('mcp');
+
+// Logs each tool call's name, duration and outcome. Arguments are never logged: they can carry
+// prompts, file names and paths.
+function logToolCalls(server) {
+  const registerTool = server.registerTool.bind(server);
+  server.registerTool = (name, config, handler) =>
+    registerTool(name, config, async (...args) => {
+      const stop = log.time('mcp.tool.call.completed', { operation: name });
+      try {
+        const result = await handler(...args);
+        stop({ status: result?.isError ? 'error' : 'ok' });
+        return result;
+      } catch (error) {
+        stop({ status: 'failed', errorClass: error?.name, errorCode: error?.code });
+        throw error;
+      }
+    });
+}
 
 export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http://127.0.0.1:5173') {
   const base = new URL(origin);
@@ -53,17 +79,22 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
     base.search ||
     base.hash
   ) {
+    log.warn('mcp.config.rejected', { target: 'FORGE_STUDIO_URL', reason: 'not_local_origin' });
     throw new Error(
       'FORGE_STUDIO_URL must be a local http://127.0.0.1 or http://localhost studio origin.',
     );
   }
   const server = new McpServer({ name: 'forge-studio', version: '0.1.0' });
+  logToolCalls(server);
   async function read(path) {
+    const route = routeTemplate(path);
     try {
+      const stop = log.time('mcp.studio.request.completed', { method: 'GET', route });
       const response = await fetch(new URL(path, base), {
         signal: AbortSignal.timeout(10000),
         redirect: 'error',
       });
+      stop({ status: response.status });
       const body = await response.text();
       if (!response.ok) {
         return {
@@ -75,6 +106,12 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
       }
       return { content: [{ type: 'text', text: body }] };
     } catch (error) {
+      log.warn('mcp.studio.request.failed', {
+        method: 'GET',
+        route,
+        errorClass: error.name,
+        errorCode: error.code,
+      });
       return {
         isError: true,
         content: [{ type: 'text', text: `Cannot reach Forge Studio: ${error.message}` }],
@@ -82,7 +119,9 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
     }
   }
   async function write(path, body, timeout = 10000, requestKind) {
+    const route = routeTemplate(path);
     try {
+      const stop = log.time('mcp.studio.request.completed', { method: 'POST', route });
       const response = await fetch(new URL(path, base), {
         method: 'POST',
         headers: {
@@ -96,9 +135,16 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
         signal: AbortSignal.timeout(timeout),
         redirect: 'error',
       });
+      stop({ status: response.status });
       const text = await response.text();
       return { isError: !response.ok, content: [{ type: 'text', text }] };
     } catch (error) {
+      log.warn('mcp.studio.request.failed', {
+        method: 'POST',
+        route,
+        errorClass: error.name,
+        errorCode: error.code,
+      });
       return {
         isError: true,
         content: [{ type: 'text', text: `Cannot reach Forge Studio: ${error.message}` }],
@@ -111,6 +157,9 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
   registerMegascansTools(server, { read, write, readonly });
   registerVegetationTools(server, { read, write, readonly });
   registerErrorsTools(server, { read, readonly });
+  registerRecoveryTools(server, { read, readonly });
+  registerLogsTools(server, { base, readonly });
+  registerSettingsTools(server, { read, write, readonly });
   server.registerTool(
     'forge_models',
     {
@@ -792,6 +841,7 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
           'motion',
           'motion-bricks',
           'world',
+          'vegetation',
         ]),
         projectId: z.string().uuid(),
         request: z.record(z.string(), z.unknown()),
@@ -1003,6 +1053,23 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     },
     () => write('/api/runtime/engines/start-all', {}),
+  );
+  server.registerTool(
+    'forge_start_engine',
+    {
+      description:
+        'Start ONE Forge-managed engine service by id without loading its model, so memory is only used by the engine you need. Use forge_services to see ids and state. Already-running services are left running, unowned or unrecoverable services are reported, and on-demand services answer on_demand because the queue starts them when needed. Use forge_start_engines only when every service is wanted.',
+      inputSchema: {
+        id: z
+          .string()
+          .regex(/^[a-z0-9][a-z0-9-]{0,39}$/)
+          .describe(
+            'Engine id, for example motion-hy, motion-bricks, segmentation, images, video.',
+          ),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    ({ id }) => write(`/api/runtime/engines/${id}/start`, {}),
   );
   server.registerTool(
     'forge_offload_model',

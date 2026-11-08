@@ -31,6 +31,21 @@ export function isChainUnloadEnabled(env = process.env) {
 }
 
 /**
+ * Turns the JobQueue `chainUnload` option into the `enabled` input of planChainUnload.
+ * A boolean forces the behavior, a function is asked on every call (the worker passes the
+ * live `queue.chainUnload` setting), and anything else defers to the environment switch.
+ *
+ * @param {boolean|(() => boolean)|null|undefined} option
+ * @returns {boolean|undefined}
+ */
+export function resolveChainUnloadOption(option) {
+  if (typeof option === 'function') {
+    return option() !== false;
+  }
+  return typeof option === 'boolean' ? option : undefined;
+}
+
+/**
  * Decides whether the finished parent's engine should be unloaded before its child loads.
  *
  * @param {object} input

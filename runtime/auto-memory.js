@@ -1,3 +1,7 @@
+import { createLogger } from './app-log.js';
+
+const log = createLogger('memory');
+
 // Only engines with an atomic, authenticated idle-and-stop guard are eligible.
 // Companion audio apps lack that guard; a check followed by killing them could
 // interrupt a request that arrived between those two operations.
@@ -46,6 +50,7 @@ export function createAutoMemoryManager({ services, offload, now = Date.now, coo
       return (bi < 0 ? Infinity : bi) - (ai < 0 ? Infinity : ai);
     });
     if (!choices.length) {
+      log.debug('memory.room.unavailable', { target, reason: 'no_idle_engine' });
       return { status: 'unavailable' };
     }
     const choice = choices[0];
@@ -59,13 +64,24 @@ export function createAutoMemoryManager({ services, offload, now = Date.now, coo
       if (!isCurrent() || !announce(choice)) {
         return { status: 'cancelled' };
       }
+      const stop = log.time('memory.engine.offload.completed', {
+        engineId: choice.id,
+        target,
+      });
       const result = await offload(choice.id);
       if (result?.stopped !== true) {
         throw Error('The engine did not confirm it stopped.');
       }
+      stop();
       failures.delete(choice.id);
       return { status: 'stopped', service: choice };
     } catch (error) {
+      log.warn('memory.engine.offload.failed', {
+        engineId: choice.id,
+        target,
+        errorClass: error?.name,
+        cooldownMs,
+      });
       failures.set(choice.id, now() + cooldownMs);
       return {
         status: 'failed',

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Github } from 'lucide-react';
+import { createLog } from './app-log.js';
 import { postErrors } from './errors-api.js';
+
+const log = createLog('errors');
 
 /**
  * GitHub issue for a fix the user confirmed. The preview shows exactly what will be published,
@@ -28,9 +31,20 @@ export default function ErrorIssuePanel({ error, onUpdated, onStatus }) {
     setFailure('');
     setPhase('loading');
     try {
-      setPreview(await postErrors(`/${error.id}/issue-preview`));
+      const data = await postErrors(`/${error.id}/issue-preview`);
+      setPreview(data);
+      log.info('errors.issue.previewed', {
+        errorId: error.id,
+        isAvailable: data.available,
+        duplicateCount: data.duplicates?.length,
+      });
       setPhase('preview');
     } catch (reason) {
+      log.warn('errors.issue.preview.failed', {
+        errorId: error.id,
+        errorClass: reason?.name,
+        errorCode: reason?.code,
+      });
       setFailure(reason.message);
       setPhase('idle');
     }
@@ -46,6 +60,7 @@ export default function ErrorIssuePanel({ error, onUpdated, onStatus }) {
         ...(number ? { number } : {}),
       });
       onUpdated(data.error);
+      log.info('errors.issue.posted', { errorId: error.id, mode });
       setPreview(null);
       setPhase('idle');
       onStatus(
@@ -54,6 +69,12 @@ export default function ErrorIssuePanel({ error, onUpdated, onStatus }) {
           : `GitHub issue #${data.issue.number} created.`,
       );
     } catch (reason) {
+      log.warn('errors.issue.post.failed', {
+        errorId: error.id,
+        mode,
+        errorClass: reason?.name,
+        errorCode: reason?.code,
+      });
       setFailure(reason.message);
       setPhase('preview');
     }
@@ -158,6 +179,7 @@ export default function ErrorIssuePanel({ error, onUpdated, onStatus }) {
               className="ghost-button"
               disabled={phase === 'posting'}
               onClick={() => {
+                log.info('errors.issue.cancelled', { errorId: error.id });
                 setPreview(null);
                 setPhase('idle');
               }}

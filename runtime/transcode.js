@@ -3,14 +3,17 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { createLogger, traceEnv } from './app-log.js';
 import { backfillAssetMeta, recordConversion } from './asset-metadata.js';
 import { convertModelAsset, isModelAsset } from './model-convert.js';
+import { fsyncFile } from './durable-file.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const python =
   process.env.FORGE_TRANSCODE_PYTHON ||
   path.join(path.dirname(root), 'Snapdargon-DJ', '.runtime', 'python.exe');
 const script = path.join(root, 'runtime', 'transcode.py');
+const log = createLogger('transcode');
 const formats = {
   image: { png: 'png', jpeg: 'jpg', webp: 'webp', bmp: 'bmp', tga: 'tga' },
   audio: { wav: 'wav', mp3: 'mp3', ogg: 'ogg', opus: 'opus', flac: 'flac' },
@@ -20,11 +23,20 @@ const formats = {
 
 function run(input) {
   return new Promise((resolve, reject) => {
-    const child = spawn(python, [script], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(python, [script], {
+      windowsHide: true,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      // The worker logs to the studio log under the caller's trace id.
+      env: { ...process.env, ...traceEnv(), FORGE_LOG_PROCESS: 'transcode' },
+    });
+    const startedAt = performance.now();
+    const fields = { kind: input.kind, format: input.format };
+    log.info('transcode.process.spawned', { ...fields, pid: child.pid });
     let stdout = '',
       stderr = '',
       settled = false;
     const timer = setTimeout(() => {
+      log.warn('transcode.process.timed_out', { ...fields, pid: child.pid, limitMs: 300000 });
       child.kill();
       finish(Error('Conversion took too long. Try a smaller file.'));
     }, 300000);
@@ -36,15 +48,16 @@ function run(input) {
       clearTimeout(timer);
       error ? reject(error) : resolve(value);
     }
-    child.on('error', (error) =>
+    child.on('error', (error) => {
+      log.error('transcode.process.failed', { ...fields, error });
       finish(
         Error(
           error.code === 'ENOENT'
             ? 'Conversion runtime is missing. Check the conversion setup in the README.'
             : error.message,
         ),
-      ),
-    );
+      );
+    });
     child.stdout.on('data', (chunk) => {
       stdout = (stdout + chunk).slice(-8000);
     });
@@ -52,12 +65,15 @@ function run(input) {
       stderr = (stderr + chunk).slice(-8000);
     });
     child.on('close', (code) => {
+      const durationMs = Math.round(performance.now() - startedAt);
+      log.info('transcode.process.exited', { ...fields, exitCode: code, durationMs });
       if (code !== 0) {
         return finish(Error(stderr.trim().split(/\r?\n/).pop() || 'Conversion failed.'));
       }
       try {
         finish(null, JSON.parse(stdout));
-      } catch {
+      } catch (error) {
+        log.warn('transcode.result.invalid', { ...fields, error });
         finish(Error('Conversion returned an invalid result.'));
       }
     });
@@ -112,6 +128,9 @@ export async function convertAsset(project, input) {
       quality,
       background,
     });
+    // Flushed before any final name exists, so a power loss cannot leave a partial conversion
+    // under a finished-looking name.
+    await fsyncFile(temporary);
     for (let i = 0; i < 10000; i++) {
       const name = `${stem}-converted${i ? `-${i + 1}` : ''}.${extension}`,
         destination = path.join(parent, name);
@@ -135,7 +154,10 @@ export async function convertAsset(project, input) {
     }
     throw Error('Could not find an available name for the converted file.');
   } finally {
-    await fs.unlink(temporary).catch(() => {});
+    await fs.unlink(temporary).catch((error) => {
+      // ENOENT is normal when the conversion failed before writing anything.
+      log.debug('transcode.temp.cleanup.failed', { error });
+    });
   }
 }
 

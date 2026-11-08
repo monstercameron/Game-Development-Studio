@@ -54,6 +54,7 @@ export const COMMON_LANGUAGE_CODES = Object.freeze([
 function displayName(code, displayLocale) {
   try {
     return new Intl.DisplayNames([displayLocale], { type: 'language', fallback: 'none' }).of(code);
+    // log-coverage: ignore -- pure helper; a display name is optional and the code is the fallback.
   } catch {
     return undefined;
   }

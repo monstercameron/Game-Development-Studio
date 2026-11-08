@@ -3,12 +3,15 @@ import { Bug, Cpu, ListOrdered, Monitor, Search, Server, X } from 'lucide-react'
 import { useSearchParams } from 'react-router';
 import { STATUS_LABELS, formatErrorsMarkdown, sourceLabel } from '../runtime/error-format.js';
 import ErrorDetail from './ErrorDetail';
+import { createLog } from './app-log.js';
 import { ERRORS_CHANGED_EVENT } from './error-capture.js';
 import { copyToClipboard } from './error-copy.js';
 import { getErrors, postErrors } from './errors-api.js';
 import useDialogFocus from './useDialogFocus';
 import { updateSearch } from './useNav';
 import './errors-dialog.css';
+
+const log = createLog('errors');
 
 const SOURCE_FILTERS = [
   ['', 'All sources'],
@@ -76,9 +79,14 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
   const select = (id) => updateSearch(setParams, { error: id }, { replace: true });
 
   useEffect(() => {
+    log.info('errors.dialog.opened');
     postErrors('/opened')
       .then(() => window.dispatchEvent(new Event(ERRORS_CHANGED_EVENT)))
-      .catch((reason) => setListError(reason.message));
+      .catch((reason) => {
+        log.warn('errors.opened.failed', { errorClass: reason?.name });
+        setListError(reason.message);
+      });
+    return () => log.info('errors.dialog.closed');
   }, []);
 
   useEffect(() => {
@@ -108,6 +116,7 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
       })
       .catch((reason) => {
         if (reason.name !== 'AbortError' && request === latest.current) {
+          log.warn('errors.list.load.failed', { errorClass: reason?.name });
           setListError(reason.message);
         }
       });
@@ -164,6 +173,7 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
           : 'There are no new errors to copy.',
       );
     } catch (reason) {
+      log.warn('errors.export.failed', { errorClass: reason?.name, errorCode: reason?.code });
       setMessage(reason.message);
     }
   }
@@ -171,6 +181,7 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
   async function clearResolved() {
     try {
       const data = await postErrors('/clear', { statuses: ['resolved'], confirm: 'clear' });
+      log.info('errors.clear.completed', { removedCount: data.removed });
       setIsConfirmingClear(false);
       setMessage(`${data.removed} resolved error${data.removed === 1 ? '' : 's'} cleared.`);
       if (
@@ -181,6 +192,7 @@ export default function ErrorsDialog({ onClose, onOpenSettings, onOpenJob }) {
       }
       setReload((value) => value + 1);
     } catch (reason) {
+      log.warn('errors.clear.failed', { errorClass: reason?.name, errorCode: reason?.code });
       setMessage(reason.message);
     }
   }

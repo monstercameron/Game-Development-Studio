@@ -2,6 +2,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { defaultModelsRoot, managedModels } from './model-inventory.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('model');
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const safeErrorCode = (error) =>
@@ -19,6 +22,8 @@ async function checkedDirectory(directory) {
 }
 async function ensureNoLinks(directory) {
   const stack = [directory];
+  let fileCount = 0;
+  let bytes = 0;
   while (stack.length) {
     const dir = stack.pop();
     await checkedDirectory(dir);
@@ -28,6 +33,10 @@ async function ensureNoLinks(directory) {
       if (stat.isSymbolicLink()) {
         throw Error('Model folder contains a link. Remove or review the link before deleting.');
       }
+      if (stat.isFile()) {
+        fileCount += 1;
+        bytes += stat.size;
+      }
       if (stat.isDirectory()) {
         stack.push(item);
       } else if (!stat.isFile()) {
@@ -35,6 +44,7 @@ async function ensureNoLinks(directory) {
       }
     }
   }
+  return { fileCount, bytes };
 }
 async function exists(target) {
   try {
@@ -85,6 +95,7 @@ export class ModelRemoval {
       value.folder === '..' ||
       path.basename(value.folder) !== value.folder
     ) {
+      log.warn('model.removal.refused', { reason: 'not_managed_model' });
       throw Error('This model is not available for managed removal.');
     }
     return value;
@@ -116,8 +127,11 @@ export class ModelRemoval {
     }
     try {
       await fs.rename(temp, dest);
+      log.debug('model.removal.journal.written', { modelId: value.id, state: value.state });
     } finally {
-      await fs.unlink(temp).catch(() => {});
+      await fs.unlink(temp).catch((error) => {
+        log.debug('model.removal.journal.cleanup.failed', { error });
+      });
     }
   }
   async recover() {
@@ -163,7 +177,14 @@ export class ModelRemoval {
           );
         } else {
           const original = path.join(this.root, this.model(item.id).folder);
+          const previousState = item.state;
           item.state = (await exists(original)) ? 'cancelled' : 'complete';
+          log.info('model.removal.state.changed', {
+            modelId: item.id,
+            from: previousState,
+            to: item.state,
+            reason: 'staged_missing',
+          });
           item.error =
             item.state === 'cancelled'
               ? 'Removal was interrupted before files were staged. Retry if needed.'
@@ -171,6 +192,7 @@ export class ModelRemoval {
           await this.writeJournal(item);
         }
       } catch (error) {
+        log.warn('model.removal.journal.invalid', { error });
         this.log(`Ignoring invalid model removal journal ${name}: ${error.message}`);
       }
     }
@@ -178,11 +200,14 @@ export class ModelRemoval {
   async begin(id) {
     await this.ready;
     const model = this.model(id);
+    log.info('model.removal.requested', { modelId: id });
     if (this.active.has(id)) {
+      log.warn('model.removal.refused', { modelId: id, reason: 'already_removing' });
       throw Error('This model is already being removed.');
     }
     const previous = this.operations.get(id);
     if (previous?.state === 'failed') {
+      log.warn('model.removal.refused', { modelId: id, reason: 'needs_cleanup' });
       throw Error('A previous removal needs cleanup before this model can be removed again.');
     }
     this.active.add(id);
@@ -193,7 +218,7 @@ export class ModelRemoval {
       await checkedDirectory(this.root);
       const target = path.join(this.root, model.folder);
       await checkedDirectory(target);
-      await ensureNoLinks(target);
+      const folderStats = await ensureNoLinks(target);
       const operation = randomUUID();
       item = { id, operation, state: 'prepared', error: null, startedAt: new Date().toISOString() };
       await this.writeJournal(item);
@@ -202,14 +227,25 @@ export class ModelRemoval {
       await this.rename(target, temporary);
       staged = true;
       item.state = 'deleting';
+      log.info('model.removal.state.changed', { modelId: id, from: 'prepared', to: 'deleting' });
+      log.info('model.removal.started', {
+        modelId: id,
+        fileCount: folderStats.fileCount,
+        bytes: folderStats.bytes,
+      });
       this.operations.set(id, { ...item });
       // The prepared journal already proves authorization if this update fails.
       await this.writeJournal(item).catch((error) =>
         this.log(`Model removal journal update: ${error.message}`),
       );
-      this.purge(item, temporary).catch((error) => this.log(`Model removal: ${error.message}`));
+      this.purge(item, temporary, folderStats).catch((error) =>
+        this.log(`Model removal: ${error.message}`),
+      );
       return { ...item };
     } catch (error) {
+      if (!staged) {
+        log.warn('model.removal.refused', { modelId: id, reason: 'stage_failed', error });
+      }
       if (!staged && item) {
         item = { ...item, state: 'cancelled', error: String(error.message).slice(0, 500) };
         this.operations.set(id, item);
@@ -224,25 +260,30 @@ export class ModelRemoval {
       }
     }
   }
-  async purge(item, staged) {
+  async purge(item, staged, stats = {}) {
+    const stopPurge = log.time('model.removal.completed', { modelId: item.id, ...stats });
     try {
       await checkedDirectory(this.root);
       await checkedDirectory(staged);
       await ensureNoLinks(staged);
       await this.remove(staged, { recursive: true, force: false });
       item = { ...item, state: 'complete', error: null, finishedAt: new Date().toISOString() };
+      stopPurge();
     } catch (error) {
       item = { ...item, state: 'failed', error: String(error.message).slice(0, 500) };
+      log.error('model.removal.failed', { modelId: item.id, stage: 'purge', error });
       try {
         this.log(`WARN operation=model_remove stage=purge error_code=${safeErrorCode(error)}`);
-      } catch {
+      } catch (loggerError) {
         // A logger failure must not prevent the failed removal state from persisting.
+        log.debug('model.removal.log.failed', { error: loggerError });
       }
     }
     this.operations.set(item.id, item);
     try {
       await this.writeJournal(item);
     } catch (error) {
+      log.warn('model.removal.journal.failed', { modelId: item.id, error });
       this.log(`Model removal journal update: ${error.message}`);
     } finally {
       this.active.delete(item.id);
@@ -252,10 +293,12 @@ export class ModelRemoval {
     await this.ready;
     this.model(id);
     if (this.active.has(id)) {
+      log.warn('model.removal.refused', { modelId: id, reason: 'already_removing' });
       throw Error('This model is already being removed.');
     }
     const item = this.operations.get(id);
     if (item?.state !== 'failed' || !uuid.test(item.operation)) {
+      log.warn('model.removal.refused', { modelId: id, reason: 'no_failed_removal' });
       throw Error('There is no failed removal to retry.');
     }
     this.active.add(id);
@@ -272,6 +315,7 @@ export class ModelRemoval {
       );
       this.purge(next, staged).catch((error) => this.log(`Model removal: ${error.message}`));
       started = true;
+      log.info('model.removal.started', { modelId: id, retry: true });
       return { ...next };
     } finally {
       if (!started) {

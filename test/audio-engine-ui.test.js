@@ -53,6 +53,8 @@ async function render(t, file, props, { replacements = {}, stubs = {}, route = '
     /import '\.\/[a-z-]+\.css';\r?\n/g,
     '',
   );
+  // The shared logger is not needed in these renders; a no-op keeps the transform self-contained.
+  source = source.replace("import { createLog } from './app-log.js';", 'const createLog = () => ({ debug() {}, info() {}, warn() {}, error() {} });');
   for (const [specifier, target] of Object.entries(replacements)) {
     source = source.replace(`from '${specifier}'`, `from '${target}'`);
   }

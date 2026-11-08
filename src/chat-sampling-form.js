@@ -99,6 +99,7 @@ export function samplingFromForm(form, provider) {
   for (const key of Object.keys(options)) {
     try {
       parseChatSampling({ [key]: options[key] }, { provider });
+      // log-coverage: ignore -- called during render (Chat.jsx); the message is shown in the form.
     } catch (error) {
       errors[key] = error.message;
     }

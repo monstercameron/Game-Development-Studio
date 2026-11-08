@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { LoaderCircle, Power, RefreshCw, X } from 'lucide-react';
 import useDialogFocus from './useDialogFocus';
+import { createLog } from './app-log.js';
 import './memory-dialog.css';
 
+const log = createLog('memory');
 const gib = (value) => (Number.isFinite(value) ? `${value.toFixed(1)} GiB` : 'Unavailable');
 const qwenFallback = () =>
   document.querySelector('.chat-config-heading button:not(:disabled)') ||
@@ -70,10 +72,19 @@ export default function MemoryDialog({
         throw Error(result.error || result.message || 'Could not close the service.');
       }
       setClosed((items) => [...items, model.id]);
+      log.info('memory.service.closed', {
+        modelId: model.id,
+        operation: force ? 'force-close' : 'close',
+      });
       setNotice(
         `${model.name} service stopped. Check memory again when you are ready; available memory may take a moment to update.`,
       );
     } catch (e) {
+      log.warn('memory.service.close.failed', {
+        modelId: model.id,
+        operation: force ? 'force-close' : 'close',
+        error: e,
+      });
       setActionError(e.message);
     } finally {
       setAction('');

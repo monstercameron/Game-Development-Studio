@@ -3,12 +3,14 @@
 // It lives in `.forge-runtime/megascans.sqlite` and is separate from the render queue's
 // `jobs.sqlite`, because imports have no GPU or memory semantics and must never share a lease
 // or a model-load barrier with renders. Nothing here holds credentials or Fab responses.
-import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { openDatabase } from './durable-db.js';
+import { createLogger } from './app-log.js';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const log = createLogger('megascans');
 
 export const MEGASCANS_DB_NAME = 'megascans.sqlite';
 
@@ -99,10 +101,15 @@ function ensureColumns(db, table, columns) {
       .all()
       .map((row) => row.name),
   );
+  let addedCount = 0;
   for (const [name, definition] of Object.entries(columns)) {
     if (!present.has(name)) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
+      addedCount += 1;
     }
+  }
+  if (addedCount > 0) {
+    log.info('megascans.migration.completed', { target: table, addedCount });
   }
 }
 
@@ -110,15 +117,22 @@ function ensureColumns(db, table, columns) {
  * Opens (and creates) the Megascans database. Every connection waits for a competing writer
  * instead of failing, so two processes can share the file safely.
  * @param {string} [directory] Folder holding the database; defaults to the runtime folder.
- * @returns {{ db: DatabaseSync, hasFts: boolean, close: () => void }}
+ * @returns {{ db: import('node:sqlite').DatabaseSync, hasFts: boolean, close: () => void }}
  */
 export function openMegascansDb(directory = runtimeDirectory()) {
   fs.mkdirSync(directory, { recursive: true });
-  const db = new DatabaseSync(path.join(directory, MEGASCANS_DB_NAME));
-  db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;');
+  // FULL: the import queue is user intent (an accepted import must survive a power loss), and
+  // the same file holds the rebuildable listing cache.
+  const db = openDatabase(path.join(directory, MEGASCANS_DB_NAME), {
+    name: 'megascans',
+    journal: 'WAL',
+    synchronous: 'FULL',
+    directory,
+  });
   db.exec(SCHEMA);
   ensureColumns(db, 'listings', LISTING_COLUMNS);
   ensureColumns(db, 'imports', IMPORT_COLUMNS);
+  // log-coverage: ignore -- idempotent DDL run on every open; megascans.database.opened covers it
   db.exec('CREATE INDEX IF NOT EXISTS listings_published ON listings(published_at)');
   let hasFts = true;
   try {
@@ -126,8 +140,13 @@ export function openMegascansDb(directory = runtimeDirectory()) {
     db.exec(
       'CREATE VIRTUAL TABLE IF NOT EXISTS listings_fts USING fts5(id UNINDEXED, title, tags, notes)',
     );
-  } catch {
+  } catch (error) {
     // Search falls back to LIKE when this SQLite build has no FTS5.
+    log.warn('megascans.search.fts.unavailable', {
+      errorClass: error?.name,
+      errorCode: error?.code,
+      reason: 'using_like_search',
+    });
     hasFts = false;
   }
   return { db, hasFts, close: () => db.close() };
@@ -144,6 +163,10 @@ export function transaction(db, work) {
     try {
       db.exec('ROLLBACK');
     } catch (rollbackError) {
+      log.warn('megascans.transaction.rollback.failed', {
+        errorClass: rollbackError?.name,
+        errorCode: rollbackError?.code,
+      });
       console.error('Megascans transaction rollback failed:', rollbackError.message);
     }
     throw error;
@@ -169,6 +192,7 @@ export class ValidatorStore {
   }
 
   set(key, { etag = null, lastModified = null }) {
+    // log-coverage: ignore -- one validator write per Fab response; the request record covers it
     this.db
       .prepare(
         `INSERT INTO http_cache (key,etag,last_modified,fetched_at) VALUES (?,?,?,?)
@@ -179,6 +203,7 @@ export class ValidatorStore {
   }
 
   delete(key) {
-    this.db.prepare('DELETE FROM http_cache WHERE key=?').run(key);
+    const { changes } = this.db.prepare('DELETE FROM http_cache WHERE key=?').run(key);
+    log.debug('megascans.validator.deleted', { count: changes });
   }
 }

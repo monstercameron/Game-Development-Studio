@@ -1,19 +1,29 @@
+import { createLogger } from './app-log.js';
 import { saveAsset } from './job-io.js';
 import { readReferences } from './references.js';
 import { parseSigmaSchedule } from './image-options.js';
+
+const log = createLogger('image');
 
 // Qwen Image 2.1's documented wording for native transparency (RGBA) output.
 export const transparentPrompt = (prompt) =>
   `This is an RGBA image with transparency. ${String(prompt).trim()} The image has alpha channel and the background is transparent.`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function send(jobId, type, values = {}) {
+  if (type !== 'progress') {
+    log.info('image.job.state.changed', { jobId, to: type });
+  }
   if (process.connected) {
     process.send({ jobId, type, ...values });
   }
 }
-process.on('disconnect', () => process.exit(0));
+process.on('disconnect', () => {
+  log.info('image.process.stopped', { reason: 'disconnected' });
+  process.exit(0);
+});
 process.once('message', async ({ job, projectFolder, baseUrl }) => {
   let remoteId = job.remoteId;
+  log.info('image.job.started', { jobId: job.id, hasRemoteId: Boolean(remoteId) });
   try {
     if (!remoteId) {
       const {
@@ -42,15 +52,20 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
       if (request.lora) {
         // An engine without LoRA support ignores the fields and would render without the LoRA.
         try {
+          const stopLorasRequest = log.time('image.loras.request.completed', {
+            route: '/api/loras',
+          });
           const response = await fetch(`${baseUrl}/api/loras`, {
             signal: AbortSignal.timeout(10000),
             redirect: 'error',
           });
+          stopLorasRequest({ status: response.status });
           const listed = response.ok ? (await response.json()).loras : null;
           if (!Array.isArray(listed) || !listed.some((item) => item?.name === request.lora)) {
             throw Error('not listed');
           }
-        } catch {
+        } catch (error) {
+          log.warn('image.loras.request.failed', { jobId: job.id, route: '/api/loras', error });
           send(job.id, 'failed', {
             error: `The running Qwen Image Studio cannot apply the LoRA "${request.lora}". It needs the updated app.py and the peft package, and the file must be in its LoRA folder (see the Studio guide).`,
           });
@@ -62,12 +77,17 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
         try {
           images = await readReferences(projectFolder, references, { max: 10 });
         } catch (error) {
+          log.warn('image.references.read.failed', { jobId: job.id, error });
           send(job.id, 'failed', { error: `Could not read image references: ${error.message}` });
           return;
         }
       }
       let response, body;
       try {
+        const stopGenerateRequest = log.time('image.generate.request.completed', {
+          jobId: job.id,
+          route: '/api/generate',
+        });
         response = await fetch(`${baseUrl}/api/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -76,19 +96,23 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           redirect: 'error',
         });
         body = await response.json();
-      } catch {
+        stopGenerateRequest({ status: response.status });
+      } catch (error) {
+        log.warn('image.generate.request.failed', { jobId: job.id, error });
         send(job.id, 'interrupted', {
           error: 'Submission result is unknown. Check Qwen Image Studio before resolving this job.',
         });
         return;
       }
       if (!response.ok) {
+        log.warn('image.generate.request.rejected', { jobId: job.id, status: response.status });
         send(job.id, response.status >= 500 ? 'interrupted' : 'failed', {
           error: `Qwen Image returned ${response.status}: ${JSON.stringify(body).slice(0, 1000)}`,
         });
         return;
       }
       if (typeof body.id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(body.id)) {
+        log.warn('image.generate.response.rejected', { jobId: job.id, reason: 'invalid_job_id' });
         send(job.id, 'interrupted', {
           error: 'Qwen Image accepted the request without a usable job ID. Check its history.',
         });
@@ -104,7 +128,9 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           signal: AbortSignal.timeout(10000),
           redirect: 'error',
         });
+        log.trace('image.poll.request.completed', { remoteId, status: response.status });
         if (response.status === 404) {
+          log.warn('image.job.remote.missing', { jobId: job.id, remoteId, status: 404 });
           send(job.id, 'interrupted', {
             error:
               'Qwen Image no longer recognizes the remote job. Check its output before resolving.',
@@ -115,7 +141,8 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
           throw Error(`HTTP ${response.status}`);
         }
         state = await response.json();
-      } catch {
+      } catch (error) {
+        log.warn('image.poll.request.failed', { jobId: job.id, remoteId, error });
         send(job.id, 'progress', { stage: 'Waiting to reconnect to Qwen Image.' });
         await sleep(5000);
         continue;
@@ -142,6 +169,7 @@ process.once('message', async ({ job, projectFolder, baseUrl }) => {
     const output = await saveAsset(projectFolder, 'images', job.id, 'png', `${baseUrl}${image}`);
     send(job.id, 'complete', { output });
   } catch (error) {
+    log.error('image.job.failed', { jobId: job.id, error });
     send(job.id, 'failed', { error: String(error.message).slice(0, 2000) });
   } finally {
     if (process.connected) {

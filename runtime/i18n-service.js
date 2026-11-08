@@ -8,6 +8,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createAiAssistSettings, validateAiAssistEntry } from './ai-assist-settings.js';
+import { createLogger, routeTemplate } from './app-log.js';
 import { credentialStore } from './credentials.js';
 import {
   OPENAI_BASE_URL,
@@ -31,6 +32,7 @@ import { isRtlLocale } from '../src/i18n/i18n-core.js';
 import { NAMESPACES, isValidKey, namespaceOf } from '../src/i18n/namespaces.js';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const log = createLogger('i18n');
 const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost)(:\d+)?$/;
 const FEATURE = 'ui-translate';
 const PSEUDO_LOCALE = 'en-XA';
@@ -42,9 +44,15 @@ export const TRANSLATE_NOTICE =
 class RequestError extends Error {
   constructor(status, message, code) {
     super(message);
+    // log-coverage: ignore -- builds an error object, not a state change
     this.status = status;
     this.code = code;
   }
+}
+
+// Route template for logs, such as /api/i18n/translate: never the concrete URL or its query.
+function routeOf(req) {
+  return routeTemplate(`/api/i18n${String(req.url || '')}`);
 }
 
 function json(res, status, data) {
@@ -103,7 +111,8 @@ function createRateLimiter({ limit, windowMs, now }) {
 function languageName(code, displayLocale = 'en') {
   try {
     return new Intl.DisplayNames([displayLocale], { type: 'language', fallback: 'none' }).of(code);
-  } catch {
+  } catch (failure) {
+    log.debug('i18n.language.name.unavailable', { errorClass: failure?.name });
     return undefined;
   }
 }
@@ -141,7 +150,8 @@ export function parseTargetLanguage(input) {
   return canonical;
 }
 
-function parsePreference(input) {
+/** The canonical language preference for a BCP 47 code, 'en' or the pseudo-locale; throws if not. */
+export function parsePreference(input) {
   if (input === 'en' || input === PSEUDO_LOCALE) {
     return input;
   }
@@ -150,8 +160,9 @@ function parsePreference(input) {
     if (canonical && languageName(canonical.split('-')[0])) {
       return canonical;
     }
-  } catch {
-    // Reported below.
+  } catch (failure) {
+    // The rejection is thrown below and logged by the route with its reason code.
+    log.debug('i18n.preference.parse.failed', { errorClass: failure?.name });
   }
   throw new RequestError(400, 'Choose a valid language.', 'invalid_language');
 }
@@ -188,7 +199,11 @@ export function i18nService({
   function hasSavedKey() {
     try {
       return credentials.status().some((item) => item.provider === 'openai' && item.saved);
-    } catch {
+    } catch (failure) {
+      log.debug('i18n.credentials.status.failed', {
+        errorClass: failure?.name,
+        errorCode: failure?.code,
+      });
       return false;
     }
   }
@@ -197,7 +212,11 @@ export function i18nService({
     let key;
     try {
       key = await credentials.get('openai');
-    } catch {
+    } catch (failure) {
+      log.warn('i18n.credentials.unlock.failed', {
+        errorClass: failure?.name,
+        errorCode: failure?.code,
+      });
       throw new RequestError(
         500,
         'Could not unlock the saved OpenAI key. Check that the studio runs under the Windows account that saved it.',
@@ -343,6 +362,16 @@ export function i18nService({
       );
     }
     const { items } = plan(lang, namespaces);
+    const startedAt = performance.now();
+    const elapsedMs = () => Math.round(performance.now() - startedAt);
+    log.info('i18n.translate.requested', {
+      locale: lang,
+      provider: current.provider,
+      modelId: current.model,
+      namespaceCount: namespaces.length,
+      stringCount: items.length,
+      requestCount: current.requests,
+    });
     const abort = new AbortController();
     running = abort;
     res.on('close', () => {
@@ -408,6 +437,11 @@ export function i18nService({
             break;
           }
           if (failure instanceof ProviderError) {
+            log.warn('i18n.translate.request.failed', {
+              locale: lang,
+              requestIndex: index + 1,
+              httpStatus: failure.status,
+            });
             report.error = { message: failure.message, code: `openai_${failure.status}` };
             break;
           }
@@ -420,6 +454,20 @@ export function i18nService({
         store.saveTranslations(lang, rows, result.model || current.model);
         report.translated += rows.length;
         reject(parsed.rejected);
+        const missingCount = parsed.rejected.filter((item) => item.reason === 'missing').length;
+        if (missingCount) {
+          log.warn('i18n.translate.keys.missing', {
+            locale: lang,
+            requestIndex: index + 1,
+            missingCount,
+          });
+        }
+        log.debug('i18n.translate.batch.completed', {
+          locale: lang,
+          requestIndex: index + 1,
+          translatedCount: rows.length,
+          keptEnglishCount: parsed.rejected.length,
+        });
         send({
           type: 'progress',
           request: index + 1,
@@ -433,8 +481,28 @@ export function i18nService({
       // Strings not translated because of a cancel or provider error stay pending for next time.
       report.notTranslated = report.total - report.translated - report.keptEnglish;
       report.rejected = report.rejected.slice(0, 200);
+      const summary = {
+        locale: lang,
+        durationMs: elapsedMs(),
+        translatedCount: report.translated,
+        keptEnglishCount: report.keptEnglish,
+        notTranslatedCount: report.notTranslated,
+      };
+      if (report.error) {
+        log.warn('i18n.translate.failed', { ...summary, errorCode: report.error.code });
+      } else if (report.cancelled) {
+        log.info('i18n.translate.cancelled', summary);
+      } else {
+        log.info('i18n.translate.completed', summary);
+      }
       send({ type: 'done', report });
-    } catch {
+    } catch (failure) {
+      log.error('i18n.translate.failed', {
+        locale: lang,
+        durationMs: elapsedMs(),
+        errorClass: failure?.name,
+        errorCode: failure?.code,
+      });
       send({
         type: 'error',
         error: 'The translation service failed. Check Diagnostics.',
@@ -519,12 +587,22 @@ export function i18nService({
       return json(res, 404, { error: 'Not found.' });
     }
     if (req.method !== 'POST' && req.method !== 'DELETE') {
+      log.warn('i18n.request.rejected', {
+        route: routeOf(req),
+        httpStatus: 405,
+        reason: 'method_not_allowed',
+      });
       return json(res, 405, { error: 'Method not allowed.' });
     }
     if (
       req.headers.origin !== `http://${req.headers.host}` ||
       req.headers['x-forge-request'] !== 'i18n'
     ) {
+      log.warn('i18n.request.rejected', {
+        route: routeOf(req),
+        httpStatus: 403,
+        reason: 'origin_mismatch',
+      });
       return json(res, 403, { error: 'Local studio requests only.' });
     }
     if (req.method === 'DELETE') {
@@ -630,11 +708,29 @@ export function i18nService({
   function guarded(handler) {
     return async (req, res) => {
       if (!LOOPBACK_HOST.test(req.headers.host || '')) {
+        log.warn('i18n.request.rejected', {
+          route: routeOf(req),
+          httpStatus: 403,
+          reason: 'not_loopback',
+        });
         return json(res, 403, { error: 'Local studio requests only.' });
       }
       try {
         await handler(req, res);
       } catch (failure) {
+        if (failure instanceof RequestError) {
+          log.warn('i18n.request.rejected', {
+            route: routeOf(req),
+            httpStatus: failure.status,
+            reason: failure.code || 'invalid_request',
+          });
+        } else {
+          log.error('i18n.request.failed', {
+            route: routeOf(req),
+            errorClass: failure?.name,
+            errorCode: failure?.code,
+          });
+        }
         if (res.headersSent || res.destroyed) {
           return;
         }
@@ -651,6 +747,7 @@ export function i18nService({
   }
 
   function attach(server) {
+    // log-coverage: ignore -- route registration only; guarded() logs every rejection and failure.
     server.middlewares.use('/api/i18n', guarded(route));
     server.httpServer?.once('close', () => {
       running?.abort();

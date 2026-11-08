@@ -14,10 +14,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+from app_log import get_logger, install_excepthook
 from engine_identity import identity
 
 TOKEN = os.environ.get("FORGE_ENGINE_CONTROL_TOKEN", "")
 MAX_HEADER = 32768
+log = get_logger("asr")
 
 
 class WindowsJob:
@@ -143,11 +145,16 @@ class Guard:
                     "",
                 )
                 if not TOKEN or not hmac.compare_digest(TOKEN, supplied):
+                    log.warn(
+                        "asr.request.rejected",
+                        {"route": "/api/forge/:action", "reason": "forbidden"},
+                    )
                     return await self.reply(writer, "403 Forbidden", {"error": "Forbidden."})
                 if request[0] == "GET" and request[1] == "/api/forge/identity":
                     try:
                         return await self.reply(writer, "200 OK", identity(TOKEN, supplied, "asr"))
-                    except LookupError:
+                    except LookupError as error:
+                        log.warn("asr.identity.unavailable", {"errorClass": type(error).__name__})
                         return await self.reply(
                             writer, "404 Not Found", {"error": "Recovery identity is unavailable."}
                         )
@@ -162,6 +169,10 @@ class Guard:
                         },
                     )
                 if request[0] != "POST":
+                    log.warn(
+                        "asr.request.rejected",
+                        {"route": "/api/forge/:action", "reason": "method_not_allowed"},
+                    )
                     return await self.reply(
                         writer, "405 Method Not Allowed", {"error": "Use POST."}
                     )
@@ -170,19 +181,30 @@ class Guard:
                         self.stop_handle.cancel()
                         self.stop_handle = None
                     self.closing = False
+                    log.info("asr.stop.cancelled")
                     return await self.reply(writer, "200 OK", {"resumed": True})
                 if request[1] != "/api/forge/stop":
+                    log.warn(
+                        "asr.request.rejected",
+                        {"route": "/api/forge/:action", "reason": "unknown_action"},
+                    )
                     return await self.reply(writer, "404 Not Found", {"error": "Not found."})
                 self.closing = True
                 if self.active:
                     self.closing = False
+                    log.warn(
+                        "asr.stop.rejected",
+                        {"reason": "sessions_active", "activeCount": len(self.active)},
+                    )
                     return await self.reply(
                         writer, "409 Conflict", {"error": "Speech sessions are still connected."}
                     )
+                log.info("asr.stop.requested")
                 if self.stop_handle is None:
                     self.stop_handle = asyncio.get_running_loop().call_later(1, self.stop_event.set)
                 return await self.reply(writer, "200 OK", {"stopping": True})
             if self.closing:
+                log.warn("asr.request.rejected", {"reason": "closing"})
                 return await self.reply(
                     writer, "503 Service Unavailable", {"error": "Speech service is stopping."}
                 )
@@ -198,6 +220,14 @@ class Guard:
             )
             websocket = any(
                 name == b"upgrade" and value.lower() == b"websocket" for name, value in headers
+            )
+            log.debug(
+                "asr.session.opened",
+                {
+                    "method": request[0],
+                    "isWebsocket": websocket,
+                    "activeCount": len(self.active),
+                },
             )
             if not websocket:
                 # Keep-alive sockets otherwise look active long after a request ends.
@@ -217,13 +247,13 @@ class Guard:
                     while data := await source.read(65536):
                         destination.write(data)
                         await destination.drain()
-                except (ConnectionError, OSError):
-                    pass
+                except (ConnectionError, OSError) as error:
+                    log.debug("asr.stream.failed", {"errorClass": type(error).__name__})
                 finally:
                     try:
                         destination.close()
-                    except OSError:
-                        pass
+                    except OSError as error:
+                        log.debug("asr.stream.cleanup.failed", {"errorClass": type(error).__name__})
 
             first = asyncio.create_task(pipe(reader, target_writer))
             second = asyncio.create_task(pipe(target_reader, writer))
@@ -239,17 +269,19 @@ class Guard:
             ValueError,
             UnicodeError,
             OSError,
-        ):
+        ) as error:
+            log.warn("asr.request.failed", {"errorClass": type(error).__name__})
             if not writer.is_closing():
                 try:
                     await self.reply(
                         writer, "503 Service Unavailable", {"error": "Speech service unavailable."}
                     )
-                except (ConnectionError, OSError):
-                    pass
+                except (ConnectionError, OSError) as reply_error:
+                    log.debug("asr.reply.failed", {"errorClass": type(reply_error).__name__})
         finally:
             if tracked:
                 self.active.discard(writer)
+                log.debug("asr.session.closed", {"activeCount": len(self.active)})
             if target_writer:
                 target_writer.close()
             writer.close()
@@ -282,6 +314,7 @@ def native_command(args, port):
 async def run(args):
     if not TOKEN:
         raise RuntimeError("A Forge control token is required.")
+    log.info("asr.process.started", {"pid": os.getpid(), "port": args.port})
     job = WindowsJob()
     process = None
     server = None
@@ -311,6 +344,7 @@ async def run(args):
             f"Speech guard PID {os.getpid()} started CUDA engine PID {process.pid} on an internal port.",
             flush=True,
         )
+        log.info("asr.process.spawned", {"kind": "native_engine", "pid": process.pid})
 
         async def monitor():
             while process.poll() is None and not stop.is_set():
@@ -331,12 +365,27 @@ async def run(args):
         if process and process.poll() is None:
             try:
                 process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as error:
+                log.warn(
+                    "asr.process.kill.forced",
+                    {
+                        "kind": "native_engine",
+                        "pid": process.pid,
+                        "errorClass": type(error).__name__,
+                    },
+                )
                 process.kill()
                 process.wait(timeout=10)
+        if process:
+            log.info(
+                "asr.process.exited",
+                {"kind": "native_engine", "pid": process.pid, "exitCode": process.returncode},
+            )
+        log.info("asr.process.stopped", {"pid": os.getpid()})
 
 
 if __name__ == "__main__":
+    install_excepthook("asr")
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--native", type=Path, required=True)
@@ -346,5 +395,6 @@ if __name__ == "__main__":
     try:
         asyncio.run(run(parser.parse_args()))
     except Exception as error:
+        log.error("asr.process.failed", {"errorClass": type(error).__name__})
         print(f"Speech guard failed: {error}", file=sys.stderr, flush=True)
         sys.exit(1)

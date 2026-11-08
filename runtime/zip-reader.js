@@ -10,6 +10,7 @@ import { createReadStream, createWriteStream } from 'node:fs';
 import zlib from 'node:zlib';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { fsyncFile } from './durable-file.js';
 
 const END_OF_CENTRAL_DIRECTORY = 0x06054b50;
 const ZIP64_LOCATOR = 0x07064b50;
@@ -211,4 +212,7 @@ export async function extractZipEntry(file, entry, destination, options) {
   if (total !== entry.size || crc >>> 0 !== entry.crc32) {
     throw new ZipError('A file in the archive failed its integrity check.');
   }
+  // Extracted files are renamed into the project as a folder; flush them first so a power loss
+  // cannot leave zero-filled files inside a finished-looking import.
+  await fsyncFile(destination);
 }

@@ -704,7 +704,10 @@ test('Settings, AI assist lists the Describe it override with provider and model
     save.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
     await sleep(50);
   });
-  const post = state.requests.find((request) => request.method === 'POST');
+  // Browser log batches are posted too; look for the settings save only.
+  const post = state.requests.find(
+    (request) => request.method === 'POST' && request.path !== '/api/logs/ingest',
+  );
   assert.deepEqual(post.body, {
     feature: 'vegetation-describe',
     provider: 'local',

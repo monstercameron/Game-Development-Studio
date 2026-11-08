@@ -14,6 +14,11 @@
 // Only the planning half touches no database, so the studio page can reuse `planMove` to show a
 // move before the runtime confirms it. The runtime stays the source of truth.
 
+// Shared with the browser (src/queue-reorder.js), so it uses the browser-safe logger.
+import { createLogger } from './shared-log.js';
+
+const log = createLogger('queue');
+
 export const WAITING_STATUSES = ['queued', 'waiting_engine', 'waiting_memory'];
 export const OPEN_STATUSES = [
   'queued',
@@ -52,6 +57,7 @@ export class QueueMoveError extends Error {
   constructor(status, code, message, extra = null) {
     super(message);
     this.name = 'QueueMoveError';
+    // log-coverage: ignore -- error object field, not a job state change
     this.status = status;
     this.code = code;
     this.extra = extra;
@@ -302,7 +308,8 @@ function openEntries(db) {
         try {
           const from = JSON.parse(row.chain_request).referenceFrom;
           waitingOnSource = !!from && typeof from.output !== 'string';
-        } catch {
+        } catch (error) {
+          log.debug('queue.chain.parse.failed', { jobId: row.id, error });
           waitingOnSource = false;
         }
       }
@@ -335,8 +342,39 @@ function rollback(db) {
   try {
     db.exec('ROLLBACK');
   } catch (error) {
+    log.warn('queue.transaction.rollback.failed', { error });
     console.error('Could not roll back queue move:', error.message);
   }
+}
+
+// Logs one committed move. Positions, counts and ids only: never a render's name or prompt.
+function logMoveCommitted(jobId, spec, plan, renumbered) {
+  log.info('queue.move.completed', {
+    jobId,
+    kind: spec.kind,
+    wasMoved: plan.moved,
+    fromPosition: plan.from,
+    toPosition: plan.to,
+    waitingCount: plan.count,
+    carriedCount: plan.carried.length,
+    wasClamped: plan.clamped !== null,
+    wasRenumbered: renumbered,
+  });
+  if (renumbered) {
+    log.info('queue.ranks.renumbered', { openCount: plan.order.length });
+  } else if (plan.moved) {
+    log.debug('queue.rank.written', { jobId, rankCount: plan.block.length });
+  }
+}
+
+// Logs a refused move (expected, warn) or an unexpected failure (error). The error text is not
+// logged: a rejection carries a stable code, and other failures keep only the error's class.
+function logMoveFailed(jobId, error) {
+  if (error instanceof QueueMoveError) {
+    log.warn('queue.move.rejected', { jobId, reason: error.code, status: error.status });
+    return;
+  }
+  log.error('queue.move.failed', { jobId, error });
 }
 
 function writeRank(db, id, rank) {
@@ -421,12 +459,14 @@ export function moveQueuedJob(db, id, spec) {
     }
     const waiting = waitingOrder(db);
     db.exec('COMMIT');
+    logMoveCommitted(id, spec, plan, renumbered);
     return { ...plan, renumbered, waiting };
   } catch (error) {
     rollback(db);
     if (error instanceof QueueMoveError && error.status === 409 && !error.extra) {
       error.extra = waitingOrder(db);
     }
+    logMoveFailed(id, error);
     throw error;
   }
 }

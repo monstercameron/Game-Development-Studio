@@ -11,6 +11,9 @@
 // never starts it.
 import { OPENAI_BASE_URL, ProviderError, requestFixSuggestion } from './error-fix.js';
 import { clampSuggestedParams, findSpecies } from './vegetation-request.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('vegetation');
 
 export const DESCRIPTION_MAX_CHARS = 600;
 export const DESCRIBE_NOTICE_OPENAI =
@@ -27,6 +30,7 @@ const DESCRIBED_GROUPS = new Set(['shape', 'leaves']);
 export class DescribeError extends Error {
   constructor(status, message, code) {
     super(message);
+    // log-coverage: ignore -- error object field, not a state change
     this.status = status;
     this.code = code;
   }
@@ -62,7 +66,12 @@ export function parseJsonObject(text) {
         try {
           const value = JSON.parse(source.slice(start, index + 1));
           return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
-        } catch {
+        } catch (error) {
+          // The parser error can quote reply text, so only its class is logged.
+          log.debug('vegetation.describe.reply.parse.failed', {
+            errorClass: error.name,
+            reason: 'not_json',
+          });
           return null;
         }
       }
@@ -146,17 +155,44 @@ async function callOpenAI(messages, { model, key, fetchImpl, baseUrl, timeoutMs,
     store: false,
     text: { format: { type: 'json_object' } },
   };
+  const startedAt = Date.now();
+  log.debug('vegetation.describe.request.started', {
+    provider: 'openai',
+    model,
+    host: 'api.openai.com',
+  });
   try {
     const reply = await requestFixSuggestion({ body, key, fetchImpl, baseUrl, timeoutMs, signal });
+    log.info('vegetation.describe.request.completed', {
+      provider: 'openai',
+      model,
+      host: 'api.openai.com',
+      durationMs: Date.now() - startedAt,
+    });
     return reply.text;
   } catch (failure) {
+    const failureFields = {
+      provider: 'openai',
+      model,
+      host: 'api.openai.com',
+      durationMs: Date.now() - startedAt,
+    };
     if (failure instanceof ProviderError) {
+      log.warn('vegetation.describe.request.failed', {
+        ...failureFields,
+        httpStatus: failure.status,
+        errorClass: 'ProviderError',
+      });
       throw new DescribeError(
         failure.status >= 400 && failure.status < 600 ? failure.status : 502,
         failure.message,
         `openai_${failure.status}`,
       );
     }
+    log.warn('vegetation.describe.request.failed', {
+      ...failureFields,
+      errorClass: failure?.name,
+    });
     throw failure;
   }
 }
@@ -167,6 +203,11 @@ async function callLocal(messages, { fetchImpl, baseUrl, timeoutMs, signal }) {
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort, { once: true });
   try {
+    const startedAt = Date.now();
+    log.debug('vegetation.describe.request.started', {
+      provider: 'local',
+      model: LOCAL_CHAT_ALIAS,
+    });
     let response;
     try {
       response = await fetchImpl(new URL('v1/chat/completions', `${baseUrl}/`), {
@@ -188,13 +229,26 @@ async function callLocal(messages, { fetchImpl, baseUrl, timeoutMs, signal }) {
         signal: controller.signal,
       });
     } catch (error) {
+      const durationMs = Date.now() - startedAt;
       if (error.name === 'AbortError') {
+        log.warn('vegetation.describe.request.failed', {
+          provider: 'local',
+          model: LOCAL_CHAT_ALIAS,
+          durationMs,
+          errorCode: 'local_timeout',
+        });
         throw new DescribeError(
           504,
           'The local chat model timed out or the request was stopped.',
           'local_timeout',
         );
       }
+      log.warn('vegetation.describe.request.failed', {
+        provider: 'local',
+        model: LOCAL_CHAT_ALIAS,
+        durationMs,
+        errorCode: 'chat_model_unavailable',
+      });
       throw new DescribeError(
         409,
         'The local chat model is not running. Use Start chat model, or switch to OpenAI in Settings.',
@@ -202,12 +256,25 @@ async function callLocal(messages, { fetchImpl, baseUrl, timeoutMs, signal }) {
       );
     }
     if (!response.ok) {
+      log.warn('vegetation.describe.request.failed', {
+        provider: 'local',
+        model: LOCAL_CHAT_ALIAS,
+        durationMs: Date.now() - startedAt,
+        httpStatus: response.status,
+        errorCode: 'local_error',
+      });
       throw new DescribeError(
         502,
         `The local chat model returned ${response.status}.`,
         'local_error',
       );
     }
+    log.info('vegetation.describe.request.completed', {
+      provider: 'local',
+      model: LOCAL_CHAT_ALIAS,
+      httpStatus: response.status,
+      durationMs: Date.now() - startedAt,
+    });
     const data = await response.json().catch(() => null);
     return String(data?.choices?.[0]?.message?.content || '');
   } finally {
@@ -244,6 +311,9 @@ export async function describePlant({
 }) {
   const text = typeof description === 'string' ? description.trim() : '';
   if (!text || text.length > DESCRIPTION_MAX_CHARS) {
+    log.warn('vegetation.describe.request.rejected', {
+      reason: text ? 'too_long' : 'empty',
+    });
     throw new DescribeError(
       400,
       `Describe the plant in 1 to ${DESCRIPTION_MAX_CHARS} characters.`,
@@ -251,6 +321,7 @@ export async function describePlant({
     );
   }
   if (species !== null && !findSpecies(schema, species)) {
+    log.warn('vegetation.describe.request.rejected', { reason: 'unknown_species' });
     throw new DescribeError(400, 'Choose one of the available plant species.', 'bad_species');
   }
   const ask =

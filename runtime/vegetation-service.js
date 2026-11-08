@@ -35,10 +35,12 @@ import {
   loadSchemaSync,
   quickCheckoutStatus,
 } from './vegetation-runner.js';
+import { createLogger } from './app-log.js';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LOOPBACK_HOST = /^(127\.0\.0\.1|localhost)(:\d+)?$/;
 const FEATURE = 'vegetation-describe';
+const log = createLogger('vegetation');
 
 function send(res, status, data) {
   res.writeHead(status, {
@@ -49,9 +51,16 @@ function send(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
+// Error details that may be logged: the class and code only. Messages can contain paths or
+// provider text, so they are never passed to the logger.
+function errorFields(failure) {
+  return { errorClass: failure?.constructor?.name, errorCode: failure?.code };
+}
+
 class RequestError extends Error {
   constructor(status, message, code) {
     super(message);
+    // log-coverage: ignore -- stores the HTTP status on an error object, not a state change
     this.status = status;
     this.code = code;
   }
@@ -108,19 +117,33 @@ export function vegetationService({
   function hasSavedKey() {
     try {
       return credentials.status().some((item) => item.provider === 'openai' && item.saved);
-    } catch {
+    } catch (failure) {
+      log.warn('vegetation.key.status.failed', {
+        ...errorFields(failure),
+        reason: 'treated_as_missing',
+      });
       return false;
     }
   }
 
   async function localChatRunning() {
+    const startedAt = Date.now();
     try {
       const response = await fetchImpl(new URL('health', `${localChatUrl}/`), {
         signal: AbortSignal.timeout(1500),
         redirect: 'error',
       });
+      log.debug('vegetation.local-chat.health.completed', {
+        httpStatus: response.status,
+        ok: response.ok,
+        durationMs: Date.now() - startedAt,
+      });
       return response.ok;
-    } catch {
+    } catch (failure) {
+      log.debug('vegetation.local-chat.health.failed', {
+        ...errorFields(failure),
+        durationMs: Date.now() - startedAt,
+      });
       return false;
     }
   }
@@ -164,11 +187,26 @@ export function vegetationService({
     fetchState.running = true;
     fetchState.step = 'Starting';
     fetchState.error = '';
+    log.info('vegetation.checkout.fetch.started');
+    const startedAt = Date.now();
     fetching = (async () => {
       try {
         await fetchCheckout({ root, onStep: (step) => (fetchState.step = step) });
         fetchState.step = 'Done';
+        log.info('vegetation.checkout.fetch.completed', { durationMs: Date.now() - startedAt });
       } catch (failure) {
+        if (failure instanceof CheckoutError) {
+          log.warn('vegetation.checkout.fetch.failed', {
+            ...errorFields(failure),
+            reason: failure.code,
+            durationMs: Date.now() - startedAt,
+          });
+        } else {
+          log.error('vegetation.checkout.fetch.failed', {
+            ...errorFields(failure),
+            durationMs: Date.now() - startedAt,
+          });
+        }
         fetchState.error =
           failure instanceof CheckoutError
             ? failure.message
@@ -189,15 +227,22 @@ export function vegetationService({
       return send(res, 405, { error: 'Method not allowed.' });
     }
     if (isWrite && !isLocalWrite(req)) {
+      log.warn('vegetation.request.rejected', {
+        method: req.method,
+        status: 403,
+        reason: 'not_studio_origin',
+      });
       return send(res, 403, { error: 'Local studio requests only.' });
     }
     if (pathname === '/status' && !isWrite) {
+      const checkout = await inspect({
+        root,
+        directory: checkoutDirectory({ root }),
+        linked: readLinkedRepository({ root }),
+      });
+      log.debug('vegetation.checkout.inspected', { state: checkout.state });
       return send(res, 200, {
-        checkout: await inspect({
-          root,
-          directory: checkoutDirectory({ root }),
-          linked: readLinkedRepository({ root }),
-        }),
+        checkout,
         fetch: { ...fetchState },
         describe: await describeStatus(),
       });
@@ -205,6 +250,7 @@ export function vegetationService({
     if (pathname === '/schema' && !isWrite) {
       const quick = quickCheckoutStatus({ root });
       if (!quick.ready) {
+        log.debug('vegetation.schema.unavailable', { reason: quick.code });
         return send(res, 409, { error: quick.message, code: quick.code });
       }
       try {
@@ -240,6 +286,7 @@ export function vegetationService({
           message: 'Add your OpenAI key in Settings to check this model.',
         });
       }
+      const stopCheck = log.time('vegetation.model.check.completed', { provider: 'openai' });
       try {
         const result = await verifyModel({
           model: choice.model,
@@ -247,9 +294,14 @@ export function vegetationService({
           fetchImpl,
           baseUrl: openaiBaseUrl,
         });
+        stopCheck({ outcome: 'completed' });
         return send(res, 200, result);
       } catch (failure) {
         if (failure instanceof ProviderError) {
+          log.warn('vegetation.model.check.failed', {
+            provider: 'openai',
+            status: failure.status,
+          });
           return send(res, failure.status >= 400 ? failure.status : 502, {
             error: failure.message,
           });
@@ -267,6 +319,8 @@ export function vegetationService({
       const key = choice.provider === 'openai' ? await savedKey() : '';
       const abort = new AbortController();
       res.on('close', () => abort.abort());
+      const startedAt = Date.now();
+      log.info('vegetation.describe.started', { provider: choice.provider, model: choice.model });
       try {
         const suggestion = await describe({
           description: input.description,
@@ -280,8 +334,16 @@ export function vegetationService({
           localUrl: localChatUrl,
           signal: abort.signal,
         });
+        log.info('vegetation.describe.completed', {
+          provider: choice.provider,
+          durationMs: Date.now() - startedAt,
+        });
         return send(res, 200, { suggestion });
       } catch (failure) {
+        if (abort.signal.aborted) {
+          // The browser closed the request; the rejected promise is expected, not an error.
+          log.info('vegetation.describe.cancelled', { durationMs: Date.now() - startedAt });
+        }
         if (failure instanceof DescribeError) {
           throw new RequestError(failure.status, failure.message, failure.code);
         }
@@ -294,6 +356,11 @@ export function vegetationService({
   function attach(server) {
     server.middlewares.use('/api/vegetation', async (req, res) => {
       if (!LOOPBACK_HOST.test(req.headers.host || '')) {
+        log.warn('vegetation.request.rejected', {
+          method: req.method,
+          status: 403,
+          reason: 'not_loopback',
+        });
         return send(res, 403, { error: 'Local studio requests only.' });
       }
       try {
@@ -302,13 +369,33 @@ export function vegetationService({
         if (res.headersSent || res.destroyed) {
           return undefined;
         }
-        if (failure instanceof RequestError) {
+        if (failure instanceof RequestError && failure.status < 500) {
+          log.warn('vegetation.request.rejected', {
+            method: req.method,
+            status: failure.status,
+            reason: failure.code || 'invalid_request',
+          });
           return send(res, failure.status, {
             error: failure.message,
             ...(failure.code ? { code: failure.code } : {}),
           });
         }
-        console.error('Vegetation service:', failure.message);
+        if (failure instanceof RequestError) {
+          log.error('vegetation.request.failed', {
+            method: req.method,
+            status: failure.status,
+            reason: failure.code || 'unknown',
+          });
+          return send(res, failure.status, {
+            error: failure.message,
+            ...(failure.code ? { code: failure.code } : {}),
+          });
+        }
+        log.error('vegetation.request.failed', {
+          ...errorFields(failure),
+          method: req.method,
+          status: 500,
+        });
         return send(res, 500, { error: 'The Vegetation service could not complete this request.' });
       }
       return undefined;

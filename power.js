@@ -1,5 +1,18 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createLogger } from './runtime/app-log.js';
+
+const log = createLogger('power');
+
+let activeControl = null;
+
+/**
+ * The keep-awake controller of this process's power service, or null before it is attached.
+ * The settings registry (runtime/core-settings.js) uses it so keep awake has one owner.
+ */
+export function powerControl() {
+  return activeControl;
+}
 
 export function powerService({ spawnProcess = spawn, platform = process.platform } = {}) {
   let child = null,
@@ -9,6 +22,7 @@ export function powerService({ spawnProcess = spawn, platform = process.platform
   const script = fileURLToPath(new URL('./keep-awake.ps1', import.meta.url));
   function stop() {
     if (child) {
+      log.info('power.awake.released', { pid: child.pid });
       child.kill();
       child = null;
     }
@@ -47,12 +61,16 @@ export function powerService({ spawnProcess = spawn, platform = process.platform
       );
       let settled = false,
         errors = '';
-      const timer = setTimeout(() => fail('The keep-awake helper did not respond.'), 10000);
-      function fail(message) {
+      const timer = setTimeout(
+        () => fail('The keep-awake helper did not respond.', 'no_response'),
+        10000,
+      );
+      function fail(message, reason) {
         if (settled) {
           return;
         }
         settled = true;
+        log.warn('power.helper.failed', { reason });
         clearTimeout(timer);
         helper.kill();
         lastError = message;
@@ -71,14 +89,16 @@ export function powerService({ spawnProcess = spawn, platform = process.platform
             return;
           }
           child = helper;
+          log.info('power.helper.started', { pid: helper.pid });
           lastError = null;
           resolve();
         }
       });
-      helper.on('error', (error) => fail(error.message));
-      helper.on('exit', () => {
+      helper.on('error', (error) => fail(error.message, 'spawn_error'));
+      helper.on('exit', (exitCode, signal) => {
+        log.info('power.helper.exited', { exitCode, signal });
         if (!settled) {
-          fail(errors.trim() || 'The keep-awake helper exited.');
+          fail(errors.trim() || 'The keep-awake helper exited.', 'exited_early');
         } else if (child === helper) {
           child = null;
           lastError = errors.trim() || 'The keep-awake helper stopped.';
@@ -89,7 +109,21 @@ export function powerService({ spawnProcess = spawn, platform = process.platform
     });
     return starting;
   }
+  async function setAwake(enabled) {
+    log.info('power.awake.requested', { enabled });
+    if (enabled) {
+      await start();
+    } else {
+      if (starting) {
+        await starting;
+      }
+      stop();
+      lastError = null;
+    }
+    return { awake: !!child, error: lastError };
+  }
   function attach(server) {
+    activeControl = { status: () => ({ awake: !!child, error: lastError }), setAwake };
     server.middlewares.use('/api/power', async (req, res) => {
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Cache-Control', 'no-store');
@@ -106,6 +140,7 @@ export function powerService({ spawnProcess = spawn, platform = process.platform
         origin !== `http://${host}` ||
         req.headers['x-forge-request'] !== 'power'
       ) {
+        log.warn('power.request.rejected', { route: '/api/power', reason: 'not_local_studio' });
         res.statusCode = 403;
         res.end(JSON.stringify({ error: 'Local studio requests only.' }));
         return;
@@ -122,23 +157,23 @@ export function powerService({ spawnProcess = spawn, platform = process.platform
         if (typeof input.enabled !== 'boolean') {
           throw new Error('Expected an enabled setting.');
         }
-        if (input.enabled) {
-          await start();
-        } else {
-          if (starting) {
-            await starting;
-          }
-          stop();
-          lastError = null;
-        }
-        res.end(JSON.stringify({ awake: !!child, error: lastError }));
+        res.end(JSON.stringify(await setAwake(input.enabled)));
       } catch (error) {
+        log.warn('power.request.failed', { route: '/api/power', errorClass: error.name });
         res.statusCode = 500;
         res.end(JSON.stringify({ error: error.message }));
       }
     });
-    server.httpServer?.once('close', dispose);
+    server.httpServer?.once('close', () => {
+      if (activeControl?.setAwake === setAwake) {
+        activeControl = null;
+      }
+      dispose();
+    });
   }
-  process.once('exit', dispose);
+  process.once('exit', () => {
+    log.debug('power.service.stopped', { isAwake: !!child });
+    dispose();
+  });
   return { name: 'forge-power-service', configureServer: attach, configurePreviewServer: attach };
 }

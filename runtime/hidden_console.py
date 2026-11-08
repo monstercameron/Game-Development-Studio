@@ -11,6 +11,11 @@ descendant inherit it and removes those windows without patching libraries.
 import os
 import sys
 
+from app_log import get_logger
+
+# Component "runtime": "process" is not a registered component (it would be recorded as unknown).
+log = get_logger("runtime")
+
 
 def ensure_hidden_console():
     """Attach a hidden console when the process has none; return True if created."""
@@ -33,7 +38,8 @@ def ensure_hidden_console():
         if window:
             user32.ShowWindow(window, 0)
         return True
-    except Exception:
+    except Exception as error:
+        log.warn("runtime.console.attach.failed", {"errorClass": type(error).__name__})
         return False
 
 

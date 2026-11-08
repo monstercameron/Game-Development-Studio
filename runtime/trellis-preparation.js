@@ -1,5 +1,9 @@
 import os from 'node:os';
 import { planModelLoad, hostMemoryConflict, hostMemoryShort } from './model-load.js';
+import { resolveAutoStart } from './service-preparation.js';
+import { createLogger } from './app-log.js';
+
+const log = createLogger('three-d');
 
 // Conservative, uncalibrated budgets. A free-memory reading is not a reservation.
 const HOST_LOAD = 8 * 1024 ** 3,
@@ -44,7 +48,12 @@ export function createTrellisLoader({
         if (!response.ok || status.engine !== engine || typeof status.loaded !== 'boolean') {
           throw Error('Unexpected response');
         }
-      } catch {
+      } catch (error) {
+        // Not running is the normal state before a start request, so this stays at debug.
+        log.debug('three-d.status.failed', {
+          errorClass: error?.name,
+          reason: 'engine_unavailable',
+        });
         return {
           status: 503,
           body: { code: 'engine_unavailable', message: 'Start the TRELLIS.2 worker first.' },
@@ -80,7 +89,13 @@ export function createTrellisLoader({
           estimate: 'Uncalibrated TRELLIS.2 load budget plus GPU reserve.',
         };
       }
+      log.info('three-d.memory.checked', {
+        requiredMiB: plan.requiredMiB,
+        freeMiB: plan.device?.freeMiB,
+        budgetMiB: GPU_LOAD,
+      });
       if (plan.code !== 'ready') {
+        log.warn('three-d.start.rejected', { reason: plan.code });
         return { status: 409, body: plan };
       }
       try {
@@ -90,6 +105,7 @@ export function createTrellisLoader({
           redirect: 'error',
         });
         if (!response.ok) {
+          log.warn('three-d.load.rejected', { httpStatus: response.status });
           return response.status >= 500
             ? {
                 status: 503,
@@ -107,11 +123,16 @@ export function createTrellisLoader({
                 },
               };
         }
+        log.info('three-d.load.requested', { httpStatus: response.status });
         return {
           status: 202,
           body: { code: 'load_requested', message: 'TRELLIS.2 loading requested.', memory: plan },
         };
-      } catch {
+      } catch (error) {
+        log.warn('three-d.load.unknown', {
+          errorClass: error?.name,
+          reason: 'load_unknown',
+        });
         return {
           status: 503,
           body: {
@@ -137,11 +158,14 @@ export function createTrellisPreparation({
 }) {
   return async ({ health, reachable, claimLoad, retryModel = false }) => {
     if (!reachable) {
-      if (!autoStart) {
+      if (!resolveAutoStart(autoStart)) {
+        log.info('three-d.start.skipped', { reason: 'autostart_disabled' });
         return { status: 'waiting_engine', stage: 'Waiting for the configured TRELLIS.2 worker.' };
       }
+      log.info('three-d.start.started');
       const result = await startEngine('3d-trellis');
       if (result.status === 'recovery_unresolved') {
+        log.warn('three-d.start.unresolved', { reason: 'recovery_unresolved' });
         if (!claimLoad()) {
           return null;
         }
@@ -153,12 +177,14 @@ export function createTrellisPreparation({
         };
       }
       if (['missing', 'failed', 'port_in_use', 'recovery_unresolved'].includes(result.status)) {
+        log.warn('three-d.start.rejected', { reason: 'start_failed', status: result.status });
         return {
           status: 'needs_attention',
           stage: 'TRELLIS.2 worker could not start.',
           error: result.message || `Worker status: ${result.status}.`,
         };
       }
+      log.info('three-d.start.completed');
       return { status: 'waiting_engine', stage: 'Starting the TRELLIS.2 worker.' };
     }
     if (health.phase === 'generating') {
@@ -195,6 +221,7 @@ export function createTrellisPreparation({
     if (!claimLoad()) {
       return null;
     }
+    log.info('three-d.barrier.persisted');
     const result = await loadModel();
     if (result.body?.code === 'load_unknown') {
       return {
