@@ -35,6 +35,16 @@ machine unless an entry says so.
   memory use per model size; output quality; the exact input formats the inference script accepts.
   A first task is a CPU-free dry check of the dependency list against the Windows ARM64 notes in
   [WINDOWS_ARM64.md](WINDOWS_ARM64.md).
+- **Native ARM64 feasibility check (2026-11-10):** the existing TRELLIS Python 3.12.10 ARM64
+  environment has discoverable `torch`, `transformers`, and `yaml` modules, but not `cairosvg`,
+  `qwen_vl_utils`, `shapely`, or `einops` (module discovery only; imports and inference were not
+  tested). Upstream specifies Python 3.10, Transformers 4.51.3 and PyTorch 2.3/CUDA 12.1, while the
+  TRELLIS environment uses newer versions documented in [WINDOWS_ARM64.md](WINDOWS_ARM64.md).
+  Compatibility and a native Cairo library remain unverified. The 4B configuration also requires
+  the separate `Qwen/Qwen2.5-VL-3B-Instruct` base model as well as OmniSVG weights; neither was
+  found in the studio model inventory. Upstream's inference script falls back to CPU and its decoder
+  uses automatic device mapping, so a Forge adapter must explicitly enforce CUDA placement and local,
+  offline model paths before enabling this integration. No weights were downloaded or loaded.
 - **Integration sketch** (follow the existing patterns, no code written yet):
   1. **Linked source, not vendored:** pin the upstream commit as a linked repository the way
      SeedThree is handled (see [VEGETATION.md](VEGETATION.md) and `install-models.json`), with an
@@ -365,6 +375,24 @@ machine unless an entry says so.
   the language model and the DiT together fits comfortably beside other Forge engines. A first
   task is a dry check of `requirements.txt` and `pyproject.toml` against
   [WINDOWS_ARM64.md](WINDOWS_ARM64.md).
+- **Protocol and platform check (2026-11-10):** upstream commit
+  `ca1e85fe9430179831e6bc6be790c332190a3866` returns an empty result with status 0 for an
+  unknown task ID, and may return status 2 for a cache timeout rather than a confirmed failure.
+  `runtime/acestep-protocol.js` conservatively interprets these responses and restricts output
+  URLs to the relative audio endpoint; it is a protocol helper only, not a connected engine.
+  Upstream's Windows dependency markers select PyTorch 2.7.1 with CUDA 12.8 without a separate
+  ARM64 path. The official CUDA 12.8 package indexes had no `win_arm64` wheels for either
+  `torch` 2.7.1 or `torchaudio` 2.7.1 when checked. Compatibility with the existing native ARM64
+  CUDA runtime remains unverified. The upstream API module imported without loading a model in a
+  Python 3.14 ARM64 environment sharing the installed Snapdargon-DJ CUDA packages and using a
+  separate `.forge-runtime/acestep-packages` overlay; Python 3.14 is outside upstream's supported
+  range, and an import does not verify inference. The minimal turbo, VAE and text encoder files
+  were explicitly downloaded to `models/ACE-Step-1.5` from revision
+  `19671f406d603126926c1b7e2adc169acbcade22` (about 5.89 GiB); the turbo checkpoint's SHA-256
+  `3f6e0797fad420a39bd33979eb6e840e30989e34a3794e843d23b60ec6e422d7` matched upstream.
+  No language model was downloaded. Upstream can download automatically and falls back to CPU even
+  when CUDA is requested, so an adapter must prevent both before starting it. No ACE-Step model was
+  loaded or tested; free host RAM was too low for a safe model load during this check.
 - **Integration sketch** (no code written yet): 0. **Feasibility check** as above; if it cannot run natively, record why and stop.
   1. **Linked source and weights:** pin the upstream commit as a linked repository (as for
      SeedThree) rather than vendoring it, add the DiT and LM checkpoints to `install-models.json`

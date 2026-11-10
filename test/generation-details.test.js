@@ -498,3 +498,23 @@ test('3D triangle targets are shown with thousands separators and the engine id 
     ],
   );
 });
+
+test('Drama 3 voice assets restore their model, prompt, seed and sampling controls', () => {
+  const plan = reusePlan(
+    record('drama3', {
+      text: '[whisper] Hello',
+      seed: 42,
+      max_tokens: 900,
+      temperature: 0.7,
+      top_p: 0.8,
+    }),
+  );
+  const job = draftJob(plan, 'project-1');
+  assert.equal(job.kind, 'voices');
+  assert.equal(job.model, 'Fish Audio Drama 3');
+  assert.equal(job.draftSnapshot.prompt, '[whisper] Hello');
+  assert.equal(job.draftSnapshot.dramaSeed, '42');
+  assert.equal(job.draftSnapshot.dramaMaxTokens, '900');
+  assert.equal(job.draftSnapshot.dramaTemperature, '0.7');
+  assert.equal(job.draftSnapshot.dramaTopP, '0.8');
+});

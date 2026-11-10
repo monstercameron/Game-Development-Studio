@@ -64,6 +64,40 @@ cmd /c runtime\trellis-native-tests.cmd
 
 The component suite verifies CUDA operations and native imports without loading model weights. The separate `test/trellis_dinov3_cuda_test.py` and `test/trellis_pipeline_load_test.py` load real checkpoints and check available memory; do not run them while other work is using memory needed by the test. Neither test generates a complete 3D asset. Download the matching model files using [Model sources and restoration](MODEL_SOURCES.md).
 
+## Drama 3 native CUDA build
+
+Drama 3 uses the community [audio.cpp](https://github.com/0xShug0/audio.cpp) engine, pinned for the verified build to commit `0382d37fe6e1a817b6b8fed5dcaab0e11fd1e8e6`. Its normal Windows build instructions target x64; the build below was tested on native Windows ARM64 with Visual Studio 2022 Build Tools (MSVC 14.44 ARM64), LLVM/clang-cl 23.1.5 ARM64, CUDA 13.5, CMake 4.4, Ninja and an RTX Spark N1X. Install those tools separately; use versions and paths matching your installation. The GGUF model is a separate download and its license and source are documented in the model source guide.
+
+From the Forge repository root, clone audio.cpp and check out the pinned commit:
+
+```bat
+git clone https://github.com/0xShug0/audio.cpp.git ".forge-runtime\drama3-audiocpp-src"
+git -C ".forge-runtime\drama3-audiocpp-src" checkout 0382d37fe6e1a817b6b8fed5dcaab0e11fd1e8e6
+```
+
+In its `external/sentencepiece/CMakeLists.txt`, at the pinned revision, wrap the existing `string(APPEND CMAKE_CXX_FLAGS " -fmacro-prefix-map=...")` line with `if(NOT MSVC)` and `endif()`. This narrowly removes an unquoted debug-path mapping that clang-cl splits at spaces in a Windows project path; it does not change inference. Reassess the patch on an upstream update.
+
+From the repository root, save the following as a local `.cmd` file and run it. These paths are examples from the tested installation, not portable defaults. The CUDA host compiler must be the native ARM64 `cl.exe`; the C and C++ compiler must be native ARM64 `clang-cl` for the bundled ggml build.
+
+```bat
+@echo off
+call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" arm64
+if errorlevel 1 exit /b 1
+set "CUDA_PATH=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.5"
+set "PATH=C:\Program Files\LLVM\bin;%CUDA_PATH%\bin;C:\Program Files\CMake\bin;%PATH%"
+cmake -S ".forge-runtime\drama3-audiocpp-src" -B ".forge-runtime\drama3-audiocpp-clang-build" -G Ninja -DCMAKE_MAKE_PROGRAM="C:\Strawberry\c\bin\ninja.exe" -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_CUDA_HOST_COMPILER="C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\bin\Hostarm64\arm64\cl.exe" -DCMAKE_BUILD_TYPE=Release -DENGINE_ENABLE_CUDA=ON -DENGINE_ENABLE_NATIVE_CPU=OFF -DENGINE_ENABLE_LLAMAFILE=OFF -DENGINE_ENABLE_OPENMP=OFF -DAUDIOCPP_MODEL_SET=custom -DAUDIOCPP_MODELS=fish_drama3 -DAUDIOCPP_DEPLOYMENT_BUILD=ON -DCMAKE_CUDA_ARCHITECTURES=121 -DCMAKE_CUDA_FLAGS=--allow-unsupported-compiler
+if errorlevel 1 exit /b 1
+cmake --build ".forge-runtime\drama3-audiocpp-clang-build" --target audiocpp_cli --parallel 3
+if errorlevel 1 exit /b 1
+if not exist "engines\drama3\bin" mkdir "engines\drama3\bin"
+copy ".forge-runtime\drama3-audiocpp-clang-build\bin\audiocpp_cli.exe" "engines\drama3\bin\audiocpp_cli.exe"
+cl /nologo /EHsc /std:c++17 /W4 /WX /O2 /MT "runtime\drama3-win-launcher.cpp" /Fo".forge-runtime\drama3-win-launcher.obj" /Fe"engines\drama3\bin\forge-drama3-launcher.exe"
+```
+
+The tested engine imports `cublas64_13.dll`, `cublasLt64_13.dll`, `libomp140.aarch64.dll` and the ARM64 Visual C++ runtime. The CUDA DLLs came from the CUDA toolkit's `bin\arm64`; the OpenMP DLL came from the locally installed Visual Studio Build Tools `VC\Redist\MSVC\14.44.35112\debug_nonredist\arm64\Microsoft.VC143.OpenMP.LLVM`. This Build Tools file is a local dependency, not a redistributable bundled with Forge. The runner discovers the dependencies and passes their locations to the child process. Other installations must provide compatible ARM64 libraries and respect their distribution terms.
+
+The launcher creates the engine suspended, assigns a kill-on-close Windows job and sets a 2 GiB hard pageable working-set limit before resuming. This bounds the process working set, not GPU allocations, pinned memory or total Windows commit; memory admission and monitoring remain necessary. The verified settings use CUDA, a 2,048-token context, disk-backed experts with an eight-slot cache, no pinned experts, no CPU expert layers, and zero retained prefill graph caches. An isolated actual queue render produced a 4.23-second WAV and persisted its asset provenance and completed status. This establishes a working short sample on the tested machine, not performance or memory guarantees for other prompts or machines.
+
 ## Other Windows adaptations
 
 - **Hunyuan3D shape:** `runtime/hunyuan_backend.py` uses memory-mapped checkpoint loading, `accelerate` empty-weight initialization, and a Pillow RGBA preprocessing adapter because the available OpenCV wheel could not run on the CPU. Pillow preprocessing has not been shown pixel-identical to upstream. Shape-only inference produced one GLB.

@@ -9,7 +9,7 @@ const PAGE_JOB_TYPES = {
   video: ['video'],
   music: ['music'],
   sfx: ['sfx'],
-  voices: ['voices'],
+  voices: ['voices', 'drama3'],
   segmentation: ['segmentation'],
 };
 const ATTENTION_STATUSES = new Set(['needs_attention', 'interrupted', 'waiting_memory']);

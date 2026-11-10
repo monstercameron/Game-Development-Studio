@@ -138,6 +138,15 @@ export const ROW_DEFINITIONS = [
     note: 'The preset-voice checkpoint; Base and VoiceDesign are listed separately.',
   },
   {
+    id: 'drama3',
+    name: 'Fish Audio Drama 3 Q4',
+    area: 'Voices',
+    card: 'model-drama3',
+    kind: 'weights',
+    folders: ['Drama-3-GGUF-Q4'],
+    note: 'Community Q4 checkpoint. One native CUDA queue render passed; subjective audio quality remains unverified.',
+  },
+  {
     id: 'asr',
     name: 'Nemotron Speech Streaming 0.6B',
     area: 'Voices',
@@ -214,6 +223,15 @@ export const ROW_DEFINITIONS = [
     kind: 'supporting',
     folders: ['Qwen3-TTS-12Hz-1.7B-VoiceDesign'],
     note: 'Optional checkpoint for designing a voice from a description.',
+  },
+  {
+    id: 'acestep-feasibility',
+    name: 'ACE-Step 1.5 feasibility files',
+    area: 'Music',
+    card: 'model-support',
+    kind: 'supporting',
+    folders: ['ACE-Step-1.5'],
+    note: 'Downloaded for feasibility only; not integrated or tested with GPU inference.',
   },
   {
     id: 'comfy-models',

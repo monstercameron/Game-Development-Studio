@@ -197,7 +197,11 @@ export function wrapFetch(originalFetch, win) {
       }
       return response;
     } catch (error) {
-      if (tracked && error?.name !== 'AbortError') {
+      // The tray probe has a deliberate short deadline and a browser-notification fallback.
+      // Its caller logs the failure; a handled timeout is not a studio connection failure.
+      const isOptionalTrayTimeout =
+        method === 'GET' && url?.pathname === '/api/tray/status' && error?.name === 'TimeoutError';
+      if (tracked && error?.name !== 'AbortError' && !isOptionalTrayTimeout) {
         reportClientError({
           kind: 'fetch',
           message: `${method} ${url.pathname} could not reach the studio: ${error?.message || 'network error'}`,

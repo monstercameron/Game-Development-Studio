@@ -6,14 +6,15 @@ export function isDerivedMusic(job) {
 // (not panorama).
 function supportsSeedOverride(job) {
   return (
-    ['images', 'music', 'sfx', 'voices', '3d', 'trellis', 'motion'].includes(job.type) ||
+    ['images', 'music', 'sfx', 'voices', 'drama3', '3d', 'trellis', 'motion'].includes(job.type) ||
     (job.type === 'world' && job.request.model === 'worldgen' && job.request.mode !== 'panorama')
   );
 }
 
 // Keep every model setting from the original render unless the creator changes it.
 export function rerunRequest(job, prompt, { seed, reference } = {}) {
-  const key = job.type === 'music' ? 'style' : job.type === 'voices' ? 'text' : 'prompt';
+  const key =
+    job.type === 'music' ? 'style' : ['voices', 'drama3'].includes(job.type) ? 'text' : 'prompt';
   // An extension or re-synthesis takes its style from the track it continues, so a new style
   // cannot be applied; the rerun repeats it with another seed.
   const request =

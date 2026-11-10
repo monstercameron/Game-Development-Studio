@@ -1,0 +1,41 @@
+.drama3-controls {
+  display: grid;
+  gap: var(--forge-space-4);
+  margin-block: var(--forge-space-4);
+}
+.drama3-controls h3 {
+  margin: 0 0 var(--forge-space-1);
+  color: var(--forge-text-strong);
+}
+.drama3-controls p {
+  margin: 0;
+  color: var(--forge-muted);
+  line-height: 1.5;
+}
+.drama3-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--forge-space-4);
+}
+.drama3-fields label {
+  display: grid;
+  align-content: start;
+  gap: var(--forge-space-1);
+  color: var(--forge-text-strong);
+}
+.drama3-fields input {
+  min-width: 0;
+  padding: var(--forge-space-2);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-surface-inset);
+  color: var(--forge-text-strong);
+  font: inherit;
+}
+.drama3-fields small {
+  color: var(--forge-muted);
+  line-height: 1.4;
+}
+.drama3-license {
+  font-size: var(--forge-font-caption);
+}

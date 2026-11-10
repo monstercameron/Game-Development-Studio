@@ -25,6 +25,7 @@ const JOB_TYPE_NAMES = {
   images: 'Image',
   video: 'Video',
   voices: 'Voice',
+  drama3: 'Drama 3 voice',
   '3d': '3D shape',
   trellis: '3D model',
   motion: 'Motion clip',
@@ -55,16 +56,30 @@ export function useRuntimeNotifications() {
         if (stopped) {
           return;
         }
+        // Only check the optional tray when a completion might need an alert. This avoids
+        // probing it continuously while idle, and the browser remains the fallback on timeout.
+        const completed = previous
+          ? jobs.filter(
+              (job) =>
+                job.status === 'completed' &&
+                previous.get(job.id) &&
+                previous.get(job.id) !== 'completed',
+            )
+          : [];
         let tray = { active: false };
         try {
-          // log-coverage: ignore -- same-origin /api request; the browser capture logs failures.
-          const trayResponse = await fetch('/api/tray/status', {
-            signal: AbortSignal.timeout(2000),
-          });
-          if (trayResponse.ok) {
-            tray = await trayResponse.json();
+          if (completed.length) {
+            // log-coverage: ignore -- fallback failures are logged once per streak below.
+            const trayResponse = await fetch('/api/tray/status', {
+              signal: AbortSignal.timeout(2000),
+            });
+            if (trayResponse.ok) {
+              tray = await trayResponse.json();
+            } else {
+              throw new Error(`Tray status returned HTTP ${trayResponse.status}.`);
+            }
+            isTrayFailing = false;
           }
-          isTrayFailing = false;
         } catch (error) {
           // Browser notifications remain available when the tray is unreachable.
           if (!isTrayFailing) {
@@ -76,12 +91,6 @@ export function useRuntimeNotifications() {
           return;
         }
         if (previous) {
-          const completed = jobs.filter(
-            (job) =>
-              job.status === 'completed' &&
-              previous.get(job.id) &&
-              previous.get(job.id) !== 'completed',
-          );
           for (const job of completed) {
             if (tray.active && tray.render) {
               log.debug('ui.completion.skipped', { jobId: job.id, reason: 'tray_shows_render' });

@@ -78,7 +78,21 @@ test(
     probe.listen(0, '127.0.0.1');
     await once(probe, 'listening');
     const port = probe.address().port;
-    await new Promise((resolve) => probe.close(resolve));
+    // The copied studio must not discover a real Qwen service on the developer's machine.
+    // Give its built-in TTS endpoint a separate unused port, without changing the live app.
+    const ttsProbe = createServer();
+    ttsProbe.listen(0, '127.0.0.1');
+    await once(ttsProbe, 'listening');
+    const ttsPort = ttsProbe.address().port;
+    await Promise.all([
+      new Promise((resolve) => probe.close(resolve)),
+      new Promise((resolve) => ttsProbe.close(resolve)),
+    ]);
+    for (const file of ['catalog.js', 'diagnostics.js', 'engines.js', 'jobs.js']) {
+      const target = path.join(root, 'runtime', file);
+      const source = await fs.readFile(target, 'utf8');
+      await fs.writeFile(target, source.replaceAll('8281', String(ttsPort)));
+    }
     const env = Object.fromEntries(
       Object.entries(process.env).filter(([key]) => !key.startsWith('FORGE_')),
     );

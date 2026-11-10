@@ -98,6 +98,11 @@ platform details and alternate ports.
 - **Creation panels:** queue supported image, audio, video, speech, segmentation,
   shape, motion, world and vegetation jobs. Select compatible project assets as
   inputs and iterate on supported results.
+- **Expressive voices:** the Voices page includes an experimental Fish Audio
+  Drama 3 Q4 option alongside Qwen3-TTS. Tune its audio-token limit, temperature,
+  top-p and seed, then queue speech for the current project. An isolated Studio
+  queue test produced non-silent audio on the reference Windows CUDA machine;
+  subjective audio quality has not yet been evaluated.
 - **One render queue:** sequential jobs persist across restarts; uncertain
   submissions pause for review instead of being resubmitted. Reorder waiting
   jobs, chain a finished result into the next render, and read estimates that can
@@ -173,22 +178,37 @@ _The Models and services catalog on a source checkout with no model weights inst
 
 ## Models and engines
 
-| Workspace               | Integrated models or services                    | Notes                                                                                                                                                                               |
-| ----------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Images                  | Qwen Image 2.1                                   | Local image generation, supported image references and LoRA files.                                                                                                                  |
-| Music and sound         | YuE2, Stable Audio 3                             | Stable Audio is gated and requires approved access.                                                                                                                                 |
-| Voice                   | Qwen3-TTS, NVIDIA Nemotron Speech Streaming      | TTS offers preset, cloned and designed voices (cloning needs a reference clip, its transcript and a consent confirmation). Speech recognition supports realtime and file workflows. |
-| Video                   | MiniMax H3 Ref2VA                                | Uses the separately installed H3 application and native renderer.                                                                                                                   |
-| 3D and worlds           | Hunyuan3D 2.1, TRELLIS.2, WorldGen, HY-World 2.0 | TRELLIS.2 remains experimental; a complete render has not been verified. World output may need cleanup before use in a game.                                                        |
-| Vegetation              | SeedThree (linked repository, alpha)             | Runs on the CPU in a separate Node process; no model or GPU. Flat materials, no textures or wind animation.                                                                         |
-| Segmentation and motion | SAM 3.1, HY-Motion 1.0, NVIDIA MotionBricks      | Motion workflows are experimental and do not provide automatic character rigging or retargeting.                                                                                    |
-| Chat and game logic     | Qwen3.8-27B, Mammoth-1, compatible chat APIs     | Local chat uses a native CUDA llama.cpp server; MTP speculative decoding is configurable but needs verification on the target installation.                                         |
+| Workspace               | Integrated models or services                                      | Notes                                                                                                                                                                                                                                                                                      |
+| ----------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Images                  | Qwen Image 2.1                                                     | Local image generation, supported image references and LoRA files.                                                                                                                                                                                                                         |
+| Music and sound         | YuE2, Stable Audio 3                                               | Stable Audio is gated and requires approved access.                                                                                                                                                                                                                                        |
+| Voice                   | Qwen3-TTS, Fish Audio Drama 3 Q4, NVIDIA Nemotron Speech Streaming | Qwen3-TTS offers preset, cloned and designed voices; cloning needs a reference clip, transcript and consent confirmation. Drama 3's queue produced audio on the reference Windows CUDA machine; subjective quality is unverified. Speech recognition supports realtime and file workflows. |
+| Video                   | MiniMax H3 Ref2VA                                                  | Uses the separately installed H3 application and native renderer.                                                                                                                                                                                                                          |
+| 3D and worlds           | Hunyuan3D 2.1, TRELLIS.2, WorldGen, HY-World 2.0                   | TRELLIS.2 remains experimental; a complete render has not been verified. World output may need cleanup before use in a game.                                                                                                                                                               |
+| Vegetation              | SeedThree (linked repository, alpha)                               | Runs on the CPU in a separate Node process; no model or GPU. Flat materials, no textures or wind animation.                                                                                                                                                                                |
+| Segmentation and motion | SAM 3.1, HY-Motion 1.0, NVIDIA MotionBricks                        | Motion workflows are experimental and do not provide automatic character rigging or retargeting.                                                                                                                                                                                           |
+| Chat and game logic     | Qwen3.8-27B, Mammoth-1, compatible chat APIs                       | Local chat uses a native CUDA llama.cpp server; MTP speculative decoding is configurable but needs verification on the target installation.                                                                                                                                                |
 
 Availability varies by model, platform, installed dependencies and granted
 access. A present file or reachable service does not establish a working GPU
 render. The [model source guide](docs/MODEL_SOURCES.md) records sources,
 restore steps, compatibility work and known verification limits. Integrations
 that are planned but not built are listed in the [roadmap](docs/ROADMAP.md).
+ACE-Step 1.5 is being investigated but is not integrated or tested for inference.
+
+Drama 3 uses a [community Q4 checkpoint](https://huggingface.co/Jmica/Drama-3-GGUF)
+derived from [Fish Audio Drama 3](https://huggingface.co/fishaudio/drama-3) and
+requires a separately built [audio.cpp](https://github.com/0xShug0/audio.cpp)
+CUDA engine. The weights use the [Fish Audio Community License](https://huggingface.co/fishaudio/drama-3/blob/main/LICENSE),
+which has conditions for commercial use and hosted services. To stage the pinned,
+checksum-verified weights, run `.\install.ps1 -Models drama3`; installing the model
+files alone does not install its native engine. On the reference Windows ARM64
+machine, an isolated Studio queue test ran the native Q4 CUDA worker with
+disk-backed experts and saved a 4.23-second mono 44.1 kHz WAV in 79.8 seconds.
+The completed queue entry persisted after reopening its database. The file was
+non-silent, but subjective audio quality has not yet been evaluated. See the
+[model source guide](docs/MODEL_SOURCES.md#fish-audio-drama-3-q4) for the pinned
+revision and setup notes.
 
 ## Data and model storage
 
@@ -215,8 +235,9 @@ implications before exposing it to another machine.
 
 Forge provides local HTTP APIs and MCP tools for model discovery, project and
 asset operations, queue control, and supported creation workflows. For example,
-`GET /api/models` returns the model catalog. The same surface covers Studio
-settings, the Studio log, the recovery report and error review, and the MCP tools
+`GET /api/models` returns the model catalog, and `forge_queue_drama3` queues a
+Drama 3 speech render with the selected project and voice settings. The same
+surface covers Studio settings, the Studio log, the recovery report and error review, and the MCP tools
 can start a single engine, change the queue and engine toggles, and read logs
 and the recovery report. With the Studio service running, the MCP bridge can also
 be started over stdio:

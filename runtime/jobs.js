@@ -13,6 +13,9 @@ import { normalizeVideoRequest } from './video-options.js';
 import { stageProjectAsset } from './references.js';
 import { quickCheckoutStatus, loadSchemaSync } from './vegetation-runner.js';
 import { cleanVegetationResult, normalizeVegetationRequest } from './vegetation-request.js';
+import { normalizeDrama3Request } from './drama3-request.js';
+import { drama3Installation, DRAMA3_GPU_BUDGET_MIB } from './drama3-runner.js';
+import { planModelLoad } from './model-load.js';
 import { checkpointForRequest, checkpointLoadedFor, voiceModeFields } from './voice-modes.js';
 import { NEXT_RANK_SQL, moveQueuedJob, parseMoveRequest } from './queue-order.js';
 import { openDatabase } from './durable-db.js';
@@ -153,12 +156,21 @@ function validateType(input, root = projectsRoot) {
       'motion-bricks',
       'world',
       'vegetation',
+      'drama3',
     ].includes(input.type) ||
     typeof input.projectId !== 'string' ||
     !input.request ||
     typeof input.request !== 'object'
   ) {
     throw Error('Expected a supported render job with projectId and request.');
+  }
+  if (input.type === 'drama3') {
+    findProject(input.projectId, root);
+    return {
+      type: 'drama3',
+      projectId: input.projectId,
+      request: normalizeDrama3Request(input.request),
+    };
   }
   if (input.type === 'vegetation') {
     findProject(input.projectId, root);
@@ -944,6 +956,7 @@ function profile(type, request) {
     'motion-bricks': ['min_tokens', 'max_tokens'],
     world: ['model', 'mode', 'output', 'resolution'],
     vegetation: ['species', 'budget'],
+    drama3: ['max_tokens'],
   }[type];
   const values = keys.map((key) => request[key]);
   if (['images', 'video', 'world'].includes(type)) {
@@ -989,6 +1002,9 @@ function profile(type, request) {
   }
   if (type === 'motion') {
     values.push(request.guidance !== 1);
+  }
+  if (type === 'drama3') {
+    values.push(Math.ceil((request.text?.length || 0) / 50));
   }
   if (type === 'voices') {
     values.push(Math.ceil((request.text?.length || 0) / 50));
@@ -1080,6 +1096,7 @@ const LIFECYCLE_JOB_TYPES = new Set([
   'motion-bricks',
   'world',
   'vegetation',
+  'drama3',
 ]);
 const LIFECYCLE_STATUSES = new Set([
   'queued',
@@ -2702,6 +2719,10 @@ export class JobQueue {
       if (!job.remoteId && job.dependsOn && !(await this.freeChainParent(job, token))) {
         return;
       }
+      if (job.type === 'drama3') {
+        await this.startDrama3(job, token);
+        return;
+      }
       // Vegetation uses no engine, model or GPU memory: SeedThree runs in an isolated child
       // process. It has no remote job, so a row left running by an earlier runtime is grown again.
       if (job.type === 'vegetation') {
@@ -3086,6 +3107,71 @@ export class JobQueue {
     }
     return changed;
   }
+  // Drama 3 is an isolated CUDA process, so only a fresh GPU reading admits its load.
+  async startDrama3(job, token) {
+    if (job.status === 'finalizing' && (await this.completeFromSavedOutput(job, token))) {
+      return;
+    }
+    if (['running', 'finalizing'].includes(job.status)) {
+      this.update(
+        job.id,
+        {
+          status: 'interrupted',
+          stage: 'Needs attention.',
+          error: 'The local speech worker stopped unexpectedly. Check the worker before retrying.',
+        },
+        token,
+        'uncertain_recovery',
+      );
+      return;
+    }
+    try {
+      findProject(job.projectId, this.projects);
+      const installation = await drama3Installation();
+      if (!installation.ready) {
+        this.updatePending(
+          job.id,
+          {
+            status: 'needs_attention',
+            stage: 'Drama 3 is not installed.',
+            error: installation.message,
+          },
+          token,
+        );
+        return;
+      }
+      const snapshot = await this.refreshHardware?.();
+      const plan = planModelLoad(snapshot, [], DRAMA3_GPU_BUDGET_MIB);
+      if (plan.code !== 'ready') {
+        this.updatePending(
+          job.id,
+          this.preparationUpdate(job, {
+            status: 'waiting_memory',
+            stage: plan.message,
+            details: { ...plan, estimate: 'Uncalibrated estimate; actual GPU use may differ.' },
+          }),
+          token,
+        );
+        return;
+      }
+      const now = new Date().toISOString();
+      const claimed = this.db
+        .prepare(
+          "UPDATE jobs SET status='running',stage=?,error=NULL,details=NULL,started_at=?,finished_at=NULL,updated_at=? WHERE id=? AND status IN ('queued','waiting_engine','waiting_memory') AND EXISTS (SELECT 1 FROM runtime_owner WHERE id=1 AND owner=? AND epoch=? AND expires>?)",
+        )
+        .run('Starting Drama 3 on CUDA.', now, now, job.id, token.owner, token.epoch, Date.now());
+      if (claimed.changes) {
+        this.launch(job, token);
+      }
+    } catch (error) {
+      log.error('queue.drama3.start.failed', { jobId: job.id, errorClass: error.name });
+      this.update(
+        job.id,
+        { status: 'failed', stage: 'Failed to start Drama 3.', error: error.message },
+        token,
+      );
+    }
+  }
   // Starts a vegetation job: no engine health check and no memory admission, because the work is
   // CPU only and bounded by the child's own timeout and heap cap (see vegetation-runner.js).
   startVegetation(job, token) {
@@ -3165,7 +3251,11 @@ export class JobQueue {
   // remove its staged files; it is ended after a short grace period if it does not exit.
   cancelRunningVegetation(id) {
     const job = this.get(id);
-    if (job?.type !== 'vegetation' || job.status !== 'running' || this.active?.id !== id) {
+    if (
+      !['vegetation', 'drama3'].includes(job?.type) ||
+      job.status !== 'running' ||
+      this.active?.id !== id
+    ) {
       return false;
     }
     const now = new Date().toISOString();
@@ -3212,6 +3302,7 @@ export class JobQueue {
       'motion-bricks': './motionbricks-job.js',
       world: './world-job.js',
       vegetation: './vegetation-job.js',
+      drama3: './drama3-job.js',
     }[job.type];
     const child = fork(new URL(workerFile, import.meta.url), [], {
       execArgv: [],
@@ -3353,6 +3444,17 @@ export class JobQueue {
             token,
             'uncertain_recovery',
           );
+        } else if (job.type === 'drama3' && ['running', 'finalizing'].includes(current?.status)) {
+          this.update(
+            job.id,
+            {
+              status: 'interrupted',
+              stage: 'Needs attention.',
+              error: 'The local speech worker stopped unexpectedly. Check it before retrying.',
+            },
+            token,
+            'uncertain_recovery',
+          );
         } else if (job.type === 'vegetation' && current?.status === 'running') {
           // There is no remote job to ask about: the worker died, so say so and let Retry run it.
           this.update(
@@ -3378,7 +3480,7 @@ export class JobQueue {
         setImmediate(() => this.tick());
       }
     });
-    child.send({ job, projectFolder, baseUrl: engineUrl(job.type) });
+    child.send({ job, projectFolder, baseUrl: job.type === 'drama3' ? null : engineUrl(job.type) });
   }
   // The computer was suspended (sleep or hibernate) for `gapMs`. A submission that was in flight
   // may or may not have reached the engine, and its sockets are gone, so it becomes interrupted
@@ -3587,6 +3689,7 @@ function engineName(type) {
       'motion-bricks': 'MotionBricks',
       world: 'World generation',
       vegetation: 'SeedThree',
+      drama3: 'Fish Audio Drama 3',
     }[type] || 'engine'
   );
 }

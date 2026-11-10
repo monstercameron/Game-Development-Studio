@@ -237,3 +237,32 @@ test('LoRA listing and speech latency MCP tools use the runtime routes', async (
   assert.equal(rejected.isError, true);
   assert.equal(calls.length, 3);
 });
+
+test('Drama 3 MCP queues validated CUDA voice settings', async (t) => {
+  const { client, calls } = await connect(t);
+  const projectId = randomUUID();
+  const result = await client.callTool({
+    name: 'forge_queue_drama3',
+    arguments: {
+      projectId,
+      text: '[whisper] Hello',
+      seed: 42,
+      max_tokens: 600,
+      temperature: 0.8,
+      top_p: 0.9,
+    },
+  });
+  assert.notEqual(result.isError, true);
+  assert.equal(calls[0].path, '/api/runtime/jobs');
+  assert.deepEqual(calls[0].body, {
+    type: 'drama3',
+    projectId,
+    request: { text: '[whisper] Hello', seed: 42, max_tokens: 600, temperature: 0.8, top_p: 0.9 },
+  });
+  const invalid = await client.callTool({
+    name: 'forge_queue_drama3',
+    arguments: { projectId, text: 'Hello', max_tokens: 2049 },
+  });
+  assert.equal(invalid.isError, true);
+  assert.equal(calls.length, 1);
+});

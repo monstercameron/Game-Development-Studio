@@ -99,7 +99,25 @@ test('every row links to a real card, and model rows carry the card title', () =
   const cards = [...document.querySelectorAll('article.model')];
   const modelCards = cards.filter((card) => !card.classList.contains('model-support'));
   const modelRows = data.rows.filter((row) => row.kind === 'weights');
-  assert.equal(modelRows.length, modelCards.length, 'one row per model card');
+  const definitions = new Map(
+    ROW_DEFINITIONS.filter((row) => row.kind === 'weights').map((row) => [row.card, row]),
+  );
+  for (const card of modelCards) {
+    const definition = definitions.get(card.id);
+    assert.ok(definition, `${card.id} has a current capacity mapping`);
+    assert.equal(card.querySelector('h3').textContent, definition.name);
+    if (!modelRows.some((row) => row.card === card.id)) {
+      assert.match(card.dataset.capacityAdded || '', /^\d{4}-\d{2}-\d{2}$/);
+      assert.ok(
+        card.dataset.capacityAdded > data.generatedAt.slice(0, 10),
+        `${card.id} must postdate this historical snapshot`,
+      );
+    }
+  }
+  assert.match(
+    document.querySelector('#capacity .section-lead').textContent,
+    /historical snapshot/i,
+  );
   for (const row of data.rows) {
     const card = document.getElementById(row.card);
     assert.ok(card?.classList.contains('model'), `${row.name} -> #${row.card}`);

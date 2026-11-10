@@ -290,6 +290,27 @@
       ]
     },
     {
+      "id": "drama3",
+      "name": "Fish Audio Drama 3 Q4",
+      "sources": [
+        "https://huggingface.co/Jmica/Drama-3-GGUF",
+        "https://huggingface.co/fishaudio/drama-3",
+        "https://github.com/0xShug0/audio.cpp"
+      ],
+      "destination": "models/Drama-3-GGUF-Q4; engines/drama3/bin (separate native build)",
+      "notes": "Stages the pinned Q4 checkpoint; the native CUDA audio.cpp engine must be built separately. Review the Fish Audio Community License before use.",
+      "downloads": [
+        {
+          "repo": "Jmica/Drama-3-GGUF",
+          "revision": "060acc8e5d9e5d16baf647c775dfe1a1438f5f35",
+          "destination": "Drama-3-GGUF-Q4",
+          "files": ["drama-3-backbone-4bit-experts-Q4_K_S.gguf"],
+          "sha256File": "drama-3-backbone-4bit-experts-Q4_K_S.gguf",
+          "sha256": "5f71c8b52dc50ceaeb4c1fc99ba30db1333c0fbbaa4d6934fa6c7c7a3c9d3f62"
+        }
+      ]
+    },
+    {
       "id": "tts",
       "name": "Qwen3-TTS CustomVoice",
       "sources": [

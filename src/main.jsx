@@ -42,6 +42,7 @@ import RuntimeQueue, {
   enqueueImage,
   enqueueVideo,
   enqueueVoice,
+  enqueueDrama3,
   enqueueSegmentation,
   enqueueMotion,
   enqueueMotionBricks,
@@ -65,6 +66,7 @@ import VideoMediaInputs from './VideoMediaInputs';
 import { clearVideoFrames, getVideoFrames } from './video-media-store';
 import SoundSource from './SoundSource';
 import VoiceModeControls from './VoiceModeControls';
+import Drama3Controls from './Drama3Controls';
 import { firstVoiceModeError, voiceModeFieldErrors } from './voice-modes.js';
 import FieldError from './FieldError';
 import { creationFieldErrors, validationSummary } from './creation-validation.js';
@@ -92,7 +94,7 @@ import ErrorsButton from './ErrorsButton';
 import ErrorsDialog from './ErrorsDialog';
 import AiAssistSettings from './AiAssistSettings';
 import StudioBehaviourSettings from './StudioBehaviourSettings';
-import { I18nProvider } from './i18n/index.js';
+import { I18nProvider, useT } from './i18n/index.js';
 import LanguageMenu from './i18n/LanguageMenu';
 import { shippedCatalogs } from './i18n/shipped-catalogs.js';
 import { createLog } from './app-log.js';
@@ -471,6 +473,7 @@ function load(key, fallback) {
   }
 }
 function App() {
+  const { t } = useT();
   useRuntimeNotifications();
   const { jobs: runtimeJobs, loading: queueLoading, error: queueError } = useQueueTiming();
   const queueStatus = (id) =>
@@ -757,7 +760,9 @@ function App() {
         ? ['TRELLIS.2', 'Hunyuan3D 2.1']
         : section === 'motion'
           ? ['HY-Motion 1.0', 'NVIDIA MotionBricks']
-          : [];
+          : section === 'voices'
+            ? [current.model, 'Fish Audio Drama 3']
+            : [];
     return {
       ...initialDrafts[section],
       ...drafts[section],
@@ -771,6 +776,7 @@ function App() {
     (section === '3d' && ['Hunyuan3D 2.1', 'TRELLIS.2'].includes(draft.model || current.model)) ||
     (section === 'motion' &&
       ['HY-Motion 1.0', 'NVIDIA MotionBricks'].includes(draft.model || current.model));
+  const voiceIsDrama3 = section === 'voices' && draft.model === 'Fish Audio Drama 3';
   const estimateProjectId = activeProject?.id;
   const currentModel = current?.model;
   const selectProject = () => {
@@ -802,8 +808,9 @@ function App() {
     if (!supportsRender) {
       return;
     }
-    const type =
-      section === '3d' && (draft.model || currentModel) === 'TRELLIS.2'
+    const type = voiceIsDrama3
+      ? 'drama3'
+      : section === '3d' && (draft.model || currentModel) === 'TRELLIS.2'
         ? 'trellis'
         : section === 'motion' && draft.model === 'NVIDIA MotionBricks'
           ? 'motion-bricks'
@@ -886,6 +893,7 @@ function App() {
     supportsRender,
     renderQueueVersion,
     completedHistory,
+    voiceIsDrama3,
   ]);
   const update = (values) =>
     setDrafts((d) => ({
@@ -1026,7 +1034,9 @@ function App() {
           draft.prompt ||
           (section === '3d' ? `3D model from ${draft.refs[0].name}` : 'MotionBricks motion draft'),
         second: draft.second,
-        model: ['3d', 'motion'].includes(section) ? draft.model || current.model : current.model,
+        model: ['3d', 'motion', 'voices'].includes(section)
+          ? draft.model || current.model
+          : current.model,
         options: draft.options,
         refs: draft.refs,
         characterFile: draft.characterFile || null,
@@ -1219,7 +1229,7 @@ function App() {
     if (!selectProject() || blockInvalidSubmit()) {
       return;
     }
-    const voiceError = firstVoiceModeError(voiceModeFieldErrors(draft));
+    const voiceError = voiceIsDrama3 ? '' : firstVoiceModeError(voiceModeFieldErrors(draft));
     if (voiceError) {
       setVoiceSubmitAttempts((count) => count + 1);
       log.info('ui.submit.rejected', { page: 'voices', reason: 'invalid_voice_mode' });
@@ -1228,7 +1238,9 @@ function App() {
     }
     setSubmittingMusic(true);
     try {
-      await enqueueVoice(activeProject.id, draft);
+      await (voiceIsDrama3
+        ? enqueueDrama3(activeProject.id, draft)
+        : enqueueVoice(activeProject.id, draft));
       setRenderQueueVersion((v) => v + 1);
       log.info('ui.queue.submitted', { kind: 'voices', projectId: activeProject.id });
       setNotice('Voice added to the durable queue.');
@@ -1329,7 +1341,7 @@ function App() {
     }
     switchTo(job.kind, {
       project: projects.some((project) => project.id === job.projectId) ? job.projectId : null,
-      model: ['3d', 'motion'].includes(job.kind) ? job.model : null,
+      model: ['3d', 'motion', 'voices'].includes(job.kind) ? job.model : null,
     });
     setNotice(
       ['video', 'images', '3d', 'segmentation'].includes(job.kind) && job.refs?.length
@@ -1816,11 +1828,13 @@ function App() {
               </div>
               <ModelPlaque
                 model={
-                  ['3d', 'motion'].includes(section) ? draft.model || current.model : current.model
+                  ['3d', 'motion', 'voices'].includes(section)
+                    ? draft.model || current.model
+                    : current.model
                 }
                 supportsRender={supportsRender}
                 isGame={section === 'game'}
-                hasModelSelector={['3d', 'motion'].includes(section)}
+                hasModelSelector={['3d', 'motion', 'voices'].includes(section)}
                 budget={section === 'video' ? videoBudgetLabel(draft) : null}
               />
             </div>
@@ -1867,6 +1881,25 @@ function App() {
                       <current.icon size={18} />
                     </div>
                   </div>
+                  {section === 'voices' && (
+                    <>
+                      <label htmlFor="voice-model" className="field-label">
+                        {t('voices.model.label', 'Voice model')}
+                      </label>
+                      <select
+                        id="voice-model"
+                        className="model3d-select"
+                        value={draft.model || current.model}
+                        onChange={(event) => {
+                          update({ model: event.target.value });
+                          updateSearch(setRouteParams, { model: event.target.value });
+                        }}
+                      >
+                        <option value={current.model}>Qwen3-TTS</option>
+                        <option value="Fish Audio Drama 3">Fish Audio Drama 3 · Q4</option>
+                      </select>
+                    </>
+                  )}
                   {section === '3d' && (
                     <>
                       <label htmlFor="model3d" className="field-label">
@@ -2019,7 +2052,8 @@ function App() {
                       </p>
                     </>
                   )}
-                  {section === 'voices' && (
+                  {voiceIsDrama3 && <Drama3Controls draft={draft} update={update} />}
+                  {section === 'voices' && !voiceIsDrama3 && (
                     <VoiceModeControls
                       project={activeProject}
                       projects={projects}
@@ -2218,6 +2252,7 @@ function App() {
                       {current.options.map((o, i) =>
                         (section === 'segmentation' && i === 0) ||
                         // Cloned and designed voices come from the clip or description, not a preset.
+                        (section === 'voices' && voiceIsDrama3) ||
                         (section === 'voices' &&
                           i === 0 &&
                           ['clone', 'design'].includes(draft.voiceMode)) ? null : (
@@ -2285,7 +2320,7 @@ function App() {
                     <SegmentationMatchControls draft={draft} onChange={update} />
                   )}
                   <AudioSettings
-                    section={section}
+                    section={voiceIsDrama3 ? '' : section}
                     draft={draft}
                     update={update}
                     sourcePicker={
@@ -2493,7 +2528,12 @@ function App() {
                           : section === 'video'
                             ? 'Forge checks GPU memory before H3 loads and renders.'
                             : section === 'voices'
-                              ? 'Forge loads the Qwen3-TTS checkpoint your voice mode needs and checks GPU memory first. Switching between preset, clone and design unloads the previous checkpoint.'
+                              ? voiceIsDrama3
+                                ? t(
+                                    'voices.drama3.modelNote',
+                                    'Forge runs Drama 3 on CUDA with disk-backed experts, then releases it after the render. Its GPU memory estimate is provisional.',
+                                  )
+                                : 'Forge loads the Qwen3-TTS checkpoint your voice mode needs and checks GPU memory first. Switching between preset, clone and design unloads the previous checkpoint.'
                               : section === '3d'
                                 ? (draft.model || current.model) === 'TRELLIS.2'
                                   ? 'TRELLIS.2 is experimental and its memory use is not calibrated. Forge checks GPU and system memory before loading.'

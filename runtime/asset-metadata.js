@@ -168,6 +168,7 @@ const jobModelId = {
   images: 'images',
   video: 'video',
   voices: 'tts',
+  drama3: 'drama3',
   '3d': '3d-hunyuan',
   trellis: '3d-trellis',
   segmentation: 'segmentation',
@@ -180,6 +181,7 @@ const jobKind = {
   images: 'image',
   video: 'video',
   voices: 'voice',
+  drama3: 'voice',
   '3d': '3d',
   trellis: '3d',
   segmentation: 'mask',
@@ -242,6 +244,7 @@ function extensionKind(rel) {
 const promptKeys = {
   music: ['style', 'negative', 'lyrics', 'title'],
   voices: ['text', null, 'instruct', null],
+  drama3: ['text', null, null, null],
   images: ['prompt', 'negative_prompt', null, null],
   video: ['prompt', 'negative_prompt', null, null],
 };

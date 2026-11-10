@@ -29,6 +29,7 @@ const models = {
   },
   YuE2: { icon: Music2, budget: '~24 GiB load' },
   'Stable Audio 3': { icon: AudioLines, budget: '~20 GiB load' },
+  'Fish Audio Drama 3': { icon: Mic2, budget: 'not calibrated' },
   'Qwen3-TTS 1.7B · Preset voices': { icon: Mic2, budget: '~12 GiB load · +8 GiB render' },
   'Meta SAM 3.1': { icon: Scissors, budget: '~12 GiB load' },
   'Mammoth-1 · OneJev': { icon: Cpu, budget: '~24 GiB load' },
@@ -66,7 +67,7 @@ export default function ModelPlaque({
   const badgeTone = supportsRender || isGame ? 'integration-badge' : 'integration-badge preview';
   const badgeClassName = hasModelSelector ? `${badgeTone} model-plaque-action` : badgeTone;
   const handleOpenModelSelector = () => {
-    const selector = document.querySelector('#model3d, #motion-model');
+    const selector = document.querySelector('#model3d, #motion-model, #voice-model');
     selector?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     selector?.focus({ preventScroll: true });
   };

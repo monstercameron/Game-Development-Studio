@@ -78,7 +78,7 @@ foreach ($id in $requested) {
     if ($matches.Count -ne 1) { throw "Unknown model '$id'. Use -ListModels to see available IDs." }
     $selected += $matches[0]
 }
-$managedFolders = @{'worldgen'='worldgen'; '3d-hunyuan'='Hunyuan3D-2.1'; 'motion-hy'='HY-Motion'; 'motion-bricks'='MotionBricks'; 'tts'='Qwen3-TTS-12Hz-1.7B-CustomVoice'; 'tts-base'='Qwen3-TTS-12Hz-1.7B-Base'; 'tts-voicedesign'='Qwen3-TTS-12Hz-1.7B-VoiceDesign'; 'asr'='nemotron-speech-streaming-en-0.6b'; 'segmentation'='sam3.1'}
+$managedFolders = @{'drama3'='Drama-3-GGUF-Q4'; 'worldgen'='worldgen'; '3d-hunyuan'='Hunyuan3D-2.1'; 'motion-hy'='HY-Motion'; 'motion-bricks'='MotionBricks'; 'tts'='Qwen3-TTS-12Hz-1.7B-CustomVoice'; 'tts-base'='Qwen3-TTS-12Hz-1.7B-Base'; 'tts-voicedesign'='Qwen3-TTS-12Hz-1.7B-VoiceDesign'; 'asr'='nemotron-speech-streaming-en-0.6b'; 'segmentation'='sam3.1'}
 if ($Activate) {
     if (-not $selected.Count) { throw '-Activate requires at least one model ID.' }
     foreach ($model in $selected) { if (-not $managedFolders.ContainsKey($model.id)) { throw "$($model.id) cannot be activated automatically. Stage it without -Activate and follow its separate instructions." } }

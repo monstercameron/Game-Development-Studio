@@ -69,7 +69,7 @@ function matches(asset, section) {
 // Only these job types take a new random seed on rerun. World jobs do so in worldgen mode only.
 function supportsNewSeed(job) {
   return (
-    ['images', 'music', 'sfx', 'voices', '3d', 'trellis', 'motion'].includes(job.type) ||
+    ['images', 'music', 'sfx', 'voices', 'drama3', '3d', 'trellis', 'motion'].includes(job.type) ||
     (job.type === 'world' && job.request.model === 'worldgen' && job.request.mode !== 'panorama')
   );
 }
@@ -195,7 +195,9 @@ export default function PreviewArea({
     }
   }
   const jobPrompt = job
-    ? job.request[job.type === 'music' ? 'style' : job.type === 'voices' ? 'text' : 'prompt'] || ''
+    ? job.request[
+        job.type === 'music' ? 'style' : ['voices', 'drama3'].includes(job.type) ? 'text' : 'prompt'
+      ] || ''
     : '';
   const hasJob = Boolean(job);
   useEffect(() => {
@@ -270,7 +272,8 @@ export default function PreviewArea({
     }
   }
   function beginRefine() {
-    const key = job.type === 'music' ? 'style' : job.type === 'voices' ? 'text' : 'prompt';
+    const key =
+      job.type === 'music' ? 'style' : ['voices', 'drama3'].includes(job.type) ? 'text' : 'prompt';
     setPrompt(job.request[key] || '');
     setNewSeed(true);
     setUseImage(false);
@@ -520,7 +523,7 @@ export default function PreviewArea({
                 ) && (
                   <>
                     <label htmlFor="iteration-prompt">
-                      {job.type === 'voices'
+                      {['voices', 'drama3'].includes(job.type)
                         ? 'Voice text'
                         : job.type === 'music'
                           ? 'Music style'

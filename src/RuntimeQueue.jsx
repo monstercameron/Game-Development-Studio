@@ -15,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
+import { drama3Request } from './drama3-settings.js';
 import ForceStopDialog from './ForceStopDialog';
 import useEngineSnapshot from './use-engine-snapshot.js';
 import {
@@ -151,6 +152,13 @@ function formatAge(seconds) {
 }
 
 function payload(type, projectId, draft) {
+  if (type === 'drama3') {
+    return {
+      type,
+      projectId,
+      request: drama3Request(draft, { estimate: draft.dramaEstimate === true }),
+    };
+  }
   if (type === '3d') {
     return { type, projectId, request: hunyuanShapeRequest(draft) };
   }
@@ -188,6 +196,8 @@ export const enqueueSound = (projectId, draft) =>
   post('/api/runtime/jobs', payload('sfx', projectId, draft));
 export const enqueueVoice = (projectId, draft) =>
   post('/api/runtime/jobs', payload('voices', projectId, draft));
+export const enqueueDrama3 = (projectId, draft) =>
+  post('/api/runtime/jobs', payload('drama3', projectId, draft));
 export async function stageReferences(projectId, files) {
   const referenceIds = [];
   for (const file of files) {
@@ -364,9 +374,10 @@ export async function enqueueMotionBricks(projectId, draft, file) {
 export const estimatePayload = (type, projectId, draft) =>
   payload(type, projectId, {
     ...draft,
-    prompt: type === 'voices' ? draft.prompt || 'estimate' : 'estimate',
+    prompt: ['voices', 'drama3'].includes(type) ? draft.prompt || 'estimate' : 'estimate',
     second: type === 'voices' ? draft.second || '' : '[Instrumental]',
     seed: '',
+    dramaEstimate: true,
     // Estimates never save files: stand-in ids are enough to validate the settings.
     ...(type === 'video' && draft.videoSource === 'frames'
       ? {
@@ -398,6 +409,7 @@ const outputNouns = {
   music: 'track',
   sfx: 'sound',
   voices: 'voice',
+  drama3: 'voice',
   video: 'video',
   segmentation: 'cutout',
   '3d': 'model',
@@ -698,6 +710,7 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
               images: 'Image',
               video: 'Video',
               voices: 'Voice',
+              drama3: 'Drama 3 voice',
               '3d': '3D shape',
               trellis: '3D model',
               motion: 'Motion',
@@ -778,6 +791,15 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
           >
             <Square size={14} aria-hidden="true" />
             Stop this render…
+          </button>
+        )}
+        {job.type === 'drama3' && job.status === 'running' && (
+          <button
+            disabled={busy === job.id}
+            className="icon-outline"
+            onClick={() => action(job, 'cancel')}
+          >
+            <Square size={14} aria-hidden="true" /> Stop this render
           </button>
         )}
         {['queued', 'waiting_engine', 'waiting_memory', 'needs_attention'].includes(job.status) && (

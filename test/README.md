@@ -19,6 +19,10 @@ To run a focused group, pass the filenames after `node --test`, for example `tes
 
 For World studio changes, `node --test test/world-queue.test.js test/world-mcp.test.js test/nav-queue-status.test.js` covers the queue adapter, MCP and page indicators using substitute services. The WorldGen LoRA and perspective-ray helpers and Windows memory guard also have Python unit tests; see [agent setup](../docs/AGENT_SETUP.md#4-validate-the-right-layer) for the commands and environment paths. These tests do not run full GPU inference.
 
+`node --test test/acestep-protocol.test.js` checks the isolated ACE-Step response parser,
+including unknown task IDs, timeout ambiguity and audio endpoint restrictions. It does not connect
+ACE-Step to Forge or test an engine, network, GPU or audio output.
+
 ## 3D chaining, recipes, pipelines and conversion
 
 `node --test test/job-chain.test.js test/three-d-chain-e2e.test.js test/three-d-inputs.test.js test/three-d-inputs-ui.test.js test/three-d-mcp.test.js test/three-d-options.test.js test/model-convert.test.js` covers job chaining in the durable queue (validation, restart, cancel and failure policy, legacy databases), a full chain through the real queue and job workers against fake SAM, Qwen, Hunyuan and TRELLIS.2 services, the 3D page controls in jsdom, the MCP tools, TRELLIS.2 pipeline budgets, and 3D conversion. `test/model_convert_test.py` and the last test in `model-convert.test.js` run the real trimesh converter on tiny generated meshes; run the Python file with the Hunyuan3D environment (`.forge-runtime\hunyuan3d-venv\Scripts\python.exe test\model_convert_test.py`). None of these load a model or use the GPU.
@@ -95,3 +99,18 @@ The first loads and executes the real DINOv3 encoder on CUDA. The second loads t
 `node --test test/site-capacity.test.js` checks `site/model-capacity.json` (schema, each row's GiB against its bytes, per-row sums against the totals, shares adding to 100%, no absolute path, user name or host name), that every row maps to a model card on the page, that the no-JavaScript table in `site/index.html` is exactly what the JSON produces, and, in jsdom with no network, that `site/capacity.js` renders the tiles and table, sorts with `aria-sort` on header clicks and leaves the static table alone when the JSON cannot be loaded. It also runs the folder scan of `tools/model-capacity.mjs` on a temporary folder (hard links counted once, a forgotten folder over 100 MiB refused). It does not re-measure the real `models/` folder; `npm run site:capacity` does, and the figures are only as current as its last run. See [Refreshing the capacity figures](../docs/STUDIO_GUIDE.md#refreshing-the-capacity-figures).
 
 See the [model source guide](../docs/MODEL_SOURCES.md) for exact checkpoint locations and the [Windows build guide](../docs/WINDOWS_ARM64.md) for compiled dependency details.
+
+## Tray notification fallback
+
+`node --test test/tray-notifications.test.js test/tray-status.test.js` checks that the browser only asks for tray status on observed completions, falls back when the optional probe times out, suppresses browser notices when the native tray reports it will notify, and still reports real network failures. It uses fake responses and jsdom; it does not exercise the Windows notification center.
+
+## Drama 3 voice runner
+
+`node --test test/drama3-request.test.js test/drama3-runner.test.js` checks bounded inputs,
+CUDA-only engine arguments, private request-file transport, WAV saving and memory errors with a
+fake process. It does not establish model quality or prove that native GPU inference works.
+
+`python test/test_drama3_win_launcher.py -v` runs only on Windows when the locally built
+launcher is present. It uses harmless Python children to check argument quoting, exit status,
+the hard working-set limit, and child cleanup when the launcher is terminated. It does not load
+a model or use the GPU.

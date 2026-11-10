@@ -14,6 +14,43 @@ one-time migration and cleanup journals are in the Codex workspace's `outputs`
 directory. Installed runtimes, native extensions and standalone source remain in
 their existing locations.
 
+### Fish Audio Drama 3 Q4
+
+The Voices page can submit Drama 3 jobs to a native CUDA audio.cpp worker. Its community
+[Q4 checkpoint](https://huggingface.co/Jmica/Drama-3-GGUF), revision
+`060acc8e5d9e5d16baf647c775dfe1a1438f5f35`, is stored under
+`models/Drama-3-GGUF-Q4/drama-3-backbone-4bit-experts-Q4_K_S.gguf` (23,371,670,016 bytes;
+SHA-256 `5f71c8b52dc50ceaeb4c1fc99ba30db1333c0fbbaa4d6934fa6c7c7a3c9d3f62`).
+The quantization is derived from [Fish Audio Drama 3](https://huggingface.co/fishaudio/drama-3).
+Review the [Fish Audio Community License](https://huggingface.co/fishaudio/drama-3/blob/main/LICENSE)
+before use, especially its commercial and hosted-service conditions.
+
+The separate [audio.cpp](https://github.com/0xShug0/audio.cpp) source revision
+`0382d37fe6e1a817b6b8fed5dcaab0e11fd1e8e6` supplies the native engine; Forge expects its
+CUDA executable and dependent DLLs in `engines/drama3/bin`. These locally built files and model
+weights are not included in the Git repository. Forge sends prompts through a short-lived local
+request file, uses disk-backed experts with CPU expert layers disabled, and releases the process
+after each render. The configured GPU admission budget is provisional until measured on the
+installed engine; it is not a memory reservation.
+
+On 2026-11-10 an isolated durable-queue test on the Windows ARM64 RTX Spark completed with the
+Q4 checkpoint and CUDA worker, while Qwen3-TTS remained loaded. It saved a 4.23-second,
+44.1 kHz mono WAV in 79.8 seconds and preserved the job and asset metadata after reopening the
+queue database. Sampled reported GPU usage rose about 5.2 GiB; this is not a calibrated peak
+on a unified-memory machine. Audio was verified to be non-silent, not subjectively rated.
+
+### ACE-Step feasibility files (not integrated)
+
+On 2026-11-10, the Turbo DiT, VAE, and Qwen3-Embedding-0.6B files from
+[ACE-Step/Ace-Step1.5](https://huggingface.co/ACE-Step/Ace-Step1.5), revision
+`19671f406d603126926c1b7e2adc169acbcade22`, were downloaded explicitly to
+`models/ACE-Step-1.5` for a native ARM64 feasibility check. The model card declares MIT. The
+`acestep-v15-turbo/model.safetensors` SHA-256 was checked against the repository LFS digest:
+`3f6e0797fad420a39bd33979eb6e840e30989e34a3794e843d23b60ec6e422d7`. The other files have not
+been independently rehashed. The language model is not included, and these files are not yet in
+the installer or connected to Forge. No model load or inference was performed; see the
+[roadmap](ROADMAP.md) for the environment and memory limitations.
+
 ### Companion application changes in this installation
 
 Several companion applications live outside this repository. A fresh clone does

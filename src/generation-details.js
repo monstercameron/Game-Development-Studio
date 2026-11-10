@@ -460,6 +460,19 @@ export function reusePlan(meta) {
       },
     };
   }
+  if (type === 'drama3') {
+    return {
+      section: 'voices',
+      model: 'Fish Audio Drama 3',
+      draft: {
+        prompt,
+        dramaSeed: str(seed),
+        dramaMaxTokens: str(s.max_tokens),
+        dramaTemperature: str(s.temperature),
+        dramaTopP: str(s.top_p),
+      },
+    };
+  }
   if (type === 'voices') {
     const voiceMode = s.mode === 'design' || s.mode === 'clone' ? s.mode : 'preset';
     return {
@@ -627,7 +640,7 @@ export function draftJob(plan, projectId) {
     second: draft.second || '',
     options: draft.options,
     refs: [],
-    model: ['3d', 'motion'].includes(plan.section) ? plan.model : undefined,
+    model: ['3d', 'motion', 'voices'].includes(plan.section) ? plan.model : undefined,
     seed: draft.seed ?? '',
     motionRig: 'SOMA human',
   };

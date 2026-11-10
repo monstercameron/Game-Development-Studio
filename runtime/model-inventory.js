@@ -27,6 +27,7 @@ export const managedModels = Object.freeze([
   { id: '3d-hunyuan', folder: 'Hunyuan3D-2.1' },
   { id: 'motion-hy', folder: 'HY-Motion' },
   { id: 'motion-bricks', folder: 'MotionBricks', removable: false },
+  { id: 'drama3', folder: 'Drama-3-GGUF-Q4', removable: false },
   { id: 'tts', folder: 'Qwen3-TTS-12Hz-1.7B-CustomVoice' },
   { id: 'tts-base', folder: 'Qwen3-TTS-12Hz-1.7B-Base', removable: false },
   { id: 'tts-voicedesign', folder: 'Qwen3-TTS-12Hz-1.7B-VoiceDesign', removable: false },

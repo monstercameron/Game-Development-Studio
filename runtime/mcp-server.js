@@ -449,6 +449,24 @@ export function createMcpServer(origin = process.env.FORGE_STUDIO_URL || 'http:/
     ({ projectId, ...request }) => write('/api/runtime/jobs', { type: 'sfx', projectId, request }),
   );
   server.registerTool(
+    'forge_queue_drama3',
+    {
+      description:
+        'Queue expressive speech with Fish Audio Drama 3 Q4 on the native CUDA engine. The model loads on demand and writes WAV audio into the selected project.',
+      inputSchema: {
+        projectId: z.string().uuid(),
+        text: z.string().min(1).max(1000),
+        seed: z.number().int().min(0).max(2147483647).default(123),
+        max_tokens: z.number().int().min(1).max(2048).default(500),
+        temperature: z.number().min(0).max(2).default(1),
+        top_p: z.number().gt(0).max(1).default(0.9),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    ({ projectId, ...request }) =>
+      write('/api/runtime/jobs', { type: 'drama3', projectId, request }),
+  );
+  server.registerTool(
     'forge_queue_voice',
     {
       description:

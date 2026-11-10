@@ -66,6 +66,7 @@ export function work(type, request) {
       return number(request.duration) * number(request.steps);
     case 'music':
       return number(request.duration_seconds) * number(request.ode_steps);
+    case 'drama3':
     case 'voices':
       return Math.max(1, (request.text || '').length);
     case '3d':

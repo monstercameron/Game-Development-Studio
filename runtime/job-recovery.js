@@ -18,6 +18,7 @@ const OUTPUTS = Object.freeze({
   sfx: { folder: 'sfx', extension: 'wav' },
   music: { folder: 'music', extension: 'flac' },
   voices: { folder: 'voices', extension: 'wav' },
+  drama3: { folder: 'voices', extension: 'wav' },
   '3d': { folder: '3d', extension: 'glb' },
   trellis: { folder: '3d', extension: 'glb' },
   segmentation: { folder: 'masks', extension: 'png' },

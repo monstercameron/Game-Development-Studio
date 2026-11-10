@@ -51,6 +51,7 @@
     const cards = browser.querySelectorAll('.model');
     const count = document.getElementById('model-count');
     const total = cards.length;
+    const modelCount = browser.querySelectorAll('.model:not(.model-support)').length;
     const apply = (value, label) => {
       let shown = 0;
       for (const card of cards) {
@@ -62,7 +63,7 @@
       }
       count.textContent =
         value === 'all'
-          ? `Showing all ${total} cards: 16 models and one group of supporting checkpoints.`
+          ? `Showing all ${total} cards: ${modelCount} models and one group of supporting checkpoints.`
           : `Showing ${shown} of ${total} cards for ${label}.`;
     };
     for (const radio of radios) {
