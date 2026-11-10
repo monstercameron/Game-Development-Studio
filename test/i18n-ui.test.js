@@ -344,6 +344,11 @@ test('language menu and translate dialog: preview, send, progress, report, focus
   const dialog = document.querySelector('[role="dialog"]');
   assert.equal(dialog.getAttribute('aria-modal'), 'true');
   assert.equal(
+    dialog.closest('.modal-backdrop').parentElement,
+    document.body,
+    'the modal escapes the top bar’s fixed-position containing block',
+  );
+  assert.equal(
     document.getElementById(dialog.getAttribute('aria-labelledby')).textContent,
     'Translate this page',
   );
@@ -478,6 +483,14 @@ test('dialog shows the no-key path with a Settings link and validates typed code
     /not a valid language code/,
   );
   assert.equal(code.getAttribute('aria-invalid'), 'true');
+  // An invalid typed code must never fall back to a previously selected language on Enter.
+  const german = [...document.querySelectorAll('.translate-language-option')].find((item) =>
+    item.textContent.includes('German'),
+  );
+  await act(async () => german.querySelector('input').click());
+  await type('$$');
+  await act(async () => document.querySelector('form').requestSubmit());
+  assert.ok(!studio.requests.some((request) => request.path === '/api/i18n/preview'));
   await type('tlh');
   assert.match(document.querySelector('[aria-live="polite"]').textContent, /tlh is Klingon\./);
   await act(async () => document.querySelector('form').requestSubmit());

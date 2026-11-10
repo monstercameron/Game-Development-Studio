@@ -15,12 +15,12 @@
       "hash": "84755d9377b873bf"
     },
     "common": {
-      "strings": 17,
-      "hash": "4decb1316524f339"
+      "strings": 23,
+      "hash": "eadc9b6906d57b89"
     },
     "diagnostics": {
-      "strings": 21,
-      "hash": "2a593574f3b93fb6"
+      "strings": 131,
+      "hash": "9dac25e574d143a8"
     },
     "errors": {
       "strings": 6,
@@ -39,8 +39,8 @@
       "hash": "802cf6d1d582c212"
     },
     "models": {
-      "strings": 46,
-      "hash": "fe6d532bf0269945"
+      "strings": 63,
+      "hash": "71cf96f5016938bc"
     },
     "motion": {
       "strings": 16,
@@ -54,13 +54,29 @@
       "strings": 38,
       "hash": "90499fb7e7292256"
     },
+    "projects": {
+      "strings": 23,
+      "hash": "2fe0ab19ebe19bdf"
+    },
+    "queue": {
+      "strings": 1,
+      "hash": "aed0e45cec16840e"
+    },
     "segmentation": {
       "strings": 16,
       "hash": "a960dec64aefedf4"
     },
+    "settings": {
+      "strings": 44,
+      "hash": "9e36a7e4e617b047"
+    },
     "sfx": {
       "strings": 10,
       "hash": "ae54bbeccae52e31"
+    },
+    "shell": {
+      "strings": 1,
+      "hash": "029886bee7eb9467"
     },
     "vegetation": {
       "strings": 49,
@@ -833,14 +849,63 @@
       "hash": "c0774c185060fc13",
       "kind": "text",
       "files": [
+        "src/ConfirmDialog.jsx",
         "src/ForceStopDialog.jsx",
+        "src/StudioBehaviourSettings.jsx",
         "src/i18n/TranslatePageDialog.jsx"
+      ]
+    },
+    "common.action.close": {
+      "hash": "d7cf5045c01b2eb9",
+      "kind": "text",
+      "files": [
+        "src/ConfirmDialog.jsx",
+        "src/ProjectManagement.jsx",
+        "src/StudioLogView.jsx"
       ]
     },
     "common.action.done": {
       "hash": "16552c2580bbe8b8",
       "kind": "text",
       "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "common.action.retry": {
+      "hash": "1cc2e703cf2437dc",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx",
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "common.action.save": {
+      "hash": "c1db83d165ed908a",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "common.confirm.checkFirst": {
+      "hash": "6fe57fdc6b55b66a",
+      "kind": "text",
+      "files": [
+        "src/ConfirmDialog.jsx"
+      ]
+    },
+    "common.confirm.factsLoading": {
+      "hash": "1dc4a0807f92f658",
+      "kind": "text",
+      "files": [
+        "src/ConfirmDialog.jsx",
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "common.confirm.refreshFacts": {
+      "hash": "875e8b17daace2b3",
+      "kind": "text",
+      "files": [
+        "src/ConfirmDialog.jsx",
         "src/ForceStopDialog.jsx"
       ]
     },
@@ -947,6 +1012,776 @@
       "kind": "text",
       "files": [
         "src/tooltips/pages/common.js"
+      ]
+    },
+    "diagnostics.recovery.attention": {
+      "hash": "8aad9ff67a4ef09c",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.confirmNotRendering": {
+      "hash": "cf86a425b5b1489c",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.copyDetails": {
+      "hash": "f17f5da3fc923d8a",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.copyError": {
+      "hash": "f55c3f6abdba2c8f",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.crashLoop": {
+      "hash": "4001151060ed4f75",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.databasesTitle": {
+      "hash": "c1d6e4c3895c6ffa",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.dbFresh": {
+      "hash": "cfdd19db79cd3da3",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.dbQuarantined": {
+      "hash": "575689a94a5467b0",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.dbRestored": {
+      "hash": "fb33a33314847fea",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.dismiss": {
+      "hash": "a2bd204e93e90598",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.dismissed": {
+      "hash": "4f2af6fb14127698",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.engineAdopted": {
+      "hash": "2b3361bb7a5d67c8",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.engineDown": {
+      "hash": "a5832be3c8f17b93",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.engineHung": {
+      "hash": "1156c01b4735dc59",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.engineUnresolved": {
+      "hash": "52a50cc1660ea24c",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.engineUnverified": {
+      "hash": "e381b3e09bbc55bc",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.enginesNotRunning": {
+      "hash": "0b551b55fc597e38",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.enginesTitle": {
+      "hash": "2e973024a707178f",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.jobsTitle": {
+      "hash": "c4fc70abe29a15b5",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.markCancelled": {
+      "hash": "39c0b0b0b7bd8195",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.noRetry": {
+      "hash": "f423c1857feb0d57",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.orphanMeta": {
+      "hash": "379a90a76d1f9537",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.orphansBody": {
+      "hash": "0d7c8dcccfb2598e",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.orphansTitle": {
+      "hash": "b48494de74e6f014",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.preparedOnly": {
+      "hash": "a49737d3d23d3e6e",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.projectEmpty": {
+      "hash": "d7a065d9df607583",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.projectUnreadable": {
+      "hash": "e9ab31a6a87ff3a1",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.projectsTitle": {
+      "hash": "55d5d22351ac45a0",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.quarantine": {
+      "hash": "a02104011e88ff38",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.quarantined": {
+      "hash": "53ec118efb515be6",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.reconnectFailed": {
+      "hash": "a62c8fd61147e7d0",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.rescan": {
+      "hash": "875e8b17daace2b3",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.rescanned": {
+      "hash": "9c298a2a083b53a4",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.resolved": {
+      "hash": "43ecfdefba0ee83c",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.retried": {
+      "hash": "3cc5b3f190f5a368",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.retry": {
+      "hash": "b50c94df656c453d",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.savedDamaged": {
+      "hash": "2d3b087bce9b8a77",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.savedUnverified": {
+      "hash": "9fe80f6dc2bcc342",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.savedValid": {
+      "hash": "553074d2b6bb09ed",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.statusInterrupted": {
+      "hash": "ec8913fc87154c65",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.statusNeedsAttention": {
+      "hash": "f98f532ad04f9c38",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.title": {
+      "hash": "d6225576dc322dd8",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.unclean": {
+      "hash": "6fe17947cd3cd257",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.uncleanSince": {
+      "hash": "fc3def98d0f0afd0",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.unknownAccepted": {
+      "hash": "faff48590b69e7c3",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.unknownSubmitted": {
+      "hash": "2dc617adb12b4e74",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.recovery.vegetation": {
+      "hash": "e71b2f6f7cd5f32c",
+      "kind": "text",
+      "files": [
+        "src/RecoveryPanel.jsx"
+      ]
+    },
+    "diagnostics.studioLog.allComponents": {
+      "hash": "4cc9d35318d43476",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.apply": {
+      "hash": "417cf9c08b0b8d6c",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.clearFilters": {
+      "hash": "cac110655a27b59a",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.clearTrace": {
+      "hash": "45c5c31b93bf9d9f",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.clipboardFailed": {
+      "hash": "f220106048e54f91",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.closeDetail": {
+      "hash": "2a41575bccdeee11",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.collapsed": {
+      "hash": "40995d44a201f147",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.component": {
+      "hash": "ae343257c292ff40",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.copied": {
+      "hash": "ba8f30d88d3c3cca",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.copyRecord": {
+      "hash": "d42d6648fd2ae0d3",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.copyShown": {
+      "hash": "ae68fb75d1a7a982",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.databaseSize": {
+      "hash": "d32c8a0eee8b6af9",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.dropped": {
+      "hash": "fe82ab9e8d0dfd35",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.droppedFields": {
+      "hash": "44400d159dd07643",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.duration": {
+      "hash": "b01003e625569a65",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.durationValue": {
+      "hash": "aabf492cb3a466d9",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.empty": {
+      "hash": "f87b8414d90bec02",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.emptyFiltered": {
+      "hash": "5f69379b9856c59f",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.eventPrefix": {
+      "hash": "de1da92f45db05c6",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.export": {
+      "hash": "605cd7cbeaaf0118",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.exportFailed": {
+      "hash": "61af8b654fd2ab95",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.fields": {
+      "hash": "150e2a17d78790e4",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.job": {
+      "hash": "f32f4c4ddc5a1f96",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.jobFilter": {
+      "hash": "94f6170acc9e81bd",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.lead": {
+      "hash": "7527580deb3acd25",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.level": {
+      "hash": "0608743fc1736d86",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.levelDebug": {
+      "hash": "d64a75b7ed629b7b",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.levelError": {
+      "hash": "fc4ac19649f0ee8f",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.levelInfo": {
+      "hash": "6e68b62d2aa611a4",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.levelTrace": {
+      "hash": "1226cd1a1d0a4358",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.levelWarn": {
+      "hash": "5128de8b5a618339",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.listLabel": {
+      "hash": "6d2ce492812a8c0e",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.loadFailed": {
+      "hash": "434b7d79cc01b9b9",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.loadOlder": {
+      "hash": "183923ce35037b0b",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.loading": {
+      "hash": "59bed4a019560e74",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.message": {
+      "hash": "be1af94c8c00110d",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.minimumLevel": {
+      "hash": "fcf70b5e0c62f8ef",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.noFields": {
+      "hash": "3785d4a468c318d5",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.overline": {
+      "hash": "7ba38e16f411818e",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.process": {
+      "hash": "c06c61502d9817ec",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.range15m": {
+      "hash": "145f38a6d960faaa",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.range1h": {
+      "hash": "8ea11473f202f46d",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.range24h": {
+      "hash": "50cddc9fed16cdf6",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.range7d": {
+      "hash": "31092ac681eb7d05",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.rangeAll": {
+      "hash": "66fba41c10dc5171",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.records": {
+      "hash": "079b962f34b8d3d5",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.refresh": {
+      "hash": "ec0dd7ff6076fd7a",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.repeated": {
+      "hash": "1b26c6c380be0365",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.repeatedValue": {
+      "hash": "0c34079ac89381ad",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.retention": {
+      "hash": "93bad94fae658c98",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.retentionValue": {
+      "hash": "5f956bc9a29b073d",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.search": {
+      "hash": "c32a711f8e889a74",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.showJob": {
+      "hash": "e10d9ced14c84393",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.showTrace": {
+      "hash": "96efe64898ce1d74",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.startLive": {
+      "hash": "ec4fde271099bc35",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.stopLive": {
+      "hash": "e32a2763d5c0d7e5",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.summaryLabel": {
+      "hash": "5422091d2963c427",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.time": {
+      "hash": "bbf063c475b0d107",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.timeRange": {
+      "hash": "9f3d88f4020270b9",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.times": {
+      "hash": "39351bb872e9b88a",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.title": {
+      "hash": "30523f7678d3bda3",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.trace": {
+      "hash": "1226cd1a1d0a4358",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
+      ]
+    },
+    "diagnostics.studioLog.traceActive": {
+      "hash": "ff7cfff66b0c73d0",
+      "kind": "text",
+      "files": [
+        "src/StudioLogView.jsx"
       ]
     },
     "diagnostics.tooltip.copy_server_details_591b09": {
@@ -1985,6 +2820,13 @@
         "src/ForceStopDialog.jsx"
       ]
     },
+    "models.forceStop.factsTitle": {
+      "hash": "a9db17415e013aec",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
     "models.forceStop.interrupted": {
       "hash": "a3ade06505352ff3",
       "kind": "text",
@@ -2001,6 +2843,34 @@
     },
     "models.forceStop.progress": {
       "hash": "1913defcd82ca7e8",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.renderConfirm": {
+      "hash": "c61df1aedff74114",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.renderSummary": {
+      "hash": "43c93193921a5f3d",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.renderTitle": {
+      "hash": "81cfadd43a613379",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.renderWarning": {
+      "hash": "d86fb25be206914f",
       "kind": "text",
       "files": [
         "src/ForceStopDialog.jsx"
@@ -2048,11 +2918,95 @@
         "src/ForceStopDialog.jsx"
       ]
     },
+    "models.forceStop.waitingLoading": {
+      "hash": "d8097b01be4b33a8",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.waitingNone": {
+      "hash": "babd9a2c05d2a3f0",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.waitingRender": {
+      "hash": "febf6517fe8fe3f4",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.waitingService": {
+      "hash": "819a6b0fb2546024",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.waitingTitle": {
+      "hash": "2f4e0420e1bc00b5",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.forceStop.waitingUnknown": {
+      "hash": "dad3e842504e803c",
+      "kind": "text",
+      "files": [
+        "src/ForceStopDialog.jsx"
+      ]
+    },
     "models.forceStop.warning": {
       "hash": "f77de81ad6a1f1ff",
       "kind": "text",
       "files": [
         "src/ForceStopDialog.jsx"
+      ]
+    },
+    "models.memory.estimate": {
+      "hash": "40e1eb28da15d1af",
+      "kind": "text",
+      "files": [
+        "src/MemoryDialog.jsx"
+      ]
+    },
+    "models.memory.gpuCovers": {
+      "hash": "74c77d60cc4607f6",
+      "kind": "text",
+      "files": [
+        "src/MemoryDialog.jsx"
+      ]
+    },
+    "models.memory.gpuFree": {
+      "hash": "368b3f44dd520c42",
+      "kind": "text",
+      "files": [
+        "src/MemoryDialog.jsx"
+      ]
+    },
+    "models.memory.gpuNote": {
+      "hash": "e070fa515a9bdf50",
+      "kind": "text",
+      "files": [
+        "src/MemoryDialog.jsx"
+      ]
+    },
+    "models.memory.gpuShort": {
+      "hash": "16aecbacceef15f4",
+      "kind": "text",
+      "files": [
+        "src/MemoryDialog.jsx"
+      ]
+    },
+    "models.memory.hostFloor": {
+      "hash": "07c0cb9cc50d2d59",
+      "kind": "text",
+      "files": [
+        "src/MemoryDialog.jsx"
       ]
     },
     "models.tooltip.check_memory_load_821109": {
@@ -2755,6 +3709,174 @@
         "src/tooltips/pages/overview.js"
       ]
     },
+    "projects.assets.busy": {
+      "hash": "360f829e78218631",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.assets.confirm": {
+      "hash": "94c18a4583f2261a",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.assets.explanation": {
+      "hash": "7962160e473b85e9",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.assets.jobs": {
+      "hash": "88e91eae46da8728",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.assets.kicker": {
+      "hash": "a3283b55372e1ff3",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.assets.partial": {
+      "hash": "b7f1f74d83c4ebee",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.assets.title": {
+      "hash": "ce8db0eb993ba9cd",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.delete.busy": {
+      "hash": "a9bda957456d96eb",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.delete.confirm": {
+      "hash": "e1760199c438770f",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.delete.explanation": {
+      "hash": "2064779002920cb1",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.delete.jobs": {
+      "hash": "dc9cbe859e2c753a",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.delete.kicker": {
+      "hash": "08e4999f2e56803c",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.delete.title": {
+      "hash": "46983ede550a200f",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.delete.typeName": {
+      "hash": "b124deede9dc55c7",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.manage.delete": {
+      "hash": "c994154db57c729d",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.manage.deleteAssets": {
+      "hash": "68222ed705378990",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.manage.requestFailed": {
+      "hash": "2bf1f3264959d08d",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.manage.trash": {
+      "hash": "40d5b746873d0731",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.trash.description": {
+      "hash": "63f7af935b7d7613",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.trash.empty": {
+      "hash": "93fbe635d4bdb49a",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.trash.loading": {
+      "hash": "369d59f9b8d8cd92",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.trash.restore": {
+      "hash": "a7b85e7eae27cc0e",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "projects.trash.title": {
+      "hash": "40d5b746873d0731",
+      "kind": "text",
+      "files": [
+        "src/ProjectManagement.jsx"
+      ]
+    },
+    "queue.clear.typeConfirmation": {
+      "hash": "2d236519a6d5353f",
+      "kind": "text",
+      "files": [
+        "src/RuntimeQueue.jsx"
+      ]
+    },
     "segmentation.tooltip.add_to_render_queue_a17477": {
       "hash": "7ff41b4be23d48f6",
       "kind": "text",
@@ -2867,6 +3989,314 @@
         "src/tooltips/pages/segmentation.js"
       ]
     },
+    "settings.studioBehaviour.confirmReset": {
+      "hash": "6fc0aed0f97cc50c",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.defaultValue": {
+      "hash": "9d87e5d02acc5571",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.effectLive": {
+      "hash": "40d37556551baac2",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.effectNextJob": {
+      "hash": "4a4473ef567380a7",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.effectRestart": {
+      "hash": "97ac6c4cd64c97c0",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.groupAi": {
+      "hash": "7237efb183f6735d",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.groupApp": {
+      "hash": "ad437c5f0ea2ee7c",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.groupEngines": {
+      "hash": "2e973024a707178f",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.groupInterface": {
+      "hash": "882616e2bcd0dbbd",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.groupMemory": {
+      "hash": "ecbeaaaec5fafe42",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.groupQueue": {
+      "hash": "57b4ba5b1bf19d3e",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.groupSpeech": {
+      "hash": "8b8426f796c7f335",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.intro": {
+      "hash": "7475470922c248ad",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.lengthError": {
+      "hash": "5f5027a18ef5e617",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.loading": {
+      "hash": "9e84d6d7b9885c4f",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.lockedBy": {
+      "hash": "e9a06d84d8445832",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.lockedValue": {
+      "hash": "7bb387e1054c1625",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.noChange": {
+      "hash": "436b0c7a0eda6abd",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.notAvailable": {
+      "hash": "162c9fa124a2528d",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.rangeError": {
+      "hash": "105754ca4e55eb4d",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.readOnly": {
+      "hash": "081b6876fa789052",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.recentEmpty": {
+      "hash": "b4f3869aaf857aec",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.recentTitle": {
+      "hash": "5b5c91b211b86964",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.requiredError": {
+      "hash": "fc48b3516206578d",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.resetButton": {
+      "hash": "6eb8025c60d6d3ca",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.resetLabel": {
+      "hash": "d7f2bdcaea5aa8f4",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.resetNothing": {
+      "hash": "6d65f9b113f152ae",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.resetQuestion": {
+      "hash": "e0c6a4b1255c034c",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.saveLabel": {
+      "hash": "e83b729cfe6236c2",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.savedLive": {
+      "hash": "31b2638eb645ed6c",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.savedNext": {
+      "hash": "b40dfc3538121413",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.savedRestart": {
+      "hash": "ef7d63ca29170736",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.sourceDefault": {
+      "hash": "f94d3febe6b0e9df",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.sourceEnvironment": {
+      "hash": "8c75b5f77e607264",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.sourceOverride": {
+      "hash": "e0a4f60bc4873c38",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.sourceStore": {
+      "hash": "4ae0f957614c9f16",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.title": {
+      "hash": "7b7cabf7805eeb90",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.unavailable": {
+      "hash": "0030554be3eec0a8",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.valueNone": {
+      "hash": "f2953d2931e36d0c",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.valueOff": {
+      "hash": "50accd740fa2e736",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.valueOn": {
+      "hash": "9cc01faad79c28da",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.viaMcp": {
+      "hash": "ac5121929e10fb5d",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.viaStudio": {
+      "hash": "7abc2dc6e39b1747",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
+    "settings.studioBehaviour.yesReset": {
+      "hash": "a1b557a9d90f21c5",
+      "kind": "text",
+      "files": [
+        "src/StudioBehaviourSettings.jsx"
+      ]
+    },
     "sfx.tooltip.change_amount_297c87": {
       "hash": "94280315f62011f0",
       "kind": "text",
@@ -2935,6 +4365,13 @@
       "kind": "text",
       "files": [
         "src/tooltips/pages/sfx.js"
+      ]
+    },
+    "shell.connection.reconnecting": {
+      "hash": "c1882966afb774c2",
+      "kind": "text",
+      "files": [
+        "src/ConnectionStatus.jsx"
       ]
     },
     "vegetation.tooltip.arm_bend_33386f": {

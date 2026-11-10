@@ -1,4 +1,5 @@
 import MemoryDialog from './MemoryDialog';
+import ConfirmDialog from './ConfirmDialog';
 import { ensureChatReady, isStudioQwen } from './chat-autostart';
 import {
   CHAT_CONTEXT_SIZES,
@@ -189,6 +190,7 @@ function ResponseMetrics({ metrics }) {
   );
 }
 export default function Chat({ project }) {
+  const [qwenStopPrompt, setQwenStopPrompt] = useState(false);
   const key = chatStorageKey(project?.id);
   const [chats, setChats] = useState(() => readSaved(key));
   const [params, setParams] = useSearchParams();
@@ -707,13 +709,11 @@ export default function Chat({ project }) {
     const data = await r.json();
     return data.modelLoadEngine === 'chat' && data.modelLoadBarrier !== 'idle';
   }
-  async function stopLocal() {
-    if (
-      !window.confirm('Force stop the Qwen server? Any active chat response will be interrupted.')
-    ) {
-      log.debug('chat.model.stop.declined');
-      return;
-    }
+  function stopLocal() {
+    setQwenStopPrompt(true);
+  }
+  async function forceStopLocal() {
+    setQwenStopPrompt(false);
     setError('');
     log.info('chat.model.stop.requested');
     try {
@@ -1928,6 +1928,24 @@ export default function Chat({ project }) {
               </div>
             </aside>
           </>
+        )}
+        {qwenStopPrompt && (
+          <ConfirmDialog
+            title="Force stop Qwen?"
+            kicker="Local chat engine"
+            confirmLabel="Force stop Qwen"
+            busyLabel="Stopping Qwen…"
+            tone="danger"
+            onConfirm={forceStopLocal}
+            onClose={() => {
+              log.debug('chat.model.stop.declined');
+              setQwenStopPrompt(false);
+            }}
+          >
+            <p>
+              Any active chat response will be interrupted. Forge stops the verified Qwen process.
+            </p>
+          </ConfirmDialog>
         )}
       </div>
     </div>

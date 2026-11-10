@@ -21,18 +21,32 @@ const guarded = new Set([
  * `services()` returns the current engine states. `offload(id)` must resolve with
  * `{ stopped: true }` only after the engine confirmed it stopped. `now` (epoch ms) and
  * `cooldownMs` (ms) are injected so tests control the retry cooldown after a failed stop.
+ * `canRestart(id)` says whether the studio starts that engine again by itself; the engine a
+ * waiting render targets is released only when it does (see `allowTarget` below).
  *
  * The returned `makeRoom` resolves to `stopped` (with `service`), `unavailable` (no eligible
  * idle engine), `cancelled` (the job is no longer current, or `announce` refused) or `failed`
  * (the stop did not confirm; that engine is skipped until the cooldown ends).
+ *
+ * The engine the render itself targets is normally never stopped. With `allowTarget` (the
+ * admission check found its idle resident model is what holds the memory) it becomes the last
+ * choice, after every other idle engine, and only when `canRestart(target)` is true, so the stop
+ * cannot leave the render waiting for an engine that nothing starts again.
  */
-export function createAutoMemoryManager({ services, offload, now = Date.now, cooldownMs = 60000 }) {
+export function createAutoMemoryManager({
+  services,
+  offload,
+  canRestart = () => false,
+  now = Date.now,
+  cooldownMs = 60000,
+}) {
   // Engine id -> epoch ms before which a failed stop is not retried.
   const failures = new Map();
   // `only` limits the choice to one engine: a chained render frees the model it just finished with.
   return async function makeRoom({
     target,
     only = null,
+    allowTarget = false,
     upcoming = [],
     isCurrent,
     announce,
@@ -46,7 +60,7 @@ export function createAutoMemoryManager({ services, offload, now = Date.now, coo
     const choices = states.filter(
       (item) =>
         guarded.has(item.id) &&
-        item.id !== target &&
+        (item.id !== target || (allowTarget && canRestart(target))) &&
         (only === null || item.id === only) &&
         item.status === 'reachable' &&
         item.managed === true &&
@@ -57,6 +71,9 @@ export function createAutoMemoryManager({ services, offload, now = Date.now, coo
     );
     // Keep models that the next jobs will need; try an otherwise unused model first.
     choices.sort((a, b) => {
+      if ((a.id === target) !== (b.id === target)) {
+        return a.id === target ? 1 : -1;
+      }
       const aUpcomingIndex = upcoming.indexOf(a.id);
       const bUpcomingIndex = upcoming.indexOf(b.id);
       return (

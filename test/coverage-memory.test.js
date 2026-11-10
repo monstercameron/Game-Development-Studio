@@ -41,7 +41,9 @@ test('TRELLIS load admission blocks on a real system memory shortage before prob
 
   assert.equal(result.status, 409);
   assert.equal(result.body.code, 'insufficient_host_memory');
-  assert.equal(result.body.requiredBytes, 8 * 1024 ** 3);
+  assert.equal(result.body.requiredBytes, HOST_MEMORY_FLOOR_BYTES);
+  assert.equal(result.body.estimatedBytes, 8 * 1024 ** 3);
+  assert.equal(result.body.shortfallBytes, 1 * 1024 ** 3);
   assert.equal(hardwareProbes, 0);
   assert.equal(serviceProbes, 1);
   assert.equal(loadRequests, 0);

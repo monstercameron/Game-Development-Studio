@@ -108,13 +108,31 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.translate-dialog {
+.translate-backdrop {
+  z-index: var(--ux-z-modal);
+  /* Safe alignment keeps the top reachable even at high zoom or a short viewport. */
+  align-items: safe center;
+  overflow-y: auto;
+}
+.settings-modal.translate-dialog {
   display: flex;
   flex-direction: column;
   gap: var(--ux-space-3);
   inline-size: min(760px, 100%);
-  max-block-size: 92vh;
+  max-block-size: min(900px, calc(100dvh - 2 * var(--forge-space-5)));
+  min-block-size: 0;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.translate-dialog > .settings-head {
+  position: sticky;
+  inset-block-start: calc(-1 * var(--forge-space-value-26));
+  z-index: 1;
+  margin-block-start: calc(-1 * var(--forge-space-value-26));
+  padding-block-start: var(--forge-space-value-26);
+  padding-block-end: var(--ux-space-2);
+  background: var(--forge-surface);
 }
 .translate-kicker {
   color: var(--forge-muted);
@@ -131,11 +149,27 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: var(--ux-space-1);
-  max-block-size: 300px;
+  max-block-size: min(300px, 28dvh);
+  min-block-size: var(--ux-target-min);
   overflow: auto;
+  overscroll-behavior: contain;
   padding: var(--ux-space-1);
   border: var(--ux-border);
   border-radius: var(--ux-radius-md);
+}
+.translate-language-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 var(--ux-space-2);
+  padding-block: var(--ux-space-1);
+}
+.translate-language-option input {
+  grid-row: span 2;
+}
+.translate-language-option span,
+.translate-language-option small {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 .translate-language-option small {
   color: var(--forge-muted);

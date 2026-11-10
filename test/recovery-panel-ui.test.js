@@ -265,3 +265,20 @@ test('a crash loop stop is announced as an alert', async (t) => {
   const alert = document.querySelector('.recovery-alert[role="alert"]');
   assert.match(alert.textContent, /host crashed 5 times in 10 minutes/);
 });
+
+test('engines that are not running are left out, and the count says so', async (t) => {
+  await setup(
+    t,
+    report({
+      engines: [
+        { id: 'images', name: 'Qwen', status: 'unavailable', reason: 'down' },
+        { id: 'sfx', name: 'Stable Audio', status: 'unavailable', reason: 'down' },
+        { id: 'tts', name: 'Qwen3-TTS', status: 'reachable', ownership: 'recovered' },
+      ],
+    }),
+  );
+  const engines = document.querySelector('.recovery-panel').textContent;
+  assert.match(engines, /Qwen3-TTS was found running and re-adopted/);
+  assert.doesNotMatch(engines, /Stable Audio/);
+  assert.match(engines, /2 other engines are not running and need no decision/);
+});

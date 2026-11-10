@@ -70,6 +70,20 @@ export default function AssetThumbnail({ asset, project, className = '' }) {
     if (!visual(selectedAsset)) {
       return;
     }
+    // Native images do not need the generated-thumbnail queue. This also keeps image cards
+    // usable if the cache or another asset's thumbnail renderer is unavailable.
+    const imageName = name || title || id || file || url || '';
+    const imageSource = url || file;
+    if (
+      ['Images', 'Masks'].includes(category) &&
+      imageSource &&
+      /\.(png|jpe?g|webp|gif|bmp)(?:[?#].*)?$/i.test(imageName)
+    ) {
+      setSource(imageSource);
+      return () => {
+        active = false;
+      };
+    }
     const start = () =>
       loadThumbnail(selectedProject, selectedAsset).then(
         (result) => {

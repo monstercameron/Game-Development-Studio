@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router';
 import { updateSearch, useRouteToggle, routeDetails } from './useNav';
 import InteractiveAssetViewer from './InteractiveAssetViewer';
 import AssetThumbnail, { isVisualAsset } from './AssetThumbnail';
+import ProjectManagement from './ProjectManagement';
 import AssetConverter, { canConvert } from './AssetConverter';
 import MusicDerive from './MusicDerive';
 import ProjectTrash from './ProjectTrash.jsx';
@@ -582,6 +583,8 @@ export default function Gallery({
   loading,
   error,
   onReuse = null,
+  onProjectsChanged,
+  onProjectRemoved,
 }) {
   const [localProject, setLocalProject] = useState(project);
   const [trashUndo, setTrashUndo] = useState(null);
@@ -869,6 +872,11 @@ export default function Gallery({
           <span>{items.length === 1 ? 'ASSET' : 'ASSETS'}</span>
         </div>
       </section>
+      <ProjectManagement
+        project={!isSample && localProject?.id === scope ? localProject : null}
+        onChanged={onProjectsChanged}
+        onRemoved={onProjectRemoved}
+      />
       <details className="gallery-queue" {...routeDetails(queueOpen, setQueueOpen)}>
         <summary aria-expanded={queueOpen} aria-controls="gallery-render-queue-content">
           <span className="gallery-queue-title">Render queue</span>

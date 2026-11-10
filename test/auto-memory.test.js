@@ -52,6 +52,41 @@ test('only guarded, owned, verified idle models are automatically stopped; prese
   assert.deepEqual(stopped, ['segmentation']);
 });
 
+test('the target engine is released only when allowed, restartable, idle and after the others', async () => {
+  const stopped = [];
+  const states = [service('images'), service('segmentation')];
+  const make = (canRestart) =>
+    createAutoMemoryManager({
+      services: async () => states,
+      offload: async (id) => {
+        stopped.push(id);
+        return { stopped: true };
+      },
+      ...(canRestart === undefined ? {} : { canRestart: () => canRestart }),
+    });
+  const own = { ...hooks, target: 'images' };
+  // By default the engine a render targets is never stopped for that render.
+  assert.equal(
+    (await make()({ ...own, allowTarget: true, upcoming: [] })).service.id,
+    'segmentation',
+  );
+  stopped.length = 0;
+  // Another idle engine goes first, even when that one is needed by a later job.
+  const first = await make(true)({ ...own, allowTarget: true, upcoming: ['segmentation'] });
+  assert.equal(first.service.id, 'segmentation');
+  // With only the target left, it is released when allowed and restartable.
+  states.pop();
+  assert.equal((await make(true)({ ...own, allowTarget: true })).service.id, 'images');
+  // It is kept when the admission check did not allow it, nothing restarts it, or it is busy.
+  stopped.length = 0;
+  assert.equal((await make(true)({ ...own, allowTarget: false })).status, 'unavailable');
+  assert.equal((await make(false)({ ...own, allowTarget: true })).status, 'unavailable');
+  assert.equal((await make()({ ...own, allowTarget: true })).status, 'unavailable');
+  states[0] = service('images', { busy: true });
+  assert.equal((await make(true)({ ...own, allowTarget: true })).status, 'unavailable');
+  assert.deepEqual(stopped, []);
+});
+
 test('cancelled jobs do not stop a model and failed stops cool down', async () => {
   let calls = 0,
     time = 100;

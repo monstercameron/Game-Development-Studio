@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hostMemoryConflict, planModelLoad } from '../runtime/model-load.js';
+import {
+  hostMemoryConflict,
+  hostMemoryShort,
+  planModelLoad,
+  setHostMemoryPolicySource,
+} from '../runtime/model-load.js';
 
 test('system memory conflicts show safely managed, busy and external candidates', () => {
   // Fixture roles: idle is managed and safe to unload; busy is managed but mid-job, so it
@@ -37,7 +42,10 @@ test('system memory conflicts show safely managed, busy and external candidates'
     { id: 'offline', name: 'Offline', status: 'unavailable', modelLoaded: false },
   ];
   const result = hostMemoryConflict(3 * 1024 ** 3, 12 * 1024 ** 3, services, ['target']);
-  assert.equal(result.shortfallBytes, 9 * 1024 ** 3);
+  assert.equal(result.requiredBytes, 2 * 1024 ** 3);
+  assert.equal(result.estimatedBytes, 12 * 1024 ** 3);
+  assert.equal(result.shortfallBytes, 0);
+  assert.equal(result.hostPolicy, 'soft');
   assert.deepEqual(
     result.candidates.map((s) => s.id),
     ['idle', 'busy', 'external'],
@@ -51,4 +59,21 @@ test('system memory conflicts show safely managed, busy and external candidates'
   const gpu = planModelLoad({ devices: [{ index: 0, freeMiB: 1 }] }, services, 1024);
   assert.equal(gpu.code, 'insufficient_gpu_memory');
   assert.equal(gpu.candidates.find((s) => s.id === 'external').canUnload, false);
+});
+
+test('host shortfalls report the configured soft floor or strict budget, not GPU capacity', (t) => {
+  const GiB = 1024 ** 3;
+  t.after(() => setHostMemoryPolicySource());
+  setHostMemoryPolicySource(() => 'soft');
+  assert.equal(hostMemoryShort(7 * GiB, 21 * GiB), false);
+  const soft = hostMemoryConflict(GiB, 21 * GiB, []);
+  assert.equal(soft.requiredBytes, 2 * GiB);
+  assert.equal(soft.estimatedBytes, 21 * GiB);
+  assert.equal(soft.shortfallBytes, GiB);
+  setHostMemoryPolicySource(() => 'strict');
+  assert.equal(hostMemoryShort(7 * GiB, 21 * GiB), true);
+  const strict = hostMemoryConflict(7 * GiB, 21 * GiB, []);
+  assert.equal(strict.requiredBytes, 21 * GiB);
+  assert.equal(strict.shortfallBytes, 14 * GiB);
+  assert.equal(strict.hostPolicy, 'strict');
 });

@@ -3,6 +3,9 @@ import { updateSearch } from './useNav';
 import useDialogFocus from './useDialogFocus';
 import { modelCatalog } from '../runtime/model-catalog';
 import ForceStopDialog from './ForceStopDialog';
+import ConfirmDialog from './ConfirmDialog';
+import useEngineSnapshot from './use-engine-snapshot.js';
+import { engineFacts, stopServiceBlockReason, waitingJobsForEngine } from './engine-controls.js';
 import { useCallback, useEffect, useState } from 'react';
 import ModelRemovalDialog from './ModelRemovalDialog';
 import MemoryDialog from './MemoryDialog';
@@ -369,6 +372,9 @@ export default function Models({ onNavigate = () => {} }) {
   const [forceBusy, setForceBusy] = useState(false);
   const [forceResult, setForceResult] = useState(null);
   const [forceError, setForceError] = useState('');
+  // The force-stop dialog reads the engine's state and its waiting renders when it opens.
+  const forceSnapshot = useEngineSnapshot(forceTarget?.id || null, Boolean(forceTarget));
+  const [barrierPrompt, setBarrierPrompt] = useState(null);
   const [asrConflict, setAsrConflict] = useState(null);
   const [asrError, setAsrError] = useState('');
   const [loadingAsr, setLoadingAsr] = useState(false);
@@ -704,7 +710,7 @@ export default function Models({ onNavigate = () => {} }) {
       setStartingEngines(false);
     }
   }
-  async function clearBarrier() {
+  function clearBarrier() {
     const engine = [
       'sfx',
       'tts',
@@ -731,15 +737,9 @@ export default function Models({ onNavigate = () => {} }) {
       'motion-bricks': 'MotionBricks',
       music: 'YuE2',
     };
-    const name = engineNames[engine];
-    if (
-      !window.confirm(
-        `Only continue after verifying ${name} is neither loading nor waiting to load. Clear the queue barrier?`,
-      )
-    ) {
-      log.info('model.barrier.clear.cancelled', { modelId: engine });
-      return;
-    }
+    setBarrierPrompt({ engine, name: engineNames[engine] });
+  }
+  async function confirmClearBarrier(engine) {
     log.info('model.barrier.clear.confirmed', { modelId: engine });
     let httpStatus;
     setLoadingMusic(true);
@@ -1354,6 +1354,21 @@ export default function Models({ onNavigate = () => {} }) {
                       {stoppingService === status.id ? 'Stopping…' : 'Stop service'}
                     </button>
                   )}
+                  {!status?.canUnload && status?.status === 'reachable' && (
+                    <>
+                      <button
+                        className="catalog-action"
+                        aria-label={`Stop ${model.name} service`}
+                        aria-describedby={`stop-blocked-${status.id}`}
+                        disabled
+                      >
+                        Stop service
+                      </button>
+                      <p className="catalog-stop-reason" id={`stop-blocked-${status.id}`}>
+                        Stop unavailable: {stopServiceBlockReason(status)}
+                      </p>
+                    </>
+                  )}
                   {status?.canForceStop && (
                     <button
                       className="catalog-action danger"
@@ -1416,7 +1431,42 @@ export default function Models({ onNavigate = () => {} }) {
           error={forceError}
           onClose={closeForce}
           onForceStop={forceStopService}
+          waitingJobs={waitingJobsForEngine(
+            forceSnapshot.status === 'ready' ? forceSnapshot.jobs : [],
+            forceTarget.id,
+          )}
+          facts={
+            forceSnapshot.status === 'ready'
+              ? engineFacts(forceSnapshot.service, forceSnapshot.hardware)
+              : []
+          }
+          factsStatus={forceSnapshot.status}
+          factsError={forceSnapshot.error}
+          onRefreshFacts={forceSnapshot.reload}
         />
+      )}{' '}
+      {barrierPrompt && (
+        <ConfirmDialog
+          title={`Clear the queue barrier for ${barrierPrompt.name}?`}
+          kicker="Only when the engine is idle"
+          confirmLabel="Clear barrier"
+          busyLabel="Clearing barrier…"
+          tone="danger"
+          onClose={() => {
+            log.info('model.barrier.clear.cancelled', { modelId: barrierPrompt.engine });
+            setBarrierPrompt(null);
+          }}
+          onConfirm={() => {
+            const { engine } = barrierPrompt;
+            setBarrierPrompt(null);
+            confirmClearBarrier(engine);
+          }}
+        >
+          <p>
+            Only continue after you have verified that {barrierPrompt.name} is neither loading nor
+            waiting to load. Clearing the barrier lets the queue start renders for it again.
+          </p>
+        </ConfirmDialog>
       )}{' '}
       {memoryConflict && (
         <MemoryDialog

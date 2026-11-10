@@ -1,9 +1,30 @@
 import { CircleAlert, LoaderCircle, OctagonX, X } from 'lucide-react';
 import { T, useT } from './i18n/index.js';
 import useDialogFocus from './useDialogFocus';
+import { jobAccessibleName } from './queue-groups.js';
+import { jobShortId } from './queue-filters.js';
 import './force-stop.css';
 
-export default function ForceStopDialog({ name, working, result, error, onClose, onForceStop }) {
+/**
+ * Force stop of one engine. `reason` is 'render' when the person pressed Stop this render, or
+ * 'service' from the Models page. `waitingJobs` lists the renders queued for this engine, which
+ * a stop leaves in line; `facts` are the engine checks read when the dialog opened.
+ */
+export default function ForceStopDialog({
+  name,
+  reason = 'service',
+  working,
+  result,
+  error,
+  onClose,
+  onForceStop,
+  waitingJobs = [],
+  projectNameOf = () => '',
+  facts = null,
+  factsStatus = 'ready',
+  factsError = '',
+  onRefreshFacts,
+}) {
   const { t } = useT();
   const dialog = useDialogFocus({
     onClose: () => {
@@ -41,7 +62,9 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
             <h2 id="force-stop-title">
               {result
                 ? t('models.forceStop.stoppedTitle', 'Service stopped')
-                : t('models.forceStop.confirmTitle', 'Force stop {name}?', { name })}
+                : reason === 'render'
+                  ? t('models.forceStop.renderTitle', 'Stop this render?')
+                  : t('models.forceStop.confirmTitle', 'Force stop {name}?', { name })}
             </h2>
           </div>
           <button
@@ -86,6 +109,31 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
               </p>
             )}
           </>
+        ) : reason === 'render' ? (
+          <>
+            <p id="force-stop-summary">
+              {t(
+                'models.forceStop.renderSummary',
+                'Forge stops the {name} process that is running this render. This is the only stop that works while a render is busy: Stop service is unavailable until the render finishes.',
+                { name },
+              )}
+            </p>
+            <div className="force-stop-warning" id="force-stop-warning">
+              <CircleAlert size={18} />
+              <span>
+                {t(
+                  'models.forceStop.renderWarning',
+                  'The render is marked interrupted and the queue pauses until you review it in the render queue. Partial output may remain in the project. Nothing is deleted, and model files stay on disk.',
+                )}
+              </span>
+            </div>
+            <p className="helper">
+              {t(
+                'models.forceStop.eligibility',
+                'Only a process whose identity and ownership Forge can verify is eligible. Memory may take a moment to be released.',
+              )}
+            </p>
+          </>
         ) : (
           <>
             <p id="force-stop-summary">
@@ -112,6 +160,90 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
               )}
             </p>
           </>
+        )}
+        {!result && facts && (
+          <div className="force-stop-facts">
+            <div className="force-stop-facts-head">
+              <h3>{t('models.forceStop.factsTitle', 'Check before you stop')}</h3>
+              {onRefreshFacts && (
+                <button
+                  type="button"
+                  className="force-stop-link"
+                  disabled={working || factsStatus === 'loading'}
+                  onClick={onRefreshFacts}
+                >
+                  {t('common.confirm.refreshFacts', 'Check again')}
+                </button>
+              )}
+            </div>
+            {factsStatus === 'loading' && !facts.length ? (
+              <p role="status" aria-live="polite">
+                {t('common.confirm.factsLoading', 'Reading the engine state…')}
+              </p>
+            ) : (
+              <dl>
+                {facts.map((fact) => (
+                  <div key={fact.label}>
+                    <dt>{fact.label}</dt>
+                    <dd>{fact.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {factsError && <p role="alert">{factsError}</p>}
+          </div>
+        )}
+        {!result && (
+          <div className="force-stop-waiting">
+            <h3>
+              {t('models.forceStop.waitingTitle', 'Renders waiting for this engine')}{' '}
+              {factsStatus === 'ready' && (
+                <span className="queue-group-count">{waitingJobs.length}</span>
+              )}
+            </h3>
+            {factsStatus === 'loading' ? (
+              <p className="helper" role="status">
+                {t('models.forceStop.waitingLoading', 'Checking waiting renders…')}
+              </p>
+            ) : factsStatus !== 'ready' ? (
+              <p className="helper">
+                {t(
+                  'models.forceStop.waitingUnknown',
+                  'Waiting renders could not be checked. Check again before deciding.',
+                )}
+              </p>
+            ) : waitingJobs.length ? (
+              <>
+                <p>
+                  {reason === 'render'
+                    ? t(
+                        'models.forceStop.waitingRender',
+                        'These stay in line after the stop. The queue pauses until the interrupted render is reviewed. A render that uses the interrupted render is cancelled only when you mark that one cancelled. Closing this dialog keeps all of them.',
+                      )
+                    : t(
+                        'models.forceStop.waitingService',
+                        'Force stop does not cancel these. They stay in line, and the queue waits for the interrupted render to be reviewed. Closing this dialog keeps all of them.',
+                      )}
+                </p>
+                <ol className="force-stop-waiting-list">
+                  {waitingJobs.map((job) => (
+                    <li key={job.id}>
+                      <strong>{jobAccessibleName(job)}</strong>{' '}
+                      <span className="helper">
+                        {[jobShortId(job), projectNameOf(job), job.status.replaceAll('_', ' ')]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            ) : (
+              <p className="helper">
+                {t('models.forceStop.waitingNone', 'No renders are waiting for this engine.')}
+              </p>
+            )}
+          </div>
         )}
         {error && (
           <div className="force-stop-error" role="alert">
@@ -163,7 +295,9 @@ export default function ForceStopDialog({ name, working, result, error, onClose,
                 )}{' '}
                 {working
                   ? t('models.forceStop.stopping', 'Stopping {name}…', { name })
-                  : t('models.forceStop.confirm', 'Force stop {name}', { name })}
+                  : reason === 'render'
+                    ? t('models.forceStop.renderConfirm', 'Stop this render')
+                    : t('models.forceStop.confirm', 'Force stop {name}', { name })}
               </button>
             </>
           )}

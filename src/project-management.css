@@ -1,0 +1,35 @@
+.project-management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--forge-space-2);
+  margin-block: var(--forge-space-3);
+}
+.project-management-confirmation {
+  display: grid;
+  gap: var(--forge-space-2);
+}
+.project-management-confirmation input {
+  min-height: 40px;
+  padding: var(--forge-space-2);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-surface);
+  color: var(--forge-text-strong);
+  font: inherit;
+}
+.project-management-confirmation input:focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 3px;
+}
+.project-management-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--forge-space-2);
+}
+.project-management-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--forge-space-3);
+}

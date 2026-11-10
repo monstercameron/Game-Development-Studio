@@ -32,3 +32,21 @@ test('a large render waits for GPU memory even when the model is already loaded'
   const large = await prepare({ width: 2752, height: 1536 }, true);
   assert.equal(large?.status, 'waiting_memory');
 });
+
+test('a loaded model is marked releasable only when a fresh load would fit the whole GPU', async () => {
+  const request = { width: 1664, height: 928 };
+  const gpu = (totalMiB) => async () => ({
+    devices: [{ index: 0, name: 'GPU', freeMiB: 20 * GiB, totalMiB }],
+  });
+  const wait = (totalMiB, loaded) =>
+    createImagePreparation({ hardware: gpu(totalMiB), services: async () => [] })(request, loaded);
+  const big = await wait(96 * GiB, true);
+  assert.equal(big.status, 'waiting_memory');
+  assert.equal(big.details.releasableLoadedModel, true);
+  // A card too small to load the model again would only lose the loaded model.
+  assert.equal((await wait(40 * GiB, true)).details.releasableLoadedModel, undefined);
+  // An unloaded engine has nothing to release.
+  assert.equal((await wait(96 * GiB, false)).details.releasableLoadedModel, undefined);
+  // Without a reported total nothing is assumed.
+  assert.equal((await wait(null, true)).details.releasableLoadedModel, undefined);
+});

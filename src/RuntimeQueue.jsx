@@ -1,8 +1,41 @@
 import { useRouteToggle } from './useNav';
-import useDialogFocus from './useDialogFocus';
+import { useT } from './i18n/index.js';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { Check, CircleAlert, Copy, EyeOff, ListMusic, RefreshCw, X, Zap } from 'lucide-react';
+import {
+  Check,
+  CircleAlert,
+  Copy,
+  EyeOff,
+  ListMusic,
+  RefreshCw,
+  Search,
+  Square,
+  X,
+  Zap,
+} from 'lucide-react';
+import ConfirmDialog from './ConfirmDialog';
+import ForceStopDialog from './ForceStopDialog';
+import useEngineSnapshot from './use-engine-snapshot.js';
+import {
+  engineFacts,
+  engineIdForJobType,
+  engineNameForJobType,
+  waitingJobsForEngine,
+} from './engine-controls.js';
+import {
+  STATUS_FILTERS,
+  clearableWaitingJobs,
+  countByStatusFilter,
+  filterQueueJobs,
+  hasActiveQueueFilters,
+  jobAgeSeconds,
+  jobShortId,
+  jobSizeAndSteps,
+  normalizeQueueFilters,
+  queueProjectOptions,
+  queueTypeOptions,
+} from './queue-filters.js';
 import { audioPayload } from './audio-payload';
 import {
   imageRequest,
@@ -15,6 +48,7 @@ import { matchSummary, segmentationSettings } from './segmentation-settings.js';
 import { chainHint, isChained, isWaitingForReference, waitingDependents } from './queue-chain.js';
 import './queue-chain.css';
 import './queue-groups.css';
+import './queue-filters.css';
 import {
   DISMISSIBLE_STATUSES,
   buildQueueGroups,
@@ -59,53 +93,63 @@ export async function post(path, body = {}) {
   return result;
 }
 
-function ClearQueueDialog({ error, confirmation, setConfirmation, busy, onClose, onConfirm }) {
-  const dialog = useDialogFocus({ onClose, initialFocus: 'input' });
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        ref={dialog}
-        className="queue-confirm"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="queue-confirm-title"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="queue-confirm-title">Clear waiting renders?</h2>
-        <p>
-          This cancels eligible waiting renders in every project. Running and uncertain jobs
-          continue; completed assets stay.
-        </p>
-        {error && (
-          <p className="settings-error" role="alert">
-            {error}
-          </p>
-        )}
-        <label>
-          Type CLEAR to confirm
-          <input
-            value={confirmation}
-            onChange={(e) => setConfirmation(e.target.value)}
-            autoComplete="off"
-          />
-        </label>
-        <div>
-          <button className="icon-outline" onClick={onClose}>
-            Keep queue
-          </button>
-          <button
-            className="queue-danger"
-            disabled={confirmation !== 'CLEAR' || busy === 'clear'}
-            onClick={onConfirm}
-          >
-            Cancel waiting renders
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+// The filter choice survives moving between pages in this session, not across browser sessions.
+const QUEUE_FILTERS_KEY = 'forge-queue-filters-v1';
+// Prompts longer than this are cut in the row, with a control to show the rest.
+const PROMPT_PREVIEW_LENGTH = 140;
+// How many cancelled renders the clear dialog names before it summarises the rest.
+const CLEAR_LIST_LIMIT = 8;
+// Renders that an engine is working on now. Only a force stop can end them (see stopRender).
+const RUNNING_STATUSES = ['preparing', 'submitting', 'running', 'finalizing'];
+
+function loadQueueFilters() {
+  try {
+    return normalizeQueueFilters(JSON.parse(sessionStorage.getItem(QUEUE_FILTERS_KEY)));
+  } catch {
+    // A missing or unreadable saved choice means the default filters.
+    return normalizeQueueFilters(null);
+  }
 }
+
+function saveQueueFilters(filters) {
+  try {
+    sessionStorage.setItem(QUEUE_FILTERS_KEY, JSON.stringify(filters));
+  } catch (error) {
+    log.debug('queue.filters.save.failed', { errorClass: error?.name });
+    // Browser storage may be unavailable; the filters still apply for this page view.
+  }
+}
+
+// Time of creation, shown with the date when the render was not created today.
+function formatCreated(createdAt, now) {
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) {
+    return 'Unknown time';
+  }
+  const sameDay = created.toDateString() === new Date(now).toDateString();
+  return created.toLocaleString([], {
+    ...(sameDay ? {} : { month: 'short', day: 'numeric' }),
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+// "3 min ago" style age from the seconds jobAgeSeconds returns.
+function formatAge(seconds) {
+  if (seconds === null) {
+    return 'age unknown';
+  }
+  if (seconds < 60) {
+    return 'just now';
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} min ago`;
+  }
+  const hours = Math.floor(minutes / 60);
+  return hours < 48 ? `${hours} h ago` : `${Math.floor(hours / 24)} days ago`;
+}
+
 function payload(type, projectId, draft) {
   if (type === '3d') {
     return { type, projectId, request: hunyuanShapeRequest(draft) };
@@ -359,6 +403,36 @@ const outputNouns = {
   '3d': 'model',
   trellis: 'model',
 };
+// The render's prompt or title, cut to a preview. The toggle names the render, so several rows
+// with long prompts can be told apart by a screen reader.
+function JobPrompt({ job, expanded, onToggle }) {
+  const fullTitle = jobTitle(job);
+  const isLong = fullTitle.length > PROMPT_PREVIEW_LENGTH;
+  const shown =
+    isLong && !expanded ? `${fullTitle.slice(0, PROMPT_PREVIEW_LENGTH).trimEnd()}…` : fullTitle;
+  return (
+    <>
+      <strong
+        className="runtime-job-prompt"
+        title={job.request.title || job.request.style || job.request.prompt || job.request.text}
+      >
+        {shown}
+      </strong>
+      {isLong && (
+        <button
+          type="button"
+          className="text-action runtime-job-prompt-toggle"
+          aria-expanded={expanded}
+          aria-label={`${expanded ? 'Show less of' : 'Show full prompt of'} render ${jobShortId(job)}`}
+          onClick={onToggle}
+        >
+          {expanded ? 'Show less' : 'Show full prompt'}
+        </button>
+      )}
+    </>
+  );
+}
+
 function JobTiming({ job, timing }) {
   if (!timing) {
     return null;
@@ -389,6 +463,7 @@ function JobTiming({ job, timing }) {
   );
 }
 export default function RuntimeQueue({ refreshKey, projects = [], expanded = false }) {
+  const { t } = useT();
   const {
     jobs,
     error: queueError,
@@ -412,54 +487,46 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
   // Where keyboard focus goes once the dismissed row has left the list.
   const focusAfterDismiss = useRef(null);
   const [confirmClear, setConfirmClear] = useRouteToggle('clearQueue');
-  const [confirmation, setConfirmation] = useState('');
+  // Which waiting renders "Clear waiting renders" cancels: the current view, or every project.
+  const [clearScope, setClearScope] = useState('view');
+  const [clearConfirmation, setClearConfirmation] = useState('');
+  const [clearBusy, setClearBusy] = useState(false);
+  const [clearError, setClearError] = useState('');
+  const [resolveTarget, setResolveTarget] = useState(null);
+  const [resolveBusy, setResolveBusy] = useState(false);
+  const [resolveError, setResolveError] = useState('');
+  const [stopTarget, setStopTarget] = useState(null);
+  const [stopBusy, setStopBusy] = useState(false);
+  const [stopResult, setStopResult] = useState(null);
+  const [stopError, setStopError] = useState('');
+  const [filters, setFilters] = useState(loadQueueFilters);
+  // Rows whose long prompt is shown in full.
+  const [expandedPrompts, setExpandedPrompts] = useState({});
+  const [clock, setClock] = useState(() => Date.now());
   const [notice, setNotice] = useState('');
+  const dialogJob = resolveTarget || stopTarget;
+  const dialogEngineId = dialogJob ? engineIdForJobType(dialogJob.type) : null;
+  // Engine facts and the waiting line are read only while a decision dialog is open.
+  const engineSnapshot = useEngineSnapshot(dialogEngineId, Boolean(dialogEngineId));
   useEffect(() => {
-    if (!confirmClear) {
-      setConfirmation('');
-    }
-  }, [confirmClear]);
+    saveQueueFilters(filters);
+  }, [filters]);
+  useEffect(() => {
+    // Ages in the rows move on their own, so the clock ticks while the page is open.
+    const timer = setInterval(() => setClock(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     refresh();
   }, [refresh, refreshKey]);
   async function action(job, kind) {
-    const engine =
-      {
-        music: 'YuE2',
-        sfx: 'Stable Audio Lab',
-        images: 'Qwen Image Studio',
-        video: 'H3 Studio',
-        voices: 'Qwen3-TTS',
-        '3d': 'Hunyuan3D',
-        trellis: 'TRELLIS.2',
-        segmentation: 'SAM 3.1',
-        motion: 'HY-Motion',
-        'motion-bricks': 'MotionBricks',
-        world: 'World generation',
-        vegetation: 'SeedThree',
-      }[job.type] || 'the engine';
-    if (
-      kind === 'resolve' &&
-      !window.confirm(
-        `Check ${engine}'s queue and history${job.remoteId ? ` for job ${job.remoteId}` : ''} first. Confirm that it is no longer running. Forge will mark this render cancelled and may unblock the queue. Continue?`,
-      )
-    ) {
-      return;
-    }
     setError('');
     setNotice('');
     setBusy(job.id);
     try {
-      await post(
-        `/api/runtime/jobs/${job.id}/${kind}`,
-        kind === 'resolve' ? { confirmRemoteNotRunning: true } : {},
-      );
+      await post(`/api/runtime/jobs/${job.id}/${kind}`, {});
       await refresh();
-      setNotice(
-        kind === 'resolve'
-          ? 'Interrupted render marked cancelled.'
-          : `Render ${kind === 'retry' ? 'retried' : 'cancelled'}.`,
-      );
+      setNotice(`Render ${kind === 'retry' ? 'retried' : 'cancelled'}.`);
       log.info('queue.render.action.completed', { jobId: job.id, action: kind });
     } catch (e) {
       log.warn('queue.render.action.failed', { jobId: job.id, action: kind, error: e });
@@ -467,6 +534,57 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
     } finally {
       setBusy('');
     }
+  }
+  // Marks an interrupted render cancelled. Runs only after the person confirmed the engine check.
+  async function resolveJob() {
+    const job = resolveTarget;
+    if (!job) {
+      return;
+    }
+    setResolveBusy(true);
+    setResolveError('');
+    try {
+      await post(`/api/runtime/jobs/${job.id}/resolve`, { confirmRemoteNotRunning: true });
+      log.info('queue.render.action.completed', { jobId: job.id, action: 'resolve' });
+      setResolveTarget(null);
+      setNotice('Interrupted render marked cancelled.');
+      await refresh();
+    } catch (e) {
+      log.warn('queue.render.action.failed', { jobId: job.id, action: 'resolve', error: e });
+      // The error stays in the dialog, so the person can read it and try again.
+      setResolveError(e.message);
+    } finally {
+      setResolveBusy(false);
+    }
+  }
+  // Stops the engine that runs a render. Forge verifies the process itself; the page sends only
+  // the engine id and the confirmation.
+  async function stopRender() {
+    const job = stopTarget;
+    const engineId = job && engineIdForJobType(job.type);
+    if (!engineId) {
+      return;
+    }
+    setStopBusy(true);
+    setStopError('');
+    try {
+      const result = await post(`/api/runtime/models/${engineId}/force-stop`, {
+        confirmation: 'force-stop-engine',
+      });
+      log.info('queue.render.stop.completed', { jobId: job.id, engineId });
+      setStopResult(result);
+      await refresh();
+    } catch (e) {
+      log.warn('queue.render.stop.failed', { jobId: job.id, engineId, error: e });
+      setStopError(e.message);
+    } finally {
+      setStopBusy(false);
+    }
+  }
+  function closeStopDialog() {
+    setStopTarget(null);
+    setStopResult(null);
+    setStopError('');
   }
   async function copyError(job) {
     try {
@@ -481,8 +599,17 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
     }
   }
   const visible = jobs.filter((job) => !hiddenIds.includes(job.id));
+  const projectName = (job) =>
+    projects.find((project) => project.id === job.projectId)?.name || 'Project';
+  const projectOptions = queueProjectOptions(visible, projects);
+  const typeOptions = queueTypeOptions(visible);
+  const filtersActive = hasActiveQueueFilters(filters);
+  const matching = filterQueueJobs(visible, filters, projectName);
+  const statusCounts = countByStatusFilter(visible, filters, projectName);
   // Renders that wait for an earlier render are listed directly under it.
-  const { groups, nested: nestedIds } = buildQueueGroups(visible, { expanded });
+  const { groups, nested: nestedIds } = buildQueueGroups(matching, { expanded });
+  const changeFilters = (change) =>
+    setFilters((current) => normalizeQueueFilters({ ...current, ...change }));
   const countOf = (id) => groups.find((group) => group.id === id).items.length;
   const reorder = useQueueReorder({
     jobs,
@@ -581,15 +708,23 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
             }[job.type] || job.type}
           </span>
         </div>
-        <strong
-          title={job.request.title || job.request.style || job.request.prompt || job.request.text}
-        >
-          {jobTitle(job)}
-        </strong>
-        <small>
-          {projects.find((project) => project.id === job.projectId)?.name || 'Project'}
-          {job.stage ? ` · ${job.stage}` : ''}
-        </small>
+        <div className="runtime-job-meta">
+          <code title="Render ID">{jobShortId(job)}</code>
+          <span>{projectName(job)}</span>
+          <span>
+            Created {formatCreated(job.createdAt, clock)} ·{' '}
+            {formatAge(jobAgeSeconds(job.createdAt, clock))}
+          </span>
+          {jobSizeAndSteps(job) && <span>{jobSizeAndSteps(job)}</span>}
+        </div>
+        <JobPrompt
+          job={job}
+          expanded={Boolean(expandedPrompts[job.id])}
+          onToggle={() =>
+            setExpandedPrompts((current) => ({ ...current, [job.id]: !current[job.id] }))
+          }
+        />
+        {job.stage && <small>{job.stage}</small>}
         {jobHint(job) && <small className="runtime-job-hint">{jobHint(job)}</small>}
         {chainHint(job, jobs) && (
           <small className="runtime-job-chain-hint">{chainHint(job, jobs)}</small>
@@ -630,11 +765,26 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
             reorder={reorder}
           />
         )}
+        {RUNNING_STATUSES.includes(job.status) && engineIdForJobType(job.type) && (
+          <button
+            type="button"
+            className="icon-outline queue-stop-render"
+            title="Stops the engine that runs this render. The queue then waits for you to review it."
+            onClick={() => {
+              setStopResult(null);
+              setStopError('');
+              setStopTarget(job);
+            }}
+          >
+            <Square size={14} aria-hidden="true" />
+            Stop this render…
+          </button>
+        )}
         {['queued', 'waiting_engine', 'waiting_memory', 'needs_attention'].includes(job.status) && (
           <button
             disabled={busy === job.id}
             className="icon-outline"
-            aria-label={`Cancel ${jobAccessibleName(job)}`}
+            aria-label={`Cancel render ${jobShortId(job)} in ${projectName(job)}`}
             title={
               waitingDependents(job, jobs).length
                 ? `Also cancels ${waitingDependents(job, jobs).length} waiting render(s) that use its result.`
@@ -689,7 +839,11 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
             <button
               disabled={busy === job.id}
               className="icon-outline"
-              onClick={() => action(job, 'resolve')}
+              aria-label={`Mark cancelled after checking: render ${jobShortId(job)} in ${projectName(job)}`}
+              onClick={() => {
+                setResolveError('');
+                setResolveTarget(job);
+              }}
             >
               <CircleAlert size={14} />
               Mark cancelled after checking…
@@ -707,30 +861,81 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
   const waitingCount = jobs.filter(
     (job) => ['queued', 'waiting_engine', 'waiting_memory'].includes(job.status) && !job.remoteId,
   ).length;
-  async function clearWaiting() {
-    if (confirmation !== 'CLEAR') {
-      return;
-    }
-    setBusy('clear');
-    setError('');
-    try {
-      const result = await post('/api/runtime/jobs/clear-waiting', {
-        confirmation: 'cancel-waiting-renders',
-      });
-      setNotice(
-        `${result.cancelled} waiting ${result.cancelled === 1 ? 'render' : 'renders'} cancelled.`,
-      );
-      log.info('queue.waiting.cleared', { count: result.cancelled });
+  // The waiting renders the clear dialog would cancel for the chosen scope.
+  const clearViewTargets = clearableWaitingJobs(matching);
+  const clearAllTargets = clearableWaitingJobs(jobs);
+  const clearTargets = clearScope === 'all' ? clearAllTargets : clearViewTargets;
+  function openClearDialog() {
+    setClearError('');
+    setClearScope('view');
+    setClearConfirmation('');
+    setConfirmClear(true);
+  }
+  function closeClearDialog() {
+    if (!clearBusy) {
       setConfirmClear(false);
-      setConfirmation('');
-      await refresh();
-    } catch (e) {
-      log.warn('queue.waiting.clear.failed', { error: e });
-      setError(e.message);
-    } finally {
-      setBusy('');
     }
   }
+  /**
+   * Cancels the waiting renders in the chosen scope. Every project uses the runtime's own bulk
+   * cancel; a view or filter cancels its renders one by one, and each render the runtime refuses
+   * (because it started meanwhile, say) is reported rather than hidden.
+   */
+  async function clearWaiting() {
+    const targets = clearTargets;
+    if (!targets.length || clearConfirmation !== 'CLEAR') {
+      return;
+    }
+    setClearBusy(true);
+    setClearError('');
+    setNotice('');
+    const failures = [];
+    let cancelled = 0;
+    try {
+      if (clearScope === 'all') {
+        const result = await post('/api/runtime/jobs/clear-waiting', {
+          confirmation: 'cancel-waiting-renders',
+        });
+        cancelled = result.cancelled;
+      } else {
+        for (const job of targets) {
+          try {
+            await post(`/api/runtime/jobs/${job.id}/cancel`, {});
+            cancelled += 1;
+          } catch (e) {
+            failures.push(`${jobShortId(job)} (${e.message})`);
+          }
+        }
+      }
+      log.info('queue.waiting.cleared', { count: cancelled, scope: clearScope });
+      setNotice(`${cancelled} waiting ${cancelled === 1 ? 'render' : 'renders'} cancelled.`);
+      if (failures.length) {
+        setClearError(
+          `${failures.length} could not be cancelled and were left in the queue: ${failures.join(', ')}.`,
+        );
+      } else {
+        setConfirmClear(false);
+      }
+    } catch (e) {
+      log.warn('queue.waiting.clear.failed', { error: e, scope: clearScope });
+      setClearError(e.message);
+    } finally {
+      setClearBusy(false);
+      await refresh();
+    }
+  }
+  // What the open decision dialog shows: the engine's own state and GPU memory, and the renders
+  // queued behind it. Empty until the snapshot is read, so nothing is shown as checked before it is.
+  const engineFactsRows =
+    dialogEngineId && engineSnapshot.status === 'ready'
+      ? engineFacts(engineSnapshot.service, engineSnapshot.hardware)
+      : [];
+  const stopWaitingJobs = dialogEngineId
+    ? waitingJobsForEngine(
+        engineSnapshot.status === 'ready' ? engineSnapshot.jobs : jobs,
+        dialogEngineId,
+      )
+    : [];
   return (
     <section className="panel runtime-queue">
       <div className="panel-heading">
@@ -759,29 +964,31 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
         <details className="queue-manage-menu">
           <summary>Manage queue</summary>
           <p className="queue-manage-note queue-scope-note">
-            Clear cancels waiting renders in every project; running and uncertain jobs continue.
-            Hiding rows only changes this view.
+            “Clear waiting renders” cancels waiting renders in the current view, and asks before it
+            cancels any in other projects. Running and uncertain renders continue; completed files
+            stay.
           </p>
           <div className="queue-manage">
             <button
               className="icon-outline"
               onClick={hideCurrent}
               disabled={hiddenCount === jobs.length}
+              title="Only hides these rows in this browser. Renders keep running and stay in the history."
             >
-              Hide current rows
+              Hide these rows from this list
             </button>
             {hiddenCount > 0 && (
-              <button className="icon-outline" onClick={showHidden}>
-                Show hidden ({hiddenCount})
+              <button
+                className="icon-outline"
+                onClick={showHidden}
+                title="Shows the rows you hid in this browser again."
+              >
+                Show the {hiddenCount} hidden {hiddenCount === 1 ? 'row' : 'rows'} again
               </button>
             )}
             <button
               className="icon-outline queue-clear"
-              onClick={() => {
-                setError('');
-                setConfirmation('');
-                setConfirmClear(true);
-              }}
+              onClick={openClearDialog}
               disabled={!waitingCount}
               title={waitingCount ? undefined : 'There are no waiting renders to cancel.'}
             >
@@ -789,6 +996,82 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
             </button>
           </div>
         </details>
+      )}
+      {jobs.length > 0 && (
+        <div className="queue-filters" role="group" aria-label="Filter renders">
+          <div className="queue-filter-status" role="group" aria-label="Status">
+            {STATUS_FILTERS.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                className="queue-filter-chip"
+                aria-pressed={filters.status === filter.id}
+                onClick={() => changeFilters({ status: filter.id })}
+              >
+                {filter.label}
+                <span className="queue-filter-count">{statusCounts[filter.id]}</span>
+              </button>
+            ))}
+          </div>
+          <div className="queue-filter-fields">
+            <label>
+              <span>Project</span>
+              <select
+                value={filters.projectId}
+                onChange={(event) => changeFilters({ projectId: event.target.value })}
+              >
+                <option value="all">All projects</option>
+                {projectOptions.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Type</span>
+              <select
+                value={filters.type}
+                onChange={(event) => changeFilters({ type: event.target.value })}
+              >
+                <option value="all">All types</option>
+                {typeOptions.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="queue-filter-search">
+              <span>
+                <Search size={14} aria-hidden="true" /> Search
+              </span>
+              <input
+                type="search"
+                value={filters.query}
+                placeholder="Prompt, render ID or project"
+                onChange={(event) => changeFilters({ query: event.target.value })}
+              />
+            </label>
+          </div>
+          <p className="queue-filter-summary" role="status" aria-live="polite">
+            Showing {matching.length} of {visible.length}{' '}
+            {visible.length === 1 ? 'render' : 'renders'}
+            {hiddenCount > 0 && ` (${hiddenCount} hidden in this browser)`}.
+            {filtersActive && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  className="text-action"
+                  onClick={() => setFilters(normalizeQueueFilters(null))}
+                >
+                  Clear filters
+                </button>
+              </>
+            )}
+          </p>
+        </div>
       )}
       {dismissal && (
         <p className="queue-manage-note queue-dismissal" role="status">
@@ -808,16 +1091,27 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
           {error || queueError}
         </p>
       )}
-      {!visible.length ? (
+      {!matching.length ? (
         <div className="runtime-queue-empty">
           <ListMusic size={19} />
           <span>
-            {hiddenCount
-              ? 'Current rows are hidden in this browser. Renders continue in the background.'
-              : queueError
-                ? 'The render queue could not be loaded. Refresh to try again.'
-                : 'No renders yet. Queue one and its progress will show up here.'}
+            {queueError && !jobs.length
+              ? 'The render queue could not be loaded. Refresh to try again.'
+              : !visible.length && hiddenCount
+                ? 'Every row is hidden in this browser. Renders continue in the background.'
+                : visible.length
+                  ? 'No renders match these filters.'
+                  : 'No renders yet. Queue one and its progress will show up here.'}
           </span>
+          {filtersActive && visible.length > 0 && (
+            <button
+              type="button"
+              className="icon-outline"
+              onClick={() => setFilters(normalizeQueueFilters(null))}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       ) : (
         <div
@@ -888,7 +1182,7 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
               {hiddenCount} {hiddenCount === 1 ? 'render is' : 'renders are'} hidden in this
               browser.{' '}
               <button type="button" className="text-action" onClick={showHidden}>
-                Show hidden
+                Show them again
               </button>
             </p>
           )}
@@ -900,13 +1194,133 @@ export default function RuntimeQueue({ refreshKey, projects = [], expanded = fal
         </Link>
       )}
       {confirmClear && (
-        <ClearQueueDialog
-          error={error}
-          confirmation={confirmation}
-          setConfirmation={setConfirmation}
-          busy={busy}
-          onClose={() => setConfirmClear(false)}
+        <ConfirmDialog
+          title="Clear waiting renders?"
+          kicker="Waiting renders only"
+          error={clearError}
+          confirmLabel={`Cancel ${clearTargets.length} waiting ${clearTargets.length === 1 ? 'render' : 'renders'}`}
+          busyLabel="Cancelling renders…"
+          tone="danger"
+          busy={clearBusy}
+          confirmDisabled={!clearTargets.length || clearConfirmation !== 'CLEAR'}
           onConfirm={clearWaiting}
+          onClose={closeClearDialog}
+        >
+          <fieldset className="queue-clear-scope">
+            <legend>Which waiting renders?</legend>
+            <label>
+              <input
+                type="radio"
+                name="clear-scope"
+                value="view"
+                checked={clearScope === 'view'}
+                disabled={clearBusy}
+                onChange={() => {
+                  setClearScope('view');
+                  setClearConfirmation('');
+                }}
+              />
+              <span>
+                In this view: {clearViewTargets.length}
+                {!filtersActive && ' (no filters are set, so this covers every project)'}
+              </span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="clear-scope"
+                value="all"
+                checked={clearScope === 'all'}
+                disabled={clearBusy}
+                onChange={() => {
+                  setClearScope('all');
+                  setClearConfirmation('');
+                }}
+              />
+              <span>In every project, including rows hidden here: {clearAllTargets.length}</span>
+            </label>
+          </fieldset>
+          {clearTargets.length ? (
+            <>
+              <p>These waiting renders will be cancelled:</p>
+              <ul className="queue-clear-list">
+                {clearTargets.slice(0, CLEAR_LIST_LIMIT).map((job) => (
+                  <li key={job.id}>
+                    <code>{jobShortId(job)}</code> {jobAccessibleName(job)}{' '}
+                    <span>· {projectName(job)}</span>
+                  </li>
+                ))}
+              </ul>
+              {clearTargets.length > CLEAR_LIST_LIMIT && (
+                <p>and {clearTargets.length - CLEAR_LIST_LIMIT} more.</p>
+              )}
+            </>
+          ) : (
+            <p>There are no waiting renders in this scope.</p>
+          )}
+          <p>
+            Running and uncertain renders continue. Completed files stay in their projects. A
+            cancelled render cannot be restarted from here; queue it again if you still need it.
+          </p>
+          <label className="queue-clear-confirmation">
+            {t('queue.clear.typeConfirmation', 'Type CLEAR to confirm')}
+            <input
+              value={clearConfirmation}
+              onChange={(event) => setClearConfirmation(event.target.value)}
+              disabled={clearBusy}
+              autoComplete="off"
+            />
+          </label>
+        </ConfirmDialog>
+      )}
+      {resolveTarget && (
+        <ConfirmDialog
+          title="Mark this render cancelled?"
+          kicker={`Render ${jobShortId(resolveTarget)} · ${projectName(resolveTarget)}`}
+          facts={dialogEngineId ? engineFactsRows : null}
+          factsStatus={engineSnapshot.status === 'loading' ? 'loading' : 'ready'}
+          factsError={dialogEngineId ? engineSnapshot.error : ''}
+          onRefreshFacts={engineSnapshot.reload}
+          error={resolveError}
+          confirmLabel="Mark cancelled"
+          busyLabel="Marking cancelled…"
+          tone="danger"
+          busy={resolveBusy}
+          onConfirm={resolveJob}
+          onClose={() => {
+            if (!resolveBusy) {
+              setResolveTarget(null);
+              setResolveError('');
+            }
+          }}
+        >
+          <p>
+            Check {engineNameForJobType(resolveTarget.type)}’s queue and history
+            {resolveTarget.remoteId ? ` for job ${resolveTarget.remoteId}` : ''} first. Confirm that
+            it is no longer running this render.
+          </p>
+          <p>
+            Forge then marks “{jobAccessibleName(resolveTarget)}” cancelled and unblocks the queue.
+            Renders that depend on it are cancelled too. Nothing is deleted.
+          </p>
+          {!dialogEngineId && <p>This kind of render has no engine to check in Forge.</p>}
+        </ConfirmDialog>
+      )}
+      {stopTarget && (
+        <ForceStopDialog
+          name={engineNameForJobType(stopTarget.type)}
+          reason="render"
+          working={stopBusy}
+          result={stopResult}
+          error={stopError}
+          onClose={closeStopDialog}
+          onForceStop={stopRender}
+          waitingJobs={stopWaitingJobs}
+          projectNameOf={projectName}
+          facts={engineFactsRows}
+          factsStatus={engineSnapshot.status}
+          factsError={engineSnapshot.error}
+          onRefreshFacts={engineSnapshot.reload}
         />
       )}
     </section>

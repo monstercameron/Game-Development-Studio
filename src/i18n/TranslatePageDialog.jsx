@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { LoaderCircle, X } from 'lucide-react';
 import useDialogFocus from '../useDialogFocus';
 import { createLog } from '../app-log.js';
@@ -452,7 +453,8 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
   const percent =
     progress && progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
 
-  return (
+  // The top bar has backdrop-filter, which otherwise traps position: fixed inside it.
+  return createPortal(
     <div className="modal-backdrop translate-backdrop" onClick={handleClose}>
       <section
         ref={dialog}
@@ -485,7 +487,7 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
             className="translate-choose"
             onSubmit={(event) => {
               event.preventDefault();
-              const code = typed.code || target?.code;
+              const code = typedCode ? typed.code : target?.code;
               if (code) {
                 loadPreview(code);
               }
@@ -855,6 +857,7 @@ export default function TranslatePageDialog({ namespaces, onClose, onOpenSetting
           </div>
         )}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

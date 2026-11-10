@@ -71,4 +71,21 @@ test('project trash HTTP API lists, restores, and requires confirmation and loca
   response = await post('clear-trash', { confirmation: 'permanently-delete-trash' });
   assert.deepEqual(await response.json(), { deleted: 1 });
   assert.equal((await (await fetch(endpoint + 'trash')).json()).items.length, 0);
+
+  await fs.writeFile(path.join(folder, 'images', 'one.png'), 'one');
+  await fs.writeFile(path.join(folder, 'images', 'two.jpg'), 'two');
+  await fs.writeFile(path.join(folder, 'images', 'notes.unsupported'), 'keep');
+  assert.equal((await post('trash-all', { confirmation: 'wrong' })).status, 400);
+  assert.equal((await post('trash-all', { confirmation: 'Fixture' }, false)).status, 403);
+  assert.equal(await fs.readFile(path.join(folder, 'images', 'one.png'), 'utf8'), 'one');
+  response = await post('trash-all', { confirmation: 'Fixture' });
+  assert.deepEqual(await response.json(), { moved: 2, failures: [] });
+  assert.equal(await fs.readFile(path.join(folder, 'images', 'notes.unsupported'), 'utf8'), 'keep');
+  const batchTrash = await (await fetch(endpoint + 'trash')).json();
+  assert.equal(batchTrash.items.length, 2);
+  for (const item of batchTrash.items) {
+    assert.equal((await post('restore', { trashId: item.trashId })).status, 200);
+  }
+  assert.equal(await fs.readFile(path.join(folder, 'images', 'one.png'), 'utf8'), 'one');
+  assert.equal(await fs.readFile(path.join(folder, 'images', 'two.jpg'), 'utf8'), 'two');
 });

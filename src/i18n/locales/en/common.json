@@ -1,6 +1,12 @@
 {
   "common.action.cancel": "Cancel",
+  "common.action.close": "Close",
   "common.action.done": "Done",
+  "common.action.retry": "Retry",
+  "common.action.save": "Save",
+  "common.confirm.checkFirst": "Check before you continue",
+  "common.confirm.factsLoading": "Reading the engine state…",
+  "common.confirm.refreshFacts": "Check again",
   "common.fieldHelp.button": "Help: {name}",
   "common.fieldHelp.layoutName": "Display layout",
   "common.fieldHelp.ratingFallback": "Rate this asset from one to five stars.",

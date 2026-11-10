@@ -39,6 +39,9 @@ const ENGINE_OPERATIONS = new Set([
   'loadHyMotion',
   'loadMotionBricks',
   'clearWaiting',
+  'trashProject',
+  'listProjectTrash',
+  'restoreProject',
   'clearMusicLoadBarrier',
   'clearSoundLoadBarrier',
   'clearTtsLoadBarrier',
@@ -430,6 +433,7 @@ export function runtimeService({ engineBroker = null } = {}) {
         '/services': 'services',
         '/hardware': 'hardware',
         '/jobs': 'jobs',
+        '/projects/trash': 'listProjectTrash',
         '/model-storage': 'modelStorage',
         '/asr/latency': 'asrLatency',
       };
@@ -464,7 +468,11 @@ export function runtimeService({ engineBroker = null } = {}) {
         ) {
           return send(403, { error: 'Local studio requests only.' });
         }
-        if (url.pathname === '/jobs/clear-waiting') {
+        if (url.pathname === '/projects/trash') {
+          method = 'trashProject';
+        } else if (url.pathname === '/projects/restore') {
+          method = 'restoreProject';
+        } else if (url.pathname === '/jobs/clear-waiting') {
           method = 'clearWaiting';
         } else if (url.pathname === '/models/chat/load') {
           method = 'loadChat';

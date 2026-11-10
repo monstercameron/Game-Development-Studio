@@ -67,6 +67,15 @@ function describeEngineState(engine, t) {
   return t('diagnostics.recovery.engineUnverified', 'answered, but is not verified.');
 }
 
+// Engines worth a line: found running, unverified, or hung. A plain "not running" engine is not.
+function isEngineToReport(engine) {
+  return (
+    engine.status !== 'unavailable' ||
+    engine.reason === 'timeout' ||
+    engine.ownership === 'unresolved'
+  );
+}
+
 function JobItem({ job, busy, checked, onCheck, onResolve, onRetry }) {
   const { t } = useT();
   const canResolve = job.status === 'interrupted';
@@ -272,6 +281,9 @@ export default function RecoveryPanel() {
   const problems = report.orphans?.projectProblems || [];
   const databases = (report.databases || []).filter((database) => database.state !== 'ok');
   const engines = report.engines || [];
+  // An engine that is simply not running needs no decision, so it is left out of the list.
+  const reportedEngines = engines.filter(isEngineToReport);
+  const notRunningCount = engines.length - reportedEngines.length;
   const lastAlive = report.previous?.lastAliveAt
     ? new Date(report.previous.lastAliveAt).toLocaleString()
     : null;
@@ -464,16 +476,25 @@ export default function RecoveryPanel() {
         </div>
       ) : null}
 
-      {engines.length ? (
+      {reportedEngines.length ? (
         <div className="recovery-group">
           <h3>{t('diagnostics.recovery.enginesTitle', 'Engines')}</h3>
           <ul className="recovery-list">
-            {engines.map((engine) => (
+            {reportedEngines.map((engine) => (
               <li key={engine.id}>
                 <strong>{engine.name || engine.id}</strong> {describeEngineState(engine, t)}
               </li>
             ))}
           </ul>
+          {notRunningCount > 0 ? (
+            <p className="recovery-muted">
+              {t(
+                'diagnostics.recovery.enginesNotRunning',
+                '{count} other engines are not running and need no decision, so they are not listed.',
+                { count: notRunningCount },
+              )}
+            </p>
+          ) : null}
         </div>
       ) : null}
 

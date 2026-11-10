@@ -24,6 +24,7 @@
   --ux-panel-bg: var(--forge-surface);
   --ux-sidebar-queue-width: 340px;
   --ux-dialog-wide: 1180px;
+  --ux-z-modal: 1300;
   --ux-font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Consolas, monospace;
 }
 @media (min-width: 851px) {

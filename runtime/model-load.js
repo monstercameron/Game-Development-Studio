@@ -1,4 +1,5 @@
 import { createLogger } from './app-log.js';
+import { readGpuMemory } from './gpu-memory.js';
 
 const log = createLogger('model');
 
@@ -53,24 +54,38 @@ export function setHostMemoryPolicySource(reader = null) {
   readHostMemoryPolicy = reader ?? environmentHostMemoryPolicy;
 }
 
+/** The configured host threshold is separate from the GPU model budget. */
+export function hostMemoryThreshold(requiredBytes, policy = readHostMemoryPolicy()) {
+  if (!Number.isFinite(requiredBytes) || requiredBytes < 0) {
+    return null;
+  }
+  return String(policy || '').toLowerCase() === 'strict'
+    ? requiredBytes
+    : Math.min(requiredBytes, HOST_MEMORY_FLOOR_BYTES);
+}
+
 export function hostMemoryShort(freeBytes, requiredBytes, policy = readHostMemoryPolicy()) {
-  if (!Number.isFinite(freeBytes)) {
+  const threshold = hostMemoryThreshold(requiredBytes, policy);
+  if (!Number.isFinite(freeBytes) || freeBytes < 0 || threshold === null) {
     return true;
   }
-  const needed =
-    String(policy || '').toLowerCase() === 'strict'
-      ? requiredBytes
-      : Math.min(requiredBytes, HOST_MEMORY_FLOOR_BYTES);
-  return freeBytes < needed;
+  return freeBytes < threshold;
 }
 
 export function hostMemoryConflict(freeBytes, requiredBytes, services, exclude = []) {
   const free = Number.isFinite(freeBytes) && freeBytes >= 0 ? freeBytes : null;
+  const policy =
+    String(readHostMemoryPolicy() || '').toLowerCase() === 'strict' ? 'strict' : 'soft';
+  const thresholdBytes = hostMemoryThreshold(requiredBytes, policy);
   return {
     code: 'insufficient_host_memory',
     freeBytes: free,
-    requiredBytes,
-    shortfallBytes: free === null ? null : Math.max(0, requiredBytes - free),
+    // Report the actual blocking threshold, not the larger soft-policy estimate.
+    requiredBytes: thresholdBytes,
+    estimatedBytes: Number.isFinite(requiredBytes) && requiredBytes >= 0 ? requiredBytes : null,
+    hostPolicy: policy,
+    shortfallBytes:
+      free === null || thresholdBytes === null ? null : Math.max(0, thresholdBytes - free),
     candidates: memoryCandidates(services, exclude),
     message: 'Available system memory is below the configured requirement.',
   };
@@ -83,10 +98,13 @@ export function hostMemoryConflict(freeBytes, requiredBytes, services, exclude =
  * @param {object} hardware GPU snapshot with `devices` (name, index, freeMiB).
  * @param {object[]} services Service records used to suggest unload candidates on a shortage.
  * @param {number} [budgetMiB] Model budget estimate in MiB, not a measured requirement.
- * @returns {object} `{ code: 'ready', device, requiredMiB }`, or a blocking code
- *   (`gpu_memory_unavailable` or `insufficient_gpu_memory`) with a message.
+ * @param {{ now?: number }} [options] `now` (epoch ms) dates the reading; tests inject it.
+ * @returns {object} `{ code: 'ready', device, requiredMiB, reading }`, or a blocking code
+ *   (`gpu_memory_unavailable` or `insufficient_gpu_memory`) with a message. `device.freeMiB`
+ *   is the one available-memory number (see gpu-memory.js: never negative, never stale) and
+ *   `reading` says when it was measured.
  */
-export function planModelLoad(hardware, services, budgetMiB = YUE_BUDGET_MIB) {
+export function planModelLoad(hardware, services, budgetMiB = YUE_BUDGET_MIB, { now } = {}) {
   const devices = Array.isArray(hardware?.devices) ? hardware.devices : [];
   const gpuDevices = devices.filter(
     (item) => item && typeof item === 'object' && !/\bNPU\b/i.test(item.name || ''),
@@ -102,27 +120,33 @@ export function planModelLoad(hardware, services, budgetMiB = YUE_BUDGET_MIB) {
       devices,
     };
   }
-  const device = gpuDevices[0];
+  const reading = readGpuMemory(gpuDevices[0], {
+    measuredAt: hardware?.measuredAt ?? null,
+    now,
+  });
   if (
-    !device ||
-    !Number.isFinite(device.freeMiB) ||
-    device.freeMiB < 0 ||
-    (devices.some((item) => Number.isInteger(item?.index)) && device.index !== 0)
+    !reading.ok ||
+    (devices.some((item) => Number.isInteger(item?.index)) && gpuDevices[0].index !== 0)
   ) {
     return {
       code: 'gpu_memory_unavailable',
-      message: 'The inference GPU memory could not be verified. The model was not loaded.',
+      message:
+        reading.message ||
+        'The inference GPU memory could not be verified. The model was not loaded.',
       devices,
     };
   }
+  const device = { ...gpuDevices[0], freeMiB: reading.freeMiB };
   const requiredMiB = budgetMiB + GPU_RESERVE_MIB;
+  const readingInfo = { measuredAt: reading.measuredAt, ageMs: reading.ageMs };
   if (device.freeMiB >= requiredMiB) {
-    return { code: 'ready', device, requiredMiB };
+    return { code: 'ready', device, requiredMiB, reading: readingInfo };
   }
   return {
     code: 'insufficient_gpu_memory',
     device,
     requiredMiB,
+    reading: readingInfo,
     shortfallMiB: requiredMiB - device.freeMiB,
     candidates: memoryCandidates(services),
     message: 'Free GPU memory is below the configured model budget plus the system reserve.',

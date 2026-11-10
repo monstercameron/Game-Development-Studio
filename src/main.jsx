@@ -2608,6 +2608,15 @@ function App() {
             loading={projectsLoading}
             error={projectsError}
             onReuse={reuseSettings}
+            onProjectsChanged={refreshProjects}
+            onProjectRemoved={async () => {
+              updateSearch(setRouteParams, {
+                project: null,
+                collection: 'samples',
+                projectManage: null,
+              });
+              await refreshProjects();
+            }}
           />
         ) : section === 'megascans' ? (
           <PageErrorBoundary name="Megascans">

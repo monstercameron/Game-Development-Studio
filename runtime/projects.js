@@ -189,6 +189,31 @@ async function runAssetAction(action, project, input) {
       return trashAsset(project, input.path);
     case 'clear-trash':
       return clearTrash(project, input.confirmation);
+    case 'trash-all': {
+      if (input.confirmation !== project.name) {
+        throw Error('Type the exact project name to confirm.');
+      }
+      const failures = [];
+      let moved = 0;
+      for (const asset of project.assets) {
+        try {
+          await trashAsset(project, asset.id);
+          moved += 1;
+        } catch (error) {
+          log.warn('projects.assets.batch.failed', {
+            projectId: project.id,
+            errorClass: error?.name,
+          });
+          failures.push({ path: asset.id, error: error.message || 'Could not move this asset.' });
+        }
+      }
+      log.info('projects.assets.batch.trashed', {
+        projectId: project.id,
+        count: moved,
+        failedCount: failures.length,
+      });
+      return { moved, failures };
+    }
     case 'convert':
       return convertAsset(project, input);
     default:
@@ -395,7 +420,7 @@ export function projectsService() {
           }
         }
         const assetAction =
-          /^\/([a-f0-9-]{36})\/assets\/(metadata|rename|trash|restore|clear-trash|convert)$/i.exec(
+          /^\/([a-f0-9-]{36})\/assets\/(metadata|rename|trash|trash-all|restore|clear-trash|convert)$/i.exec(
             url.pathname,
           );
         if (assetAction && assetAction[2] === 'trash' && req.method === 'GET') {

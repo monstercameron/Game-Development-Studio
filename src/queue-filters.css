@@ -1,0 +1,151 @@
+/* Filters, row details and the clear-scope dialog of the render queue. Scoped to .runtime-queue. */
+.runtime-queue .queue-filters {
+  display: grid;
+  gap: var(--forge-space-2-5);
+  margin: var(--forge-space-3) 0;
+  padding: var(--forge-space-3);
+  border: 1px solid var(--forge-border, #553348);
+  border-radius: var(--forge-radius-md, 10px);
+  background: var(--forge-raised, #2b1021);
+}
+.runtime-queue .queue-filter-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--forge-space-1-5);
+}
+.runtime-queue .queue-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--forge-space-1-5);
+  min-height: 38px;
+  padding: 0 var(--forge-space-2-5);
+  border: 1px solid var(--forge-border, #553348);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--forge-text-strong);
+  font: inherit;
+  cursor: pointer;
+}
+.runtime-queue .queue-filter-chip[aria-pressed='true'] {
+  border-color: var(--forge-focus);
+  background: var(--forge-surface-raised);
+  font-weight: 700;
+}
+.runtime-queue .queue-filter-count {
+  min-width: 1.6em;
+  padding: 0 var(--forge-space-1);
+  border-radius: 999px;
+  background: var(--forge-surface-raised);
+  color: var(--forge-muted);
+  font-size: var(--forge-font-caption);
+  text-align: center;
+}
+.runtime-queue .queue-filter-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--forge-space-2-5);
+}
+.runtime-queue .queue-filter-fields label {
+  display: grid;
+  gap: var(--forge-space-1);
+  color: var(--forge-muted);
+  font-size: var(--forge-font-caption);
+}
+.runtime-queue .queue-filter-fields select,
+.runtime-queue .queue-filter-fields input {
+  min-height: 40px;
+  padding: 0 var(--forge-space-2);
+  border: 1px solid var(--forge-border, #553348);
+  border-radius: var(--forge-radius-sm, 8px);
+  background: var(--forge-surface, #1d0b18);
+  color: var(--forge-text-strong);
+  font: inherit;
+  min-width: 0;
+}
+.runtime-queue .queue-filter-summary {
+  margin: 0;
+  color: var(--forge-muted);
+  font-size: var(--forge-font-caption);
+}
+.runtime-queue .queue-filter-chip:focus-visible,
+.runtime-queue .queue-filter-fields :is(select, input):focus-visible {
+  outline: 2px solid var(--forge-focus, #ffad8d);
+  outline-offset: 3px;
+}
+.runtime-queue .runtime-job-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--forge-space-1) var(--forge-space-2-5);
+  color: var(--forge-muted);
+  font-size: var(--forge-font-caption);
+}
+.runtime-queue .runtime-job-meta code {
+  padding: 0 var(--forge-space-1);
+  border-radius: var(--forge-radius-sm, 6px);
+  background: var(--forge-surface-raised);
+  color: var(--forge-text-strong);
+}
+.runtime-queue .runtime-job-prompt {
+  overflow-wrap: anywhere;
+}
+.runtime-queue .runtime-job-prompt-toggle {
+  justify-self: start;
+  min-height: 38px;
+}
+.runtime-queue .queue-stop-render {
+  color: var(--forge-focus);
+  border-color: var(--forge-danger-border);
+}
+.queue-clear-scope {
+  display: grid;
+  gap: var(--forge-space-2);
+  margin: 0;
+  padding: var(--forge-space-3);
+  border: 1px solid var(--forge-border, #553348);
+  border-radius: var(--forge-radius-md, 10px);
+}
+.queue-clear-scope legend {
+  padding: 0 var(--forge-space-1);
+  color: var(--forge-text-strong);
+  font-weight: 700;
+}
+.queue-clear-scope label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--forge-space-2);
+  min-height: 38px;
+  color: var(--forge-text-strong);
+}
+.queue-clear-list {
+  margin: 0;
+  padding-inline-start: var(--forge-space-4);
+  display: grid;
+  gap: var(--forge-space-1);
+  max-height: 14rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.queue-clear-confirmation {
+  display: grid;
+  gap: var(--forge-space-2);
+  color: var(--forge-text-strong);
+}
+.queue-clear-confirmation input {
+  min-height: 40px;
+  padding: var(--forge-space-2);
+  border: 1px solid var(--forge-border);
+  border-radius: var(--forge-radius-sm);
+  background: var(--forge-surface);
+  color: var(--forge-text-strong);
+  font: inherit;
+}
+.queue-clear-confirmation input:focus-visible {
+  outline: 2px solid var(--forge-focus);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .runtime-queue .queue-filter-chip {
+    transition: none;
+  }
+}

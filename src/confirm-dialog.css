@@ -1,0 +1,143 @@
+/* Shared confirmation dialog (ConfirmDialog.jsx). Scoped to .studio-confirm. */
+.studio-confirm-backdrop {
+  z-index: 220;
+}
+.studio-confirm {
+  max-width: 560px;
+}
+.studio-confirm-kicker {
+  display: block;
+  color: var(--forge-focus);
+  font-weight: 700;
+  font-size: var(--forge-font-caption);
+}
+.studio-confirm-body {
+  display: grid;
+  gap: var(--forge-space-2-5);
+  line-height: 1.55;
+  color: var(--forge-muted);
+}
+.studio-confirm-body p {
+  margin: 0;
+}
+.studio-confirm-body ul {
+  margin: 0;
+  padding-inline-start: var(--forge-space-4);
+}
+.studio-confirm-facts {
+  margin-top: var(--forge-space-3);
+  padding: var(--forge-space-3);
+  border: 1px solid var(--forge-border, #553348);
+  border-radius: var(--forge-radius-md, 10px);
+  background: var(--forge-raised, #2b1021);
+}
+.studio-confirm-facts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--forge-space-2);
+}
+.studio-confirm-facts h3 {
+  margin: 0;
+  font-size: var(--forge-font-body);
+}
+.studio-confirm-facts dl {
+  display: grid;
+  gap: var(--forge-space-1-5);
+  margin: var(--forge-space-2) 0 0;
+}
+.studio-confirm-facts dl > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 1fr;
+  gap: var(--forge-space-2);
+}
+.studio-confirm-facts dt {
+  color: var(--forge-muted);
+}
+.studio-confirm-facts dd {
+  margin: 0;
+  color: var(--forge-text-strong);
+  overflow-wrap: anywhere;
+}
+.studio-confirm-link {
+  min-height: 38px;
+  padding: 0 var(--forge-space-2);
+  border: 0;
+  background: none;
+  color: var(--forge-focus);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.studio-confirm-link:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.studio-confirm-notice {
+  padding: var(--forge-space-2-5) var(--forge-space-3);
+  border-inline-start: 3px solid var(--forge-focus);
+  background: var(--forge-surface-raised);
+  color: var(--forge-text-strong);
+}
+.studio-confirm-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--forge-space-2);
+  margin: var(--forge-space-2) 0 0;
+  padding: var(--forge-space-3);
+  border: 1px solid var(--forge-danger-border);
+  border-radius: 9px;
+  background: var(--forge-danger-surface);
+  color: var(--forge-text-strong);
+  line-height: 1.5;
+}
+.studio-confirm-error svg {
+  flex: none;
+  margin-top: var(--forge-space-0-5);
+}
+.studio-confirm-progress {
+  margin: var(--forge-space-2) 0 0;
+  color: var(--forge-muted);
+}
+.studio-confirm .project-dialog-actions {
+  flex-wrap: wrap;
+  gap: var(--forge-space-2-5);
+  margin-top: var(--forge-space-4);
+}
+.studio-confirm .project-dialog-actions button {
+  min-height: 42px;
+}
+.studio-confirm-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--forge-space-2);
+  padding: 0 var(--forge-space-3);
+  border: 1px solid var(--forge-danger);
+  border-radius: var(--forge-radius-md, 10px);
+  background: var(--forge-danger-surface);
+  color: var(--forge-text-strong);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.studio-confirm-danger:hover:not(:disabled) {
+  background: var(--forge-danger-surface-hover);
+}
+.studio-confirm-danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.studio-confirm :is(button, input, select):focus-visible {
+  outline: 2px solid var(--forge-focus, #ffad8d);
+  outline-offset: 3px;
+}
+@media (max-width: 550px) {
+  .studio-confirm-facts dl > div {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-confirm .motion-spinner {
+    animation: none;
+  }
+}

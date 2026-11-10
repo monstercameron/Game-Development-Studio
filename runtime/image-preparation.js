@@ -1,4 +1,4 @@
-import { planModelLoad } from './model-load.js';
+import { GPU_RESERVE_MIB, planModelLoad } from './model-load.js';
 
 // The installed BF16 model occupies about 31 GiB on disk. Allow room for
 // activations and loader overhead; this conservative estimate is uncalibrated.
@@ -30,6 +30,21 @@ export function imageBudgetMiB(request = {}, loaded = false) {
   return loaded ? working : Math.max(IMAGE_BUDGET_MIB, MODEL_RESIDENT_MIB + working);
 }
 /**
+ * Whether a freshly loaded model plus this render would fit the whole GPU. A resident model and
+ * the allocator cache it grew can leave less free memory than the render's working set needs
+ * while the card itself is large enough. Releasing the idle model is then the way to make room.
+ * Only the total is known here, so this is a necessary condition, not a promise of free memory.
+ * @param {{ totalMiB?: number|null }} device The inference GPU of the snapshot.
+ * @param {{ width?: number, height?: number }} request The render's requested size.
+ * @returns {boolean} True when the total GPU memory covers a fresh load of this render.
+ */
+function fitsAfterRelease(device, request) {
+  return (
+    Number.isFinite(device?.totalMiB) &&
+    device.totalMiB >= imageBudgetMiB(request, false) + GPU_RESERVE_MIB
+  );
+}
+/**
  * Builds the admission check for image renders. The returned function resolves to null when
  * the GPU can take the render, or to a waiting_memory or needs_attention status object.
  * @param {{ hardware: Function, services: Function }} dependencies Async readers for the
@@ -49,7 +64,15 @@ export function createImagePreparation({ hardware, services }) {
         stage: 'Waiting for GPU memory for Qwen Image.',
         details: {
           ...plan,
+          // A resident model is already counted in the GPU's used memory, so only the render's
+          // working memory is required; otherwise the model is loaded first and counted too.
+          basis: loaded ? 'working_memory_only' : 'model_plus_working_memory',
           estimate: 'Conservative uncalibrated estimate for the BF16 model and working memory.',
+          // The queue may stop this idle engine itself to make room, and restart it to load
+          // the model again, only when the resident model is what holds the memory.
+          ...(loaded && fitsAfterRelease(plan.device, request)
+            ? { releasableLoadedModel: true }
+            : {}),
         },
       };
     }

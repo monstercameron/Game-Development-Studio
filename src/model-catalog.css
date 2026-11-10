@@ -553,6 +553,14 @@
   flex-wrap: wrap;
   margin-top: auto;
 }
+/* Why a Stop service button is disabled; it takes its own line under the buttons. */
+.catalog-card-actions .catalog-stop-reason {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--forge-muted, #d4c0ca);
+  font-size: var(--forge-font-caption);
+  line-height: 1.45;
+}
 .catalog-card-actions button {
   min-height: 35px;
   display: inline-flex;

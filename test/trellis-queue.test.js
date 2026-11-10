@@ -91,7 +91,8 @@ test('TRELLIS.2 admission checks system and GPU memory and fences uncertain load
     },
   });
   assert.equal(waiting.status, 'waiting_memory');
-  assert.equal(waiting.details.requiredBytes, 12 * 1024 ** 3);
+  assert.equal(waiting.details.requiredBytes, 2 * 1024 ** 3);
+  assert.equal(waiting.details.estimatedBytes, 12 * 1024 ** 3);
   assert.equal(waiting.details.candidates[0].id, 'tts');
 });
 

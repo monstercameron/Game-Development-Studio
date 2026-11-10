@@ -56,7 +56,10 @@ test('job names for buttons stay short and fall back to the kind of render', () 
   );
 });
 
-async function mountQueue(t, { expanded = false } = {}) {
+async function mountQueue(
+  t,
+  { expanded = false, jobs = queueJobs, projects = [], routes = {} } = {},
+) {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
     pretendToBeVisual: true,
     url: 'http://localhost/queue',
@@ -66,6 +69,7 @@ async function mountQueue(t, { expanded = false } = {}) {
     document: Object.getOwnPropertyDescriptor(globalThis, 'document'),
     navigator: Object.getOwnPropertyDescriptor(globalThis, 'navigator'),
     localStorage: Object.getOwnPropertyDescriptor(globalThis, 'localStorage'),
+    sessionStorage: Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage'),
     fetch: Object.getOwnPropertyDescriptor(globalThis, 'fetch'),
     actEnvironment: Object.getOwnPropertyDescriptor(globalThis, 'IS_REACT_ACT_ENVIRONMENT'),
   };
@@ -75,11 +79,15 @@ async function mountQueue(t, { expanded = false } = {}) {
     document: dom.window.document,
     navigator: dom.window.navigator,
     localStorage: dom.window.localStorage,
+    sessionStorage: dom.window.sessionStorage,
     IS_REACT_ACT_ENVIRONMENT: true,
     fetch: async (url, options = {}) => {
-      requests.push({ url: String(url), method: options.method || 'GET' });
+      requests.push({ url: String(url), method: options.method || 'GET', body: options.body });
       if (String(url) === '/api/runtime/jobs') {
-        return { ok: true, json: async () => ({ jobs: queueJobs }) };
+        return { ok: true, json: async () => ({ jobs }) };
+      }
+      if (routes[String(url)]) {
+        return { ok: true, json: async () => routes[String(url)] };
       }
       return { ok: true, json: async () => ({ available: false }) };
     },
@@ -106,6 +114,7 @@ async function mountQueue(t, { expanded = false } = {}) {
       document: previous.document,
       navigator: previous.navigator,
       localStorage: previous.localStorage,
+      sessionStorage: previous.sessionStorage,
       fetch: previous.fetch,
       IS_REACT_ACT_ENVIRONMENT: previous.actEnvironment,
     })) {
@@ -129,7 +138,7 @@ async function mountQueue(t, { expanded = false } = {}) {
         React.createElement(
           QueueTimingProvider,
           null,
-          React.createElement(RuntimeQueue, { expanded, projects: [] }),
+          React.createElement(RuntimeQueue, { expanded, projects }),
         ),
       ),
     );
@@ -248,4 +257,272 @@ test('finished and cancelled renders can be dismissed one at a time', async (t) 
     'done-1',
     'with no row after it, focus goes to the previous row',
   );
+});
+
+// Queue decisions: filters, scoped clear, interrupted resolve and Stop this render.
+
+const recent = new Date().toISOString();
+const sized = {
+  request: { prompt: 'a red banner', width: 1024, height: 768, num_inference_steps: 30 },
+};
+
+// Selects change through a DOM change event. Text inputs in jsdom do not reach React's onChange
+// from a DOM event, so they are driven through the handler React attached to the node.
+async function setValue(dom, element, value) {
+  if (element.tagName === 'SELECT') {
+    await act(async () => {
+      element.value = value;
+      element.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    });
+    return;
+  }
+  const propsKey = Object.keys(element).find((key) => key.startsWith('__reactProps'));
+  await act(async () => {
+    element[propsKey].onChange({ target: { value } });
+  });
+}
+
+// Requests the page made to change something. The queue also posts timing estimates, which change nothing.
+function actionRequests(requests) {
+  return requests.filter(
+    (request) => request.method !== 'GET' && !request.url.endsWith('/estimate'),
+  );
+}
+
+// Lets the page finish the reads and writes its handlers started.
+async function settle() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+}
+
+function chip(container, label) {
+  return [...container.querySelectorAll('.queue-filter-chip')].find((button) =>
+    button.textContent.startsWith(label),
+  );
+}
+
+const castleAndHarbour = [
+  { id: 'castle-1', name: 'Castle keep' },
+  { id: 'harbour-1', name: 'Harbour town' },
+];
+
+test('each row gives a short id, project, age and size, and a long prompt expands', async (t) => {
+  const longPrompt = 'a long prompt about the castle walls '.repeat(6);
+  const { container, click } = await mountQueue(t, {
+    projects: castleAndHarbour,
+    jobs: [
+      job('wait-1', 'queued', { projectId: 'castle-1', createdAt: recent, ...sized }),
+      job('run-1', 'running', {
+        projectId: 'harbour-1',
+        createdAt: recent,
+        request: { prompt: longPrompt },
+      }),
+    ],
+  });
+
+  const meta = container.querySelector('[data-job-id="wait-1"] .runtime-job-meta').textContent;
+  assert.match(meta, /wait-1/);
+  assert.match(meta, /Castle keep/);
+  assert.match(meta, /just now/);
+  assert.match(meta, /1024×768 · 30 steps/);
+
+  const row = container.querySelector('[data-job-id="run-1"]');
+  const toggle = row.querySelector('.runtime-job-prompt-toggle');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  assert.ok(row.querySelector('.runtime-job-prompt').textContent.endsWith('…'));
+  await click(toggle);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(row.querySelector('.runtime-job-prompt').textContent, longPrompt);
+  assert.ok(!row.querySelector('.runtime-job-prompt').textContent.endsWith('…'));
+});
+
+test('cancel buttons name the short id and the project, not the prompt', async (t) => {
+  const { container } = await mountQueue(t, {
+    projects: castleAndHarbour,
+    jobs: [job('wait-1', 'queued', { projectId: 'castle-1', ...sized })],
+  });
+  const cancel = container.querySelector(
+    'button[aria-label="Cancel render wait-1 in Castle keep"]',
+  );
+  assert.ok(cancel, 'the cancel button is labelled with the id and project');
+  assert.equal(cancel.textContent.trim(), 'Cancel');
+});
+
+test('filters narrow the list, count each status, and are remembered for the session', async (t) => {
+  const { container, dom } = await mountQueue(t, {
+    projects: castleAndHarbour,
+    jobs: [
+      job('wait-1', 'queued', { projectId: 'castle-1' }),
+      job('run-1', 'running', { projectId: 'harbour-1' }),
+      job('fail-1', 'failed', { projectId: 'castle-1' }),
+    ],
+  });
+  const rowIds = () =>
+    [...container.querySelectorAll('[data-job-id]')].map((row) => row.dataset.jobId);
+  assert.deepEqual(rowIds().sort(), ['fail-1', 'run-1', 'wait-1']);
+  assert.match(chip(container, 'Running').textContent, /Running\s*1/);
+
+  await act(async () => chip(container, 'Running').click());
+  assert.deepEqual(rowIds(), ['run-1']);
+  assert.equal(chip(container, 'Running').getAttribute('aria-pressed'), 'true');
+
+  await act(async () => chip(container, 'All').click());
+  await setValue(dom, container.querySelector('.queue-filter-fields select'), 'harbour-1');
+  assert.deepEqual(rowIds(), ['run-1']);
+  assert.match(container.querySelector('.queue-filter-summary').textContent, /Showing 1 of 3/);
+  assert.deepEqual(JSON.parse(sessionStorage.getItem('forge-queue-filters-v1')), {
+    status: 'all',
+    projectId: 'harbour-1',
+    type: 'all',
+    query: '',
+  });
+
+  const search = container.querySelector('.queue-filter-search input');
+  await setValue(dom, search, 'nothing matches this');
+  assert.match(container.querySelector('.runtime-queue-empty').textContent, /No renders match/);
+  await act(async () => [...container.querySelectorAll('.runtime-queue-empty button')][0].click());
+  assert.equal(container.querySelector('.queue-filter-search input').value, '');
+  assert.equal(container.querySelector('.queue-filter-fields select').value, 'all');
+});
+
+test('Clear waiting renders cancels the view by default, names each render, and reports the result', async (t) => {
+  const { container, click, requests, dom } = await mountQueue(t, {
+    projects: castleAndHarbour,
+    jobs: [
+      job('wait-1', 'queued', { projectId: 'castle-1' }),
+      job('wait-2', 'waiting_memory', { projectId: 'harbour-1' }),
+    ],
+  });
+  await setValue(dom, container.querySelector('.queue-filter-fields select'), 'harbour-1');
+  const clear = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Clear waiting renders…',
+  );
+  await click(clear);
+  await settle();
+
+  const dialog = container.querySelector('[role="dialog"]');
+  assert.match(dialog.textContent, /Clear waiting renders\?/);
+  assert.equal(
+    dialog.querySelector('input[value="view"]').checked,
+    true,
+    'the current view is the default scope',
+  );
+  assert.match(dialog.textContent, /wait-2/);
+  assert.doesNotMatch(dialog.textContent, /wait-1/);
+  const confirm = dialog.querySelector('.studio-confirm-danger');
+  assert.equal(confirm.textContent, 'Cancel 1 waiting render');
+  assert.equal(confirm.disabled, true, 'clearing requires typed confirmation');
+  await setValue(dom, dialog.querySelector('.queue-clear-confirmation input'), 'CLEAR');
+  assert.equal(confirm.disabled, false);
+  await click(dialog.querySelector('input[value="all"]'));
+  assert.equal(confirm.disabled, true, 'changing scope requires a fresh confirmation');
+  await click(dialog.querySelector('input[value="view"]'));
+  await setValue(dom, dialog.querySelector('.queue-clear-confirmation input'), 'CLEAR');
+
+  await click(confirm);
+  await settle();
+  assert.deepEqual(
+    actionRequests(requests).map((request) => request.url),
+    ['/api/runtime/jobs/wait-2/cancel'],
+    'only the render in the view is cancelled, one request each',
+  );
+  assert.ok(!container.querySelector('[role="dialog"]'), 'the dialog closes when it succeeds');
+  assert.match(
+    container.querySelector('.queue-manage-note[role="status"]').textContent,
+    /1 waiting render cancelled/,
+  );
+});
+
+test('Mark cancelled after checking uses the studio dialog with the engine facts, never window.confirm', async (t) => {
+  const { container, click, requests, dom } = await mountQueue(t, {
+    jobs: [job('int-1', 'interrupted', { type: 'images', remoteId: 'remote-7' })],
+    routes: {
+      '/api/runtime/services': {
+        services: [
+          { id: 'images', status: 'reachable', busy: false, modelLoaded: true, managed: true },
+        ],
+      },
+      '/api/runtime/hardware': {
+        devices: [{ name: 'GPU', usedMiB: 2048, totalMiB: 8192 }],
+      },
+    },
+  });
+  let nativeConfirmCalls = 0;
+  dom.window.confirm = () => {
+    nativeConfirmCalls += 1;
+    return false;
+  };
+  await click(
+    container.querySelector('button[aria-label^="Mark cancelled after checking: render int-1"]'),
+  );
+  await settle();
+
+  const dialog = container.querySelector('[role="dialog"]');
+  assert.match(dialog.textContent, /Mark this render cancelled\?/);
+  const facts = [...dialog.querySelectorAll('.studio-confirm-facts dd')].map(
+    (item) => item.textContent,
+  );
+  assert.deepEqual(facts, ['Reachable', 'No', 'Yes', 'Yes', '2.0 of 8.0 GiB in use']);
+  assert.ok(
+    [...dialog.querySelectorAll('p')].some((paragraph) => /remote-7/.test(paragraph.textContent)),
+  );
+  assert.equal(
+    actionRequests(requests).length,
+    0,
+    'nothing is sent before the dialog is confirmed',
+  );
+
+  await click(dialog.querySelector('.studio-confirm-danger'));
+  await settle();
+  const post = actionRequests(requests)[0];
+  assert.equal(post.url, '/api/runtime/jobs/int-1/resolve');
+  assert.deepEqual(JSON.parse(post.body), { confirmRemoteNotRunning: true });
+  assert.equal(nativeConfirmCalls, 0);
+});
+
+test('Stop this render names the waiting renders for that engine and checks the engine first', async (t) => {
+  const { container, click, requests } = await mountQueue(t, {
+    projects: castleAndHarbour,
+    jobs: [
+      job('run-1', 'running', { type: 'images', projectId: 'castle-1' }),
+      job('wait-1', 'queued', { type: 'images', projectId: 'castle-1' }),
+      job('wait-2', 'queued', { type: 'video', projectId: 'harbour-1' }),
+    ],
+    routes: {
+      '/api/runtime/services': {
+        services: [
+          {
+            id: 'images',
+            status: 'reachable',
+            busy: true,
+            modelLoaded: true,
+            managed: true,
+            canUnload: false,
+          },
+        ],
+      },
+      '/api/runtime/hardware': { devices: [] },
+    },
+  });
+  await click(container.querySelector('.queue-stop-render'));
+  await settle();
+  const dialog = container.querySelector('[role="dialog"]');
+  assert.match(dialog.textContent, /Stop this render\?/);
+  assert.match(dialog.textContent, /Stop service is unavailable until the render finishes/);
+  const waitingList = dialog.querySelector('.force-stop-waiting-list').textContent;
+  assert.match(waitingList, /wait-1/);
+  assert.doesNotMatch(waitingList, /wait-2/);
+  assert.match(dialog.textContent, /Closing this dialog keeps all of them/);
+  assert.equal(
+    [...dialog.querySelectorAll('.force-stop-facts dd')][1].textContent,
+    'Yes',
+    'the engine reports it is busy',
+  );
+
+  await click(dialog.querySelector('.force-stop-confirm'));
+  await settle();
+  const post = actionRequests(requests)[0];
+  assert.equal(post.url, '/api/runtime/models/images/force-stop');
+  assert.deepEqual(JSON.parse(post.body), { confirmation: 'force-stop-engine' });
 });

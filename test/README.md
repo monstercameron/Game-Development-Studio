@@ -4,6 +4,10 @@ Run commands from `C:\Users\mreca\Desktop\Game Development Studio`. Automated te
 
 ## JavaScript service and UI logic
 
+`test/project-removal.test.js`, `test/project-removal-http.test.js`, `test/project-management-ui.test.js`, and `test/project-trash-api.test.js` use temporary projects and a substitute UI to check typed confirmation, queue blocking, whole-project restoration, the bulk asset-trash endpoint, and preservation of unsupported files. They do not operate on real projects or GPU workloads.
+
+`test/asset-thumbnail-ui.test.js` checks that native image previews work when the thumbnail cache is unavailable and recover when the selected asset changes. `test/force-stop-dialog-ui.test.js` checks that loading and failed queue snapshots are not displayed as an empty queue. These tests use jsdom and do not access project files or a GPU.
+
 ```powershell
 node --test 'test/*.test.js'
 node node_modules\vite\bin\vite.js build

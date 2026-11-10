@@ -458,6 +458,7 @@ const recoverService = createRecoverService({
 const autoMemory = createAutoMemoryManager({
   services: serviceStates,
   offload: (id) => engines.offload(id),
+  canRestart: (id) => autoStartsService(id, process.env, getSetting),
 });
 const queue = new JobQueue({
   prepareMusic,
@@ -1327,6 +1328,9 @@ const handlers = {
   estimate: async (input) => queue.estimate(input),
   cancel: async ({ id }) => ({ job: queue.cancel(id) }),
   clearWaiting: async ({ confirmation }) => queue.clearWaiting(confirmation),
+  trashProject: async ({ projectId, confirmation }) => queue.trashProject(projectId, confirmation),
+  listProjectTrash: async () => ({ projects: queue.listProjectTrash() }),
+  restoreProject: async ({ trashId }) => queue.restoreProject(trashId),
   retry: async ({ id }) => ({ job: queue.retry(id) }),
   // Answers with its own status so a conflict can carry the fresh order back to the client.
   move: async ({ id, ...input }) => {

@@ -18,7 +18,9 @@ import { NEXT_RANK_SQL, moveQueuedJob, parseMoveRequest } from './queue-order.js
 import { openDatabase } from './durable-db.js';
 import { inspectFinishedOutput } from './job-recovery.js';
 import { recordRecoveryEvent } from './recovery-events.js';
+import { MEMORY_WAIT_LIMIT_MS, expiredMemoryWaitMessage, nextMemoryWait } from './memory-wait.js';
 import { createLogger } from './app-log.js';
+import { trashProject, listProjectTrash, restoreProject } from './project-removal.js';
 
 const log = createLogger('queue');
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -67,6 +69,9 @@ export const DEPENDENCY_FAILED_STAGE = 'Dependency failed.';
 // outcome is unknown stay without the marker and are only ever re-checked.
 export const ENGINE_FAILED_OUTCOME = 'engine_failed';
 const KNOWN_ENGINE_FAILURE_SQL = `(status='failed' AND remote_id IS NOT NULL AND json_valid(details) AND json_extract(details,'$.outcome')='${ENGINE_FAILED_OUTCOME}')`;
+// After an automatic stop found nothing to stop (or failed), the queue waits this long (ms) before
+// it tries to make room for the same render again. The memory itself is re-read every tick.
+const MEMORY_ROOM_RETRY_MS = 30 * 1000;
 const WAITING_STATUSES = ['queued', 'waiting_engine', 'waiting_memory'];
 const OPEN_STATUSES = [
   'queued',
@@ -1121,6 +1126,8 @@ export class JobQueue {
     chainUnload = null,
     // Re-reads GPU memory after a chained render freed a model so the next admission sees it.
     refreshHardware = null,
+    // How long (ms) a render may wait for memory before it ends as failed (see memory-wait.js).
+    memoryWaitLimitMs = MEMORY_WAIT_LIMIT_MS,
     onModelLoadBarrier = null,
     onQueueLog = null,
     // Finds where a finished output lives now (it may have been renamed); tests can replace it.
@@ -1244,6 +1251,10 @@ export class JobQueue {
     this.stopped = false;
     this.suspendedEngines = new Set();
     this.memoryRetryAt = new Map();
+    // Job id -> the wait record of its latest memory check (details.memoryWait, memory-wait.js).
+    this.memoryWaits = new Map();
+    this.intervalMs = intervalMs;
+    this.memoryWaitLimitMs = memoryWaitLimitMs;
     // Last health result per job type, so a polling queue logs a change, not every tick.
     this.engineReachable = new Map();
     this.refreshModelLoad();
@@ -1569,6 +1580,35 @@ export class JobQueue {
     this.cancelDependents(id);
     return this.get(id);
   }
+  // The check and directory rename are synchronous in the same worker as enqueue and retry.
+  trashProject(projectId, confirmation) {
+    const open = this.db
+      .prepare(
+        "SELECT 1 FROM jobs WHERE project_id=? AND status NOT IN ('completed','failed','cancelled') LIMIT 1",
+      )
+      .get(projectId);
+    if (open) {
+      throw Error(
+        'Finish or resolve this project’s active and waiting renders before deleting it.',
+      );
+    }
+    const result = trashProject(
+      this.projects,
+      findProject(projectId, this.projects),
+      projectId,
+      confirmation,
+    );
+    log.info('queue.project.trashed', { projectId });
+    return result;
+  }
+  listProjectTrash() {
+    return listProjectTrash(this.projects);
+  }
+  restoreProject(trashId) {
+    const result = restoreProject(this.projects, trashId);
+    log.info('queue.project.restored', { projectId: result.projectId });
+    return result;
+  }
   clearWaiting(confirmation) {
     if (confirmation !== 'cancel-waiting-renders') {
       throw Error('Confirm cancellation of waiting renders.');
@@ -1595,6 +1635,10 @@ export class JobQueue {
     return { cancelled: rows.length };
   }
   retry(id) {
+    const existing = this.get(id);
+    if (existing) {
+      findProject(existing.projectId, this.projects);
+    }
     const now = new Date().toISOString();
     const result = this.db
       .prepare(
@@ -1607,6 +1651,7 @@ export class JobQueue {
       throw Error('Only failed or waiting jobs can be retried.');
     }
     this.memoryRetryAt.delete(id);
+    this.memoryWaits.delete(id);
     this.chainUnloadAttempted.delete(id);
     const retried = this.get(id);
     this.logLifecycle(retried.remoteId ? 'retry_recheck' : 'retry_queued', retried);
@@ -2020,6 +2065,82 @@ export class JobQueue {
     }
     return !!result.changes;
   }
+  // The wait record for one more memory check of a render (memory-wait.js). It remembers when the
+  // wait began across checks; entries of renders that are no longer waiting are dropped here.
+  trackMemoryWait(job, details) {
+    for (const id of this.memoryWaits.keys()) {
+      if (id !== job.id && !['waiting_memory', 'preparing'].includes(this.get(id)?.status)) {
+        this.memoryWaits.delete(id);
+      }
+    }
+    const result = nextMemoryWait({
+      details,
+      previous: this.memoryWaits.get(job.id) ?? job.details?.memoryWait ?? null,
+      now: Date.now(),
+      intervalMs: this.autoStart ? this.intervalMs : null,
+      limitMs: this.memoryWaitLimitMs,
+    });
+    this.memoryWaits.set(job.id, result.record);
+    return result;
+  }
+  // The row update for a preparation result. A waiting_memory result carries the wait record
+  // (when it began, the last and next check, the numbers and what the queue tried); one that has
+  // waited past the limit ends as failed with the reason, so the queue behind it moves on and a
+  // person can retry. Nothing was submitted to an engine, so a retry is safe.
+  preparationUpdate(job, preparation) {
+    const update = {
+      status: preparation.status,
+      stage: preparation.stage,
+      error: preparation.error || null,
+      details: null,
+    };
+    if (preparation.status !== 'waiting_memory') {
+      this.memoryWaits.delete(job.id);
+    }
+    if (!preparation.details && preparation.status !== 'waiting_memory') {
+      return update;
+    }
+    let details = preparation.details || {};
+    if (preparation.status === 'waiting_memory') {
+      const { record, isExpired } = this.trackMemoryWait(job, details);
+      details = { ...details, memoryWait: record };
+      if (isExpired) {
+        log.warn('queue.memory.wait.expired', {
+          jobId: job.id,
+          type: job.type,
+          requiredMiB: record.requiredMiB,
+          freeMiB: record.availableMiB,
+          checks: record.checks,
+        });
+        this.memoryWaits.delete(job.id);
+        this.memoryRetryAt.delete(job.id);
+        return {
+          status: 'failed',
+          stage: 'Gave up waiting for memory.',
+          error: expiredMemoryWaitMessage(record),
+          details: JSON.stringify(details),
+        };
+      }
+    }
+    update.details = JSON.stringify(
+      this.canManageMemory(job, preparation) ? { ...details, autoManaging: true } : details,
+    );
+    return update;
+  }
+  // Adds to the wait record what the queue tried to free memory for this render, so the job shows
+  // it. Returns the details with the updated record (unchanged when no wait is recorded).
+  withRoomAction(job, details, action) {
+    const record = this.memoryWaits.get(job.id);
+    if (!record) {
+      return details;
+    }
+    const memoryWait = {
+      ...record,
+      lastAction: { kind: 'release_idle_engine', at: new Date().toISOString(), ...action },
+    };
+    this.memoryWaits.set(job.id, memoryWait);
+    return { ...details, memoryWait };
+  }
   canManageMemory(job, preparation) {
     return (
       !!this.autoMemory &&
@@ -2032,7 +2153,7 @@ export class JobQueue {
     if (!this.canManageMemory(job, preparation)) {
       return;
     }
-    const details = preparation.details;
+    const details = { ...preparation.details, memoryWait: this.memoryWaits.get(job.id) };
     const isCurrent = () =>
       !this.stopped &&
       !this.active &&
@@ -2056,6 +2177,7 @@ export class JobQueue {
     try {
       result = await this.autoMemory({
         target: engineId(job.type),
+        allowTarget: details.releasableLoadedModel === true,
         upcoming,
         isCurrent,
         reserve: (id) => this.suspend(id, true),
@@ -2065,7 +2187,15 @@ export class JobQueue {
             job.id,
             {
               stage: `Making room: stopping idle ${service.name}.`,
-              details: JSON.stringify({ ...details, autoManaging: true }),
+              details: JSON.stringify({
+                ...this.withRoomAction(job, details, {
+                  outcome: 'stopping',
+                  engineId: service.id,
+                  engineName: service.name,
+                  isRequestedEngine: service.id === engineId(job.type),
+                }),
+                autoManaging: true,
+              }),
             },
             token,
           ),
@@ -2074,7 +2204,19 @@ export class JobQueue {
       log.warn('queue.memory.manage.failed', { jobId: job.id, error });
       result = { status: 'failed', error: error.message };
     }
-    log.info('queue.memory.managed', { jobId: job.id, outcome: result.status });
+    // The audit record of an automatic stop: which engine, whether it was the one this render
+    // needs, and the numbers the decision used.
+    log.info('queue.memory.managed', {
+      jobId: job.id,
+      outcome: result.status,
+      ...(result.service
+        ? {
+            engineId: result.service.id,
+            isRequestedEngine: result.service.id === engineId(job.type),
+          }
+        : {}),
+      ...admissionMemory(details),
+    });
     if (!isCurrent()) {
       return;
     }
@@ -2091,7 +2233,20 @@ export class JobQueue {
         token,
       );
     } else {
-      this.memoryRetryAt.set(job.id, Date.now() + 30000);
+      const retryAt = Date.now() + MEMORY_ROOM_RETRY_MS;
+      this.memoryRetryAt.set(job.id, retryAt);
+      const outcome = {
+        outcome: result.status,
+        engineId: result.service?.id ?? null,
+        engineName: result.service?.name ?? null,
+        ...(result.status === 'failed'
+          ? { error: result.error }
+          : {
+              detail:
+                'No idle engine that Forge started could be stopped without interrupting work.',
+            }),
+        nextAttemptAt: new Date(retryAt).toISOString(),
+      };
       this.updatePending(
         job.id,
         {
@@ -2101,7 +2256,7 @@ export class JobQueue {
               ? `Waiting for GPU memory. ${result.error}`
               : preparation.stage,
           error: null,
-          details: JSON.stringify(details),
+          details: JSON.stringify(this.withRoomAction(job, details, outcome)),
         },
         token,
       );
@@ -2658,23 +2813,9 @@ export class JobQueue {
                   return loadClaimed;
                 },
               });
-              if (preparation) {
-                this.updatePending(
-                  job.id,
-                  {
-                    status: preparation.status,
-                    stage: preparation.stage,
-                    error: preparation.error || null,
-                    details: preparation.details
-                      ? JSON.stringify(
-                          this.canManageMemory(job, preparation)
-                            ? { ...preparation.details, autoManaging: true }
-                            : preparation.details,
-                        )
-                      : null,
-                  },
-                  token,
-                );
+              const update = preparation ? this.preparationUpdate(job, preparation) : null;
+              if (update) {
+                this.updatePending(job.id, update, token);
               }
               if (loadClaimed) {
                 if (preparation?.loadBarrier) {
@@ -2684,7 +2825,7 @@ export class JobQueue {
                   this.resumeAfterModelLoad(engine);
                 }
               }
-              if (!preparation?.loadBarrier) {
+              if (!preparation?.loadBarrier && update?.status !== 'failed') {
                 await this.manageMemory(job, preparation, token);
               }
             } catch (error) {
@@ -2782,25 +2923,14 @@ export class JobQueue {
           try {
             const preparation = await gpuPreparation();
             if (preparation) {
-              this.updatePending(
-                job.id,
-                {
-                  status: preparation.status,
-                  stage: preparation.stage,
-                  error: preparation.error || null,
-                  details: preparation.details
-                    ? JSON.stringify(
-                        this.canManageMemory(job, preparation)
-                          ? { ...preparation.details, autoManaging: true }
-                          : preparation.details,
-                      )
-                    : null,
-                },
-                token,
-              );
-              await this.manageMemory(job, preparation, token);
+              const update = this.preparationUpdate(job, preparation);
+              this.updatePending(job.id, update, token);
+              if (update.status !== 'failed') {
+                await this.manageMemory(job, preparation, token);
+              }
               return;
             }
+            this.memoryWaits.delete(job.id);
             if (
               !this.updatePending(
                 job.id,
